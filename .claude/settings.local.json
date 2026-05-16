@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content *)",
+      "PowerShell(Rename-Item *)",
+      "Bash(git checkout *)",
+      "Bash(python3 *)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)"
+    ]
+  }
+}

@@ -2,7 +2,7 @@
 
 ## Changelog 条目类型
 
-模块 changelog 位于 `<module-dir>/.aimodule/changelogs/`：
+模块 changelog 统一存放于 `memory/changelogs/`，命名规则：`YYYY-MM-DD-<type>-<module-name>-<slug>.md`
 
 - **decision** — 架构决策（为什么这样设计）
 - **incident** — 反复踩坑的问题
@@ -10,12 +10,14 @@
 
 只装模块特有的非代码事实；代码模式 → architecture.md；一次性 bug → commit 历史；跨模块约束 → `.claude/agents/architect.md` 的信念节。
 
+详见 `docs/memory-convention.md`。
+
 ---
 
 ## 一、Changelog 治理
 
 **Step 1 — 扫描 changelog**
-读取 `<module-dir>/.aimodule/changelogs/`，按时间窗梳理：
+读取 `memory/changelogs/`，按 `<module-name>` 过滤出目标模块的条目，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？
@@ -84,7 +86,7 @@
 - `contract.md` — 对外接口签名与使用方声明
 
 同时扫描：
-- `changelogs/` — 未升格的 decision / incident / constraint 积压量
+- `memory/changelogs/`（按模块名过滤）— 未升格的 decision / incident / constraint 积压量
 - `workflows/` — 已有 workflow 覆盖度
 
 **Step 2 — 判断健康状态**

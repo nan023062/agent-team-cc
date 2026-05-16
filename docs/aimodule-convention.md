@@ -21,13 +21,12 @@
         ├── module.json         # 元数据（必填：name、owner）
         ├── architecture.md     # 内部架构设计
         ├── contract.md         # 对外 API / 协议 / 接口
-        ├── changelogs/         # 决策 / 踩坑 / 约束记录
-        │   ├── 2024-01-15-decision-xxx.md
-        │   └── 2024-01-20-incident-yyy.md
         └── workflows/          # 模块内确定性流程
             └── <workflow-name>/
                 └── workflow.md
 ```
+
+> **变更记录不在模块目录内。** 模块的 changelog 统一写入 `memory/changelogs/`，由架构师定期压缩升格回 `.aimodule/`。详见 `docs/memory-convention.md`。
 
 **根模块专属文件**：
 
@@ -66,22 +65,6 @@
 
 ---
 
-## Changelog 条目类型
-
-| 类型 | 说明 | 升格目标 |
-|------|------|---------|
-| `decision` | 架构决策（为什么这样设计）| architecture.md 关键决策节 |
-| `incident` | 反复踩坑的问题 | 视频繁程度升格为 workflow 或 architecture.md 约束 |
-| `constraint` | 模块特有约束 | module.json.constraints 或 architecture.md |
-
-**文件命名**：`YYYY-MM-DD-<type>-<slug>.md`
-
-只装模块特有的非代码事实：
-- 代码模式 → `architecture.md`
-- 一次性 bug → commit 历史
-- 跨模块约束 → `.claude/agents/architect/architect.md` 信念节
-
----
 
 ## index.md 格式（仅根模块）
 

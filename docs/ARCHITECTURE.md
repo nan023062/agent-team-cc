@@ -66,13 +66,16 @@
 │       ├── hr-daily-signal.md
 │       └── hr-weekly-assessment.md
 │
-├── memory/                            ← 跨任务记忆（HR 写入）
-│   └── hr/
-│       └── agent-signals.md
+├── memory/                            ← 统一记忆系统（原始素材，待压缩）
+│   ├── sessions/                      ← agent 执行记录 → HR 压缩 → skill/soul 升格
+│   │   └── YYYY-MM-DD-<agent-id>-<slug>.md
+│   └── changelogs/                    ← 模块变更记录 → 架构师压缩 → .aimodule/ 升格
+│       └── YYYY-MM-DD-<type>-<module>-<slug>.md
 │
 └── docs/
     ├── ARCHITECTURE.md                ← 本文件
-    └── aimodule-convention.md      ← 内容层 .aimodule/ 约定
+    ├── aimodule-convention.md         ← 内容层 .aimodule/ 约定
+    └── memory-convention.md           ← 统一记忆系统约定
 ```
 
 ---
@@ -172,6 +175,19 @@ HR 日常治理通过 slash commands 手动触发：
 | **内容层** | 架构师 | 各项目 `.aimodule/`（模块知识体系） |
 
 **铁律**：能力进 `.claude/agents/`，内容进 `.aimodule/`，混入对方的内容一律不得升格。
+
+---
+
+## 统一记忆系统
+
+`memory/` 是团队的原始素材库，所有未压缩的执行记录与变更记录统一存放：
+
+| 子目录 | 写入方 | 内容 | 压缩执行者 | 升格目标 |
+|--------|--------|------|-----------|---------|
+| `sessions/` | 任意 agent | 任务执行记录、用户反馈、阻塞点 | HR | agent skill / soul |
+| `changelogs/` | 架构师 / 程序员 | 模块决策、踩坑、约束 | 架构师 | `.aimodule/` 知识三件套 / workflows |
+
+**铁律**：`memory/` 只写原始记录；压缩后的结论进 `.aimodule/` 或 `.claude/agents/`，不回写 `memory/`。
 
 ---
 
