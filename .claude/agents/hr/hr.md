@@ -92,9 +92,9 @@ tools: Read, Write, Edit, Glob, Grep
 
 | 场景 | Skill 文件 |
 |------|-----------|
-| 秘书申请新 agent / 裂变结果需要创建子 agent | `skills/hr/recruitment.md` |
-| agent 完成一批任务后 / 考核结论为"需培训" | `skills/hr/training.md` |
-| 任务批次完成后 / 用户指出不足 / 评审官持续打回 | `skills/hr/assessment.md` |
+| 秘书申请新 agent / 裂变结果需要创建子 agent | `.claude/agents/hr/skills/recruitment.md` |
+| agent 完成一批任务后 / 考核结论为"需培训" | `.claude/agents/hr/skills/training.md` |
+| 任务批次完成后 / 用户指出不足 / 评审官持续打回 | `.claude/agents/hr/skills/assessment.md` |
 
 ## 权限范围
 

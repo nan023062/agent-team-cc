@@ -20,12 +20,12 @@ Agent(
    - 同一 agent 同类问题出现几次？
 
 2. 逐一对有信号的 work agent 执行考核（assessment skill）：
-   - 读取 skills/hr/assessment.md
+   - 读取 .claude/agents/hr/skills/assessment.md
    - 判断问题性质（能力缺口 / 定位错误）
    - 输出考核结论（良好 / 需培训 / 需重塑）
 
 3. 按考核结论执行后续：
-   - 良好 → 执行培训 skill 沉淀优秀模式（skills/hr/training.md）
+   - 良好 → 执行培训 skill 沉淀优秀模式（.claude/agents/hr/skills/training.md）
    - 需培训 → 执行培训 skill 填补能力缺口
    - 需重塑 → 输出重塑方案，等待用户确认后执行
 

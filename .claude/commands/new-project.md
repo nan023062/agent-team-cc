@@ -36,7 +36,7 @@ Agent(
 本次任务：为新项目初始化根模块。
 项目路径：$ARGUMENTS[1]
 
-执行 module-crud skill（skills/architect/module-crud.md）中的「新建模块」流程：
+执行 module-crud skill（.claude/agents/architect/skills/module-crud.md）中的「新建模块」流程：
 - 在项目根目录创建 .aiworkspace/（即根模块）
 - 创建 module.json、architecture.md、contract.md 三件套
 - 创建 .aiworkspace/index.md（根模块专属，列出当前模块路径）

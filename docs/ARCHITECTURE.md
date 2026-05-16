@@ -123,26 +123,28 @@ D:\GitRepository\agentic-os-claude\
 ├── .claude/
 │   ├── settings.json                  ← 权限配置
 │   ├── agents/                        ← Claude Code 原生 subagent 定义
-│   │   ├── architect.md
-│   │   ├── hr.md
-│   │   ├── auditor.md
-│   │   └── programmer.md
+│   │   ├── architect/
+│   │   │   ├── architect.md
+│   │   │   └── skills/
+│   │   │       ├── module-crud.md
+│   │   │       ├── arch-compliance.md
+│   │   │       └── knowledge-governance.md
+│   │   ├── hr/
+│   │   │   ├── hr.md
+│   │   │   └── skills/
+│   │   │       ├── recruitment.md
+│   │   │       ├── training.md
+│   │   │       └── assessment.md
+│   │   ├── auditor/
+│   │   │   ├── auditor.md
+│   │   │   └── skills/
+│   │   │       └── audit-review.md
+│   │   └── programmer/
+│   │       └── programmer.md
 │   └── commands/                      ← slash commands
 │       ├── new-project.md
 │       ├── hr-daily-signal.md
 │       └── hr-weekly-assessment.md
-│
-├── skills/                            ← 按需读取的 skill 文件
-│   ├── architect/
-│   │   ├── module-crud.md
-│   │   ├── arch-compliance.md
-│   │   └── knowledge-governance.md
-│   ├── hr/
-│   │   ├── recruitment.md
-│   │   ├── training.md
-│   │   └── assessment.md
-│   └── auditor/
-│       └── audit-review.md
 │
 ├── memory/                            ← 跨任务记忆（HR 写入）
 │   └── hr/
