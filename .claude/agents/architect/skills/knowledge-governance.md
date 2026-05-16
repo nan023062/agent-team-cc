@@ -2,11 +2,12 @@
 
 ## Changelog 条目类型
 
-模块 changelog 统一存放于 `memory/entries/`，命名规则：`YYYY-MM-DD-changelog-<module-name>-<slug>.md`，frontmatter `type=changelog`
+模块相关记录统一存放于 `memory/entries/`，由执行任务的 agent 写入，tags 中标记 `module-<name>` 以便过滤。
 
-- **decision** — 架构决策（为什么这样设计）
-- **incident** — 反复踩坑的问题
-- **constraint** — 模块特有约束
+常见 tag 含义：
+- `decision` — 架构决策（为什么这样设计）
+- `incident` — 踩坑或问题
+- `constraint` — 新发现的约束
 
 只装模块特有的非代码事实；代码模式 → architecture.md；一次性 bug → commit 历史；跨模块约束 → `.claude/agents/architect.md` 的信念节。
 
@@ -14,10 +15,10 @@
 
 ---
 
-## 一、Changelog 治理
+## 一、模块记录治理
 
-**Step 1 — 扫描 changelog**
-运行 scan-memory 脚本，过滤 `type=changelog` + `module=<name>`，按时间窗梳理：
+**Step 1 — 扫描相关 entries**
+运行 scan-memory 脚本，过滤 `tags=module-<name>`，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？
@@ -86,7 +87,7 @@
 - `contract.md` — 对外接口签名与使用方声明
 
 同时扫描：
-- `memory/entries/`（`type=changelog` + `module=<name>`）— 未升格的 decision / incident / constraint 积压量
+- `memory/entries/`（`tags=module-<name>`）— 未升格的 decision / incident / constraint 积压量
 - `workflows/` — 已有 workflow 覆盖度
 
 **Step 2 — 判断健康状态**

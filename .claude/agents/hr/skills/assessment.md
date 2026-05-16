@@ -13,7 +13,7 @@
 **Step 1 — 收集信号**
 
 按触发来源读取材料：
-- **任务完成情况** — 运行 scan-memory 脚本，过滤 `type=session` + `agent=<id>`；梳理：完成了什么、哪里卡住、同类错误出现几次
+- **任务完成情况** — 运行 scan-memory 脚本，过滤 `agent=<id>`；梳理：完成了什么、哪里卡住、同类错误出现几次
 - **用户反馈** — 记录用户的原话，作为最高优先级输入
 - **评审官打回记录** — 读取 auditor 针对该 agent 的历史审查报告（若有），统计被标记的问题类型
 
@@ -91,5 +91,5 @@
 **Step R4 — 写入并通知**
 
 - 更新 `.claude/agents/<id>.md`
-- 在 `memory/entries/` 新增重塑记录：`YYYY-MM-DD-session-<id>-reshape.md`（frontmatter `type=session, agent=<id>, tags=[reshape]`），记录日期、根因、变更摘要
+- 在 `memory/entries/` 新增重塑记录：`YYYY-MM-DD-<id>-reshape.md`（frontmatter `agent=<id>, tags=[reshape]`），记录日期、根因、变更摘要
 - 通知秘书：重塑完成，下次 spawn 起生效

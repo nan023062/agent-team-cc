@@ -180,12 +180,16 @@ HR 日常治理通过 slash commands 手动触发：
 
 `memory/` 是团队的原始素材库，所有未压缩的执行记录与变更记录统一存放：
 
-所有 entry 平铺于 `memory/entries/`，通过 frontmatter 的 `type` 字段区分维度：
+所有 entry 均为 agent session 记录，平铺于 `memory/entries/`，命名：`YYYY-MM-DD-<agent-id>-<slug>.md`。
 
-| type | 写入方 | 内容 | 压缩执行者 | 升格目标 |
-|------|--------|------|-----------|---------|
-| `session` | 任意 agent | 任务执行记录、用户反馈、阻塞点 | HR | agent skill / soul |
-| `changelog` | 架构师 / 程序员 | 模块决策、踩坑、约束 | 架构师 | `.aimodule/` 知识三件套 / workflows |
+内容自由描述：模块改动、架构决策、踩坑经验、阻塞记录等，用 tags 标记关键词。
+
+两条压缩管线共用同一份原始记录：
+
+| 压缩执行者 | 过滤条件 | 升格目标 |
+|-----------|---------|---------|
+| HR | `agent=<id>` | agent skill / soul |
+| 架构师 | `tags` 含 `module-<name>` | `.aimodule/` 知识三件套 / workflows |
 
 每条 entry 独立命名，多人团队并行写入无冲突。
 

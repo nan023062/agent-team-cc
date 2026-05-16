@@ -4,8 +4,8 @@
 
 ## 使用时机
 
-- 知识治理前：获取某模块所有未升格的 changelog entries
-- 模块健康考核：查看 changelog 积压量
+- 知识治理前：获取涉及某模块的所有 entries（过滤 tags 含 `module-<name>`）
+- 模块健康考核：查看相关 session 积压量
 - 任意需要从记忆中查找特定条目的场景
 
 ## 执行脚本
@@ -16,7 +16,7 @@ import os, re, sys
 entries_dir = "memory/entries"
 filters = {}
 
-# 命令行参数：key=value，如 type=changelog module=combat
+# 命令行参数：key=value，如 agent=programmer tags=module-combat
 for arg in sys.argv[1:]:
     if '=' in arg:
         k, _, v = arg.partition('=')
@@ -32,7 +32,6 @@ def parse_frontmatter(text):
             k, _, v = line.partition(':')
             key = k.strip()
             val = v.strip()
-            # 简单列表解析：[a, b, c]
             if val.startswith('[') and val.endswith(']'):
                 val = [x.strip().strip('"\'') for x in val[1:-1].split(',') if x.strip()]
             result[key] = val
@@ -51,7 +50,6 @@ for fname in sorted(os.listdir(entries_dir)):
         with open(fpath, encoding='utf-8') as f:
             text = f.read()
         fm = parse_frontmatter(text)
-        # 应用过滤条件
         match = True
         for k, v in filters.items():
             fval = fm.get(k, '')
@@ -73,30 +71,28 @@ for fname, fm in results:
     tags = fm.get('tags', [])
     tag_str = ', '.join(tags) if isinstance(tags, list) else tags
     print(f"[{fm.get('date', '?')}] {fname}")
-    print(f"  type={fm.get('type','?')}  agent={fm.get('agent','-')}  module={fm.get('module','-')}")
-    if tag_str:
-        print(f"  tags: {tag_str}")
+    print(f"  agent={fm.get('agent', '-')}  tags={tag_str or '-'}")
     print()
 ```
 
 **调用示例：**
 
 ```bash
-# 查所有 changelog（架构师用）
-python3 /tmp/scan_memory.py type=changelog
+# 查某 agent 的所有记录（HR 压缩用）
+python3 /tmp/scan_memory.py agent=programmer
 
-# 查某模块的所有 changelog
-python3 /tmp/scan_memory.py type=changelog module=combat
+# 查涉及某模块的所有记录（架构师压缩用）
+python3 /tmp/scan_memory.py tags=module-combat
 
-# 查某 agent 的所有 session（HR 用）
-python3 /tmp/scan_memory.py type=session agent=programmer
+# 查某 agent 涉及某模块的记录
+python3 /tmp/scan_memory.py agent=programmer tags=module-combat
 
-# 查带特定 tag 的 entry
-python3 /tmp/scan_memory.py type=changelog tags=decision
+# 查所有含 decision 标记的记录
+python3 /tmp/scan_memory.py tags=decision
 ```
 
-## 输出解读
+## 注意事项
 
-- 输出只含 frontmatter 摘要，不读正文，开销极低
+- 脚本只读 frontmatter，不读正文，开销极低
 - 拿到文件名列表后，按需 Read 具体 entry 正文
-- 结果用于判断积压量、触发升格流程，不直接修改任何文件
+- tags 过滤为精确匹配单个 tag，多条件为 AND 关系
