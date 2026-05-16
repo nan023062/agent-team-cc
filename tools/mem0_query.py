@@ -1,5 +1,5 @@
 """
-mem0_query.py — 从 mem0 查询相关记忆
+mem0_query.py — 从 mem0 Cloud 查询相关记忆
 
 用法：
     # 查询某 agent 的相关记忆（HR 压缩用）
@@ -12,8 +12,7 @@ mem0_query.py — 从 mem0 查询相关记忆
     python3 tools/mem0_query.py --query "A* 算法" --top-k 10
 
 环境变量：
-    MEM0_API_KEY      mem0 Cloud API key（Cloud 模式）
-    ANTHROPIC_API_KEY Anthropic key（OSS 模式）
+    MEM0_API_KEY      mem0 Cloud API key（必填，在 app.mem0.ai 注册获取）
 """
 
 import argparse
@@ -24,42 +23,15 @@ import sys
 
 def get_client():
     api_key = os.environ.get("MEM0_API_KEY")
-    if api_key:
-        from mem0 import MemoryClient
-        return MemoryClient(api_key=api_key), "cloud"
-
-    from mem0 import Memory
-    config = {
-        "llm": {
-            "provider": "anthropic",
-            "config": {
-                "model": "claude-haiku-4-5-20251001",
-                "temperature": 0.1,
-                "max_tokens": 2000,
-            }
-        },
-        "embedder": {
-            "provider": "huggingface",
-            "config": {
-                "model": "multi-qa-MiniLM-L6-cos-v1",
-                "embedding_dims": 384
-            }
-        },
-        "vector_store": {
-            "provider": "qdrant",
-            "config": {
-                "collection_name": "mem0",
-                "embedding_model_dims": 384,
-                "path": "/tmp/qdrant"
-            }
-        },
-        "custom_instructions": "Keep the original language of the input. Do not translate to English."
-    }
-    return Memory.from_config(config), "oss"
+    if not api_key:
+        print("[mem0] 缺少 MEM0_API_KEY，请在 app.mem0.ai 注册后设置环境变量", file=sys.stderr)
+        sys.exit(1)
+    from mem0 import MemoryClient
+    return MemoryClient(api_key=api_key)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="从 mem0 查询相关记忆")
+    parser = argparse.ArgumentParser(description="从 mem0 Cloud 查询相关记忆")
     parser.add_argument("--query",  required=True, help="查询语句")
     parser.add_argument("--agent",  default=None,  help="过滤 agent id，如 programmer")
     parser.add_argument("--module", default=None,  help="过滤模块名，如 combat")
@@ -68,12 +40,14 @@ def main():
     args = parser.parse_args()
 
     try:
-        client, mode = get_client()
+        client = get_client()
+    except SystemExit:
+        raise
     except Exception as e:
         print(f"[mem0] 初始化失败: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # 构建过滤条件
+    # agent-id 映射到 user_id（绕过 mem0 v2 agent_id 过滤 bug）
     filters = {}
     if args.agent:
         filters["user_id"] = f"agent-{args.agent}"
@@ -82,23 +56,14 @@ def main():
         search_kwargs = {"query": args.query, "top_k": args.top_k}
         if filters:
             search_kwargs["filters"] = filters
-        # OSS 模式降低 threshold，避免跨语言相似度偏低被误过滤
-        if mode == "oss":
-            search_kwargs["threshold"] = 0.0
         results = client.search(**search_kwargs)
     except Exception as e:
         print(f"[mem0] 查询失败: {e}", file=sys.stderr)
         sys.exit(1)
-    finally:
-        if mode == "oss":
-            try:
-                client.vector_store.client.close()
-            except Exception:
-                pass
 
     memories = results.get("results", results) if isinstance(results, dict) else results
 
-    # 模块过滤（mem0 metadata 过滤不稳定，在客户端二次过滤）
+    # 模块过滤（client-side，metadata server filter 不稳定）
     if args.module:
         memories = [
             m for m in memories
@@ -109,7 +74,7 @@ def main():
         print(json.dumps(memories, ensure_ascii=False, indent=2))
         return
 
-    print(f"[mem0/{mode}] 查询：{args.query!r}，命中 {len(memories)} 条\n")
+    print(f"[mem0/cloud] 查询：{args.query!r}，命中 {len(memories)} 条\n")
     for i, m in enumerate(memories, 1):
         meta = m.get("metadata") or {}
         modules = meta.get("modules", [])
