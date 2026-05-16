@@ -10,7 +10,7 @@
 
 **Step 0 — 匹配检查（优先，仅秘书申请时）**
 
-收到需求后，读取 `.claude/agents/` 目录，排除核心 4 个（`architect.md`、`hr.md`、`auditor.md` 及秘书），逐一读取各 work agent 的 `.md` 文件确认职责：
+收到需求后，读取 `.claude/agents/` 目录，排除核心 4 个（`architect/`、`hr/`、`auditor/` 及秘书），逐一读取各 work agent 的 `<id>/<id>.md` 文件确认职责：
 - **有匹配** → 直接返回 agent 文件路径给秘书，流程结束，不创建新 agent
 - **无匹配** → 进入招聘流程
 
@@ -25,7 +25,16 @@
 
 **Step 2 — 起草 agent 文件**
 
-Claude Code 版 agent 文件格式（`.claude/agents/<id>.md`）：
+Claude Code 版 agent 目录结构（`.claude/agents/<id>/`）：
+
+```
+.claude/agents/<id>/
+├── <id>.md          ← agent 定义文件（含 YAML frontmatter）
+└── skills/          ← 该 agent 的 skill 文件（按需创建）
+    └── <skill>.md
+```
+
+agent 定义文件格式（`.claude/agents/<id>/<id>.md`）：
 
 ```markdown
 ---
@@ -69,7 +78,9 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 **Step 5 — 完成创建**
 
-- 在 `.claude/agents/<id>.md` 创建 agent 定义文件
+- 创建 `.claude/agents/<id>/` 目录
+- 在 `.claude/agents/<id>/<id>.md` 写入 agent 定义文件
+- 创建 `.claude/agents/<id>/skills/` 目录（备用，初始为空）
 - 通知秘书：新 agent 已就绪，可以派发任务
 
 ---
@@ -91,6 +102,6 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 **Step 3 — 执行归档**
 
-- 删除或重命名 `.claude/agents/<id>.md`（加 `.archived` 后缀保留历史）
+- 删除或重命名 `.claude/agents/<id>/` 目录（加 `.archived` 后缀保留历史）
 - 若有 `memory/<id>/` 目录，一并归档或删除
 - 通知秘书：agent 已归档

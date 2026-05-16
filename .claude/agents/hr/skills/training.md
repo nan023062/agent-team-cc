@@ -14,12 +14,12 @@
   ↓ HR 提炼
 Memory（记住什么：教训、模式、决策；由 HR 写入 memory/<id>/）
   ↓ 反复出现（≥2次）
-Skill（怎么做这类事：在 .claude/agents/<id>.md 的 Skills 节或 skills/ 目录中新增）
+Skill（怎么做这类事：写入 .claude/agents/<id>/skills/<name>.md，并在 <id>.md 的 Skills 节添加引用）
   ↓ 内化为稳定准则（多次验证）
-Soul / Identity（我是谁：永久写入 .claude/agents/<id>.md）
+Soul / Identity（我是谁：永久写入 .claude/agents/<id>/<id>.md）
 ```
 
-> agent 以 subagent 模式运行，每次 spawn 加载静态文件（.claude/agents/<id>.md + skills/），执行完毕后散。经验不自动积累——HR 是唯一负责将记录提炼写回 memory 文件的角色。
+> agent 以 subagent 模式运行，每次 spawn 加载静态文件（.claude/agents/<id>/<id>.md + skills/），执行完毕后散。经验不自动积累——HR 是唯一负责将记录提炼写回 memory 文件的角色。
 
 ## 步骤
 
@@ -63,7 +63,7 @@ Soul / Identity（我是谁：永久写入 .claude/agents/<id>.md）
 对每个候选：
 
 1. **内部已有** → 更新现有 skill，不重复创建
-2. **缺口明确** → 起草新 skill 文件，提交用户确认后写入 `skills/<agent-id>/` 目录，并在 `.claude/agents/<id>.md` 的 Skills 节中添加触发条件和文件路径引用
+2. **缺口明确** → 起草新 skill 文件，提交用户确认后写入 `.claude/agents/<id>/skills/<name>.md`，并在 `.claude/agents/<id>/<id>.md` 的 Skills 节中添加触发条件和文件路径引用
 
 候选通过可移植性检查方可升格：把这段内容放到另一个完全不同的项目里，它还有意义吗？
 
