@@ -45,7 +45,6 @@
 │   │   │   ├── architect.md
 │   │   │   └── skills/
 │   │   │       ├── scan-modules.md        ← Python 扫描所有 .aimodule/
-│   │   │       ├── scan-memory.md         ← Python 扫描 memory/entries/
 │   │   │       ├── chroma-ops.md          ← ChromaDB 查询/写入（模块维度）
 │   │   │       ├── module-crud.md
 │   │   │       ├── arch-compliance.md
@@ -54,7 +53,6 @@
 │   │   │   ├── hr.md
 │   │   │   └── skills/
 │   │   │       ├── scan-agents.md         ← Python 扫描所有 agent
-│   │   │       ├── scan-memory.md         ← Python 扫描 memory/entries/
 │   │   │       ├── chroma-ops.md          ← ChromaDB 查询/写入（agent 维度）
 │   │   │       ├── recruitment.md
 │   │   │       ├── training.md
@@ -69,10 +67,6 @@
 │       ├── new-project.md
 │       ├── hr-daily-signal.md
 │       └── hr-weekly-assessment.md
-│
-├── memory/                            ← 统一记忆系统（原始素材，待压缩）
-│   └── entries/                       ← 所有 entry 平铺，frontmatter 区分维度
-│       └── YYYY-MM-DD-<agent-id>-<slug>.md
 │
 ├── tools/                             ← 工具脚本
 │   ├── chroma_write.py                ← 写入 ChromaDB（原文 + 向量）
