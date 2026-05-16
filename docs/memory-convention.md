@@ -54,21 +54,19 @@ tags: [module-combat, decision, refactor, blocked]
 
 ---
 
-## 存储架构（双写）
+## 存储架构
 
-每条 entry 写入两处，互补而非冗余：
+所有 entry 统一存入 ChromaDB（同时存原文 + 向量），无本地文件双写。
 
-| 层 | 路径 | 用途 |
-|----|------|------|
-| **本地文件** | `memory/entries/` | git 审计、历史溯源、离线可读 |
-| **mem0** | Cloud / OSS | 语义检索、高命中率、支持 50 人团队海量 entry |
+| 阶段 | 存储 | 切换方式 |
+|------|------|---------|
+| 本地测试 | `./chroma_db`（单文件夹） | 不设环境变量 |
+| 团队服务器 | ChromaDB HTTP Server | 设置 `CHROMA_HOST` |
 
-本地文件是「源头事实」，mem0 是「检索加速器」。两者内容相同，本地优先于 mem0。
-
-**写入命令**（tools/mem0_write.py 封装双写）：
+**写入命令：**
 
 ```bash
-python3 tools/mem0_write.py \
+python3 tools/chroma_write.py \
     --agent <agent-id> \
     --slug <简短描述> \
     --content "<session 内容>" \
@@ -76,17 +74,21 @@ python3 tools/mem0_write.py \
     --tags <标记，空格分隔>
 ```
 
-**查询命令**（mem0 语义检索）：
+**查询命令（返回原文，无需二次加载）：**
 
 ```bash
 # 按 agent 查询（HR 用）
-python3 tools/mem0_query.py --agent programmer --query "架构决策" --top-k 10
+python3 tools/chroma_query.py --agent programmer --query "架构决策" --top-k 10
 
 # 按模块查询（架构师用）
-python3 tools/mem0_query.py --module combat --query "踩坑 incident" --top-k 5
+python3 tools/chroma_query.py --module combat --query "踩坑 incident" --top-k 5
 ```
 
-环境变量配置见 `.env.example`。
+**启动本地服务器（团队共享时）：**
+
+```bash
+chroma run --path ./chroma_db --port 8000
+```
 
 ---
 

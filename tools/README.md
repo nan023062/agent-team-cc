@@ -1,15 +1,35 @@
 # tools/
 
-mem0 记忆系统工具脚本。环境变量 `MEM0_API_KEY` 必填（在 app.mem0.ai 注册获取）。
+记忆系统工具脚本，基于 ChromaDB。无需 API key，本地开箱即用，后续可切换到自建服务器。
 
 ---
 
-## mem0_write.py — 写入记忆
+## 本地 vs 服务器模式
 
-agent 完成任务后写入 session 记录，双写到本地文件 + mem0 Cloud。
+| 模式 | 配置 | 适用场景 |
+|------|------|---------|
+| 本地（默认） | 不设环境变量 | 单机测试、MVP 阶段 |
+| 服务器 | 设置 `CHROMA_HOST` | 团队共享记忆 |
+
+**启动本地 ChromaDB 服务器：**
+```bash
+chroma run --path ./chroma_db --port 8000
+```
+
+**切换到服务器模式：**
+```bash
+export CHROMA_HOST=192.168.1.100   # 服务器 IP
+export CHROMA_PORT=8000            # 默认 8000
+```
+
+---
+
+## chroma_write.py — 写入记忆
+
+agent 完成任务后写入 session 记录。
 
 ```bash
-python3 tools/mem0_write.py \
+python3 tools/chroma_write.py \
     --agent <agent-id> \
     --slug  <简短描述> \
     --content "<session 内容>" \
@@ -18,9 +38,8 @@ python3 tools/mem0_write.py \
 ```
 
 **示例：**
-
 ```bash
-python3 tools/mem0_write.py \
+python3 tools/chroma_write.py \
     --agent programmer \
     --slug fix-auth-token-expiry \
     --content "JWT token 过期时间单位错误（秒 vs 毫秒），已修复并补测试。" \
@@ -30,40 +49,28 @@ python3 tools/mem0_write.py \
 
 ---
 
-## mem0_query.py — 查询记忆
+## chroma_query.py — 查询记忆
 
-语义检索 mem0 Cloud，返回相关 entry 的文件名和摘要。拿到文件名后按需读取 `memory/entries/` 原文。
+语义检索，直接返回原文，无需二次加载文件。
 
 ```bash
 # 按 agent 查（HR 用）
-python3 tools/mem0_query.py --agent programmer --query "踩坑 问题" --top-k 10
+python3 tools/chroma_query.py --agent programmer --query "踩坑 问题" --top-k 10
 
 # 按模块查（架构师用）
-python3 tools/mem0_query.py --module combat --query "架构决策" --top-k 5
+python3 tools/chroma_query.py --module combat --query "架构决策" --top-k 5
 
 # 输出 JSON 供程序处理
-python3 tools/mem0_query.py --agent programmer --query "缓存策略" --json
+python3 tools/chroma_query.py --agent programmer --query "缓存策略" --json
 ```
 
 ---
 
-## mem0_reimport.py — 重建 Cloud 索引
+## 查看明文
 
-从本地 `memory/entries/` 全量重建 mem0 Cloud 数据。本地文件是源头，Cloud 可随时重建。
+ChromaDB 查询直接返回原文，无需额外操作。也可以通过服务器 REST API 拉取：
 
 ```bash
-# 预览，不实际写入
-python3 tools/mem0_reimport.py --dry-run
-
-# 全量重建
-python3 tools/mem0_reimport.py
-
-# 只重建某个 agent 的记录
-python3 tools/mem0_reimport.py --agent programmer
+# 拉取所有 entries（REST API）
+curl http://localhost:8000/api/v2/tenants/default_tenant/databases/default_database/collections/memories/get
 ```
-
-**需要重建的场景：**
-- 换了 `MEM0_API_KEY`（新 key 对应空库）
-- mem0 Cloud 数据意外丢失
-- 团队新成员想同步历史记忆到自己的 Cloud 账号
-- 本地 entries 比 Cloud 多（离线期间写了很多条）
