@@ -67,10 +67,8 @@
 │       └── hr-weekly-assessment.md
 │
 ├── memory/                            ← 统一记忆系统（原始素材，待压缩）
-│   ├── sessions/                      ← agent 执行记录 → HR 压缩 → skill/soul 升格
-│   │   └── YYYY-MM-DD-<agent-id>-<slug>.md
-│   └── changelogs/                    ← 模块变更记录 → 架构师压缩 → .aimodule/ 升格
-│       └── YYYY-MM-DD-<type>-<module>-<slug>.md
+│   └── entries/                       ← 所有 entry 平铺，frontmatter 区分维度
+│       └── YYYY-MM-DD-<type>-<agent-or-module>-<slug>.md
 │
 └── docs/
     ├── ARCHITECTURE.md                ← 本文件
@@ -182,12 +180,16 @@ HR 日常治理通过 slash commands 手动触发：
 
 `memory/` 是团队的原始素材库，所有未压缩的执行记录与变更记录统一存放：
 
-| 子目录 | 写入方 | 内容 | 压缩执行者 | 升格目标 |
-|--------|--------|------|-----------|---------|
-| `sessions/` | 任意 agent | 任务执行记录、用户反馈、阻塞点 | HR | agent skill / soul |
-| `changelogs/` | 架构师 / 程序员 | 模块决策、踩坑、约束 | 架构师 | `.aimodule/` 知识三件套 / workflows |
+所有 entry 平铺于 `memory/entries/`，通过 frontmatter 的 `type` 字段区分维度：
 
-**铁律**：`memory/` 只写原始记录；压缩后的结论进 `.aimodule/` 或 `.claude/agents/`，不回写 `memory/`。
+| type | 写入方 | 内容 | 压缩执行者 | 升格目标 |
+|------|--------|------|-----------|---------|
+| `session` | 任意 agent | 任务执行记录、用户反馈、阻塞点 | HR | agent skill / soul |
+| `changelog` | 架构师 / 程序员 | 模块决策、踩坑、约束 | 架构师 | `.aimodule/` 知识三件套 / workflows |
+
+每条 entry 独立命名，多人团队并行写入无冲突。
+
+**铁律**：`memory/entries/` 只写原始记录；压缩后的结论进 `.aimodule/` 或 `.claude/agents/`，不回写 `memory/`。
 
 ---
 
