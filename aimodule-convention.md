@@ -26,7 +26,7 @@
                 └── workflow.md
 ```
 
-> **变更记录不在模块目录内。** 模块的 changelog 统一写入 `memory/changelogs/`，由架构师定期压缩升格回 `.aimodule/`。详见 `docs/memory-convention.md`。
+> **变更记录不在模块目录内。** 模块的 changelog 统一写入 `memory/changelogs/`，由架构师定期压缩升格回 `.aimodule/`。详见 `.claude/agents/architect/skills/memory-convention.md`。
 
 **根模块专属文件**：
 

@@ -1,2 +1,4 @@
 chroma_db/
 memory/entries/
+.env
+.venv/

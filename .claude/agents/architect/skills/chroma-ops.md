@@ -11,16 +11,16 @@
 
 ```bash
 # 查询某模块相关记忆（语义检索）
-python3 tools/chroma_query.py --module <module-name> --query "<查询意图>" --top-k 10
+.venv/bin/python tools/chroma_query.py --module <module-name> --query "<查询意图>" --top-k 10
 
 # 示例：查询 combat 模块的架构决策
-python3 tools/chroma_query.py --module combat --query "架构决策 设计原因" --top-k 10
+.venv/bin/python tools/chroma_query.py --module combat --query "架构决策 设计原因" --top-k 10
 
 # 示例：查询 combat 模块的踩坑记录
-python3 tools/chroma_query.py --module combat --query "踩坑 问题 incident" --top-k 5
+.venv/bin/python tools/chroma_query.py --module combat --query "踩坑 问题 incident" --top-k 5
 
 # 输出 JSON 供程序处理
-python3 tools/chroma_query.py --module combat --query "模块约束" --json
+.venv/bin/python tools/chroma_query.py --module combat --query "模块约束" --json
 ```
 
 ## 写入记忆
@@ -28,7 +28,7 @@ python3 tools/chroma_query.py --module combat --query "模块约束" --json
 架构师完成任务后写入 session 记忆：
 
 ```bash
-python3 tools/chroma_write.py \
+.venv/bin/python tools/chroma_write.py \
     --agent architect \
     --slug <简短描述，如 combat-split-decision> \
     --content "<本次 session 的关键事实：做了什么、决策了什么、遇到什么问题>" \

@@ -48,7 +48,8 @@
 │   │   │       ├── chroma-ops.md          ← ChromaDB 查询/写入（模块维度）
 │   │   │       ├── module-crud.md
 │   │   │       ├── arch-compliance.md
-│   │   │       └── knowledge-governance.md
+│   │   │       ├── knowledge-governance.md
+│   │   │       └── memory-convention.md   ← 统一记忆系统约定
 │   │   ├── hr/
 │   │   │   ├── hr.md
 │   │   │   └── skills/
@@ -72,10 +73,8 @@
 │   ├── chroma_query.py                ← ChromaDB 语义检索（返回原文）
 │   └── requirements.txt
 │
-└── docs/
-    ├── ARCHITECTURE.md                ← 本文件
-    ├── aimodule-convention.md         ← 内容层 .aimodule/ 约定
-    └── memory-convention.md           ← 统一记忆系统约定
+├── ARCHITECTURE.md                    ← 本文件
+└── aimodule-convention.md             ← 内容层 .aimodule/ 约定
 ```
 
 ---

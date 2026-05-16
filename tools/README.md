@@ -4,6 +4,20 @@
 
 ---
 
+## 安装与调用
+
+依赖（`chromadb`）安装在项目根的 `.venv` 中，所有命令通过 `.venv/bin/python` 调用，与 agent skill 内的写法保持一致。
+
+```bash
+# 首次安装（在项目根目录）
+python3 -m venv .venv
+.venv/bin/pip install -r tools/requirements.txt
+```
+
+如果在子目录调用，请将 `.venv/bin/python` 改为绝对路径。
+
+---
+
 ## 本地 vs 服务器模式
 
 | 模式 | 配置 | 适用场景 |
@@ -29,7 +43,7 @@ export CHROMA_PORT=8000            # 默认 8000
 agent 完成任务后写入 session 记录。
 
 ```bash
-python3 tools/chroma_write.py \
+.venv/bin/python tools/chroma_write.py \
     --agent <agent-id> \
     --slug  <简短描述> \
     --content "<session 内容>" \
@@ -39,7 +53,7 @@ python3 tools/chroma_write.py \
 
 **示例：**
 ```bash
-python3 tools/chroma_write.py \
+.venv/bin/python tools/chroma_write.py \
     --agent programmer \
     --slug fix-auth-token-expiry \
     --content "JWT token 过期时间单位错误（秒 vs 毫秒），已修复并补测试。" \
@@ -55,13 +69,13 @@ python3 tools/chroma_write.py \
 
 ```bash
 # 按 agent 查（HR 用）
-python3 tools/chroma_query.py --agent programmer --query "踩坑 问题" --top-k 10
+.venv/bin/python tools/chroma_query.py --agent programmer --query "踩坑 问题" --top-k 10
 
 # 按模块查（架构师用）
-python3 tools/chroma_query.py --module combat --query "架构决策" --top-k 5
+.venv/bin/python tools/chroma_query.py --module combat --query "架构决策" --top-k 5
 
 # 输出 JSON 供程序处理
-python3 tools/chroma_query.py --agent programmer --query "缓存策略" --json
+.venv/bin/python tools/chroma_query.py --agent programmer --query "缓存策略" --json
 ```
 
 ---

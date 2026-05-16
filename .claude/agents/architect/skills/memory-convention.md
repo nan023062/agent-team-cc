@@ -66,7 +66,7 @@ tags: [module-combat, decision, refactor, blocked]
 **写入命令：**
 
 ```bash
-python3 tools/chroma_write.py \
+.venv/bin/python tools/chroma_write.py \
     --agent <agent-id> \
     --slug <简短描述> \
     --content "<session 内容>" \
@@ -78,10 +78,10 @@ python3 tools/chroma_write.py \
 
 ```bash
 # 按 agent 查询（HR 用）
-python3 tools/chroma_query.py --agent programmer --query "架构决策" --top-k 10
+.venv/bin/python tools/chroma_query.py --agent programmer --query "架构决策" --top-k 10
 
 # 按模块查询（架构师用）
-python3 tools/chroma_query.py --module combat --query "踩坑 incident" --top-k 5
+.venv/bin/python tools/chroma_query.py --module combat --query "踩坑 incident" --top-k 5
 ```
 
 **启动本地服务器（团队共享时）：**

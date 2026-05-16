@@ -11,16 +11,16 @@
 
 ```bash
 # 查询某 agent 相关记忆（语义检索）
-python3 tools/chroma_query.py --agent <agent-id> --query "<查询意图>" --top-k 10
+.venv/bin/python tools/chroma_query.py --agent <agent-id> --query "<查询意图>" --top-k 10
 
 # 示例：查询 programmer 的决策记录
-python3 tools/chroma_query.py --agent programmer --query "架构决策 设计原因" --top-k 10
+.venv/bin/python tools/chroma_query.py --agent programmer --query "架构决策 设计原因" --top-k 10
 
 # 示例：查询 programmer 的踩坑记录
-python3 tools/chroma_query.py --agent programmer --query "踩坑 问题 incident" --top-k 5
+.venv/bin/python tools/chroma_query.py --agent programmer --query "踩坑 问题 incident" --top-k 5
 
 # 输出 JSON 供程序处理
-python3 tools/chroma_query.py --agent programmer --query "寻路实现" --json
+.venv/bin/python tools/chroma_query.py --agent programmer --query "寻路实现" --json
 ```
 
 ## 写入记忆
@@ -28,7 +28,7 @@ python3 tools/chroma_query.py --agent programmer --query "寻路实现" --json
 HR 完成任务后写入 session 记忆：
 
 ```bash
-python3 tools/chroma_write.py \
+.venv/bin/python tools/chroma_write.py \
     --agent hr \
     --slug <简短描述，如 programmer-assessment-2026-05> \
     --content "<本次 session 的关键事实：考核了谁、发现什么、做了什么决策>" \

@@ -11,14 +11,14 @@
 
 只装模块特有的非代码事实；代码模式 → architecture.md；一次性 bug → commit 历史；跨模块约束 → `.claude/agents/architect.md` 的信念节。
 
-详见 `docs/memory-convention.md`。
+详见 `.claude/agents/architect/skills/memory-convention.md`(同目录)。
 
 ---
 
 ## 一、模块记录治理
 
 **Step 1 — 查询相关 entries**
-运行 `python3 tools/chroma_query.py --module <name> --query "决策 踩坑 约束" --top-k 20`，按时间窗梳理：
+运行 `.venv/bin/python tools/chroma_query.py --module <name> --query "决策 踩坑 约束" --top-k 20`，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？
