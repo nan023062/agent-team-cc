@@ -37,9 +37,9 @@ Agent(
 项目路径：$ARGUMENTS[1]
 
 执行 module-crud skill（.claude/agents/architect/skills/module-crud.md）中的「新建模块」流程：
-- 在项目根目录创建 .aiworkspace/（即根模块）
+- 在项目根目录创建 .aimodule/（即根模块）
 - 创建 module.json、architecture.md、contract.md 三件套
-- 创建 .aiworkspace/index.md（根模块专属，列出当前模块路径）
+- 创建 .aimodule/index.md（根模块专属，列出当前模块路径）
 - 创建 changelogs/ 和 workflows/ 目录
 
 module.json 的 name 填写 "$ARGUMENTS[0]"，owner 填写 "architect"。

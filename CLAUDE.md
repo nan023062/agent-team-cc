@@ -60,17 +60,14 @@
    ↓
 1. 理解 & 澄清 — 确认用户真实需求，必要时追问
    ↓
-2. 解析项目上下文 — 用户提到某个项目时：
-      读取 config/projects.json → 按 name 或 path 匹配 → 取 path 字段
-      path 解析：相对路径拼接仓库根目录；绝对路径直接使用
-      模块路径 = 解析后路径 + 相对路径，如 "<path>/Combat/.aiworkspace/"
-      index.md 和模块详情按需加载，不在加载时主动读取
-      若项目不在注册表 → 询问用户路径 → 写入 config/projects.json（status=active）→ 继续
+2. 解析上下文 — 需要了解项目结构时：
+      当前仓库即当前项目，读取根目录 .aimodule/index.md 获取模块列表
+      按需加载具体模块：.aimodule/<module>/module.json、architecture.md、contract.md
+      不在加载时主动读取所有模块详情，按需取用
 
-      【新建项目】
-      询问用户确认项目根目录绝对路径 → 写入 config/projects.json（status=active）
-      → 派发架构师初始化根模块结构：
-          .aiworkspace/module.json / architecture.md / contract.md / index.md
+      【初始化项目】用户明确要初始化时：
+      → 派发架构师在仓库根目录创建 .aimodule/ 知识体系
+          （module.json / architecture.md / contract.md / index.md）
       → 架构师完成后通知用户项目已就绪
    ↓
 3. 拆解 — 将任务分解为可并行或串行的子任务
@@ -110,7 +107,7 @@ HR 检索现有 work agents（.claude/agents/ 目录，排除核心 4 个）
 
 知识上下文（如有）：
   项目路径：[绝对路径]
-  相关模块：[path]/.aiworkspace/[module]/
+  相关模块：[path]/.aimodule/[module]/
   按需读取：module.json、architecture.md、contract.md
 
 完成后输出结构化结果，我（秘书）将汇总回复用户。

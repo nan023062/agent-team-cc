@@ -30,13 +30,13 @@ python skills/architect/scripts/arch-compliance.py
 **文件完整性校验：**
 - 每个模块目录存在 `architecture.md` 和 `contract.md`
 - 根模块存在 `index.md`
-- `index.md` 中的每条路径对应的目录确实存在且含 `.aiworkspace/`
+- `index.md` 中的每条路径对应的目录确实存在且含 `.aimodule/`
 
 **名称唯一性校验：**
 - 所有模块的 `name` 字段全树唯一，无重复
 
 **index.md 完整性校验：**
-- 递归扫描项目目录，找出所有含 `.aiworkspace/` 的目录
+- 递归扫描项目目录，找出所有含 `.aimodule/` 的目录
 - 与 `index.md` 路径列表对比：有无遗漏、有无多余
 
 **includeDirs 物理重叠校验：**

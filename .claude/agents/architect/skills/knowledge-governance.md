@@ -2,7 +2,7 @@
 
 ## Changelog 条目类型
 
-模块 changelog 位于 `<module-dir>/.aiworkspace/changelogs/`：
+模块 changelog 位于 `<module-dir>/.aimodule/changelogs/`：
 
 - **decision** — 架构决策（为什么这样设计）
 - **incident** — 反复踩坑的问题
@@ -15,7 +15,7 @@
 ## 一、Changelog 治理
 
 **Step 1 — 扫描 changelog**
-读取 `<module-dir>/.aiworkspace/changelogs/`，按时间窗梳理：
+读取 `<module-dir>/.aimodule/changelogs/`，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？
@@ -28,7 +28,7 @@
 
 候选通过 → 起草 workflow.md，提交用户确认后写入：
 ```
-<module-dir>/.aiworkspace/workflows/<name>/workflow.md
+<module-dir>/.aimodule/workflows/<name>/workflow.md
 ```
 
 **Step 3 — 升格决策 / 约束到知识三件套**

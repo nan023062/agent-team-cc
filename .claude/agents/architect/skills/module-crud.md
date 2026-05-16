@@ -19,7 +19,7 @@
 - `dependencies` — 程序层面真实依赖的其他模块（代码引用依赖，非概念关联）
 - `includeDirs` — 除根物理目录外该模块额外包含的物理目录；不得与任何其他模块的根目录或 includeDirs 重叠
 
-Workflow 列表通过读取 `.aiworkspace/workflows/` 目录获得，不在 module.json 中声明。
+Workflow 列表通过读取 `.aimodule/workflows/` 目录获得，不在 module.json 中声明。
 
 ### architecture.md
 
@@ -76,7 +76,7 @@ Workflow 列表通过读取 `.aiworkspace/workflows/` 目录获得，不在 modu
 
 ```
 <module-dir>/
-  .aiworkspace/
+  .aimodule/
     module.json       ← 填写所有字段
     architecture.md   ← 内部结构、设计约束、关键决策
     contract.md       ← 对外 API / 协议 / 接口
@@ -109,7 +109,7 @@ Workflow 列表通过读取 `.aiworkspace/workflows/` 目录获得，不在 modu
 
 **Step 2 — 确认无依赖后执行**
 - 从 index.md 中移除路径
-- 归档或删除 `.aiworkspace/` 目录
+- 归档或删除 `.aimodule/` 目录
 - 更新父模块 architecture.md
 
 **Step 3 — 汇报秘书**
@@ -160,5 +160,5 @@ Workflow 列表通过读取 `.aiworkspace/workflows/` 目录获得，不在 modu
 
 **Step 7 — 归档原模块**
 - 用户确认后执行目录重组
-- 若原模块目录作为父目录保留：清空或归档其 `.aiworkspace/`
+- 若原模块目录作为父目录保留：清空或归档其 `.aimodule/`
 - 若原模块整体废弃：执行「废弃模块」流程

@@ -80,7 +80,7 @@ tools: Read, Glob, Grep, Bash
 
 - **架构原则** — `.claude/agents/architect.md` 的信念与架构原则（C1-C6）节
 - **目标 agent 专业标准** — 读取目标 agent 的 `.claude/agents/<agent-id>.md`，了解其职责定义与执行规范
-- **模块局部标准** — `<module-dir>/.aiworkspace/module.json` 中的 constraints 字段
+- **模块局部标准** — `<module-dir>/.aimodule/module.json` 中的 constraints 字段
 
 审查方法详见 `.claude/agents/auditor/skills/audit-review.md`。
 
