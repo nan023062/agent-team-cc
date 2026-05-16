@@ -17,8 +17,8 @@
 
 ## 一、模块记录治理
 
-**Step 1 — 扫描相关 entries**
-运行 scan-memory 脚本，过滤 `tags=module-<name>`，按时间窗梳理：
+**Step 1 — 查询相关 entries**
+运行 `python3 tools/chroma_query.py --module <name> --query "决策 踩坑 约束" --top-k 20`，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？
