@@ -37,7 +37,23 @@ def get_client():
                 "temperature": 0.1,
                 "max_tokens": 2000,
             }
-        }
+        },
+        "embedder": {
+            "provider": "huggingface",
+            "config": {
+                "model": "multi-qa-MiniLM-L6-cos-v1",
+                "embedding_dims": 384
+            }
+        },
+        "vector_store": {
+            "provider": "qdrant",
+            "config": {
+                "collection_name": "mem0",
+                "embedding_model_dims": 384,
+                "path": "/tmp/qdrant"
+            }
+        },
+        "custom_instructions": "Keep the original language of the input. Do not translate to English."
     }
     return Memory.from_config(config), "oss"
 
@@ -63,20 +79,22 @@ def main():
         filters["user_id"] = f"agent-{args.agent}"
 
     try:
+        search_kwargs = {"query": args.query, "top_k": args.top_k}
         if filters:
-            results = client.search(
-                query=args.query,
-                filters=filters,
-                top_k=args.top_k,
-            )
-        else:
-            results = client.search(
-                query=args.query,
-                top_k=args.top_k,
-            )
+            search_kwargs["filters"] = filters
+        # OSS 模式降低 threshold，避免跨语言相似度偏低被误过滤
+        if mode == "oss":
+            search_kwargs["threshold"] = 0.0
+        results = client.search(**search_kwargs)
     except Exception as e:
         print(f"[mem0] 查询失败: {e}", file=sys.stderr)
         sys.exit(1)
+    finally:
+        if mode == "oss":
+            try:
+                client.vector_store.client.close()
+            except Exception:
+                pass
 
     memories = results.get("results", results) if isinstance(results, dict) else results
 

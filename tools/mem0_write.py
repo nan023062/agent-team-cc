@@ -28,7 +28,7 @@ def get_client():
         from mem0 import MemoryClient
         return MemoryClient(api_key=api_key), "cloud"
 
-    # OSS 模式（需要 ANTHROPIC_API_KEY + OPENAI_API_KEY）
+    # OSS 模式（仅需 ANTHROPIC_API_KEY，embedding 用本地 HuggingFace）
     from mem0 import Memory
     config = {
         "llm": {
@@ -38,7 +38,23 @@ def get_client():
                 "temperature": 0.1,
                 "max_tokens": 2000,
             }
-        }
+        },
+        "embedder": {
+            "provider": "huggingface",
+            "config": {
+                "model": "multi-qa-MiniLM-L6-cos-v1",
+                "embedding_dims": 384
+            }
+        },
+        "vector_store": {
+            "provider": "qdrant",
+            "config": {
+                "collection_name": "mem0",
+                "embedding_model_dims": 384,
+                "path": "/tmp/qdrant"
+            }
+        },
+        "custom_instructions": "Keep the original language of the input. Do not translate to English."
     }
     return Memory.from_config(config), "oss"
 
@@ -95,20 +111,15 @@ def main():
             "slug":    args.slug,
         }
 
-        if mode == "cloud":
-            client.add(
-                args.content,
-                user_id=user_id,
-                metadata=metadata,
-            )
-        else:
-            client.add(
-                args.content,
-                user_id=user_id,
-                metadata=metadata,
-            )
-
+        client.add(args.content, user_id=user_id, metadata=metadata)
         print(f"[mem0/{mode}] 已写入 user_id={user_id}, modules={args.modules}")
+
+        # OSS 模式下 Qdrant local 需要显式关闭才能正确 flush WAL（Windows 兼容）
+        if mode == "oss":
+            try:
+                client.vector_store.client.close()
+            except Exception:
+                pass
 
     except Exception as e:
         print(f"[mem0] 写入失败（本地文件已保存）: {e}", file=sys.stderr)
