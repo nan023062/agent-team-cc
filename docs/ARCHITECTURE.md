@@ -64,7 +64,6 @@
 │   │   └── programmer/
 │   │       └── programmer.md
 │   └── commands/                      ← slash commands（手动触发）
-│       ├── new-project.md
 │       ├── hr-daily-signal.md
 │       └── hr-weekly-assessment.md
 │
@@ -159,10 +158,6 @@ HR 日常治理通过 slash commands 手动触发：
 | 可用 agent 列表、agent 能力 | HR | `scan-agents` skill（Python 脚本） |
 
 两类知识均可与任务拆解并行派发，结果汇总后再执行后续派发。
-
-### 项目初始化
-
-当前仓库即当前项目，无多项目注册表。`/new-project` 命令在仓库根目录初始化 `.aimodule/` 知识体系，由架构师完成根模块结构创建。
 
 ---
 
