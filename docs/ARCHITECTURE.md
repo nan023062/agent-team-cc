@@ -45,6 +45,8 @@
 │   │   │   ├── architect.md
 │   │   │   └── skills/
 │   │   │       ├── scan-modules.md        ← Python 扫描所有 .aimodule/
+│   │   │       ├── scan-memory.md         ← Python 扫描 memory/entries/
+│   │   │       ├── mem0-ops.md            ← mem0 查询/写入（模块维度）
 │   │   │       ├── module-crud.md
 │   │   │       ├── arch-compliance.md
 │   │   │       └── knowledge-governance.md
@@ -52,6 +54,8 @@
 │   │   │   ├── hr.md
 │   │   │   └── skills/
 │   │   │       ├── scan-agents.md         ← Python 扫描所有 agent
+│   │   │       ├── scan-memory.md         ← Python 扫描 memory/entries/
+│   │   │       ├── mem0-ops.md            ← mem0 查询/写入（agent 维度）
 │   │   │       ├── recruitment.md
 │   │   │       ├── training.md
 │   │   │       └── assessment.md
@@ -68,7 +72,12 @@
 │
 ├── memory/                            ← 统一记忆系统（原始素材，待压缩）
 │   └── entries/                       ← 所有 entry 平铺，frontmatter 区分维度
-│       └── YYYY-MM-DD-<type>-<agent-or-module>-<slug>.md
+│       └── YYYY-MM-DD-<agent-id>-<slug>.md
+│
+├── tools/                             ← 工具脚本
+│   ├── mem0_write.py                  ← 双写：本地 entry + mem0
+│   ├── mem0_query.py                  ← mem0 语义检索
+│   └── requirements.txt
 │
 └── docs/
     ├── ARCHITECTURE.md                ← 本文件
@@ -183,6 +192,19 @@ HR 日常治理通过 slash commands 手动触发：
 所有 entry 均为 agent session 记录，平铺于 `memory/entries/`，命名：`YYYY-MM-DD-<agent-id>-<slug>.md`。
 
 内容自由描述：模块改动、架构决策、踩坑经验、阻塞记录等，用 tags 标记关键词。
+
+### 双写架构
+
+每条 entry 同时写入两处：
+
+| 层 | 存储 | 用途 |
+|----|------|------|
+| **本地文件** | `memory/entries/` | git 审计、历史溯源 |
+| **mem0** | Cloud / OSS 向量库 | 语义检索、高命中率（适配 50 人团队海量 entry） |
+
+写入通过 `tools/mem0_write.py` 封装，查询通过 `tools/mem0_query.py`。
+
+### 压缩管线
 
 两条压缩管线共用同一份原始记录：
 

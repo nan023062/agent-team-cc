@@ -54,6 +54,42 @@ tags: [module-combat, decision, refactor, blocked]
 
 ---
 
+## 存储架构（双写）
+
+每条 entry 写入两处，互补而非冗余：
+
+| 层 | 路径 | 用途 |
+|----|------|------|
+| **本地文件** | `memory/entries/` | git 审计、历史溯源、离线可读 |
+| **mem0** | Cloud / OSS | 语义检索、高命中率、支持 50 人团队海量 entry |
+
+本地文件是「源头事实」，mem0 是「检索加速器」。两者内容相同，本地优先于 mem0。
+
+**写入命令**（tools/mem0_write.py 封装双写）：
+
+```bash
+python3 tools/mem0_write.py \
+    --agent <agent-id> \
+    --slug <简短描述> \
+    --content "<session 内容>" \
+    --modules <模块名，空格分隔> \
+    --tags <标记，空格分隔>
+```
+
+**查询命令**（mem0 语义检索）：
+
+```bash
+# 按 agent 查询（HR 用）
+python3 tools/mem0_query.py --agent programmer --query "架构决策" --top-k 10
+
+# 按模块查询（架构师用）
+python3 tools/mem0_query.py --module combat --query "踩坑 incident" --top-k 5
+```
+
+环境变量配置见 `.env.example`。
+
+---
+
 ## 写入方
 
 任意 agent 在任务结束后自行写入，或由秘书代写。  
