@@ -1,0 +1,23 @@
+{
+  "_convention": {
+    "module": "任何包含 .aiworkspace/ 子目录的目录即为一个模块",
+    "root_module": "project.root 目录本身必须包含 .aiworkspace/，即为根模块",
+    "tree": "模块树由文件系统目录层级隐式定义，父模块 = 最近的含 .aiworkspace/ 的祖先目录",
+    "core_files": [
+      ".aiworkspace/module.json        — 元数据：name（必填）、owner（必填）、description、keywords、dependencies、includeDirs（均可缺省）",
+      ".aiworkspace/architecture.md            — 内部架构设计",
+      ".aiworkspace/contract.md        — 对外 API / 协议 / 接口",
+      ".aiworkspace/workflows/<name>/  — 模块 workflow（按需，读目录获得列表）"
+    ],
+    "root_only_files": [
+      ".aiworkspace/index.md      — 全树所有模块的相对路径列表（仅根模块有）；路径 + module.json = 完整模块元数据"
+    ]
+  },
+  "_project_schema": {
+    "name": "项目显示名称（用于用户引用）",
+    "path": "项目根目录绝对路径（唯一标识）",
+    "description": "（可选）项目简介",
+    "status": "active | archived"
+  },
+  "projects": []
+}
