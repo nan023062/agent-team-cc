@@ -10,7 +10,8 @@
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  秘书（CLAUDE.md / 主 session）                                  │
-│  · 唯一对外接口    · 任务拆解    · 调度 subagent    · 汇总结果   │
+│  · 唯一对外接口  · 任务拆解  · 派发调度  · 汇总结果             │
+│  · 不读原文：项目知识问架构师，人力知识问 HR                     │
 └──────┬───────────────────┬──────────────────┬───────────────────┘
        │                   │                  │
        ▼                   ▼                  ▼
@@ -43,12 +44,14 @@
 │   │   ├── architect/
 │   │   │   ├── architect.md
 │   │   │   └── skills/
+│   │   │       ├── scan-modules.md        ← Python 扫描所有 .aimodule/
 │   │   │       ├── module-crud.md
 │   │   │       ├── arch-compliance.md
 │   │   │       └── knowledge-governance.md
 │   │   ├── hr/
 │   │   │   ├── hr.md
 │   │   │   └── skills/
+│   │   │       ├── scan-agents.md         ← Python 扫描所有 agent
 │   │   │       ├── recruitment.md
 │   │   │       ├── training.md
 │   │   │       └── assessment.md
@@ -141,6 +144,17 @@ HR 日常治理通过 slash commands 手动触发：
 |------|------|---------|
 | `/hr-daily-signal` | work agent 能力缺口信号采集 | 每日 |
 | `/hr-weekly-assessment` | 周度考核与培训 | 每周 |
+
+### 知识获取机制
+
+秘书不直接读取 `.aimodule/` 或 `.claude/agents/`，所有知识通过 subagent 获取：
+
+| 需要什么 | 找谁 | 工具 |
+|---------|------|------|
+| 模块结构、架构设计、契约接口 | 架构师 | `scan-modules` skill（Python 脚本） |
+| 可用 agent 列表、agent 能力 | HR | `scan-agents` skill（Python 脚本） |
+
+两类知识均可与任务拆解并行派发，结果汇总后再执行后续派发。
 
 ### 项目初始化
 
