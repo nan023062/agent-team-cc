@@ -93,7 +93,7 @@
    ↓
 HR 检索现有 work agents（.claude/agents/ 目录，排除核心 4 个）
    ├─ 有匹配 → 返回 agent 文件路径，秘书直接派发
-   └─ 无匹配 → HR 起草新 agent → 用户确认 → 创建 .claude/agents/<id>.md → 通知秘书
+   └─ 无匹配 → HR 起草新 agent → 用户确认 → 创建 .claude/agents/<id>/<id>.md → 通知秘书
 ```
 
 ## 派发规范
@@ -103,7 +103,7 @@ HR 检索现有 work agents（.claude/agents/ 目录，排除核心 4 个）
 **Step 1 — 构建 prompt**
 
 ```
-你是[角色名]。读取 .claude/agents/<agent>.md 加载你的完整身份（性格、职责、skills）。
+你是[角色名]。读取 .claude/agents/<agent>/<agent>.md 加载你的完整身份（性格、职责、skills）。
 
 本次任务：
   [具体任务描述]
@@ -131,13 +131,13 @@ Agent(
 
 | Agent | 文件 | 适用场景 |
 |-------|------|---------|
-| 架构师 | `.claude/agents/architect.md` | 模块设计、知识三件套维护、架构合规 |
-| HR | `.claude/agents/hr.md` | agent 招募/培训/考核/归档、记忆提炼 |
-| 评审官 | `.claude/agents/auditor.md` | 独立批判审查（只由秘书派发） |
-| 程序员 | `.claude/agents/programmer.md` | 按蓝图实现代码 |
-| Work agents | `.claude/agents/<id>.md` | 按具体能力匹配 |
+| 架构师 | `.claude/agents/architect/architect.md` | 模块设计、知识三件套维护、架构合规 |
+| HR | `.claude/agents/hr/hr.md` | agent 招募/培训/考核/归档、记忆提炼 |
+| 评审官 | `.claude/agents/auditor/auditor.md` | 独立批判审查（只由秘书派发） |
+| 程序员 | `.claude/agents/programmer/programmer.md` | 按蓝图实现代码 |
+| Work agents | `.claude/agents/<id>/<id>.md` | 按具体能力匹配 |
 
-列出所有可用 agent：读取 `.claude/agents/` 目录下的 `.md` 文件列表。
+列出所有可用 agent：读取 `.claude/agents/` 目录，每个子目录即一个 agent。
 
 ## 调度原则
 

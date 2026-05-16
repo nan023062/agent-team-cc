@@ -79,7 +79,7 @@
 只装模块特有的非代码事实：
 - 代码模式 → `architecture.md`
 - 一次性 bug → commit 历史
-- 跨模块约束 → `.claude/agents/architect.md` 信念节
+- 跨模块约束 → `.claude/agents/architect/architect.md` 信念节
 
 ---
 
