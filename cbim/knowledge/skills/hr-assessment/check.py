@@ -18,9 +18,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 from knowledge.engine.agents import list_agents
 
+_CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+_cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+SKILLS_VOLUME_THRESHOLD = _cfg["skills_volume_threshold"]
+
 _REQUIRED_FRONTMATTER = {"name", "description", "model", "tools"}
 _SKILL_PATH_RE = re.compile(r"`([^`]+SKILL\.md)`")
-_SKILLS_VOLUME_THRESHOLD = 5
 
 
 def run_checks(root: Path) -> dict[str, list[str]]:
@@ -48,9 +51,9 @@ def run_checks(root: Path) -> dict[str, list[str]]:
 
         # #7 — skills count
         skill_count = len(a.get("skills", []))
-        if skill_count >= _SKILLS_VOLUME_THRESHOLD:
+        if skill_count >= SKILLS_VOLUME_THRESHOLD:
             issues["SUGGEST"].append(
-                f"[#7] {aid}: has {skill_count} skills (≥{_SKILLS_VOLUME_THRESHOLD})"
+                f"[#7] {aid}: has {skill_count} skills (≥{SKILLS_VOLUME_THRESHOLD})"
                 " — consider splitting into more focused agents"
             )
 

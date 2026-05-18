@@ -19,6 +19,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 from knowledge.engine.modules import list_modules
 
+_CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
+_cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
+PLACEHOLDER_MIN_REAL_LINES = _cfg["placeholder_min_real_lines"]
+LEAF_ARCH_MAX_LINES        = _cfg["leaf_arch_max_lines"]
+LEAF_WORKFLOW_MAX_COUNT    = _cfg["leaf_workflow_max_count"]
+LEAF_CONTRACT_MAX_ITEMS    = _cfg["leaf_contract_max_items"]
+
 # Placeholder: freshly initialized files have only these headers with no body
 _PLACEHOLDER_ARCH_HEADERS = {"## Overview", "## Structure", "## Key Decisions"}
 _PLACEHOLDER_CONTRACT_HEADERS = {"## Interfaces", "## Events"}
@@ -47,7 +54,7 @@ def _is_placeholder(content: str, placeholder_headers: set[str]) -> bool:
         and not l.strip().startswith("#")
         and l.strip() not in placeholder_headers
     ]
-    return len(real_lines) < 3
+    return len(real_lines) < PLACEHOLDER_MIN_REAL_LINES
 
 
 def _history_markers(content: str) -> list[str]:
@@ -177,12 +184,12 @@ def run_checks(root: Path) -> dict[str, list[str]]:
             wf_count = _count_workflows(mod_dir)
             ci_count = _count_contract_items(contract) if contract else 0
             reasons = []
-            if arch_lines > 200:
-                reasons.append(f"architecture.md {arch_lines} non-empty lines")
-            if wf_count >= 3:
-                reasons.append(f"{wf_count} workflows")
-            if ci_count >= 10:
-                reasons.append(f"contract has {ci_count} items")
+            if arch_lines > LEAF_ARCH_MAX_LINES:
+                reasons.append(f"architecture.md {arch_lines} non-empty lines (>{LEAF_ARCH_MAX_LINES})")
+            if wf_count >= LEAF_WORKFLOW_MAX_COUNT:
+                reasons.append(f"{wf_count} workflows (>={LEAF_WORKFLOW_MAX_COUNT})")
+            if ci_count >= LEAF_CONTRACT_MAX_ITEMS:
+                reasons.append(f"contract has {ci_count} items (>={LEAF_CONTRACT_MAX_ITEMS})")
             if reasons:
                 issues["SUGGEST"].append(
                     f"[#17] {path}: leaf volume too large ({'; '.join(reasons)}) — consider splitting"
