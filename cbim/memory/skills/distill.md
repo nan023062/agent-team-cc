@@ -195,27 +195,32 @@ sources: 4
 
 ---
 
-## Step 5 — 清理已处理的短期 entry
+## Step 5 — 标记已处理的短期 entry
 
-**短期记忆的生命周期是：提炼完即删除。** 不按时间计算，只按是否已处理。
+提炼完成后，**不立即删除**短期 entry，而是在 frontmatter 中打上 `distilled` 标记。
+引擎的定期清理会删除「已标记 + 超过 3 天」的 entry，保障近期记忆不丢失。
 
-对 Step 1 中扫描到的每一个 entry，无论其信号是否有内容（空信号 = 本次 session 无有效信号），都视为已处理，提炼完成后逐一删除：
+对 Step 1 中扫描到的每一个 entry（无论信号有无内容），用 Edit 工具在 frontmatter 追加标记：
 
-```bash
-.venv/bin/python -m memory.engine.cli delete memory/store/short/2026-05-10-main-xxx.md
-.venv/bin/python -m memory.engine.cli delete memory/store/short/2026-05-12-main-yyy.md
-# 依此类推，删除本次扫描到的全部 entry
+```markdown
+---
+tier: short
+tags: session
+modules: combat
+distilled: 2026-05-18     ← 追加这一行
+---
 ```
 
-**不删除的情况：**
-- 本次提炼刻意跳过的 entry（因信号待确认）→ 保留，下次提炼时处理
-- `last-session.md` — 这是独立文件，与 `short/` 无关，不删
+**不标记的情况：**
+- 本次提炼刻意跳过的 entry（信号待确认）→ 保留原样，下次提炼时处理
 
-**兜底清理**（长期未提炼导致 `short/` 积压时使用）：
+**兜底清理**（清理「已标记 + 超过 3 天」的 entry）：
 
 ```bash
-.venv/bin/python -m memory.engine.cli cleanup --keep-days 7
+.venv/bin/python -m memory.engine.cli cleanup --keep-days 3
 ```
+
+`last-session.md` 是独立文件，不受此生命周期影响。
 
 ---
 

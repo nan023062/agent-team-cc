@@ -266,7 +266,7 @@ SessionStart
 
 | 层级 | 路径 | 生命周期 |
 |------|------|---------|
-| 短期 | `cbim/memory/store/short/` | 提炼完即删除；长期未提炼时按天兜底清理 |
+| 短期 | `cbim/memory/store/short/` | 提炼后标记 `distilled`，至少保留 3 天后由 cleanup 删除；未提炼的永不自动删除 |
 | 中期 | `cbim/memory/store/medium/` | 长期保留，升格至知识层后手动归档 |
 
 - **Stop hook** — `write-memory.py` 在 session 结束时自动执行两件事：

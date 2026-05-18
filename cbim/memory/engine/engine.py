@@ -100,7 +100,14 @@ class MemoryEngine:
     # ------------------------------------------------------------------
 
     def cleanup_short(self, keep_days: int = 3) -> int:
-        """Delete short-term entries older than keep_days. Returns count deleted."""
+        """Delete short-term entries that are distilled AND older than keep_days.
+
+        Lifecycle: distill skill marks entries with 'distilled: YYYY-MM-DD' in
+        frontmatter. This cleanup only removes entries that carry that marker AND
+        whose filename date is older than keep_days. Undistilled entries are never
+        deleted by cleanup — they stay until explicitly processed or manually removed.
+        Returns count of deleted files.
+        """
         from datetime import datetime, timedelta
 
         cutoff = (datetime.now() - timedelta(days=keep_days)).strftime("%Y-%m-%d")
@@ -111,12 +118,19 @@ class MemoryEngine:
         deleted = 0
         for md_file in sorted(short_dir.glob("*.md")):
             m = re.match(r"(\d{4}-\d{2}-\d{2})", md_file.name)
-            if m and m.group(1) < cutoff:
-                try:
-                    self.delete(md_file)
-                except Exception:
-                    pass
-                deleted += 1
+            if not m or m.group(1) >= cutoff:
+                continue
+            try:
+                raw = md_file.read_text(encoding="utf-8")
+                if not re.search(r"^distilled:\s*\S", raw, re.MULTILINE):
+                    continue  # not yet distilled — skip
+            except (FileNotFoundError, PermissionError):
+                continue
+            try:
+                self.delete(md_file)
+            except Exception:
+                pass
+            deleted += 1
         return deleted
 
     def reindex(self, tier: str | None = None) -> int:

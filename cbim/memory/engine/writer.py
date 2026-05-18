@@ -1,8 +1,12 @@
 """
 writer.py — Session entry writer.
 
-Encapsulates transcript parsing, entry formatting, file writing, and indexing.
+Encapsulates transcript parsing, entry formatting, file writing, and signal filling.
 Called by CLI write-session command; hooks are not aware of this logic.
+
+Signal filling strategy (two-tier):
+  A. Heuristic: deterministic patterns from transcript structure (zero latency, no API)
+  B. LLM: claude-haiku call with session summary (semantic, ~1-2s, falls back to A on error)
 """
 
 import json
@@ -12,10 +16,22 @@ from pathlib import Path
 
 from .engine import MemoryEngine, SHORT
 
+# Project root = 4 parents above this file (engine/ → memory/ → cbim/ → root)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+
+_CORRECTION_PATTERNS = [
+    "不对", "错了", "不应该", "不要", "你不能", "应该改", "重新做",
+    "incorrect", "wrong", "don't do", "shouldn't", "stop doing",
+]
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
 
 def write_session(transcript_path: str, store_dir: Path,
                   engine: MemoryEngine, cfg: dict) -> Path | None:
-    """Parse transcript, write short-term entry, notify backend.
+    """Parse transcript, write short-term entry, auto-fill signals.
 
     Returns the entry path on success, None if session is trivial or unreadable.
     """
@@ -49,13 +65,146 @@ def write_session(transcript_path: str, store_dir: Path,
         entry_path = short_dir / f"{date}-main-{name}-{ts}.md"
 
     entry_path.write_text(_build_entry(info), encoding="utf-8")
-    engine.add(entry_path, SHORT)   # no-op for FileBackend; indexes for semantic backends
+    engine.add(entry_path, SHORT)
     _write_last_session(info, store_dir)
+
+    # Auto-fill signals: A (heuristic) → B (LLM supplements A; falls back to A on error)
+    heuristic = _heuristic_signals(info)
+    llm = _llm_signals(info, heuristic)
+    signals = llm if llm else heuristic
+    if signals:
+        _fill_signals(entry_path, signals)
+
     return entry_path
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Signal filling — Layer A: heuristics
+# ---------------------------------------------------------------------------
+
+def _heuristic_signals(info: dict) -> list[str]:
+    """Extract deterministic signals from structured transcript data. No LLM needed."""
+    signals = []
+
+    for f in info["files_changed"]:
+        norm = f.replace("\\", "/")
+        in_dna = "/.dna/" in norm or norm.startswith(".dna/")
+        if not in_dna:
+            continue
+        m = re.search(r"/([^/]+)/\.dna/", norm)
+        mod = m.group(1) if m else (info["modules"][0] if info["modules"] else "unknown")
+        if norm.endswith("contract.md"):
+            signals.append(f"IS: {mod}: contract.md 已修改")
+        elif norm.endswith("architecture.md"):
+            signals.append(f"WANT: {mod}: architecture.md 已修改（决策待补充）")
+
+    # MUST: user correction
+    req = info["user_request"].lower()
+    if any(kw in req for kw in _CORRECTION_PATTERNS):
+        signals.append("MUST: assistant: 用户发起了纠正（见任务概述）")
+
+    return signals
+
+
+# ---------------------------------------------------------------------------
+# Signal filling — Layer B: LLM
+# ---------------------------------------------------------------------------
+
+def _get_api_key() -> str | None:
+    import os
+    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if key:
+        return key
+    env_file = _PROJECT_ROOT / ".env"
+    if env_file.exists():
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                if line.startswith("ANTHROPIC_API_KEY="):
+                    return line.split("=", 1)[1].strip().strip("\"'")
+        except Exception:
+            pass
+    return None
+
+
+def _llm_signals(info: dict, heuristic: list[str]) -> list[str]:
+    """Call Anthropic API (claude-haiku) to extract signals from session summary.
+
+    Returns [] on any error — caller falls back to heuristic signals.
+    """
+    api_key = _get_api_key()
+    if not api_key:
+        return []
+
+    agent_descs = [c["description"] or c["subagent_type"] for c in info["agent_calls"]]
+    heuristic_note = (
+        "已通过启发式检测到：" + "；".join(heuristic)
+        if heuristic else "无启发式结果"
+    )
+
+    prompt = f"""根据以下 session 摘要，提取值得记录的信号。
+
+## Session 摘要
+任务：{info['user_request']}
+调用的 Agent：{', '.join(agent_descs) or '无'}
+改动文件：{'; '.join(info['files_changed'][:10]) or '无'}
+涉及模块：{', '.join(info['modules']) or '无'}
+启发式参考（{heuristic_note}）
+
+## 四象限定义
+MUST（跨项目原则）：什么绝对不能违反？如 agent 越位、用户纠正行为、不可逆操作缺少确认
+WANT（项目决策）：为什么选这个方案？如技术选型、架构取舍、接口设计的主动决策
+HOW（执行流程）：哪个方法/顺序显著有效或有问题？
+IS（当前事实）：接口签名、业务规则定义、配置值等有什么变更？
+
+## 输出规则
+- 每行一条，格式严格为：象限: 主体: 描述（主体用 agent-id 或模块名）
+- 只输出有实质内容的信号行，没有就不输出任何内容
+- 不要解释，不要多余文字"""
+
+    import urllib.request as _req
+    import json as _json
+
+    payload = _json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 300,
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+
+    request = _req.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+    )
+    try:
+        with _req.urlopen(request, timeout=20) as resp:
+            data = _json.loads(resp.read())
+            text = data["content"][0]["text"].strip()
+            return [
+                line for line in text.splitlines()
+                if re.match(r"^(MUST|WANT|HOW|IS):\s*.+:\s*.+", line)
+            ]
+    except Exception:
+        return []
+
+
+def _fill_signals(entry_path: Path, signals: list[str]) -> None:
+    """Overwrite the ## 信号 section with filled signal lines."""
+    content = entry_path.read_text(encoding="utf-8")
+    marker = "\n## 信号\n"
+    idx = content.find(marker)
+    if idx == -1:
+        return
+    prefix = content[:idx + len(marker)]
+    body = "\n".join(f"- [x] {s}" for s in signals) + "\n"
+    entry_path.write_text(prefix + body, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Transcript parsing
 # ---------------------------------------------------------------------------
 
 def _read_transcript(path: str) -> list:
@@ -142,6 +291,10 @@ def _parse_transcript(messages: list, max_request_chars: int,
     }
 
 
+# ---------------------------------------------------------------------------
+# Entry and recovery note formatting
+# ---------------------------------------------------------------------------
+
 def _write_last_session(info: dict, store_dir: Path) -> None:
     """Write last-session.md — a structured recovery note for the next session."""
     ended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -224,7 +377,4 @@ tags: session{frontmatter_extra}
 {files_section}
 
 ## 信号
-- [ ] 能力缺口：
-- [ ] 优秀模式：
-- [ ] 知识更新候选：
 """
