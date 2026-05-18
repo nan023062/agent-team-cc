@@ -67,19 +67,7 @@ tags: decision incident
 
 **写入**：agent 直接创建 markdown 文件，无需调用脚本。
 
-**向量查询**（自动同步索引，返回文件路径，再读文件获取内容）：
-```bash
-# 按 agent 查（HR 用）
-.venv/bin/python memory/memory_query.py "踩坑 问题" --agent programmer --top-k 10
-
-# 按模块查（架构师用）
-.venv/bin/python memory/memory_query.py "架构决策" --module combat --top-k 10
-
-# 查询前自动更新索引
-.venv/bin/python memory/memory_query.py "寻路算法" --reindex --top-k 5
-```
-
-索引（`memory/chroma_db/`）查询时自动维护，无需手动操作。损坏时运行 `memory_index.py` 重建。
+**向量查询**：按 `.claude/skills/memory/SKILL.md` 执行，返回文件路径后读取 markdown 原文。
 
 **本地 vs 服务器：**
 

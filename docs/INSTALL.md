@@ -66,7 +66,7 @@ rm -rf /tmp/agent-team-cc-src
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
 | `template/commands/` | `.claude/commands/` | slash 命令 |
 | `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
-| `template/skills/` | `.claude/skills/` | 主 agent skill（含记忆操作） |
+| `template/skills/` | `.claude/skills/` | 主 agent skills（memory/SKILL.md 为记忆接口） |
 | `.claude/settings.json` | `.claude/settings.json` | 权限配置 + hook 注册 |
 | `template/skills/memory/scripts/memory_index.py` | `memory/memory_index.py` | 构建向量索引 |
 | `template/skills/memory/scripts/memory_query.py` | `memory/memory_query.py` | 向量查询（返回文件路径） |

@@ -159,7 +159,7 @@ Agent(
 
 ## 记忆查询
 
-需要在 session 中途查询历史记忆时，读取 `.claude/skills/memory/memory-ops.md` 执行。
+需要在 session 中途查询历史记忆时，读取 `.claude/skills/memory/SKILL.md` 执行。
 
 ---
 

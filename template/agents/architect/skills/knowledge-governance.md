@@ -18,11 +18,7 @@
 ## 一、模块记录治理
 
 **Step 1 — 查询相关 entries**
-运行向量查询获取相关文件路径，再读取对应 markdown 文件，按时间窗梳理：
-```bash
-.venv/bin/python memory/memory_query.py "决策 踩坑 约束" --module <name> --top-k 20
-# 输出文件路径列表，逐一读取原文
-```
+按 `.claude/skills/memory/SKILL.md` 执行向量查询，获取文件路径后逐一读取原文，按时间窗梳理：
 - 发生了哪些架构决策（decision）？
 - 出现了哪些反复踩坑的问题（incident）？
 - 新增了哪些模块特有约束（constraint）？

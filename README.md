@@ -96,7 +96,7 @@ CLAUDE.md                    ← 助手身份（主 session）
     write-memory.py          ← Stop hook：自动写入 session 记忆
   skills/
     memory/
-      memory-ops.md          ← 主 agent 记忆操作 skill
+      SKILL.md               ← 主 agent 记忆操作接口（内部封装脚本）
       scripts/               ← 向量查询脚本（安装到 memory/）
 memory/
   entries/                   ← 主 agent session 记录（明文 md，可提交 git）
