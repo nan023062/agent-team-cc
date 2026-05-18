@@ -23,6 +23,7 @@ from pathlib import Path
 
 CBIM = Path(__file__).resolve().parent   # cbim/
 ROOT = CBIM.parent                       # project root (where .venv will live)
+CC   = CBIM / "cc-template"             # Claude Code install sources
 
 
 # ---------------------------------------------------------------------------
@@ -72,11 +73,11 @@ def step_venv() -> None:
 
 def step_agents() -> None:
     _h("[3/5] Agents  →  .claude/agents/")
-    src = CBIM / "agents"
+    src = CC / "agents"
     dst = ROOT / ".claude" / "agents"
     dst.mkdir(parents=True, exist_ok=True)
     if not src.exists():
-        _skip("cbim/agents/ not found")
+        _skip("cbim/cc-template/agents/ not found")
         return
     for item in sorted(src.iterdir()):
         target = dst / item.name
@@ -115,8 +116,8 @@ def step_hooks() -> None:
         return not exists
 
     added = []
-    if _add("Stop",         "python cbim/hooks/write-memory.py"): added.append("Stop → write-memory")
-    if _add("SessionStart", "python cbim/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
+    if _add("Stop",         "python cbim/cc-template/hooks/write-memory.py"): added.append("Stop → write-memory")
+    if _add("SessionStart", "python cbim/cc-template/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
 
     settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False), encoding="utf-8"
@@ -132,7 +133,7 @@ def step_bootstrap() -> None:
     _h("[5/5] CLAUDE.md  +  .gitignore  +  memory store")
 
     # CLAUDE.md
-    src = CBIM / "CLAUDE-template.md"
+    src = CC / "CLAUDE-template.md"
     dst = ROOT / "CLAUDE.md"
     if src.exists():
         content = src.read_text(encoding="utf-8")
