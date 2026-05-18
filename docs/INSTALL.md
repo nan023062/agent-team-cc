@@ -25,7 +25,6 @@ mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TA
 cp "$SRC/template/CLAUDE-template.md"  "$TARGET/CLAUDE.md"
 cp "$SRC/template/skills/memory/.env.example"        "$TARGET/.env.example"
 cp -R "$SRC/template/agents"           "$TARGET/.claude/agents"
-cp -R "$SRC/template/commands"         "$TARGET/.claude/commands"
 cp -R "$SRC/template/hooks"            "$TARGET/.claude/hooks"
 cp -R "$SRC/template/skills"           "$TARGET/.claude/skills"
 cp    "$SRC/.claude/settings.json"     "$TARGET/.claude/settings.json"
@@ -64,7 +63,6 @@ rm -rf /tmp/agent-team-cc-src
 | `template/CLAUDE-template.md` | `CLAUDE.md` | 助手身份 |
 | `template/skills/memory/.env.example` | `.env.example` | 记忆系统环境变量模板 |
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
-| `template/commands/` | `.claude/commands/` | slash 命令 |
 | `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
 | `template/skills/` | `.claude/skills/` | 主 agent skills（memory/SKILL.md 为记忆接口） |
 | `.claude/settings.json` | `.claude/settings.json` | 权限配置 + hook 注册 |
@@ -110,7 +108,6 @@ git clone https://github.com/nan023062/agent-team-cc.git /tmp/agent-team-cc-src
 template/CLAUDE-template.md      → CLAUDE.md
 template/skills/memory/.env.example            → .env.example
 template/agents/                 → .claude/agents/
-template/commands/               → .claude/commands/
 template/hooks/                  → .claude/hooks/
 template/skills/                 → .claude/skills/
 .claude/settings.json            → .claude/settings.json

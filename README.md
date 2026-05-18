@@ -73,7 +73,7 @@ ChromaDB 向量索引默认存 `memory/chroma_db/`，无需额外配置；如需
 | 让架构师设计/初始化模块 | "新建一个 combat 模块" / "重新设计支付流程" |
 | 让程序员实现某功能 | "按当前模块蓝图实现登录接口" |
 | 启动独立审查 | "审一下这次改动" / "评一下这个设计" |
-| 招人 / 培训 / 考核 | `/hr-daily-signal`、`/hr-weekly-assessment`（slash 命令） |
+| 招人 / 培训 / 考核 | "帮我做日常信号采集" / "对 programmer 做本周考核" |
 | 查记忆 | "查一下 combat 模块的历史决策" |
 
 助手会自动判断派发给谁、是否并行、要不要找 HR 招人。
@@ -88,9 +88,6 @@ CLAUDE.md                    ← 助手身份（主 session）
     hr/                      ← HR
     auditor/                 ← 评审官
     programmer/              ← 程序员
-  commands/
-    hr-daily-signal.md       ← /hr-daily-signal
-    hr-weekly-assessment.md  ← /hr-weekly-assessment
   hooks/
     load-memory.py           ← SessionStart hook：自动注入近期记忆
     write-memory.py          ← Stop hook：自动写入 session 记忆

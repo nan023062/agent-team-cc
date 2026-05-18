@@ -11,7 +11,8 @@
 | 能力缺口 | 现有 agent 无法覆盖所需任务，申请新 agent |
 | 匹配 agent | 描述任务类型，HR 从现有 work agent 中匹配 |
 | 培训 / 升格 | agent 反复出现同类问题，需要 skill 提炼或 soul 更新 |
-| 周期考核 | 定期评估 work agent 执行质量（配合 slash 命令） |
+| 日常信号采集 | 采集 work agent 能力缺口信号，见 `daily-signal.md` |
+| 周度考核 | 评估 agent 执行质量并培训，见 `weekly-assessment.md` |
 | 归档 | 某 agent 不再需要，回收其定义文件 |
 
 ---
