@@ -101,4 +101,4 @@ tools: Read, Glob, Grep, Bash
 
 **每次审查完成前，自动写入记忆 entry。** 无需用户提醒。
 
-按 `.claude/agents/shared/memory-ops.md` 的格式，在 `memory/entries/` 创建本次 session 记录。记录审查结论与发现的关键问题，不得跳过。
+按 `.claude/agents/shared/skills/memory-ops.md` 的格式，在 `memory/entries/` 创建本次 session 记录。记录审查结论与发现的关键问题，不得跳过。
