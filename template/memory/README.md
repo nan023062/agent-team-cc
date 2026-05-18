@@ -143,8 +143,8 @@ python3 -m venv .venv
 .venv/bin/python -m memory.engine.cli cleanup [--keep-days N]
 .venv/bin/python -m memory.engine.cli reindex [--tier short|medium]
 
-# 预览命令（生成静态 HTML 并自动打开浏览器）
-.venv/bin/python -m memory.engine.cli preview [--output memory/preview.html] [--no-open]
+# 预览命令（启动本地 HTTP server，自动打开浏览器）
+.venv/bin/python -m memory.engine.cli preview [--port 8765]
 ```
 
 ---

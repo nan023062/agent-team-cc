@@ -12,7 +12,7 @@ Commands:
   delete  <path>
   reindex [--tier short|medium]
   cleanup [--keep-days N]
-  preview [--output <path>] [--no-open]
+  preview [--port N]
 """
 
 import argparse
@@ -117,19 +117,11 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
-    from .previewer import generate_html
+    from .previewer import start_server
 
     store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    html = generate_html(store_dir)
-    out = Path(args.output)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(html, encoding="utf-8")
-    print(f"[memory] preview written to {out}", file=sys.stderr)
-
-    if not args.no_open:
-        import webbrowser
-        webbrowser.open(out.resolve().as_uri())
-
+    preview_dir = Path(__file__).parent / "preview"
+    start_server(store_dir, preview_dir, port=args.port)
     return 0
 
 
@@ -182,12 +174,8 @@ def main() -> int:
     # preview
     p_preview = sub.add_parser("preview")
     p_preview.add_argument(
-        "--output", default="memory/preview.html",
-        help="Output path for the HTML file (default: memory/preview.html)",
-    )
-    p_preview.add_argument(
-        "--no-open", action="store_true", dest="no_open",
-        help="Do not open the browser after generating",
+        "--port", type=int, default=8765,
+        help="Local port to serve on (default: 8765)",
     )
 
     # shared path overrides for all subcommands

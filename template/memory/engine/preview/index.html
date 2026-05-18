@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memory Preview</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Memory Preview</h1>
+  <div class="stats">
+    <span id="stat-total"></span>
+    <span id="stat-short" class="badge badge-short"></span>
+    <span id="stat-medium" class="badge badge-medium"></span>
+  </div>
+</header>
+<div class="toolbar">
+  <button class="filter-btn active" onclick="setFilter('all', this)">全部</button>
+  <button class="filter-btn" onclick="setFilter('short', this)">短期</button>
+  <button class="filter-btn" onclick="setFilter('medium', this)">中期</button>
+  <input id="search" type="text" placeholder="搜索条目..." oninput="onSearch(this.value)">
+</div>
+<div class="layout">
+  <div id="sidebar"></div>
+  <div id="main" class="empty-state">
+    <div class="placeholder">
+      <div style="font-size:32px">📋</div>
+      <p>从左侧选择一条记忆条目查看详情</p>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
