@@ -11,8 +11,8 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent          # project root
-PID_FILE = Path(__file__).resolve().parent / "store" / ".preview.pid"
+ROOT = Path(__file__).resolve().parent.parent.parent.parent  # engine/preview → engine → memory → project root
+PID_FILE = ROOT / "memory" / "store" / ".preview.pid"
 
 
 def _python() -> str:
