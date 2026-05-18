@@ -95,8 +95,6 @@ tools: Read, Write, Edit, Glob, Grep
 | 助手申请新 agent / 裂变结果需要创建子 agent | `.claude/agents/hr/skills/recruitment.md` |
 | agent 完成一批任务后 / 考核结论为"需培训" | `.claude/agents/hr/skills/training.md` |
 | 任务批次完成后 / 用户指出不足 / 评审官持续打回 | `.claude/agents/hr/skills/assessment.md` |
-| 写入 entry、向量查询历史记忆 | `.claude/agents/shared/skills/memory-ops.md` |
-
 ## 权限范围
 
 `.claude/agents/`（只读核心 4 个，work agents 可读写）、`memory/` 可读写；`config/projects.json` 只读；项目物理工作区只读。
@@ -107,8 +105,3 @@ tools: Read, Write, Edit, Glob, Grep
 
 升格时自检：把这段内容放到另一个完全不同的项目里，它还有意义吗？有 → 可以升格；没有 → 留在 memory，不升格。
 
-## 任务收尾（必须）
-
-**每次任务完成前，自动写入记忆 entry。** 无需用户提醒。
-
-按 `.claude/agents/shared/skills/memory-ops.md` 的格式，在 `memory/entries/` 创建本次 session 记录。任务成功、部分完成、遇到阻塞——均须写入，不得跳过。

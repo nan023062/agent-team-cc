@@ -19,13 +19,15 @@ SRC=/tmp/agent-team-cc-src
 TARGET=$(pwd)   # 你的目标项目根目录
 
 # 2. 创建必要目录
-mkdir -p "$TARGET/.claude" "$TARGET/memory"
+mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TARGET/memory"
 
 # 3. 复制文件
 cp "$SRC/template/CLAUDE-template.md"  "$TARGET/CLAUDE.md"
 cp "$SRC/template/.env.example"        "$TARGET/.env.example"
 cp -R "$SRC/template/agents"           "$TARGET/.claude/agents"
 cp -R "$SRC/template/commands"         "$TARGET/.claude/commands"
+cp -R "$SRC/template/hooks"            "$TARGET/.claude/hooks"
+cp -R "$SRC/template/skills"           "$TARGET/.claude/skills"
 cp    "$SRC/.claude/settings.json"     "$TARGET/.claude/settings.json"
 cp    "$SRC/template/memory/memory_index.py"  "$TARGET/memory/"
 cp    "$SRC/template/memory/memory_query.py"  "$TARGET/memory/"
@@ -63,7 +65,9 @@ rm -rf /tmp/agent-team-cc-src
 | `template/.env.example` | `.env.example` | 环境变量模板 |
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
 | `template/commands/` | `.claude/commands/` | slash 命令 |
-| `.claude/settings.json` | `.claude/settings.json` | 权限配置 |
+| `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
+| `template/skills/` | `.claude/skills/` | 主 agent 共享 skill |
+| `.claude/settings.json` | `.claude/settings.json` | 权限配置 + hook 注册 |
 | `template/memory/memory_index.py` | `memory/memory_index.py` | 构建向量索引 |
 | `template/memory/memory_query.py` | `memory/memory_query.py` | 向量查询（返回文件路径） |
 | `template/memory/requirements.txt` | `memory/requirements.txt` | Python 依赖 |
@@ -103,13 +107,15 @@ git clone https://github.com/nan023062/agent-team-cc.git /tmp/agent-team-cc-src
 
 白名单：
 ```
-template/CLAUDE-template.md    → CLAUDE.md
-template/.env.example          → .env.example
-template/agents/               → .claude/agents/
-template/commands/             → .claude/commands/
-.claude/settings.json          → .claude/settings.json
-template/memory/memory_index.py → memory/memory_index.py
-template/memory/memory_query.py → memory/memory_query.py
+template/CLAUDE-template.md      → CLAUDE.md
+template/.env.example            → .env.example
+template/agents/                 → .claude/agents/
+template/commands/               → .claude/commands/
+template/hooks/                  → .claude/hooks/
+template/skills/                 → .claude/skills/
+.claude/settings.json            → .claude/settings.json
+template/memory/memory_index.py  → memory/memory_index.py
+template/memory/memory_query.py  → memory/memory_query.py
 template/memory/requirements.txt → memory/requirements.txt
 ```
 
@@ -119,7 +125,7 @@ template/memory/requirements.txt → memory/requirements.txt
 TARGET=<用户确认的目标目录绝对路径>
 SRC=/tmp/agent-team-cc-src
 
-mkdir -p "$TARGET/.claude" "$TARGET/memory"
+mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TARGET/memory"
 
 # 顶层
 cp -i "$SRC/template/CLAUDE-template.md" "$TARGET/CLAUDE.md"
@@ -128,6 +134,8 @@ cp -i "$SRC/template/.env.example"       "$TARGET/.env.example"
 # .claude/（不要碰 settings.local.json）
 cp -R "$SRC/template/agents"          "$TARGET/.claude/agents"
 cp -R "$SRC/template/commands"        "$TARGET/.claude/commands"
+cp -R "$SRC/template/hooks"           "$TARGET/.claude/hooks"
+cp -R "$SRC/template/skills"          "$TARGET/.claude/skills"
 cp -i "$SRC/.claude/settings.json"    "$TARGET/.claude/settings.json"
 
 # memory/（工具脚本）
