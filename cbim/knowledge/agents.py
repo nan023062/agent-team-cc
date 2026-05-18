@@ -1,17 +1,17 @@
 """
-cli.py — Agent (capability) CRUD operations.
+agents.py — Agent (capability) CRUD operations.
 
 Usage (from project root):
-  python cbim/agents/cli.py list
-  python cbim/agents/cli.py show <name>
-  python cbim/agents/cli.py scaffold <name> --description "..." [--model claude-opus-4-6]
+  python cbim/knowledge/agents.py list
+  python cbim/knowledge/agents.py show <name>
+  python cbim/knowledge/agents.py scaffold <name> --description "..." [--model claude-opus-4-6]
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-AGENTS_DIR = Path(__file__).resolve().parent  # cbim/agents/
+AGENTS_DIR = Path(__file__).resolve().parent.parent / "cc-template" / "agents"
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +135,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="cbim/agents/cli.py")
+    parser = argparse.ArgumentParser(prog="cbim/knowledge/agents.py")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("list")

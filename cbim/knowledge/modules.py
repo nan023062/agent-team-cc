@@ -1,10 +1,10 @@
 """
-cli.py — Knowledge module (.aimodule) CRUD operations.
+modules.py — Knowledge module (.aimodule) CRUD operations.
 
 Usage (from project root):
-  python cbim/knowledge/cli.py list [--root <path>]
-  python cbim/knowledge/cli.py show <module-dir>
-  python cbim/knowledge/cli.py init <dir> --name <name> --owner <owner> [--description "..."]
+  python cbim/knowledge/modules.py list [--root <path>]
+  python cbim/knowledge/modules.py show <module-dir>
+  python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner> [--description "..."]
 """
 
 import argparse
@@ -142,7 +142,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="cbim/knowledge/cli.py")
+    parser = argparse.ArgumentParser(prog="cbim/knowledge/modules.py")
     sub = parser.add_subparsers(dest="command")
 
     p_list = sub.add_parser("list")
