@@ -1,15 +1,42 @@
-# Skill: 记忆操作（主 agent 专用）
+# Skill: 记忆系统（主 agent 专用）
 
 **只有主 agent（助手）持有此 skill。Subagent 不直接操作记忆。**
 
-记忆的读写由 Claude Code hook 自动处理，主 agent 无需手动触发：
+## 三层记忆
 
-| 时机 | Hook | 行为 |
-|------|------|------|
-| Session 开始 | `SessionStart` → `load-memory.py` | 查询近期 entry 注入为上下文 |
-| Session 结束 | `Stop` → `write-memory.py` | 解析 transcript，自动写入 entry |
+| 层级 | 存储 | 管理方式 |
+|------|------|---------|
+| **短期** | `memory/entries/` | Hook 自动写入，每次 session 结束即生成 |
+| **中期（能力）** | `.claude/agents/<id>/skills/`、`<id>.md` | 提炼自短期，记录 agent 能力模式与 soul |
+| **中期（知识）** | `.aimodule/` | 提炼自短期，记录模块架构决策与契约 |
 
-本 skill 仅用于 **session 中途主动查询**历史记忆。
+---
+
+## 短期记忆（自动）
+
+由 Claude Code hook 驱动，主 agent 无需手动触发：
+
+| 时机 | 行为 |
+|------|------|
+| Session 开始 | 查询近期 entry，自动注入为上下文 |
+| Session 结束 | 解析 transcript，自动写入 entry |
+
+---
+
+## 记忆提炼（短期 → 中期）
+
+定期扫描 `memory/entries/`，将反复出现的模式升格为中期记忆：
+
+| 提炼任务 | Skill | 建议频率 |
+|---------|-------|---------|
+| 采集 agent / 模块升格信号 | `daily-signal.md` | 每日 |
+| 执行升格（skill / soul / `.aimodule/` 更新）| `weekly-assessment.md` | 每周 |
+
+---
+
+## 按需查询（session 中途）
+
+主 agent 在 session 中途需要检索历史记录时使用。
 
 ---
 
@@ -55,18 +82,6 @@ tags: session
 ```
 
 输出：每行一个文件路径。按路径读取 markdown 原文获取完整内容。
-
----
-
-## 升格判断
-
-| 出现频率 | 升格目标 |
-|---------|---------|
-| 某 agent 能力缺口 ≥2 次 | → 派发 HR 培训，升格为 skill |
-| 某架构决策稳定 | → 派发架构师更新 `.aimodule/architecture.md` |
-| 某确定性流程成熟 | → 派发架构师更新 `.aimodule/workflows/` |
-
-升格后原始 entry 保留，不删除、不修改。
 
 ---
 
