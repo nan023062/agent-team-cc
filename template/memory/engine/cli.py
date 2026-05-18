@@ -12,6 +12,7 @@ Commands:
   delete  <path>
   reindex [--tier short|medium]
   cleanup [--keep-days N]
+  preview [--output <path>] [--no-open]
 """
 
 import argparse
@@ -115,6 +116,23 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_preview(args: argparse.Namespace) -> int:
+    from .previewer import generate_html
+
+    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    html = generate_html(store_dir)
+    out = Path(args.output)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    print(f"[memory] preview written to {out}", file=sys.stderr)
+
+    if not args.no_open:
+        import webbrowser
+        webbrowser.open(out.resolve().as_uri())
+
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Argument parser
 # ---------------------------------------------------------------------------
@@ -161,8 +179,19 @@ def main() -> int:
         help=f"Keep entries from the last N days (default: {cfg['short_term']['keep_days']})",
     )
 
+    # preview
+    p_preview = sub.add_parser("preview")
+    p_preview.add_argument(
+        "--output", default="memory/preview.html",
+        help="Output path for the HTML file (default: memory/preview.html)",
+    )
+    p_preview.add_argument(
+        "--no-open", action="store_true", dest="no_open",
+        help="Do not open the browser after generating",
+    )
+
     # shared path overrides for all subcommands
-    for p in [p_write, p_add, p_query, p_del, p_reindex, p_cleanup,
+    for p in [p_write, p_add, p_query, p_del, p_reindex, p_cleanup, p_preview,
               sub.choices["load-context"]]:
         p.add_argument("--db-path", dest="db_path", default=None)
         p.add_argument("--store-dir", dest="store_dir", default=None)
@@ -180,6 +209,7 @@ def main() -> int:
         "delete": cmd_delete,
         "reindex": cmd_reindex,
         "cleanup": cmd_cleanup,
+        "preview": cmd_preview,
     }
     return dispatch[args.command](args)
 
