@@ -197,10 +197,24 @@ sources: 4
 
 ## Step 5 — 清理已处理的短期 entry
 
-保留最近 3 天（供 session 连续性使用），删除更早的：
+**短期记忆的生命周期是：提炼完即删除。** 不按时间计算，只按是否已处理。
+
+对 Step 1 中扫描到的每一个 entry，无论其信号是否有内容（空信号 = 本次 session 无有效信号），都视为已处理，提炼完成后逐一删除：
 
 ```bash
-.venv/bin/python -m memory.engine.cli cleanup --keep-days 3
+.venv/bin/python -m memory.engine.cli delete memory/store/short/2026-05-10-main-xxx.md
+.venv/bin/python -m memory.engine.cli delete memory/store/short/2026-05-12-main-yyy.md
+# 依此类推，删除本次扫描到的全部 entry
+```
+
+**不删除的情况：**
+- 本次提炼刻意跳过的 entry（因信号待确认）→ 保留，下次提炼时处理
+- `last-session.md` — 这是独立文件，与 `short/` 无关，不删
+
+**兜底清理**（长期未提炼导致 `short/` 积压时使用）：
+
+```bash
+.venv/bin/python -m memory.engine.cli cleanup --keep-days 7
 ```
 
 ---

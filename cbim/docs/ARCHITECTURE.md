@@ -266,8 +266,8 @@ SessionStart
 
 | 层级 | 路径 | 生命周期 |
 |------|------|---------|
-| 短期 | `cbim/memory/store/short/` | 按天自动清理 |
-| 中期 | `cbim/memory/store/medium/` | 长期保留，手动管理 |
+| 短期 | `cbim/memory/store/short/` | 提炼完即删除；长期未提炼时按天兜底清理 |
+| 中期 | `cbim/memory/store/medium/` | 长期保留，升格至知识层后手动归档 |
 
 - **Stop hook** — `write-memory.py` 在 session 结束时自动执行两件事：
   1. 将本次调度内容写入短期记忆（`store/short/YYYY-MM-DD-*.md`）
