@@ -117,11 +117,18 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
-    from .previewer import start_server
+    import sys as _sys
+
+    cbim_dir = Path(__file__).parent.parent.parent  # cbim/
+    preview_dir = cbim_dir / "preview"
+    cbim_str = str(cbim_dir)
+    if cbim_str not in _sys.path:
+        _sys.path.insert(0, cbim_str)
+    from preview.server import start_server
 
     store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    preview_dir = Path(__file__).parent.parent.parent / "preview"  # cbim/preview/
-    start_server(store_dir, preview_dir, port=args.port)
+    root_dir = cbim_dir.parent
+    start_server(store_dir, preview_dir, cbim_dir, root_dir, port=args.port)
     return 0
 
 

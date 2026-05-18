@@ -3,30 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memory Preview</title>
+<title>CBIM Preview</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>Memory Preview</h1>
-  <div class="stats">
-    <span id="stat-total"></span>
-    <span id="stat-short" class="badge badge-short"></span>
-    <span id="stat-medium" class="badge badge-medium"></span>
-  </div>
+  <h1>CBIM Preview</h1>
+  <nav class="section-nav">
+    <button class="nav-btn active" onclick="switchSection('memory', this)">记忆</button>
+    <button class="nav-btn" onclick="switchSection('agents', this)">能力</button>
+    <button class="nav-btn" onclick="switchSection('knowledge', this)">知识</button>
+  </nav>
+  <div id="header-stats" class="stats"></div>
 </header>
-<div class="toolbar">
+
+<div id="toolbar-memory" class="toolbar">
   <button class="filter-btn active" onclick="setFilter('all', this)">全部</button>
   <button class="filter-btn" onclick="setFilter('short', this)">短期</button>
   <button class="filter-btn" onclick="setFilter('medium', this)">中期</button>
-  <input id="search" type="text" placeholder="搜索条目..." oninput="onSearch(this.value)">
+  <input id="search-memory" type="text" placeholder="搜索记忆..." oninput="onSearch('memory', this.value)">
 </div>
+<div id="toolbar-agents" class="toolbar hidden">
+  <input id="search-agents" type="text" placeholder="搜索能力..." oninput="onSearch('agents', this.value)">
+</div>
+<div id="toolbar-knowledge" class="toolbar hidden">
+  <input id="search-knowledge" type="text" placeholder="搜索知识模块..." oninput="onSearch('knowledge', this.value)">
+</div>
+
 <div class="layout">
   <div id="sidebar"></div>
   <div id="main" class="empty-state">
     <div class="placeholder">
       <div style="font-size:32px">📋</div>
-      <p>从左侧选择一条记忆条目查看详情</p>
+      <p>从左侧选择一条记录查看详情</p>
     </div>
   </div>
 </div>
