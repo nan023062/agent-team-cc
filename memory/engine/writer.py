@@ -16,23 +16,6 @@ from pathlib import Path
 
 from .engine import MemoryEngine, SHORT
 
-def _find_project_root() -> Path:
-    """Walk up to find project root (has .claude/ or .env).
-
-    Works in both contexts:
-    - CBIM repo:    memory/engine/writer.py → 2 hops → repo root
-    - Target project: cbim/memory/engine/writer.py → 4 hops → target root
-    """
-    p = Path(__file__).resolve().parent
-    for _ in range(6):
-        if (p / ".claude").exists() or (p / ".env").exists():
-            return p
-        p = p.parent
-    return Path(__file__).resolve().parent.parent.parent
-
-
-_PROJECT_ROOT = _find_project_root()
-
 _CORRECTION_PATTERNS = [
     "不对", "错了", "不应该", "不要", "你不能", "应该改", "重新做",
     "incorrect", "wrong", "don't do", "shouldn't", "stop doing",
@@ -128,18 +111,7 @@ def _heuristic_signals(info: dict) -> list[str]:
 
 def _get_api_key() -> str | None:
     import os
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if key:
-        return key
-    env_file = _PROJECT_ROOT / ".env"
-    if env_file.exists():
-        try:
-            for line in env_file.read_text(encoding="utf-8").splitlines():
-                if line.startswith("ANTHROPIC_API_KEY="):
-                    return line.split("=", 1)[1].strip().strip("\"'")
-        except Exception:
-            pass
-    return None
+    return os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
 
 
 def _llm_signals(info: dict, heuristic: list[str], sig_cfg: dict) -> list[str]:
