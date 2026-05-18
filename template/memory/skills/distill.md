@@ -59,7 +59,15 @@ sources: 12
 .venv/bin/python -m memory.engine.cli add memory/store/medium/<file>.md --tier medium
 ```
 
-**Step 3 — 输出提炼摘要**
+**Step 3 — 清理已处理的短期 entry**
+
+删除 3 天前的短期记忆（最近 3 天保留，供 session 连续性使用）：
+
+```bash
+.venv/bin/python -m memory.engine.cli cleanup --keep-days 3
+```
+
+**Step 4 — 输出提炼摘要**
 
 向用户汇报本次提炼结果：
 

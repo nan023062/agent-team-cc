@@ -111,6 +111,33 @@ class MemoryEngine:
         """Remove an entry from the index."""
         self._backend.delete(str(path))
 
+    def cleanup_short(self, keep_days: int = 3) -> int:
+        """Delete short-term entries older than keep_days from both index and filesystem.
+
+        Entries from the last keep_days days are preserved for session continuity.
+        Returns count of deleted files.
+        """
+        from datetime import datetime, timedelta
+
+        cutoff = (datetime.now() - timedelta(days=keep_days)).strftime("%Y-%m-%d")
+        short_dir = self._store / SHORT
+        if not short_dir.exists():
+            return 0
+
+        deleted = 0
+        for md_file in sorted(short_dir.glob("*.md")):
+            m = re.match(r"(\d{4}-\d{2}-\d{2})", md_file.name)
+            if not m:
+                continue
+            if m.group(1) < cutoff:
+                try:
+                    self.delete(md_file)
+                except Exception:
+                    pass
+                md_file.unlink()
+                deleted += 1
+        return deleted
+
     def reindex(self, tier: str | None = None) -> int:
         """Rebuild index by scanning store directories. Returns count of indexed files."""
         tiers = [tier] if tier else list(TIERS)

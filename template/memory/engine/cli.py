@@ -72,6 +72,14 @@ def cmd_reindex(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    engine = _build_engine(args)
+    count = engine.cleanup_short(keep_days=args.keep_days)
+    print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
+          file=sys.stderr)
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="memory/engine/cli.py")
     sub = parser.add_subparsers(dest="command")
@@ -96,8 +104,13 @@ def main() -> int:
     p_reindex = sub.add_parser("reindex")
     p_reindex.add_argument("--tier", choices=["short", "medium"], default=None)
 
+    # cleanup
+    p_cleanup = sub.add_parser("cleanup")
+    p_cleanup.add_argument("--keep-days", type=int, default=3, dest="keep_days",
+                           help="Keep entries from the last N days (default: 3)")
+
     # shared optional overrides
-    for p in [p_add, p_query, p_del, p_reindex]:
+    for p in [p_add, p_query, p_del, p_reindex, p_cleanup]:
         p.add_argument("--db-path", dest="db_path", default=None)
         p.add_argument("--store-dir", dest="store_dir", default=None)
 
@@ -111,6 +124,7 @@ def main() -> int:
         "query": cmd_query,
         "delete": cmd_delete,
         "reindex": cmd_reindex,
+        "cleanup": cmd_cleanup,
     }
     return dispatch[args.command](args)
 
