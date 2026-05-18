@@ -16,19 +16,40 @@ from pathlib import Path
 from .engine import TIERS
 
 
+_HEARTBEAT_TIMEOUT = 30  # seconds — shutdown if no beat received
+
+
 def start_server(store_dir: Path, preview_dir: Path, port: int = 8765) -> None:
-    handler = _make_handler(store_dir, preview_dir)
+    import time
+    last_beat = [time.monotonic()]
+
+    handler = _make_handler(store_dir, preview_dir, last_beat)
     server = http.server.HTTPServer(("127.0.0.1", port), handler)
+
+    def _watchdog():
+        while True:
+            time.sleep(5)
+            if time.monotonic() - last_beat[0] > _HEARTBEAT_TIMEOUT:
+                print("\n[memory] browser closed — shutting down", file=sys.stderr)
+                server.shutdown()
+                return
+
+    threading.Thread(target=_watchdog, daemon=True).start()
+
     url = f"http://127.0.0.1:{port}"
     threading.Timer(0.3, lambda: webbrowser.open(url)).start()
-    print(f"[memory] preview at {url}  (Ctrl+C to stop)", file=sys.stderr)
+    print(f"[memory] preview at {url}  (auto-stops {_HEARTBEAT_TIMEOUT}s after browser closes)",
+          file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\n[memory] preview stopped", file=sys.stderr)
+        pass
+    print("[memory] preview stopped", file=sys.stderr)
 
 
-def _make_handler(store_dir: Path, preview_dir: Path):
+def _make_handler(store_dir: Path, preview_dir: Path, last_beat: list):
+    import time
+
     class _Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=str(preview_dir), **kwargs)
@@ -36,6 +57,10 @@ def _make_handler(store_dir: Path, preview_dir: Path):
         def do_GET(self):
             if self.path == "/api/entries":
                 self._serve_entries()
+            elif self.path == "/heartbeat":
+                last_beat[0] = time.monotonic()
+                self.send_response(204)
+                self.end_headers()
             else:
                 super().do_GET()
 

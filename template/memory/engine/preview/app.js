@@ -102,6 +102,12 @@ function esc(s) {
     .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Heartbeat — tell server the page is still open (every 10s)
+function beat() { fetch('/heartbeat').catch(() => {}); }
+beat();
+setInterval(beat, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) beat(); });
+
 fetch('/api/entries')
   .then(r => r.json())
   .then(data => {
