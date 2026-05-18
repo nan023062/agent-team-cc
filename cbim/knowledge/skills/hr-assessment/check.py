@@ -1,7 +1,7 @@
 """
 check.py — Deterministic HR agent assessment checks.
 
-Scriptable factors: #1 #3 #7
+Scriptable factors: #1 #3 #3b(skill content) #7
 Remaining factors require LLM analysis (see SKILL.md).
 
 Usage:
@@ -20,7 +20,8 @@ from knowledge.engine.agents import list_agents
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
 _cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
-SKILLS_VOLUME_THRESHOLD = _cfg["skills_volume_threshold"]
+SKILLS_VOLUME_THRESHOLD      = _cfg["skills_volume_threshold"]
+SKILL_MIN_REAL_LINES         = _cfg["skill_placeholder_min_real_lines"]
 
 _REQUIRED_FRONTMATTER = {"name", "description", "model", "tools"}
 _SKILL_PATH_RE = re.compile(r"`([^`]+SKILL\.md)`")
@@ -41,13 +42,25 @@ def run_checks(root: Path) -> dict[str, list[str]]:
                 f"[#1] {aid}: frontmatter missing fields: {', '.join(sorted(missing))}"
             )
 
-        # #3 — skill paths valid
+        # #3 — skill paths valid + content not placeholder
         body = a.get("body", "")
         for match in _SKILL_PATH_RE.finditer(body):
             skill_path = match.group(1)
             full = root / skill_path
             if not full.exists():
                 issues["MUST"].append(f"[#3] {aid}: skill path not found: {skill_path}")
+                continue
+            # #3b — skill content not placeholder
+            try:
+                skill_content = full.read_text(encoding="utf-8")
+                real_lines = [l for l in skill_content.splitlines()
+                              if l.strip() and not l.strip().startswith("#")]
+                if len(real_lines) < SKILL_MIN_REAL_LINES:
+                    issues["MUST"].append(
+                        f"[#3] {aid}: {skill_path} has no real content (placeholder)"
+                    )
+            except (FileNotFoundError, PermissionError):
+                pass
 
         # #7 — skills count
         skill_count = len(a.get("skills", []))

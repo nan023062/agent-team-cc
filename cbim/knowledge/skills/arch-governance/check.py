@@ -1,7 +1,7 @@
 """
 check.py — Deterministic architecture governance checks.
 
-Scriptable factors: #1 #2 #3 #4 #10 #14 #15 #17
+Scriptable factors: #1 #2 #3 #4 #10 #14 #15 #17 #WF1 #WF2
 Remaining factors require LLM analysis (see SKILL.md).
 
 Usage:
@@ -21,10 +21,11 @@ from knowledge.engine.modules import list_modules
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
 _cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
-PLACEHOLDER_MIN_REAL_LINES = _cfg["placeholder_min_real_lines"]
-LEAF_ARCH_MAX_LINES        = _cfg["leaf_arch_max_lines"]
-LEAF_WORKFLOW_MAX_COUNT    = _cfg["leaf_workflow_max_count"]
-LEAF_CONTRACT_MAX_ITEMS    = _cfg["leaf_contract_max_items"]
+PLACEHOLDER_MIN_REAL_LINES   = _cfg["placeholder_min_real_lines"]
+LEAF_ARCH_MAX_LINES          = _cfg["leaf_arch_max_lines"]
+LEAF_WORKFLOW_MAX_COUNT      = _cfg["leaf_workflow_max_count"]
+LEAF_CONTRACT_MAX_ITEMS      = _cfg["leaf_contract_max_items"]
+WORKFLOW_REQUIRED_SECTIONS   = _cfg["workflow_required_sections"]
 
 # Placeholder: freshly initialized files have only these headers with no body
 _PLACEHOLDER_ARCH_HEADERS = {"## Overview", "## Structure", "## Key Decisions"}
@@ -66,11 +67,41 @@ def _history_markers(content: str) -> list[str]:
     return hits
 
 
-def _count_workflows(mod_dir: Path) -> int:
+def _list_workflows(mod_dir: Path) -> list[Path]:
+    """Return paths to all workflow.md files under this module."""
     wf_dir = mod_dir / ".dna" / "workflows"
     if not wf_dir.exists():
-        return 0
-    return sum(1 for d in wf_dir.iterdir() if d.is_dir() and (d / "workflow.md").exists())
+        return []
+    return [d / "workflow.md" for d in sorted(wf_dir.iterdir())
+            if d.is_dir() and (d / "workflow.md").exists()]
+
+
+def _count_workflows(mod_dir: Path) -> int:
+    return len(_list_workflows(mod_dir))
+
+
+def _check_workflow(wf_file: Path) -> list[str]:
+    """Return list of issues for one workflow.md (empty = OK)."""
+    issues = []
+    try:
+        content = wf_file.read_text(encoding="utf-8")
+    except (FileNotFoundError, PermissionError):
+        issues.append("unreadable")
+        return issues
+
+    # #WF1 — not placeholder
+    real_lines = [l for l in content.splitlines()
+                  if l.strip() and not l.strip().startswith("#")]
+    if len(real_lines) < PLACEHOLDER_MIN_REAL_LINES:
+        issues.append("placeholder (no real content)")
+
+    # #WF2 — required sections present
+    headers = {l.strip() for l in content.splitlines() if l.strip().startswith("## ")}
+    for required in WORKFLOW_REQUIRED_SECTIONS:
+        if required not in headers:
+            issues.append(f"missing required section '{required}'")
+
+    return issues
 
 
 def _count_contract_items(content: str) -> int:
@@ -176,6 +207,13 @@ def run_checks(root: Path) -> dict[str, list[str]]:
                 issues["MUST"].append(
                     f"[#3] {path}/{fname}: contains modification history — \"{hits[0]}\""
                 )
+
+        # #WF1 #WF2 — workflow checks (all modules that have workflows)
+        for wf_file in _list_workflows(mod_dir):
+            wf_name = wf_file.parent.name
+            wf_issues = _check_workflow(wf_file)
+            for wi in wf_issues:
+                issues["MUST"].append(f"[#WF] {path}/.dna/workflows/{wf_name}: {wi}")
 
         # Leaf-specific
         if _is_leaf(path, all_paths):

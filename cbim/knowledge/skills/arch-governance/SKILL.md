@@ -134,6 +134,8 @@ python cbim/knowledge/engine/cli.py modules list --root .
 |---|------|---------|---------|
 | 16 | 职责单一（相对） | 模块职责能在当前层级粒度下用一句话说清；若描述需要"以及""同时"等连接，视为职责过宽 | LLM |
 | 17 | 叶子体量检查 | 仅对叶子模块：`architecture.md` 行数、workflow 数、`contract.md` 接口数超过阈值时触发拆分建议（阈值见 `config.json`） | **脚本** |
+| WF1 | Workflow 非占位符 | 每个 `workflow.md` 有实质内容，非模板空壳（阈值见 `config.json`） | **脚本** |
+| WF2 | Workflow 必要章节 | 每个 `workflow.md` 包含必要章节（`## 触发条件`、`## 步骤`，见 `config.json`） | **脚本** |
 
 ---
 

@@ -57,7 +57,7 @@ python cbim/knowledge/engine/cli.py agents list
 |---|------|---------|---------|
 | 1 | frontmatter 完整 | `name`、`description`、`model`、`tools` 均已填写 | **脚本** |
 | 2 | description 可用 | 一句话定位，助手读到即可决策是否派发，无歧义 | LLM |
-| 3 | skills 路径有效 | Skills 表中每个 `SKILL.md` 路径实际存在且可读 | **脚本** |
+| 3 | skills 路径有效且有内容 | Skills 表中每个 `SKILL.md` 路径实际存在、可读、且非占位符（阈值见 `config.json`） | **脚本** |
 
 ---
 
