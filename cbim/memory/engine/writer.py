@@ -40,6 +40,8 @@ def write_session(transcript_path: str, store_dir: Path,
         return None
 
     st = cfg["short_term"]
+    sig_cfg = cfg.get("signals", {})
+    ls_cfg = cfg.get("last_session", {})
     info = _parse_transcript(
         messages,
         max_request_chars=st["max_request_chars"],
@@ -66,11 +68,11 @@ def write_session(transcript_path: str, store_dir: Path,
 
     entry_path.write_text(_build_entry(info), encoding="utf-8")
     engine.add(entry_path, SHORT)
-    _write_last_session(info, store_dir)
+    _write_last_session(info, store_dir, ls_cfg)
 
     # Auto-fill signals: A (heuristic) → B (LLM supplements A; falls back to A on error)
     heuristic = _heuristic_signals(info)
-    llm = _llm_signals(info, heuristic)
+    llm = _llm_signals(info, heuristic, sig_cfg)
     signals = llm if llm else heuristic
     if signals:
         _fill_signals(entry_path, signals)
@@ -126,7 +128,7 @@ def _get_api_key() -> str | None:
     return None
 
 
-def _llm_signals(info: dict, heuristic: list[str]) -> list[str]:
+def _llm_signals(info: dict, heuristic: list[str], sig_cfg: dict) -> list[str]:
     """Call Anthropic API (claude-haiku) to extract signals from session summary.
 
     Returns [] on any error — caller falls back to heuristic signals.
@@ -134,6 +136,11 @@ def _llm_signals(info: dict, heuristic: list[str]) -> list[str]:
     api_key = _get_api_key()
     if not api_key:
         return []
+
+    model = sig_cfg.get("model", "claude-haiku-4-5-20251001")
+    max_tokens = sig_cfg.get("max_tokens", 300)
+    timeout = sig_cfg.get("timeout", 20)
+    max_files = sig_cfg.get("max_files_in_prompt", 10)
 
     agent_descs = [c["description"] or c["subagent_type"] for c in info["agent_calls"]]
     heuristic_note = (
@@ -146,7 +153,7 @@ def _llm_signals(info: dict, heuristic: list[str]) -> list[str]:
 ## Session 摘要
 任务：{info['user_request']}
 调用的 Agent：{', '.join(agent_descs) or '无'}
-改动文件：{'; '.join(info['files_changed'][:10]) or '无'}
+改动文件：{'; '.join(info['files_changed'][:max_files]) or '无'}
 涉及模块：{', '.join(info['modules']) or '无'}
 启发式参考（{heuristic_note}）
 
@@ -165,8 +172,8 @@ IS（当前事实）：接口签名、业务规则定义、配置值等有什么
     import json as _json
 
     payload = _json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 300,
+        "model": model,
+        "max_tokens": max_tokens,
         "messages": [{"role": "user", "content": prompt}],
     }).encode()
 
@@ -180,7 +187,7 @@ IS（当前事实）：接口签名、业务规则定义、配置值等有什么
         },
     )
     try:
-        with _req.urlopen(request, timeout=20) as resp:
+        with _req.urlopen(request, timeout=timeout) as resp:
             data = _json.loads(resp.read())
             text = data["content"][0]["text"].strip()
             return [
@@ -295,8 +302,12 @@ def _parse_transcript(messages: list, max_request_chars: int,
 # Entry and recovery note formatting
 # ---------------------------------------------------------------------------
 
-def _write_last_session(info: dict, store_dir: Path) -> None:
+def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None) -> None:
     """Write last-session.md — a structured recovery note for the next session."""
+    ls_cfg = ls_cfg or {}
+    preview_chars = ls_cfg.get("result_preview_chars", 120)
+    max_files = ls_cfg.get("max_files", 10)
+
     ended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
         "## 上次 Session 恢复点",
@@ -312,16 +323,16 @@ def _write_last_session(info: dict, store_dir: Path) -> None:
         for c in calls:
             label = c["description"] or c["subagent_type"] or "subagent"
             result = c["result"]
-            preview = (result[:120] + "…") if len(result) > 120 else result
+            preview = (result[:preview_chars] + "…") if len(result) > preview_chars else result
             lines.append(f"- {label}" + (f" → {preview}" if preview else ""))
         lines.append("")
 
     files = info["files_changed"]
     if files:
         lines.append("**改动文件**:")
-        for f in files[:10]:
+        for f in files[:max_files]:
             lines.append(f"- {f}")
-        if len(files) > 10:
+        if len(files) > max_files:
             lines.append(f"- …共 {len(files)} 个文件")
         lines.append("")
 

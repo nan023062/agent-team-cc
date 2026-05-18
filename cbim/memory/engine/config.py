@@ -24,6 +24,22 @@ _DEFAULTS: dict = {
     "hooks": {
         "timeout_seconds": 30,
     },
+    "signals": {
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 300,
+        "timeout": 20,
+        "max_files_in_prompt": 10,
+    },
+    "last_session": {
+        "result_preview_chars": 120,
+        "max_files": 10,
+    },
+    "distill": {
+        "suggest_threshold": 5,
+        "how_to_skill_threshold": 3,
+        "how_to_workflow_threshold": 2,
+        "must_review_threshold": 2,
+    },
 }
 
 

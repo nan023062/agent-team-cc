@@ -12,7 +12,7 @@
 | 场景 | 说明 |
 |------|------|
 | 用户主动要求 | "提炼一下记忆" / "整理最近的 session" |
-| 积累阈值 | `store/short/` 出现 ≥5 条未提炼 entry 时主动建议 |
+| 积累阈值 | `store/short/` 出现 ≥`distill.suggest_threshold` 条未提炼 entry 时主动建议（默认 5，见 `memory/config.json`） |
 | 治理前置 | HR 考核 / 架构师治理前，先运行本 skill 确保中期记忆最新 |
 
 ---
@@ -103,9 +103,9 @@ programmer 在并发写入场景下缺乏主动加锁意识，需要用户提示
 
 ## 治理建议
 
-- [ ] 提炼为 Skill（HOW 模式出现 ≥3 次）
-- [ ] 内化进 Soul（MUST 原则已验证稳定）
-- [ ] 触发 HR 考核（能力缺口重复出现 ≥2 次）
+- [ ] 提炼为 Skill（HOW 模式出现 ≥`how_to_skill_threshold` 次，见 `memory/config.json`）
+- [ ] 内化进 Soul（MUST 原则已验证稳定，出现 ≥`must_review_threshold` 次）
+- [ ] 触发 HR 考核（能力缺口重复出现 ≥`must_review_threshold` 次）
 ```
 
 ### 决策类中期 entry（WANT）
@@ -179,7 +179,7 @@ sources: 4
 ## 治理建议
 
 - [ ] IS 变更写入 `.dna/contract.md`（接口签名已更新）
-- [ ] HOW 流程提炼为 `.dna/workflows/`（出现 ≥2 次）
+- [ ] HOW 流程提炼为 `.dna/workflows/`（出现 ≥`how_to_workflow_threshold` 次，见 `memory/config.json`）
 - [ ] 通知架构师评审（有接口变更）
 ```
 

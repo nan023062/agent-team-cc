@@ -35,7 +35,7 @@
 |------|---------|---------|---------|
 | **IS** | 接口签名、业务规则定义、配置值 | `contract.md` | 有变更即升格，同步当前事实 |
 | **WANT** | 选型决策及权衡理由（ADR 格式） | `architecture.md` | 决策已落地即升格 |
-| **HOW**（业务） | 模块内确定性执行流程 | `workflows/<name>/workflow.md` | 出现 ≥2 次，步骤稳定 |
+| **HOW**（业务） | 模块内确定性执行流程 | `workflows/<name>/workflow.md` | 出现 ≥`distill.how_to_workflow_threshold` 次，步骤稳定（默认 2，见 `memory/config.json`） |
 | HOW（仅 1 次） | 流程尚未验证 | 保留在中期，继续观察 | 继续积累 |
 
 **不升格的内容**：一次性的调试记录、尚未验证的假设、项目内的临时方案。
@@ -114,9 +114,9 @@
 
 ```markdown
 ## 治理建议
-- [x] IS 变更写入 `.dna/contract.md`（接口签名已更新）   ← 已完成
-- [x] HOW 流程提炼为 `.dna/workflows/`（出现 ≥2 次）    ← 已完成
-- [ ] 通知架构师评审（有接口变更）                        ← 待处理
+- [x] IS 变更写入 `.dna/contract.md`（接口签名已更新）                       ← 已完成
+- [x] HOW 流程提炼为 `.dna/workflows/`（出现 ≥`how_to_workflow_threshold` 次）← 已完成
+- [ ] 通知架构师评审（有接口变更）                                             ← 待处理
 ```
 
 ### Step 5 — 运行合规检查

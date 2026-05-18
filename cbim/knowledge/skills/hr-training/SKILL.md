@@ -33,8 +33,8 @@
 
 | 象限 | 信号内容 | 升格目标 | 升格条件 |
 |------|---------|---------|---------|
-| **MUST** | 不得违反的行为约束 | Soul（`## 原则` 部分） | 出现 ≥1 次（原则无需重复验证） |
-| **HOW**（已验证） | 跨任务复用的有效流程 | Skill 文件 | 出现 ≥3 次，且跨项目成立 |
+| **MUST** | 不得违反的行为约束 | Soul（`## 原则` 部分） | 出现 ≥`distill.must_review_threshold` 次（默认 2，见 `memory/config.json`） |
+| **HOW**（已验证） | 跨任务复用的有效流程 | Skill 文件 | 出现 ≥`distill.how_to_skill_threshold` 次，且跨项目成立（默认 3，见 `memory/config.json`） |
 | **HOW**（未验证） | 仅出现 1-2 次 | 保留在中期，继续观察 | 继续积累 |
 
 **可移植性自检**（MUST / HOW 升格前必做）：
@@ -84,9 +84,9 @@
 
 ```markdown
 ## 治理建议
-- [x] 提炼为 Skill（HOW 模式出现 ≥3 次）     ← 已完成
-- [x] 内化进 Soul（MUST 原则已验证稳定）      ← 已完成
-- [ ] 触发 HR 考核（能力缺口重复出现 ≥2 次）  ← 待处理
+- [x] 提炼为 Skill（HOW 模式出现 ≥`how_to_skill_threshold` 次）  ← 已完成
+- [x] 内化进 Soul（MUST 原则已验证稳定）                         ← 已完成
+- [ ] 触发 HR 考核（能力缺口重复出现 ≥`must_review_threshold` 次）← 待处理
 ```
 
 ### Step 5 — 汇报
