@@ -40,7 +40,9 @@ function renderHeader() {
       `<span class="badge badge-short">短期 ${short}</span>` +
       `<span class="badge badge-medium">中期 ${medium}</span>`;
   } else if (s === 'agents') {
-    el.innerHTML = `<span>${DATA.agents.length} 个能力</span>`;
+    const totalSkills = DATA.agents.reduce((n, a) => n + a.skills.length, 0);
+    el.innerHTML = `<span>${DATA.agents.length} 个 work agent</span>` +
+      (totalSkills ? `<span class="badge badge-agent">${totalSkills} skills</span>` : '');
   } else {
     el.innerHTML = `<span>${DATA.knowledge.length} 个模块</span>`;
   }
@@ -86,7 +88,8 @@ function renderAgentsSidebar() {
   const sb = document.getElementById('sidebar');
   if (!items.length) { sb.innerHTML = '<div class="empty">无匹配能力</div>'; return; }
   sb.innerHTML = items.map(a => {
-    const sc  = a.skills.length ? `<span class="entry-keyword">${a.skills.length} skills</span>` : '';
+    const sc  = a.skills.length
+      ? `<span class="badge badge-skill">${a.skills.length} skills</span>` : '';
     const sel = STATE.selected.agents === a.id ? ' selected' : '';
     return `<div class="entry-item${sel}" onclick="selectItem('agents','${esc(a.id)}')">
       <div class="entry-meta"><span class="badge badge-agent">agent</span>${sc}</div>
@@ -106,9 +109,11 @@ function renderKnowledgeSidebar() {
   if (!items.length) { sb.innerHTML = '<div class="empty">无匹配模块</div>'; return; }
   sb.innerHTML = items.map(m => {
     const kws = m.keywords.map(k => `<span class="entry-keyword">#${k}</span>`).join('');
+    const wfBadge = m.workflows.length
+      ? `<span class="badge badge-workflow">${m.workflows.length} workflows</span>` : '';
     const sel = STATE.selected.knowledge === m.id ? ' selected' : '';
     return `<div class="entry-item${sel}" onclick="selectItem('knowledge','${esc(m.id)}')">
-      <div class="entry-meta"><span class="badge badge-module">module</span>${kws}</div>
+      <div class="entry-meta"><span class="badge badge-module">module</span>${wfBadge}${kws}</div>
       <div class="entry-title">${esc(m.name)}</div>
       <div class="entry-desc">${esc(m.description.slice(0, 60))}</div>
     </div>`;
@@ -164,44 +169,51 @@ function renderMemoryDetail(el, entry) {
 }
 
 function renderAgentDetail(el, agent) {
-  const skillList = agent.skills.length
-    ? agent.skills.map(s => `<span class="skill-tag">${esc(s)}</span>`).join('')
-    : '<span class="muted">—</span>';
   const pairs = [
     ...(agent.model ? [['model', agent.model]] : []),
     ...(agent.tools ? [['tools', agent.tools]] : []),
   ];
   const meta = pairs.map(([k, v]) =>
     `<div class="meta-item"><strong>${k}</strong>: ${esc(v)}</div>`).join('');
-  const body = agent.body ? `<pre class="content-body">${esc(agent.body)}</pre>` : '';
+  const soulSection = agent.body
+    ? `<div class="doc-section"><h3>soul</h3><pre class="content-body">${esc(agent.body)}</pre></div>`
+    : '';
+  const skillSections = agent.skills.map(s =>
+    `<div class="doc-section">
+      <h3><span class="skill-tag">${esc(s.id)}</span></h3>
+      <pre class="content-body">${esc(s.body)}</pre>
+    </div>`).join('');
   el.className = '';
   el.innerHTML = `
     <div class="content-header">
       <h2>${esc(agent.name)}</h2>
       <p class="agent-desc">${esc(agent.description)}</p>
       <div class="meta-grid">${meta}</div>
-      <div class="skill-row"><strong>Skills:</strong> ${skillList}</div>
     </div>
-    ${body}`;
+    ${soulSection}${skillSections}`;
 }
 
 function renderKnowledgeDetail(el, mod) {
   const pairs = [
     ['path', mod.path],
-    ...(mod.owner       ? [['owner', mod.owner]]                        : []),
-    ...(mod.keywords.length    ? [['keywords',    mod.keywords.join(', ')]]    : []),
-    ...(mod.dependencies.length ? [['deps', mod.dependencies.join(', ')]]      : []),
-    ...(mod.workflows.length    ? [['workflows',   mod.workflows.join(', ')]]   : []),
+    ...(mod.owner              ? [['owner',    mod.owner]]                          : []),
+    ...(mod.keywords.length    ? [['keywords', mod.keywords.join(', ')]]            : []),
+    ...(mod.dependencies.length ? [['deps',    mod.dependencies.join(', ')]]        : []),
+    ...(mod.workflows.length    ? [['workflows', mod.workflows.map(w => w.id).join(', ')]] : []),
   ];
   const meta = pairs.map(([k, v]) =>
     `<div class="meta-item"><strong>${k}</strong>: ${esc(v)}</div>`).join('');
   const sections = [];
   if (mod.architecture) sections.push(
     `<div class="doc-section"><h3>architecture.md</h3>` +
-    `<pre class="content-body">${esc(mod.architecture.slice(0, 1200))}</pre></div>`);
+    `<pre class="content-body">${esc(mod.architecture)}</pre></div>`);
   if (mod.contract) sections.push(
     `<div class="doc-section"><h3>contract.md</h3>` +
-    `<pre class="content-body">${esc(mod.contract.slice(0, 1200))}</pre></div>`);
+    `<pre class="content-body">${esc(mod.contract)}</pre></div>`);
+  mod.workflows.forEach(w => sections.push(
+    `<div class="doc-section">` +
+    `<h3><span class="workflow-tag">${esc(w.id)}</span>&nbsp;workflow</h3>` +
+    `<pre class="content-body">${esc(w.body)}</pre></div>`));
   el.className = '';
   el.innerHTML = `
     <div class="content-header">

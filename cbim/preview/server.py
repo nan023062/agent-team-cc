@@ -121,6 +121,10 @@ def _parse_entry(path: Path, tier: str) -> dict:
     }
 
 
+# Built-in agents are not shown in the preview — only user-defined work agents.
+_BUILTIN_AGENTS = {"architect", "hr", "auditor", "programmer"}
+
+
 # ---------------------------------------------------------------------------
 # Agents data collection
 # ---------------------------------------------------------------------------
@@ -133,6 +137,8 @@ def _collect_agents(cbim_dir: Path) -> list[dict]:
     for agent_dir in sorted(agents_dir.iterdir()):
         if not agent_dir.is_dir():
             continue
+        if agent_dir.name in _BUILTIN_AGENTS:
+            continue
         md = agent_dir / f"{agent_dir.name}.md"
         if not md.exists():
             continue
@@ -142,8 +148,7 @@ def _collect_agents(cbim_dir: Path) -> list[dict]:
             continue
         meta = _parse_frontmatter(raw)
         body = _strip_frontmatter(raw)
-        skills_dir = agent_dir / "skills"
-        skills = sorted(f.stem for f in skills_dir.glob("*.md")) if skills_dir.exists() else []
+        skills = _collect_agent_skills(agent_dir)
         agents.append({
             "id": agent_dir.name,
             "name": meta.get("name", agent_dir.name),
@@ -154,6 +159,23 @@ def _collect_agents(cbim_dir: Path) -> list[dict]:
             "body": body,
         })
     return agents
+
+
+def _collect_agent_skills(agent_dir: Path) -> list[dict]:
+    skills_dir = agent_dir / "skills"
+    if not skills_dir.exists():
+        return []
+    skills = []
+    for skill_file in sorted(skills_dir.glob("*.md")):
+        try:
+            raw = skill_file.read_text(encoding="utf-8")
+        except (FileNotFoundError, PermissionError):
+            raw = ""
+        skills.append({
+            "id": skill_file.stem,
+            "body": _strip_frontmatter(raw),
+        })
+    return skills
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +196,7 @@ def _collect_knowledge(root_dir: Path) -> list[dict]:
             if (aimod / "architecture.md").exists() else ""
         contract = (aimod / "contract.md").read_text(encoding="utf-8") \
             if (aimod / "contract.md").exists() else ""
-        workflows_dir = aimod / "workflows"
-        workflows = sorted(w.parent.name for w in workflows_dir.glob("*/workflow.md")) \
-            if workflows_dir.exists() else []
+        workflows = _collect_workflows(aimod / "workflows")
         modules.append({
             "id": rel or ".",
             "path": rel or ".",
@@ -190,6 +210,29 @@ def _collect_knowledge(root_dir: Path) -> list[dict]:
             "workflows": workflows,
         })
     return modules
+
+
+def _collect_workflows(workflows_dir: Path) -> list[dict]:
+    if not workflows_dir.exists():
+        return []
+    workflows = []
+    for wf_dir in sorted(workflows_dir.iterdir()):
+        if not wf_dir.is_dir():
+            continue
+        wf_file = wf_dir / "workflow.md"
+        if not wf_file.exists():
+            continue
+        try:
+            raw = wf_file.read_text(encoding="utf-8")
+        except (FileNotFoundError, PermissionError):
+            raw = ""
+        meta = _parse_frontmatter(raw)
+        workflows.append({
+            "id": wf_dir.name,
+            "name": meta.get("name", wf_dir.name),
+            "body": _strip_frontmatter(raw),
+        })
+    return workflows
 
 
 # ---------------------------------------------------------------------------

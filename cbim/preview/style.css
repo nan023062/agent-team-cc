@@ -12,6 +12,10 @@
   --agent-bg: #ecfdf5;
   --module: #d97706;
   --module-bg: #fffbeb;
+  --workflow: #0891b2;
+  --workflow-bg: #ecfeff;
+  --skill: #059669;
+  --skill-bg: #ecfdf5;
   --accent: #0f172a;
   --hover: #f1f5f9;
   --selected: #e0e7ff;
@@ -68,10 +72,12 @@ header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
   font-size: 11px;
   font-weight: 600;
 }
-.badge-short   { background: var(--short-bg);  color: var(--short); }
-.badge-medium  { background: var(--medium-bg); color: var(--medium); }
-.badge-agent   { background: var(--agent-bg);  color: var(--agent); }
-.badge-module  { background: var(--module-bg); color: var(--module); }
+.badge-short    { background: var(--short-bg);    color: var(--short); }
+.badge-medium   { background: var(--medium-bg);   color: var(--medium); }
+.badge-agent    { background: var(--agent-bg);    color: var(--agent); }
+.badge-module   { background: var(--module-bg);   color: var(--module); }
+.badge-workflow { background: var(--workflow-bg); color: var(--workflow); }
+.badge-skill    { background: var(--skill-bg);    color: var(--skill); }
 
 .toolbar {
   background: var(--surface);
@@ -189,8 +195,18 @@ header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
   display: inline-block;
   padding: 1px 8px;
   border-radius: 10px;
-  background: var(--agent-bg);
-  color: var(--agent);
+  background: var(--skill-bg);
+  color: var(--skill);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.workflow-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--workflow-bg);
+  color: var(--workflow);
   font-size: 11px;
   font-weight: 600;
 }
