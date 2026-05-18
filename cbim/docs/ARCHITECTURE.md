@@ -2,7 +2,25 @@
 
 ## 这是什么
 
-CBIM（Capability × Content + Memory）是一个可部署到任意项目的多 Agent 协作框架。安装后，在项目根目录启动 Claude Code，主 session 就是"助手"——它是你与整个 Agent 团队之间唯一的对话入口。
+**CBIM** = **CBI**（Capability-Business Independence，能力-业务独立性）+ **M**（Memory，记忆系统）
+
+**CBI** 是核心设计哲学：
+
+> 能力（Agent 定义、Skills）与业务（项目知识、模块内容）必须严格分离，互不污染。
+> 能力是可移植的专业技能；业务是特定项目的知识蓝图。两者只通过任务接口协作，不相互耦合。
+
+**M** 是框架的记忆基础设施：会话记忆（短期/中期）+ SessionStart 上下文注入，让 Agent 团队在项目中跨会话积累知识。
+
+这一哲学体现在框架的每一层设计：
+
+| 分离维度 | 能力侧 | 业务侧 |
+|---------|-------|-------|
+| 存储位置 | `.claude/agents/`（soul + skills） | `.dna/`（module.json + architecture + contract） |
+| 治理者 | HR | 架构师 |
+| 铁律 | soul/skills 不含任何项目特定内容 | 知识三件套不引用 agent 规范 |
+| 可验证性 | 放到另一个项目仍然有意义 → 合规 | 只描述当前最终工作状态，不描述 agent |
+
+CBIM 同时也是一个**可部署到任意项目的多 Agent 协作框架**。安装后，在项目根目录启动 Claude Code，主 session 就是"助手"——它是你与整个 Agent 团队之间唯一的对话入口。
 
 你只需要和助手说话。助手负责理解意图、拆解任务、派发给合适的 Agent、汇总结果。
 

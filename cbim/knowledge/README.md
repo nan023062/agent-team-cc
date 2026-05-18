@@ -1,6 +1,6 @@
 # Knowledge — 项目长期记忆知识库
 
-> 能力（Capability）× 内容（Content）双维度知识管理系统。
+> CBIM 知识库：能力层（`.claude/agents/`）与内容层（`.dna/`）的双域管理引擎，体现 Capability-Business Independence 设计哲学。
 
 ---
 
