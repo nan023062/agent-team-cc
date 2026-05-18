@@ -1,29 +1,12 @@
 # Skill: 知识治理
 
-## Changelog 条目类型
-
-模块相关记录统一存放于 `memory/entries/`，由执行任务的 agent 写入，tags 中标记 `module-<name>` 以便过滤。
-
-常见 tag 含义：
-- `decision` — 架构决策（为什么这样设计）
-- `incident` — 踩坑或问题
-- `constraint` — 新发现的约束
-
-只装模块特有的非代码事实；代码模式 → architecture.md；一次性 bug → commit 历史；跨模块约束 → `.claude/agents/architect.md` 的信念节。
-
-详见 `.claude/agents/architect/skills/memory-convention.md`(同目录)。
+输入：主 agent 通过记忆提炼（`daily-signal.md`）已识别的模块信号，包含决策、踩坑、约束等分类摘要。架构师不直接查询短期记忆，只处理传入的信号。
 
 ---
 
 ## 一、模块记录治理
 
-**Step 1 — 查询相关 entries**
-按 `.claude/skills/memory/SKILL.md` 执行向量查询，获取文件路径后逐一读取原文，按时间窗梳理：
-- 发生了哪些架构决策（decision）？
-- 出现了哪些反复踩坑的问题（incident）？
-- 新增了哪些模块特有约束（constraint）？
-
-**Step 2 — 提炼 Workflow 候选**
+**Step 1 — 提炼 Workflow 候选**
 寻找重复出现（≥2次）的作业模式：
 - 有清晰触发条件？
 - 步骤自包含、无需额外人类指令？
@@ -87,7 +70,7 @@
 - `contract.md` — 对外接口签名与使用方声明
 
 同时扫描：
-- `memory/entries/`（`tags=module-<name>`）— 未升格的 decision / incident / constraint 积压量
+- 主 agent 传入的信号中未升格的 decision / incident / constraint 积压量
 - `workflows/` — 已有 workflow 覆盖度
 
 **Step 2 — 判断健康状态**

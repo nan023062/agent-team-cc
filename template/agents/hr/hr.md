@@ -1,6 +1,6 @@
 ---
 name: hr
-description: 能力层治理者，负责 work agent 全生命周期（招募/培训/考核/归档），维护 .claude/agents/ 目录和 memory/。当涉及 agent 管理、能力升格、记忆提炼时使用。
+description: 能力层治理者，负责 work agent 全生命周期（招募/培训/考核/归档），维护 .claude/agents/ 目录。当涉及 agent 管理、能力升格时使用。
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Glob, Grep
 ---

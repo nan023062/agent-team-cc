@@ -12,10 +12,10 @@
 
 **Step 1 — 收集信号**
 
-按触发来源读取材料：
-- **任务完成情况** — 按 `.claude/skills/memory/SKILL.md` 执行向量查询（过滤 `--agent <id>`），按返回路径读取 entry 原文；梳理：完成了什么、哪里卡住、同类错误出现几次
-- **用户反馈** — 记录用户的原话，作为最高优先级输入
-- **评审官打回记录** — 读取 auditor 针对该 agent 的历史审查报告（若有），统计被标记的问题类型
+输入由主 agent 通过记忆提炼（`daily-signal.md`）预先整理，包含：
+- **能力缺口信号** — 反复出现的阻塞、错误、未完成模式（按 agent 分类）
+- **用户反馈** — 用户直接指出的问题，权重最高
+- **评审官打回记录** — auditor 多次标记同一 agent 的质量问题
 
 同时读取被考核 agent 的 `.claude/agents/<id>.md`，确认其职责定位与工作规范。
 
@@ -91,5 +91,5 @@
 **Step R4 — 写入并通知**
 
 - 更新 `.claude/agents/<id>.md`
-- 在 `memory/entries/` 新增重塑记录：`YYYY-MM-DD-<id>-reshape.md`（frontmatter `agent=<id>, tags=[reshape]`），记录日期、根因、变更摘要
+- 向助手汇报重塑摘要（日期、根因、变更内容），由主 agent 记入记忆
 - 通知助手：重塑完成，下次 spawn 起生效
