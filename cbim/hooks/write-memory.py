@@ -42,9 +42,10 @@ def main() -> None:
     if not python:
         sys.exit(0)
 
+    # Run with cwd=cbim/ so `memory` package is importable as memory.engine.cli
     subprocess.run(
         [python, "-m", "memory.engine.cli", "write-session", transcript_path],
-        cwd=str(cwd),
+        cwd=str(cwd / "cbim"),
         timeout=60,
         check=False,
     )

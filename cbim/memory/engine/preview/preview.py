@@ -11,8 +11,9 @@ import sys
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent.parent.parent  # engine/preview → engine → memory → project root
-PID_FILE = ROOT / "memory" / "store" / ".preview.pid"
+CBIM = Path(__file__).resolve().parent.parent.parent.parent  # preview → engine → memory → cbim
+ROOT = CBIM.parent                                           # project root (where .venv lives)
+PID_FILE = CBIM / "memory" / "store" / ".preview.pid"
 
 
 def _python() -> str:
@@ -51,7 +52,7 @@ def start() -> None:
     python = _python()
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    kwargs = dict(cwd=str(ROOT))
+    kwargs = dict(cwd=str(CBIM))  # cwd=cbim/ so `memory.engine.cli` is importable
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
     else:
