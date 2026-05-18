@@ -23,14 +23,12 @@ mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TA
 
 # 3. 复制文件
 cp "$SRC/template/CLAUDE-template.md"  "$TARGET/CLAUDE.md"
-cp "$SRC/template/skills/memory/.env.example"        "$TARGET/.env.example"
+cp "$SRC/template/memory/.env.example"           "$TARGET/.env.example"
 cp -R "$SRC/template/agents"           "$TARGET/.claude/agents"
 cp -R "$SRC/template/hooks"            "$TARGET/.claude/hooks"
 cp -R "$SRC/template/skills"           "$TARGET/.claude/skills"
 cp    "$SRC/.claude/settings.json"     "$TARGET/.claude/settings.json"
-cp    "$SRC/template/skills/memory/scripts/memory_index.py"  "$TARGET/memory/"
-cp    "$SRC/template/skills/memory/scripts/memory_query.py"  "$TARGET/memory/"
-cp    "$SRC/template/skills/memory/scripts/requirements.txt" "$TARGET/memory/"
+cp -R "$SRC/template/memory"           "$TARGET/memory"
 
 # 4. 合并 .gitignore（确保这几条存在）
 # chroma_db/  .env  .venv/
@@ -40,7 +38,7 @@ cp    "$SRC/template/skills/memory/scripts/requirements.txt" "$TARGET/memory/"
 cd "$TARGET"
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip -q
-.venv/bin/pip install -r memory/requirements.txt
+.venv/bin/pip install -r memory/scripts/requirements.txt
 
 # 6. 配置 .env
 cp .env.example .env
@@ -61,14 +59,12 @@ rm -rf /tmp/agent-team-cc-src
 | 来源（模板仓库） | 目标路径 | 说明 |
 |----------------|---------|------|
 | `template/CLAUDE-template.md` | `CLAUDE.md` | 助手身份 |
-| `template/skills/memory/.env.example` | `.env.example` | 记忆系统环境变量模板 |
+| `template/memory/.env.example` | `.env.example` | 记忆系统环境变量模板 |
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
 | `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
-| `template/skills/` | `.claude/skills/` | 主 agent skills（memory/SKILL.md 为记忆接口） |
+| `template/skills/` | `.claude/skills/` | 主 agent skills（architect / hr 治理接口） |
 | `.claude/settings.json` | `.claude/settings.json` | 权限配置 + hook 注册 |
-| `template/skills/memory/scripts/memory_index.py` | `memory/memory_index.py` | 构建向量索引 |
-| `template/skills/memory/scripts/memory_query.py` | `memory/memory_query.py` | 向量查询（返回文件路径） |
-| `template/skills/memory/scripts/requirements.txt` | `memory/requirements.txt` | Python 依赖 |
+| `template/memory/` | `memory/` | 记忆系统（脚本 + skills） |
 
 **不安装**：`.git/`、`README.md`、`INSTALL.md`、`ARCHITECTURE.md`、`aimodule-convention.md`、`.claude/settings.local.json`
 
@@ -106,14 +102,12 @@ git clone https://github.com/nan023062/agent-team-cc.git /tmp/agent-team-cc-src
 白名单：
 ```
 template/CLAUDE-template.md      → CLAUDE.md
-template/skills/memory/.env.example            → .env.example
+template/memory/.env.example     → .env.example
 template/agents/                 → .claude/agents/
 template/hooks/                  → .claude/hooks/
 template/skills/                 → .claude/skills/
 .claude/settings.json            → .claude/settings.json
-template/skills/memory/scripts/memory_index.py   → memory/memory_index.py
-template/skills/memory/scripts/memory_query.py   → memory/memory_query.py
-template/skills/memory/scripts/requirements.txt  → memory/requirements.txt
+template/memory/                 → memory/
 ```
 
 参考写法（请逐项确认目标是否存在再决定动作）：
@@ -126,19 +120,16 @@ mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TA
 
 # 顶层
 cp -i "$SRC/template/CLAUDE-template.md" "$TARGET/CLAUDE.md"
-cp -i "$SRC/template/skills/memory/.env.example"       "$TARGET/.env.example"
+cp -i "$SRC/template/memory/.env.example"              "$TARGET/.env.example"
 
 # .claude/（不要碰 settings.local.json）
 cp -R "$SRC/template/agents"          "$TARGET/.claude/agents"
-cp -R "$SRC/template/commands"        "$TARGET/.claude/commands"
 cp -R "$SRC/template/hooks"           "$TARGET/.claude/hooks"
 cp -R "$SRC/template/skills"          "$TARGET/.claude/skills"
 cp -i "$SRC/.claude/settings.json"    "$TARGET/.claude/settings.json"
 
-# memory/（工具脚本）
-cp -i "$SRC/template/skills/memory/scripts/memory_index.py"  "$TARGET/memory/"
-cp -i "$SRC/template/skills/memory/scripts/memory_query.py"  "$TARGET/memory/"
-cp -i "$SRC/template/skills/memory/scripts/requirements.txt" "$TARGET/memory/"
+# memory/（记忆系统：脚本 + skills）
+cp -R "$SRC/template/memory"          "$TARGET/memory"
 ```
 
 > `cp -i` 在目标存在时会询问；若在非交互环境，请先 `[ -e ... ]` 判断后停下来问用户。
@@ -166,7 +157,7 @@ Homebrew Python 不允许全局 pip 安装，必须用 venv（skill 内的命令
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip -q
-.venv/bin/pip install -r memory/requirements.txt
+.venv/bin/pip install -r memory/scripts/requirements.txt
 ```
 
 验证：

@@ -36,7 +36,7 @@ def main():
         sys.exit(0)
 
     cwd = Path(event.get("cwd", os.getcwd()))
-    query_script = cwd / "memory" / "memory_query.py"
+    query_script = cwd / "memory" / "scripts" / "memory_query.py"
     entries_dir = cwd / "memory" / "entries"
 
     # Bail out if memory system isn't set up yet
