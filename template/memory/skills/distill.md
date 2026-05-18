@@ -1,17 +1,8 @@
-# Skill: 记忆提炼（短期 → 中期 → 长期）
+# Skill: 记忆提炼（短期 → 中期）
 
 **主 agent 专用。定期或按需触发。**
 
-## 三层记忆流向
-
-```
-memory/store/short/   ← session 自动写入（本地）
-        ↓  distill（按关键字压缩）
-memory/store/medium/  ← 本地工作记忆，供 session 间参考
-        ↓  升格（驱动 HR / 架构师）
-.claude/agents/<id>/skills/   ← 长期能力知识（团队 git-tracked）
-.aimodule/                    ← 长期内容知识（团队 git-tracked）
-```
+扫描短期记忆，按**能力关键字**和**内容关键字**压缩为中期记忆条目。
 
 ---
 
@@ -19,9 +10,8 @@ memory/store/medium/  ← 本地工作记忆，供 session 间参考
 
 | 频率 | 建议 |
 |------|------|
-| 每日 | 短期→中期：采集信号，压缩为中期条目 |
-| 每周 | 中期→长期：汇总中期信号，驱动 HR / 架构师执行升格 |
-| 按需 | 用户主动触发，或感知到 agent / 模块质量下滑时 |
+| 每日 | 采集新 session 信号，压缩为中期条目 |
+| 按需 | 用户主动触发 |
 
 ---
 
@@ -34,7 +24,7 @@ memory/store/medium/  ← 本地工作记忆，供 session 间参考
 
 ---
 
-## Phase 1 — 短期 → 中期（每日）
+## 步骤
 
 **Step 1 — 扫描短期记忆**
 
@@ -69,32 +59,18 @@ sources: 12
 .venv/bin/python -m memory.engine.cli add memory/store/medium/<file>.md --tier medium
 ```
 
----
+**Step 3 — 输出提炼摘要**
 
-## Phase 2 — 中期 → 长期（每周）
-
-读取中期记忆，汇总信号，驱动长期知识库更新：
-
-**能力信号 → HR → 长期能力知识**
-- 目标文件：`.claude/agents/<id>/skills/`、`.claude/agents/<id>/<id>.md`
-- 读 `.claude/skills/hr/SKILL.md`，派发 HR 执行 assessment / training skill
-
-**内容信号 → 架构师 → 长期内容知识**
-- 目标文件：`.aimodule/architecture.md`、`.aimodule/contract.md`
-- 读 `.claude/skills/architect/SKILL.md`，派发架构师执行 knowledge-governance skill
-
-**输出摘要格式：**
+向用户汇报本次提炼结果：
 
 ```
 ## 记忆提炼摘要（{日期范围}，{N} 条 entry）
 
-### 能力信号 → 建议升格到 .claude/agents/
+### 能力信号（{N} 条）
 - [agent-id] 信号类型：描述
 
-### 内容信号 → 建议升格到 .aimodule/
+### 内容信号（{N} 条）
 - [模块名] 信号类型：描述
-
-### 建议后续行动
-- 能力升格：派发 HR
-- 知识治理：派发架构师
 ```
+
+后续是否触发 HR 考核培训 / 架构师知识治理，由用户决定。

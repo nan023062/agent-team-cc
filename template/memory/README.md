@@ -71,4 +71,4 @@ python3 -m venv .venv
 |------|------|
 | 补写 session entry | `memory/skills/write.md` |
 | 检索历史记忆 | `memory/skills/query.md` |
-| 短期→中期→长期提炼 | `memory/skills/distill.md` |
+| 短期→中期提炼 | `memory/skills/distill.md` |
