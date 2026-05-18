@@ -102,6 +102,29 @@ cbim/knowledge/skills/   ← 能力向 skill（HR 治理，agent 跨项目可复
 .dna/workflows/          ← 业务向 skill（架构师治理，模块内确定性流程）
 ```
 
+### 业务向 Skill 的按需加载
+
+业务向 skill（workflow）不会全量注入会话上下文。**只有当某个模块被指定处理时，该模块的 workflow 才会被加载——包括 workflow 的元信息（头部描述）也是如此。**
+
+```
+SessionStart
+  └── snapshot.py 注入会话
+        ├── 模块树：路径 + 名称 + owner（不含 workflow 内容）
+        └── agent 列表：id + description（不含 skill 内容）
+
+任务派发时（按需加载）
+  └── agent 读取目标模块的 .dna/
+        ├── architecture.md
+        ├── contract.md
+        └── workflows/<name>/workflow.md   ← 此时才读入，含元信息和步骤
+```
+
+这是 CBIM 不需要在 `.claude/` 堆积大量 skill 的根本原因：
+- 能力向 skill 由 agent 在需要时主动 Read，不常驻上下文
+- 业务向 skill（workflow）封装在模块 `.dna/` 内，随模块按需加载，与其他模块完全隔离
+
+项目可以有数十个模块、每个模块多个 workflow，对会话上下文的压力始终是常数级（快照 + 当前任务模块）。
+
 **进化路径**：
 - 业务流程出现 ≥ 2 次 → 架构师提炼为 `.dna/workflows/`（业务向 skill）
 - agent 能力积累验证 → HR 提炼为 `cbim/knowledge/skills/`（能力向 skill）→ 内化进 soul
