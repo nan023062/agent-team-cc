@@ -1,110 +1,110 @@
-# Skill: Agent 培训（HR）
+# Skill: Agent Training (HR)
 
-> 从中期记忆的能力条目中提炼信号，将已验证的模式升格为 Skill 或内化进 Soul，提升 work agent 能力上限。
+> Extract signals from medium-memory capability entries, and promote validated patterns to Skills or internalize them into the Soul, raising a work agent's capability ceiling.
 
-## 触发场景
+## Trigger Scenarios
 
-- 考核结论为"能力不足，需培训"
-- 助手反映某 agent 重复犯同类错误
-- 评审官持续打回同一 agent 的交付物
-- 中期记忆 `capability-<agent-id>.md` 的治理建议出现未勾选项
+- Assessment conclusion is "capability gap, needs training"
+- Assistant reports that an agent repeatedly makes the same type of error
+- Auditor continuously rejects the same agent's deliverables
+- Medium-memory `capability-<agent-id>.md` has unchecked governance items
 
 ---
 
-## 培训流程
+## Training Process
 
-### Step 1 — 读取中期能力条目
+### Step 1 — Read Medium Capability Entry
 
-列出 medium tier 中该 agent 的条目：
+List the agent's medium-tier entries:
 
 ```bash
 .venv/bin/python -m memory.engine.cli query "" --tier medium --top-k 20
 ```
 
-找到 `capability-<agent-id>.md`，用 Read 工具读取完整内容。
+Find `capability-<agent-id>.md`; read its full content with the Read tool.
 
-重点读取：
-- `## MUST 记录`：违反过的原则约束（负向信号）
-- `## HOW 记录`：已验证的有效流程（正向信号）
-- `## 摘要`：对该 agent 当前能力状态的综合判断
-- `## 治理建议`：上次提炼时标记的待处理项
+Focus on:
+- `## MUST Records`: violated behavioral constraints (negative signals)
+- `## HOW Records`: validated effective flows (positive signals)
+- `## Summary`: overall assessment of the agent's current capability state
+- `## Governance Recommendations`: unchecked items from the last distillation
 
-### Step 2 — 按四象限判断升格目标
+### Step 2 — Determine Promotion Target by Four-Quadrant
 
-| 象限 | 信号内容 | 升格目标 | 升格条件 |
-|------|---------|---------|---------|
-| **MUST** | 不得违反的行为约束 | Soul（`## 原则` 部分） | 出现 ≥`distill.must_review_threshold` 次（默认 2，见 `memory/config.json`） |
-| **HOW**（已验证） | 跨任务复用的有效流程 | Skill 文件 | 出现 ≥`distill.how_to_skill_threshold` 次，且跨项目成立（默认 3，见 `memory/config.json`） |
-| **HOW**（未验证） | 仅出现 1-2 次 | 保留在中期，继续观察 | 继续积累 |
+| Quadrant | Signal Content | Promotion Target | Condition |
+|----------|---------------|-----------------|-----------|
+| **MUST** | Behavioral constraints that must not be violated | Soul (`## Principles` section) | Appeared ≥`distill.must_review_threshold` times (default 2, see `memory/config.json`) |
+| **HOW** (validated) | Effective flows reusable across tasks | Skill file | Appeared ≥`distill.how_to_skill_threshold` times and holds across projects (default 3, see `memory/config.json`) |
+| **HOW** (unvalidated) | Appeared only 1–2 times | Keep in medium, continue observing | Continue accumulating |
 
-**可移植性自检**（MUST / HOW 升格前必做）：
-> 把这条内容放到另一个项目、另一种语言的代码库里，还有意义吗？
-- 有意义 → 升格（soul / skill）
-- 没有意义，依赖当前项目上下文 → 保留在 medium，不升格
+**Portability self-check** (required before promoting MUST / HOW):
+> If this content were placed in a different project, a different language codebase — does it still make sense?
+- Yes → promote (soul / skill)
+- No, depends on current project context → keep in medium, do not promote
 
-### Step 3 — 写入 Soul 或新增 Skill
+### Step 3 — Write to Soul or Add New Skill
 
-**更新 Soul**（处理 MUST 信号）：
+**Update Soul** (handling MUST signals):
 
-编辑 `.claude/agents/<id>/<id>.md`：
+Edit `.claude/agents/<id>/<id>.md`:
 
 ```markdown
-## 原则
-（追加新的行为准则，保持简洁，每条一行）
-- 执行批量删除前必须展示预期变更范围并获得确认
-- 遇到未定义的业务术语必须先澄清再执行，不得自行解读
+## Principles
+(append new behavioral constraints; keep concise, one line each)
+- Before executing bulk deletes, must display expected change scope and get confirmation
+- When encountering undefined business terms, must clarify before executing — do not self-interpret
 ```
 
-不改动 frontmatter（`model`、`tools` 需用户确认）。
+Do not modify frontmatter (`model`, `tools` require user confirmation).
 
-**新增 Skill**（处理 HOW 信号）：
+**Add New Skill** (handling HOW signals):
 
 ```
 .claude/agents/<id>/skills/<skill-name>.md
 
-# Skill: <场景名称>
+# Skill: <Scenario Name>
 
-## 触发条件
-（什么情况下启用此 skill）
+## Trigger Conditions
+(when to activate this skill)
 
-## 步骤
+## Steps
 1. ...
 2. ...
 
-## 输出格式
-（期望的交付物格式）
+## Output Format
+(expected deliverable format)
 
-## 边界与注意事项
-（不该做什么、已知的边界条件）
+## Boundaries and Notes
+(what not to do, known boundary conditions)
 ```
 
-### Step 4 — 更新中期条目的治理建议
+### Step 4 — Update Governance Recommendations in Medium Entry
 
-勾选已完成的治理建议项，防止重复处理：
+Check off completed governance items to prevent re-processing:
 
 ```markdown
-## 治理建议
-- [x] 提炼为 Skill（HOW 模式出现 ≥`how_to_skill_threshold` 次）  ← 已完成
-- [x] 内化进 Soul（MUST 原则已验证稳定）                         ← 已完成
-- [ ] 触发 HR 考核（能力缺口重复出现 ≥`must_review_threshold` 次）← 待处理
+## Governance Recommendations
+- [x] Distilled to Skill (HOW pattern appeared ≥`how_to_skill_threshold` times)  ← done
+- [x] Internalized to Soul (MUST principle validated as stable)                    ← done
+- [ ] Trigger HR assessment (capability gap repeated ≥`must_review_threshold` times) ← pending
 ```
 
-### Step 5 — 汇报
+### Step 5 — Report
 
-向助手汇报：
+Report to the assistant:
 
 ```
-## 培训汇报 — <agent-id>
+## Training Report — <agent-id>
 
-### Soul 更新
-- 新增原则：[内容]（来源：capability-<id>.md MUST 记录 × N 次）
+### Soul Updates
+- New principle: [content] (source: capability-<id>.md MUST records × N times)
 
-### 新增 Skill
-- <skill-name>：[一句话描述]（来源：HOW 记录 × N 次）
+### New Skills
+- <skill-name>: [one-line description] (source: HOW records × N times)
 
-### 保留观察
-- [内容]（仅出现 N 次，继续积累）
+### Retained for Observation
+- [content] (appeared only N times, continue accumulating)
 
-### 未升格原因
-- [内容]：项目特有细节，不满足跨项目可移植性
+### Not Promoted — Reason
+- [content]: project-specific details; does not meet cross-project portability requirement
 ```

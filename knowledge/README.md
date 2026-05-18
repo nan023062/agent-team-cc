@@ -1,74 +1,74 @@
-# Knowledge — 知识库（长期记忆）
+# Knowledge — Long-Term Memory
 
-> CBIM 知识库：能力层（`.claude/agents/`）与业务层（`.dna/`）的双域管理引擎，体现 Capability-Business Independence 设计哲学。
+> CBIM knowledge base: dual-domain management engine for the capability layer (`.claude/agents/`) and the business layer (`.dna/`), embodying the Capability-Business Independence design philosophy.
 
 ---
 
-## 四象限架构
+## Four-Quadrant Architecture
 
 ```
-                        业务层（Business）
-                    .dna/ 知识三件套
+                        Business Layer
+                    .dna/ knowledge three-pack
                             │
-              低成熟度       │       高成熟度
+              Low maturity   │   High maturity
               ─────────────┼─────────────
-  高          │  探索期      │  成熟期      │
-  能          │             │             │
-  力          │  新 agent   │  专精 agent  │
-  层          │  + 草稿模块  │  + 完整知识  │
-  （         ─┼─────────────┼─────────────┤
-  Ca-         │  空白期      │  知识驱动期  │
-  pa-         │             │             │
-  bi-  低     │  无 agent   │  有模块知识  │
-  li-  能     │  无知识      │  缺执行能力  │
-  ty)  力     │             │             │
+  High        │  Exploration  │  Mature       │
+  Capa-       │               │               │
+  bility      │  New agent    │  Specialized  │
+  Layer       │  + draft mod  │  agent        │
+  (Ca-       ─┼─────────────┼─────────────┤
+  pabi-       │  Blank        │  Knowledge-   │
+  lity)       │               │  driven       │
+  Low         │  No agent     │  Has modules  │
+  Capa-       │  No knowledge │  Lacks exec   │
+  bility      │               │               │
               └─────────────┴─────────────┘
 ```
 
-| 象限 | 能力层 | 业务层 | 状态 | 行动 |
-|------|--------|--------|------|------|
-| **空白期** | 无 agent | 无模块 | 项目刚开始 | 先建根模块，再招募第一个 work agent |
-| **知识驱动期** | 无/弱 agent | 有 `.dna/` | 有蓝图缺执行 | HR 招募对应能力的 work agent |
-| **探索期** | 有 agent | 无/草稿模块 | 有执行缺沉淀 | 架构师从记忆中提炼知识建档 |
-| **成熟期** | 专精 agent | 完整知识体系 | 健康状态 | 持续治理，按需裂变 |
+| Quadrant | Capability Layer | Business Layer | State | Action |
+|----------|-----------------|----------------|-------|--------|
+| **Blank** | No agent | No module | Project just started | Build root module first, then recruit first work agent |
+| **Knowledge-driven** | No/weak agent | Has `.dna/` | Blueprint exists, execution missing | HR recruits work agent with matching capability |
+| **Exploration** | Has agent | No/draft module | Execution exists, documentation missing | Architect distills knowledge from memory |
+| **Mature** | Specialized agent | Complete knowledge system | Healthy state | Continuous governance, split on demand |
 
-**健康目标**：每个活跃模块都有对应的 work agent；每个 work agent 都有对应的知识蓝图。
+**Health goal**: every active module has a corresponding work agent; every work agent has a corresponding knowledge blueprint.
 
 ---
 
-## 目录结构
+## Directory Structure
 
 ```
 knowledge/
-├── README.md               # 本文件
-├── engine/                 # 运行时引擎（CRUD 原语 + 统一 CLI）
-│   ├── cli.py              # 统一入口：agents / modules 双域命令
+├── README.md               # this file
+├── engine/                 # runtime engine (CRUD primitives + unified CLI)
+│   ├── cli.py              # unified entry: agents / modules dual-domain commands
 │   ├── agents.py           # list_agents / load_agent / scaffold_agent / archive_agent
 │   └── modules.py          # list_modules / load_module / init_module / update_index
-└── skills/                 # 操作 skill（SKILL.md + 可选运行时脚本）
-    ├── hr-agents/          # 招募 / 更新 / 归档 / 裂变
-    ├── hr-training/        # agent 培训（记忆 → skill/soul）
-    ├── hr-assessment/      # agent 考核
-    ├── arch-modules/       # 模块 CRUD
-    ├── arch-upgrade/       # 知识升格（memory → .dna/）
-    ├── arch-governance/    # 合规治理巡检
-    └── audit-review/       # 对抗性审查（评审官）
+└── skills/                 # operation skills (SKILL.md + optional runtime scripts)
+    ├── hr-agents/          # recruit / update / archive / split
+    ├── hr-training/        # agent training (memory → skill/soul)
+    ├── hr-assessment/      # agent assessment
+    ├── arch-modules/       # module CRUD
+    ├── arch-upgrade/       # knowledge promotion (memory → .dna/)
+    ├── arch-governance/    # compliance governance audit
+    └── audit-review/       # adversarial review (auditor)
 ```
 
 ---
 
-## 快速使用
+## Quick Reference
 
 ```bash
 CLI=python cbim/knowledge/engine/cli.py
 
-# 能力层
+# Capability layer
 $CLI agents list
 $CLI agents show <name>
 $CLI agents scaffold <name> --description "..."
 $CLI agents archive <name>
 
-# 业务层
+# Business layer
 $CLI modules list
 $CLI modules show <module-dir>
 $CLI modules init <dir> --name <name> --owner <owner>
@@ -77,11 +77,11 @@ $CLI modules reindex
 
 ---
 
-## 两层治理边界
+## Two-Layer Governance Boundaries
 
-| | 能力层 | 业务层 |
+| | Capability Layer | Business Layer |
 |---|---|---|
-| **数据源** | `.claude/agents/` | 项目各级 `.dna/` |
-| **治理者** | HR | 架构师 |
-| **生命周期** | 招募 → 培训 → 考核 → 裂变 / 归档 | 建档 → 更新 → 升格 → 废弃 |
-| **铁律** | soul 只含专业能力，不含项目细节 | 三件套只含模块知识，不引用 agent 规范 |
+| **Data source** | `.claude/agents/` | Each project's `.dna/` |
+| **Governed by** | HR | Architect |
+| **Lifecycle** | recruit → train → assess → split / archive | document → update → promote → deprecate |
+| **Hard rule** | soul contains only professional capability, no project-specific content | knowledge three-pack contains only module knowledge, no agent specs |

@@ -1,148 +1,148 @@
-# Skill: 知识升格（架构师）
+# Skill: Knowledge Promotion (Architect)
 
-> 从中期记忆的业务条目和决策条目中提炼信号，将已验证的事实、决策、流程沉淀回 `.dna/`，形成持久业务知识。
+> Extract signals from medium-memory business and decision entries, and distill verified facts, decisions, and processes back into `.dna/` as persistent business knowledge.
 
-## 触发场景
+## Trigger Scenarios
 
-- 一批任务完成，涉及接口变更或重要架构决策
-- 同一业务流程出现 ≥2 次（值得 workflow 化）
-- 助手要求整理某模块的知识
-- 中期记忆 `business-*.md` 或 `decision-*.md` 的治理建议出现未勾选项
+- A batch of tasks is complete and involves interface changes or important architecture decisions
+- The same business flow has appeared ≥2 times (worth turning into a workflow)
+- The assistant requests knowledge consolidation for a module
+- Medium-memory `business-*.md` or `decision-*.md` has unchecked governance items
 
 ---
 
-## 升格流程
+## Promotion Process
 
-### Step 1 — 读取中期业务条目和决策条目
+### Step 1 — Read Medium Business and Decision Entries
 
-列出 medium tier 的全部条目：
+List all medium-tier entries:
 
 ```bash
 .venv/bin/python -m memory.engine.cli query "" --tier medium --top-k 20
 ```
 
-找到与目标模块相关的 `business-<module>.md` 和 `decision-<scope>.md`，用 Read 工具读取完整内容。
+Find `business-<module>.md` and `decision-<scope>.md` related to the target module; read their full content with the Read tool.
 
-重点读取：
-- `## IS 记录`：接口变更、业务规则变更、配置变更（→ `contract.md`）
-- `## HOW 记录`：重复出现的确定性执行流程（→ `workflows/`）
-- `## 决策记录`：WANT 类的选型与权衡（→ `architecture.md`）
-- `## 治理建议`：上次提炼时标记的待处理项
+Focus on:
+- `## IS Records`: interface changes, business rule changes, config changes (→ `contract.md`)
+- `## HOW Records`: recurring deterministic execution flows (→ `workflows/`)
+- `## Decision Records`: WANT-type selections and trade-offs (→ `architecture.md`)
+- `## Governance Recommendations`: unchecked items from the last distillation
 
-### Step 2 — 按四象限判断升格目标
+### Step 2 — Determine Promotion Target by Four-Quadrant
 
-| 象限 | 信号内容 | 升格目标 | 升格条件 |
-|------|---------|---------|---------|
-| **IS** | 接口签名、业务规则定义、配置值 | `contract.md` | 有变更即升格，同步当前事实 |
-| **WANT** | 选型决策及权衡理由（ADR 格式） | `architecture.md` | 决策已落地即升格 |
-| **HOW**（业务） | 模块内确定性执行流程 | `workflows/<name>/workflow.md` | 出现 ≥`distill.how_to_workflow_threshold` 次，步骤稳定（默认 2，见 `memory/config.json`） |
-| HOW（仅 1 次） | 流程尚未验证 | 保留在中期，继续观察 | 继续积累 |
+| Quadrant | Signal Content | Promotion Target | Condition |
+|----------|---------------|-----------------|-----------|
+| **IS** | Interface signatures, business rule definitions, config values | `contract.md` | Promote on any change; sync current facts |
+| **WANT** | Selection decision with trade-off rationale (ADR format) | `architecture.md` | Promote once decision is implemented |
+| **HOW** (business) | Deterministic execution flow within the module | `workflows/<name>/workflow.md` | Appeared ≥`distill.how_to_workflow_threshold` times, steps stable (default 2, see `memory/config.json`) |
+| HOW (once only) | Flow not yet validated | Keep in medium, continue observing | Continue accumulating |
 
-**不升格的内容**：一次性的调试记录、尚未验证的假设、项目内的临时方案。
+**Do NOT promote**: one-time debug records, unvalidated assumptions, temporary project-specific solutions.
 
-### Step 3 — 写入知识三件套
+### Step 3 — Write to the Knowledge Three-Pack
 
-**`contract.md`**（处理 IS 信号）
+**`contract.md`** (handling IS signals)
 
-同步当前最新事实，包含旧值和新值：
-
-```markdown
-## <接口或规则名称>
-
-当前值：<新值>
-变更记录：
-- YYYY-MM-DD：<旧值> → <新值>，原因：<变更原因>
-
-示例：
-## 伤害计算接口
-当前签名：calculate(actor, target, context)
-变更记录：
-- 2026-05-15：calculate(actor, target) → calculate(actor, target, context)
-  原因：引入 context 支持 buff 叠加计算
-
-## "活跃用户"定义
-当前：90 天内有购买行为
-变更记录：
-- 2026-05-18：90 天内有登录 → 90 天内有购买行为
-  原因：财务审计要求与营收挂钩
-  注：2026-Q2 前的历史数据仍按旧定义计算
-```
-
-**`architecture.md`**（处理 WANT 信号）
-
-使用 ADR（Y-statement）格式追加决策条目：
+Sync the current latest facts, including old and new values:
 
 ```markdown
-## 决策：<标题>
+## <Interface or Rule Name>
 
-在 <情境背景> 下，
-面对 <核心约束>，
-选择 <方案A> 而非 <方案B>，
-以实现 <目标>，
-接受 <权衡代价>。
+Current value: <new value>
+Change log:
+- YYYY-MM-DD: <old value> → <new value>, reason: <change reason>
 
-决策人：<人/agent>，日期：YYYY-MM-DD
+Example:
+## Damage Calculation Interface
+Current signature: calculate(actor, target, context)
+Change log:
+- 2026-05-15: calculate(actor, target) → calculate(actor, target, context)
+  Reason: added context to support buff stacking
+
+## "Active User" Definition
+Current: purchased within 90 days
+Change log:
+- 2026-05-18: logged in within 90 days → purchased within 90 days
+  Reason: finance audit requires revenue linkage
+  Note: historical data before 2026-Q2 still uses the old definition
 ```
 
-**新建 Workflow**（处理 HOW 信号，出现 ≥2 次）：
+**`architecture.md`** (handling WANT signals)
+
+Append decision entries using ADR (Y-statement) format:
+
+```markdown
+## Decision: <Title>
+
+In the context of <background>,
+facing <core constraint>,
+we chose <option A> over <option B>,
+to achieve <goal>,
+accepting <trade-off>.
+
+Decision by: <person/agent>, date: YYYY-MM-DD
+```
+
+**Create New Workflow** (handling HOW signals, appeared ≥2 times):
 
 ```
 .dna/workflows/<workflow-name>/workflow.md
 
-# Workflow: <名称>
+# Workflow: <Name>
 
-## 触发条件
-（什么情况下运行此流程）
+## Trigger Conditions
+(when to run this flow)
 
-## 前提
-（运行前需满足的条件）
+## Prerequisites
+(conditions that must be met before running)
 
-## 步骤
+## Steps
 1. ...
 2. ...
 
-## 输出
-（期望的交付物）
+## Output
+(expected deliverables)
 
-## 注意事项
-（不该跳过的步骤、已知边界）
+## Notes
+(steps that must not be skipped, known boundaries)
 ```
 
-### Step 4 — 更新中期条目的治理建议
+### Step 4 — Update Governance Recommendations in Medium Entry
 
-勾选已完成的治理建议项，防止重复处理：
+Check off completed governance items to prevent re-processing:
 
 ```markdown
-## 治理建议
-- [x] IS 变更写入 `.dna/contract.md`（接口签名已更新）                       ← 已完成
-- [x] HOW 流程提炼为 `.dna/workflows/`（出现 ≥`how_to_workflow_threshold` 次）← 已完成
-- [ ] 通知架构师评审（有接口变更）                                             ← 待处理
+## Governance Recommendations
+- [x] IS changes written to `.dna/contract.md` (interface signature updated)                       ← done
+- [x] HOW flow distilled to `.dna/workflows/` (appeared ≥`how_to_workflow_threshold` times)       ← done
+- [ ] Notify architect for review (interface changed)                                               ← pending
 ```
 
-### Step 5 — 运行合规检查
+### Step 5 — Run Compliance Check
 
-升格完成后，执行 `arch-governance` 快速检查，确认写入内容符合规范。
+After promotion, run `arch-governance` quick check to confirm written content meets standards.
 
-### Step 6 — 汇报
+### Step 6 — Report
 
-向助手汇报：
+Report to the assistant:
 
 ```
-## 知识升格汇报 — <模块名>
+## Knowledge Promotion Report — <module name>
 
-### contract.md 更新
-- <接口/规则名>：<变更摘要>（来源：business-<module>.md IS 记录 × N 次）
+### contract.md Updates
+- <interface/rule name>: <change summary> (source: business-<module>.md IS records × N times)
 
-### architecture.md 更新
-- 新增决策：<标题>（来源：decision-<scope>.md WANT 记录）
+### architecture.md Updates
+- New decision: <title> (source: decision-<scope>.md WANT record)
 
-### 新增 Workflow
-- <workflow-name>：<一句话描述>（来源：HOW 记录 × N 次）
+### New Workflows
+- <workflow-name>: <one-line description> (source: HOW records × N times)
 
-### 保留观察
-- <内容>：仅出现 N 次，继续积累
+### Retained for Observation
+- <content>: only appeared N times, continue accumulating
 
-### 建议后续动作
-- [ ] 评审官审查新增的 workflow
-- [ ] 通知程序员接口签名已变更
+### Recommended Next Actions
+- [ ] Auditor review of new workflow
+- [ ] Notify programmer that interface signature has changed
 ```

@@ -1,63 +1,63 @@
-# Skill: 能力层 CRUD（HR）
+# Skill: Capability Layer CRUD (HR)
 
-> 管理 `.claude/agents/` 下的 work agent 定义。核心 4 个（architect / hr / auditor 和助手）只读，不得修改。
+> Manage work agent definitions under `.claude/agents/`. The 4 core agents (architect / hr / auditor and the assistant) are read-only and must not be modified.
 
-## 工具
+## Tools
 
 ```bash
-python cbim/knowledge/engine/cli.py agents list                              # 列出所有 agents
-python cbim/knowledge/engine/cli.py agents show <name>                       # 查看 agent 详情
+python cbim/knowledge/engine/cli.py agents list                              # list all agents
+python cbim/knowledge/engine/cli.py agents show <name>                       # view agent details
 python cbim/knowledge/engine/cli.py agents scaffold <name> --description "..." [--model claude-sonnet-4-6]
 ```
 
 ---
 
-## 招募新 Agent
+## Recruit a New Agent
 
-**触发**：助手申请新 agent、现有 agent 能力裂变。
+**Trigger**: Assistant requests a new agent, or an existing agent's capabilities need to split.
 
-1. 用 `agents.py scaffold` 生成骨架文件
-2. 补充 `.claude/agents/<id>/<id>.md`：
-   - frontmatter：`name / description / model / tools`
-   - `## 职责` — 一句话定位
-   - `## 原则` — 2-4 条行为边界
-   - `## 触发场景` — 助手何时派发此 agent
-3. 创建 `skills/` 目录（暂时为空即可，按需添加）
-4. 向助手汇报：新 agent 名称、定位、触发场景
+1. Generate scaffold file with `agents.py scaffold`
+2. Fill in `.claude/agents/<id>/<id>.md`:
+   - frontmatter: `name / description / model / tools`
+   - `## Responsibilities` — one-line positioning
+   - `## Principles` — 2–4 behavioral boundaries
+   - `## Trigger Scenarios` — when should the assistant dispatch this agent
+3. Create `skills/` directory (can be empty initially; add as needed)
+4. Report to the assistant: new agent name, positioning, trigger scenarios
 
-**可移植性铁律**：soul/identity 只含专业能力，不含任何项目特定内容。放到另一个项目里还有意义 → 可写入；否则 → 留在 memory。
-
----
-
-## 更新 Agent 定义
-
-**触发**：培训结论落地、soul 内化、职责范围调整。
-
-- 新增 skill：在 `.claude/agents/<id>/skills/` 下创建 `<skill-name>.md`
-- 更新 soul：直接编辑 `.claude/agents/<id>/<id>.md` 的职责/原则部分
-- 扩展 tools：修改 frontmatter `tools:` 字段（需用户确认）
+**Portability rule**: soul/identity contains only professional capability — no project-specific content whatsoever. If it still makes sense in a different project → write it; otherwise → leave in memory.
 
 ---
 
-## 归档 Agent
+## Update Agent Definition
 
-**触发**：agent 长期闲置、职责已被其他 agent 覆盖、裂变后旧 agent 退役。
+**Trigger**: Training conclusions implemented, soul internalized, responsibility scope adjusted.
+
+- Add skill: create `<skill-name>.md` under `.claude/agents/<id>/skills/`
+- Update soul: directly edit the responsibilities/principles section of `.claude/agents/<id>/<id>.md`
+- Expand tools: modify the frontmatter `tools:` field (requires user confirmation)
+
+---
+
+## Archive an Agent
+
+**Trigger**: Agent has been idle long-term, responsibilities already covered by another agent, or retired after a fission.
 
 ```bash
-# 重命名加 .archived 后缀
+# Rename with .archived suffix
 mv .claude/agents/<id>/<id>.md .claude/agents/<id>/<id>.md.archived
 ```
 
-向助手汇报归档理由和时间，由助手决定是否同步更新 CLAUDE.md。
+Report the archive reason and date to the assistant; the assistant decides whether to update CLAUDE.md accordingly.
 
 ---
 
-## 裂变（一拆多）
+## Fission (One → Many)
 
-**触发**：agent 上下文膨胀、职责域过宽、考核发现专注度不足。
+**Trigger**: Agent context bloating, responsibility scope too broad, assessment reveals insufficient focus.
 
-1. 分析现有 agent 职责，划分子域
-2. 为每个子域 `scaffold` 新 agent
-3. 将旧 agent 的 skills 按归属分发到各新 agent
-4. 归档旧 agent
-5. 向助手汇报裂变方案，确认后执行
+1. Analyze the existing agent's responsibilities; identify sub-domains
+2. `scaffold` a new agent for each sub-domain
+3. Distribute the old agent's skills to each new agent by ownership
+4. Archive the old agent
+5. Report the fission plan to the assistant; execute after confirmation

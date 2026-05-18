@@ -1,57 +1,57 @@
-# Skill: 请求分类与派发
+# Skill: Request Classification and Dispatch
 
-助手收到用户请求后，在记忆和知识快照上下文内进行分类，然后派发给对应 agent。
-
----
-
-## 分类逻辑
-
-任何用户请求都可以归入以下四类之一：
-
-| 请求类型 | 判断依据 | 派发目标 |
-|---------|---------|---------|
-| **业务层 CRUD** | 涉及模块设计、架构、合规、知识体系（`.dna/`） | 架构师 (`architect`) |
-| **能力层 CRUD** | 涉及 agent 招募、培训、考核、归档 | HR (`hr`) |
-| **执行任务** | 按蓝图实现功能、写代码、修 bug | 对应 work agent（如 `programmer`） |
-| **审查请求** | 审查设计、改动、决策，需要对抗性视角 | 评审官 (`auditor`) |
+After receiving a user request, the assistant classifies it within the memory and knowledge snapshot context, then dispatches it to the appropriate agent.
 
 ---
 
-## 派发流程
+## Classification Logic
+
+Any user request can be classified into one of the following four categories:
+
+| Request Type | Decision Basis | Dispatch Target |
+|-------------|---------------|----------------|
+| **Business layer CRUD** | Involves module design, architecture, compliance, knowledge system (`.dna/`) | Architect (`architect`) |
+| **Capability layer CRUD** | Involves agent recruitment, training, assessment, archiving | HR (`hr`) |
+| **Execution task** | Implement features per blueprint, write code, fix bugs | Corresponding work agent (e.g., `programmer`) |
+| **Review request** | Review design, changes, decisions; adversarial perspective needed | Auditor (`auditor`) |
+
+---
+
+## Dispatch Flow
 
 ```
-用户请求
+User request
   ↓
-结合快照上下文（模块树 + agent 列表）理解意图
+Understand intent using snapshot context (module tree + agent list)
   ↓
-分类（业务 / 能力 / 执行 / 审查）
+Classify (business / capability / execution / review)
   ↓
-选择 agent → 构造任务描述（包含相关模块路径、约束、输出期望）
+Select agent → compose task description (include relevant module paths, constraints, expected output)
   ↓
 Agent(subagent_type=<id>, prompt=<task>)
   ↓
-汇总结果，反馈给用户
+Consolidate results, feed back to user
 ```
 
 ---
 
-## 分类示例
+## Classification Examples
 
-| 用户说 | 分类 | 派发给 |
-|-------|------|-------|
-| 新建一个 combat 模块 | 业务层 CRUD | 架构师 |
-| 审查这次 combat 模块设计 | 审查 | 评审官 |
-| 招募一个 AI 工程师 agent | 能力层 CRUD | HR |
-| 按蓝图实现登录接口 | 执行 | programmer |
-| 查一下 combat 模块的历史决策 | 业务层查询 | 架构师（只读） |
-| 培训一下 programmer | 能力层 CRUD | HR |
+| User says | Classification | Dispatch to |
+|-----------|--------------|-------------|
+| Create a combat module | Business layer CRUD | Architect |
+| Review the combat module design | Review | Auditor |
+| Recruit an AI engineer agent | Capability layer CRUD | HR |
+| Implement the login API per the blueprint | Execution | programmer |
+| Look up the decision history for the combat module | Business layer query | Architect (read-only) |
+| Train the programmer | Capability layer CRUD | HR |
 
 ---
 
-## 关键原则
+## Key Principles
 
-1. **不直接执行** — 助手是调度者，不是实现者。业务修改交架构师，能力修改交 HR，代码交 work agent。
-2. **上下文优先** — 优先用快照和记忆中的已知上下文填充任务描述，减少 agent 的搜索成本。
-3. **单次单目标** — 每次 Agent() 调用只给一个明确目标，复合任务拆分为多个串行/并行调用。
-4. **结果汇总** — agent 返回后，助手提炼关键结论反馈给用户，不直接粘贴原始输出。
-5. **无对应 agent 时** — 若所需 work agent 不存在，先通过 HR 招募，再派发任务。
+1. **No direct execution** — The assistant is the dispatcher, not the implementer. Business changes go to the architect, capability changes go to HR, code goes to the work agent.
+2. **Context first** — Use known context from the snapshot and memory to populate the task description, reducing the agent's search overhead.
+3. **One goal per call** — Each `Agent()` call has exactly one clear objective; compound tasks are split into multiple sequential or parallel calls.
+4. **Consolidate results** — After the agent returns, the assistant extracts key conclusions to feed back to the user; do not paste raw output directly.
+5. **No matching agent** — If the required work agent does not exist, recruit one through HR first, then dispatch the task.

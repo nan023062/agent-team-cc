@@ -1,128 +1,128 @@
-# Skill: 对抗性审查（评审官）
+# Skill: Adversarial Review (Auditor)
 
-## 执行步骤
+## Execution Steps
 
-调起时，调用方应在 prompt 中提供：
-- 审查对象（模块名/任务名）
-- 审查类型（设计审查 / 代码审查 / 治理审查）
-- 目标 agent id
-- 相关文件路径
+When invoked, the caller should provide in the prompt:
+- Review target (module name / task name)
+- Review type (design review / code review / governance review)
+- Target agent id
+- Relevant file paths
 
-执行：
+Execute:
 
-1. **加载审查上下文**
-   - 模块三件套 `<module-dir>/.dna/{module.json, architecture.md, contract.md}`
-   - 架构原则：`.claude/agents/architect.md` 的「信念」与「架构原则（C1-C6）」节
-   - 目标 agent 专业标准：`.claude/agents/<agent-id>.md` 的职责/原则节
-2. 知识层审查
-3. 扫描代码（Glob + Grep + Read）
-4. 代码层逐条评分
-5. 五维审查
-6. 幻觉检测
-7. **输出审查报告**（直接返回给调用方，不写文件）
-
----
-
-## 两层审查
-
-| 层级 | 审查对象 | 发现什么 |
-|------|---------|---------|
-| **知识层** | module.json + architecture.md + contract.md | 设计决策是否合理、有无盲区 |
-| **代码层** | 物理工作区源代码 | 实现质量 + LLM 幻觉 + 逻辑漏洞 |
-
-知识层审查在先——蓝图有问题，代码再完美也是错的。
+1. **Load review context**
+   - Module three-pack `<module-dir>/.dna/{module.json, architecture.md, contract.md}`
+   - Architecture principles: the "Beliefs" and "Architecture Principles (C1-C6)" sections from `.claude/agents/architect.md`
+   - Target agent's professional standards: the responsibilities/principles section from `.claude/agents/<agent-id>.md`
+2. Knowledge layer review
+3. Scan code (Glob + Grep + Read)
+4. Code layer item-by-item scoring
+5. Five-dimension review
+6. Hallucination detection
+7. **Output review report** (return directly to caller; do not write to files)
 
 ---
 
-## 五维审查
+## Two-Layer Review
 
-### 维度一：技术决策批判
+| Layer | Review Target | What to Find |
+|-------|--------------|-------------|
+| **Knowledge layer** | module.json + architecture.md + contract.md | Whether design decisions are sound; any blind spots |
+| **Code layer** | Physical workspace source code | Implementation quality + LLM hallucinations + logic flaws |
 
-**知识层：**
-- 设计决策是否解决了真正的问题？有无更简单的替代方案？
-- 隐含假设是否成立？依赖方向是否合理？
-- 模块拆分粒度是否匹配实际复杂度？
-- LLM 幻觉检测：设计中引用的 API/模式/依赖是否真实存在？
-
-**代码层：** 逐条评分 PASS=1 / WARN=0.5 / FAIL=0，每条附文件:行号
-
-### 维度二：用户体验
-
-- API 命名直觉吗？参数顺序自然吗？
-- 消费方需要知道多少内部细节？
-- 错误场景下能收到有意义的反馈吗？
-
-### 维度三：逻辑漏洞
-
-- 并发安全、资源泄漏、空引用、边界条件
-
-### 维度四：可测试性
-
-- 依赖可替换吗？状态流转有遗漏路径吗？
-
-### 维度五：进度与复杂度
-
-- 设计要多久才能实现？有更简单的方案吗？
-- 是不是在为假想需求过度设计？模块拆得太细了吗？
-- 目标 agent 需要多少轮迭代？有没有分阶段交付的可能？
+Knowledge layer review comes first — if the blueprint is flawed, perfect code is still wrong.
 
 ---
 
-## 对抗性审查门槛（安全相关代码）
+## Five-Dimension Review
 
-**适用范围**：凡处理外部不可信输入的代码——路径校验 / 权限控制 / 注入防御 / 反序列化 / 加密 / 认证授权。
+### Dimension 1: Technical Decision Critique
 
----
+**Knowledge layer:**
+- Does the design decision actually solve the real problem? Are there simpler alternatives?
+- Are the implicit assumptions valid? Is the dependency direction sound?
+- Does the module split granularity match actual complexity?
+- Hallucination detection: do the APIs / patterns / dependencies referenced in the design actually exist?
 
-## 幻觉检测
+**Code layer:** score each item PASS=1 / WARN=0.5 / FAIL=0, each with file:line
 
-### 代码层幻觉
-- 虚假实现（空方法/TODO）
-- 幽灵依赖（using 不存在的命名空间）
-- 多余产物（知识中未设计的类型）
-- 签名漂移（实际 vs contract.md）
-- 死代码（未被引用的 public 类型）
+### Dimension 2: User Experience
 
-### LLM 特有幻觉
-- 虚构 API：引用框架/库中不存在的方法或参数
-- 虚构模式：声称采用某设计模式，但实现与该模式不符
-- 虚构约束：声称"必须这样做"但给不出真实的技术原因
-- 自洽幻觉：architecture.md 内部逻辑自洽，但与代码现实不符
-- 概念漂移：同一术语在不同文档中含义不一致
+- Is the API naming intuitive? Is the parameter order natural?
+- How much internal detail does the consumer need to know?
+- Do error scenarios produce meaningful feedback?
 
----
+### Dimension 3: Logic Flaws
 
-## 对架构师的批判方法
+- Concurrency safety, resource leaks, null references, boundary conditions
 
-**独立推理：** 不接受"架构师说了所以正确"。从第一性原理重新推导：问题是什么？约束是什么？这个方案是唯一合理的吗？
+### Dimension 4: Testability
 
-**假设挑战：** 找出设计中的隐含假设，逐条质疑。"你假设 X 永远成立，如果不成立呢？"
+- Are dependencies replaceable? Are there missing state transition paths?
 
-**替代方案：** 对每个关键决策，至少构思一个替代方案。如果替代方案更简单且能满足需求，原方案就需要更强的理由。
+### Dimension 5: Progress and Complexity
 
-**LLM 偏见对冲：** 架构师（LLM）容易犯的典型错误：
-- 模式套用：看到 A 像 B，就用 B 的方案，忽略 A 的独特约束
-- 过度抽象：倾向于多层封装、预留扩展点，而非最简实现
-- 一致性偏好：为了"对称"或"统一"添加不必要的结构
-- 权威引用：引用不存在的 API、框架特性、设计模式
+- How long will this design take to implement? Is there a simpler approach?
+- Is this over-designed for imagined requirements? Are modules split too finely?
+- How many iterations does the target agent need? Is phased delivery possible?
 
 ---
 
-## 报告格式
+## Adversarial Review Threshold (Security-Related Code)
+
+**Scope**: Any code that handles untrusted external input — path validation / access control / injection defense / deserialization / encryption / authentication.
+
+---
+
+## Hallucination Detection
+
+### Code-Layer Hallucinations
+- Fake implementations (empty methods / TODOs)
+- Ghost dependencies (using non-existent namespaces)
+- Extraneous artifacts (types not designed in the knowledge)
+- Signature drift (actual vs contract.md)
+- Dead code (unreferenced public types)
+
+### LLM-Specific Hallucinations
+- Fabricated APIs: referencing methods or parameters that don't exist in the framework/library
+- Fabricated patterns: claiming to use a design pattern but implementation doesn't match
+- Fabricated constraints: claiming "must do it this way" with no real technical reason
+- Self-consistent hallucinations: architecture.md is internally consistent but misaligns with code reality
+- Concept drift: the same term has different meanings across documents
+
+---
+
+## Critique Method for the Architect
+
+**Independent reasoning:** Do not accept "the architect said so, therefore correct." Rederive from first principles: what is the problem? What are the constraints? Is this the only sound approach?
+
+**Challenge assumptions:** Identify the implicit assumptions in the design; question each one. "You assume X always holds — what if it doesn't?"
+
+**Alternative solutions:** For each key decision, construct at least one alternative. If the alternative is simpler and satisfies requirements, the original needs stronger justification.
+
+**LLM bias counter:** Typical mistakes LLMs (as architect) make:
+- Pattern matching: sees A resembles B, applies B's approach, ignores A's unique constraints
+- Over-abstraction: tendency toward multiple layers of encapsulation, preemptive extension points, rather than the simplest implementation
+- Consistency preference: adding unnecessary structure for "symmetry" or "uniformity"
+- Authority citation: referencing non-existent APIs, framework features, design patterns
+
+---
+
+## Report Format
 
 ```
-## <模块名/任务名> 审查报告
+## <module/task name> Review Report
 
-### 总分
-知识层 / 代码层 百分比
+### Total Score
+Knowledge layer / Code layer percentages
 
-### 知识层评分 | 代码层评分
-### 用户体验 | 逻辑漏洞 | 可测试性
-### 幻觉检测
-### 进度评估
-### 对目标 agent 的质疑（如有）
-### FAIL 项汇总（修改清单）
+### Knowledge Layer Score | Code Layer Score
+### User Experience | Logic Flaws | Testability
+### Hallucination Detection
+### Progress Assessment
+### Challenges to Target Agent (if any)
+### FAIL Items Summary (change checklist)
 
-### 结论
-PASS — 可提交下一步 / FAIL — 需要修改后重审
+### Conclusion
+PASS — ready for next step / FAIL — requires revision before re-review
 ```

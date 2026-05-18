@@ -1,121 +1,121 @@
-# Agent 能力层约定
+# Agent Capability Layer Convention
 
-> 能力层由 HR 治理，与业务层（`.dna/`）严格分离。
+> The capability layer is governed by HR, strictly separated from the business layer (`.dna/`).
 
-## 核心概念
+## Core Concepts
 
-**Agent**：`.claude/agents/<id>/` 目录下定义的执行单元，由一个 `<id>.md` 文件描述其身份、原则与技能。
+**Agent**: An execution unit defined under `.claude/agents/<id>/`, described by a single `<id>.md` file that specifies its identity, principles, and skills.
 
-**核心 Agent**（永久只读，HR 不得修改）：`architect`、`hr`、`auditor`，以及主 session（`CLAUDE.md`）。
+**Core Agents** (permanently read-only; HR must not modify): `architect`, `hr`, `auditor`, and the main session (`CLAUDE.md`).
 
-**Work Agent**：由 HR 按需创建、培训、考核、归档的执行者。能力范围受单一职责约束。
+**Work Agent**: An executor created, trained, assessed, and archived by HR on demand. Capability scope is constrained by the single-responsibility principle.
 
 ---
 
-## Agent 目录结构
+## Agent Directory Structure
 
 ```
 .claude/agents/
 └── <id>/
-    └── <id>.md          # agent 完整定义（frontmatter + soul）
+    └── <id>.md          # complete agent definition (frontmatter + soul)
 ```
 
-> **Skills 不在 agent 目录内。** 操作技能文档统一放在 `cbim/knowledge/skills/`，agent 的 Skills 表格通过路径引用。
+> **Skills are not inside the agent directory.** Operation skill documents are stored uniformly in `cbim/knowledge/skills/`; the agent's Skills table references them by path.
 
 ---
 
-## <id>.md 格式
+## `<id>.md` Format
 
 ```markdown
 ---
-name: <显示名>
-description: <一句话定位，供助手决策派发时参考>
+name: <display name>
+description: <one-line positioning, used by the assistant when deciding dispatch>
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
-## 职责
+## Responsibilities
 
-<该 agent 做什么，不做什么>
+<what this agent does and does not do>
 
-## 原则
+## Principles
 
-1. <行为边界>
-2. <判断准则>
-3. <协作规范>
+1. <behavioral boundary>
+2. <decision criterion>
+3. <collaboration norm>
 
-## 触发场景
+## Trigger Scenarios
 
-- <助手何时应该派发此 agent>
+- <when should the assistant dispatch this agent>
 
 ## Skills
 
-| 场景 | Skill 文件 |
-|------|-----------|
-| <场景描述> | `cbim/knowledge/skills/<skill-name>/SKILL.md` |
+| Scenario | Skill File |
+|----------|-----------|
+| <scenario description> | `cbim/knowledge/skills/<skill-name>/SKILL.md` |
 ```
 
 ---
 
-## frontmatter 字段
+## Frontmatter Fields
 
-| 字段 | 必填 | 说明 |
-|------|------|------|
-| `name` | ✅ | 显示名，可含中文 |
-| `description` | ✅ | 助手派发决策依据，简洁、准确 |
-| `model` | ✅ | 推荐 `claude-sonnet-4-6`；高复杂度任务用 `claude-opus-4-6` |
-| `tools` | ✅ | 最小必要权限原则，不授予不需要的工具 |
-
----
-
-## Soul / Identity 写作原则
-
-**可移植性铁律**：soul 只含专业能力，不含任何项目特定内容。
-
-自检：把这段内容放到另一个完全不同的项目里，它还有意义吗？
-- 有意义 → 可以写入 soul
-- 没有意义 → 留在 `cbim/memory/store/`，不升格
-
-**写什么**：
-- 性格与说话方式（让 agent 有辨识度，协作更自然）
-- 职责边界（做什么 / 不做什么）
-- 判断原则（面对歧义时如何决策）
-- 触发场景（助手何时该派发）
-
-**不写什么**：
-- 项目名称、模块名、业务逻辑
-- 当前任务状态、临时规则
-- 对其他具体 agent 的硬编码依赖（用角色而非 id 描述协作）
+| Field | Required | Notes |
+|-------|----------|-------|
+| `name` | ✅ | Display name |
+| `description` | ✅ | Dispatch decision basis for the assistant; concise and accurate |
+| `model` | ✅ | Recommend `claude-sonnet-4-6`; use `claude-opus-4-6` for high-complexity tasks |
+| `tools` | ✅ | Minimum necessary permissions; do not grant tools that are not needed |
 
 ---
 
-## Agent 生命周期
+## Soul / Identity Writing Principles
+
+**Portability hard rule**: the soul contains only professional capability — no project-specific content whatsoever.
+
+Self-check: if this content is placed in a completely different project, does it still make sense?
+- Yes → can be written into the soul
+- No → leave it in `cbim/memory/store/`, do not promote
+
+**What to write**:
+- Personality and communication style (makes the agent recognizable, collaboration more natural)
+- Responsibility boundaries (what it does / does not do)
+- Decision principles (how to decide when facing ambiguity)
+- Trigger scenarios (when should the assistant dispatch this agent)
+
+**What NOT to write**:
+- Project names, module names, business logic
+- Current task status, temporary rules
+- Hard-coded dependencies on specific agents (describe collaboration by role, not by id)
+
+---
+
+## Agent Lifecycle
 
 ```
-招募（scaffold）
+Recruit (scaffold)
     ↓
-执行任务（由助手派发）
+Execute tasks (dispatched by assistant)
     ↓
-考核（HR 定期评估）
-    ├─ 能力不足 ──→ 培训（提炼 skill / 更新 soul）
-    ├─ 职责过宽 ──→ 裂变（拆分为多个专精 agent）
-    └─ 长期闲置 ──→ 归档（.md.archived）
+Assessment (periodic HR evaluation)
+    ├─ Capability gap ──→ Training (distill skill / update soul)
+    ├─ Responsibility too broad ──→ Split (into multiple specialized agents)
+    └─ Long-term idle ──→ Archive (.md.archived)
 ```
 
 ---
 
-## CRUD 工具
+## CRUD Commands
 
 ```bash
-# 列出所有 agents
+# List all agents
 python cbim/knowledge/engine/cli.py agents list
 
-# 查看 agent 详情
+# View agent details
 python cbim/knowledge/engine/cli.py agents show <name>
 
-# 创建新 agent（生成骨架文件）
+# Create new agent (generate scaffold file)
 python cbim/knowledge/engine/cli.py agents scaffold <name> --description "..."
 
-# 归档 agent
+# Archive agent
 python cbim/knowledge/engine/cli.py agents archive <name>
 ```

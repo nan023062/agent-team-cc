@@ -1,46 +1,46 @@
-# Skill: 查询记忆
+# Skill: Query Memory
 
-**主 agent 专用。session 中途需要检索历史时使用。**
+**Main agent only. Use when historical retrieval is needed mid-session.**
 
 ---
 
-## 命令格式
+## Command Format
 
 ```bash
-# 默认：返回最近修改的 top-k 条（短期 + 中期合并，按时间排序）
+# Default: return top-k most recently modified entries (short + medium combined, sorted by time)
 .venv/bin/python -m memory.engine.cli query "" --top-k 5
 
-# 只查单层
+# Single tier only
 .venv/bin/python -m memory.engine.cli query "" --tier short --top-k 5
 .venv/bin/python -m memory.engine.cli query "" --tier medium --top-k 3
 ```
 
-默认后端（FileBackend）按修改时间排序，查询文本参数忽略。
-若已切换为语义后端（ChromaBackend），查询文本会参与相似度计算。
+The default backend (FileBackend) sorts by modification time; the query text argument is ignored.
+If switched to a semantic backend (ChromaBackend), the query text participates in similarity ranking.
 
 ---
 
-## 使用流程
+## Usage Flow
 
-1. 运行上述命令，获取文件路径列表
-2. 按路径读取 markdown 原文（Read 工具）
-3. 从原文提取与当前任务相关的上下文
-
----
-
-## 常见场景
-
-| 需要查什么 | 建议命令 |
-|-----------|---------|
-| 最近几次 session 做了什么 | `query "" --tier short --top-k 5` |
-| agent 的能力模式摘要 | `query "" --tier medium --top-k 10`，再 Read capability-*.md |
-| 某模块的历史决策 | `query "" --tier medium`，再 Read business-<module>.md |
+1. Run the commands above to get a list of file paths
+2. Read the markdown content at each path (Read tool)
+3. Extract context relevant to the current task from the content
 
 ---
 
-## 索引重建
+## Common Scenarios
 
-切换到语义后端后，需要将现有文件重新索引：
+| What to find | Recommended Command |
+|-------------|---------------------|
+| What happened in recent sessions | `query "" --tier short --top-k 5` |
+| Agent capability pattern summary | `query "" --tier medium --top-k 10`, then Read capability-*.md |
+| Historical decisions for a module | `query "" --tier medium`, then Read business-<module>.md |
+
+---
+
+## Rebuild Index
+
+After switching to a semantic backend, reindex existing files:
 
 ```bash
 .venv/bin/python -m memory.engine.cli reindex

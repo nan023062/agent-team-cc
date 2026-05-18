@@ -1,179 +1,179 @@
-# Skill: Agent 评审（HR）
+# Skill: Agent Assessment (HR)
 
-> 模拟资深 leader review：对 agent 定义进行两个维度的结构化审查：
-> 1. **定义合理性** — 格式规范、职责单一、无能力重叠、聚焦专业
-> 2. **定义与表现一致性** — `.claude/agents/` 文档与实际执行行为是否对齐
+> Simulates a senior leader review: structured inspection of agent definitions across two dimensions:
+> 1. **Definition soundness** — format compliance, single responsibility, no capability overlap, professional focus
+> 2. **Definition–behavior consistency** — whether `.claude/agents/` docs align with actual execution behavior
 >
-> 输出等同于 leader review comment：指出问题、判断严重性、给出处置建议。
+> Output is equivalent to a leader review comment: identify issues, assess severity, give remediation recommendations.
 
-**铁律**：agent 定义（soul + skills）只含纯能力维度，不含任何项目特定内容。
-项目内容（模块名、业务逻辑、具体路径）属于业务层，只存在于模块知识库（`.dna/`）。
+**Hard rule**: Agent definitions (soul + skills) contain only pure capability — no project-specific content whatsoever.
+Project content (module names, business logic, specific paths) belongs in the business layer and exists only in the module knowledge base (`.dna/`).
 
-## 触发场景
+## Trigger Scenarios
 
-- 一批任务完成后（由助手或用户发起）
-- 用户明确指出某 agent 表现不足
-- 评审官连续打回同一 agent 的交付物（≥ 2 次）
-- 定期巡检（全部 work agent）
+- After a batch of tasks completes (initiated by assistant or user)
+- User explicitly reports that an agent's output is insufficient
+- Auditor has rejected the same agent's deliverables ≥2 times in a row
+- Periodic inspection (all work agents)
 
 ---
 
-## 快速检查（单次任务结束后）
+## Quick Check (After a Single Task)
 
-仅对本次参与任务的 agent 执行基础格式检查（因子 1–3）：
+Run basic format checks (factors 1–3) only on agents that participated in this task:
 
 ```bash
 python cbim/knowledge/engine/cli.py agents show <name>
 ```
 
-- [ ] frontmatter 字段完整（`name`、`description`、`model`、`tools`）
-- [ ] `description` 一句话说清定位，可供助手派发决策直接使用
-- [ ] Skills 表中的所有 `SKILL.md` 路径实际存在
+- [ ] Frontmatter fields complete (`name`, `description`, `model`, `tools`)
+- [ ] `description` clearly states positioning in one sentence, directly usable for dispatch decisions
+- [ ] All `SKILL.md` paths in the Skills table actually exist
 
 ---
 
-## 全量 Agent 评审
+## Full Agent Assessment
 
-### 准备：先跑脚本检查
+### Preparation: Run the Script First
 
 ```bash
 python cbim/knowledge/skills/hr-assessment/check.py --root .
 ```
 
-脚本自动完成因子 **#1 #3 #7** 的确定性检查，输出 MUST / SUGGEST 列表。
-**MUST 问题必须修复后再进行 LLM 分析阶段。**
+The script automatically handles deterministic checks for factors **#1 #3 #7**, outputting a MUST / SUGGEST list.
+**MUST issues must be fixed before the LLM analysis phase.**
 
 ```bash
 python cbim/knowledge/engine/cli.py agents list
 ```
 
-对每个 work agent 执行第一至第五步（单 agent 审查），完成后执行第六步（跨 agent 横向对比）。
+Run steps 1–5 for each work agent (single-agent review), then run step 6 (cross-agent horizontal comparison).
 
 ---
 
-### 第一步 — 基础格式
+### Step 1 — Basic Format
 
-| # | 因子 | 合规标准 | 检查方式 |
-|---|------|---------|---------|
-| 1 | frontmatter 完整 | `name`、`description`、`model`、`tools` 均已填写 | **脚本** |
-| 2 | description 可用 | 一句话定位，助手读到即可决策是否派发，无歧义 | LLM |
-| 3 | skills 路径有效且有内容 | Skills 表中每个 `SKILL.md` 路径实际存在、可读、且非占位符（阈值见 `config.json`） | **脚本** |
-
----
-
-### 第二步 — 职责单一性（纵向：单 agent 自检）
-
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 4 | 职责单一 | 职责描述能在当前专业方向下一句话说清；若描述含"以及""同时负责"等，视为职责过宽 | LLM |
-| 5 | 触发场景聚焦 | 触发场景列表中的所有条目指向同一类需求，无跨域兼职 | LLM |
+| # | Factor | Compliance Standard | Check By |
+|---|--------|--------------------|----|
+| 1 | Frontmatter complete | `name`, `description`, `model`, `tools` all filled in | **Script** |
+| 2 | Description usable | One-sentence positioning; assistant can dispatch without ambiguity | LLM |
+| 3 | Skill paths valid and non-empty | Every `SKILL.md` path in the Skills table exists, is readable, and is not a placeholder (threshold in `config.json`) | **Script** |
 
 ---
 
-### 第三步 — 能力聚焦度（单 agent）
+### Step 2 — Single Responsibility (Vertical: Per-Agent Self-Check)
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 6 | skills 方向一致 | 所有 skill 指向同一专业方向，无能力漂移（如一个 agent 同时有业务开发 + 运维 + 审查 skill） | LLM |
-| 7 | skills 数量合理 | skills 数量达到阈值时触发裂变建议：能力过广，应拆分为多个专精 agent（阈值见 `config.json`） | **脚本** |
-| 8 | tools 最小必要 | 授权的 tools 只包含该职责实际需要的，无多余授权 | LLM |
-
----
-
-### 第四步 — 业务纯洁性（铁律）
-
-agent 定义是**可移植能力描述**，不是项目文档。
-
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 9 | soul 无项目内容 | `<id>.md` 正文不含：项目名、模块名、业务逻辑、当前任务状态、具体文件路径（cbim/ 框架路径除外） | LLM |
-| 10 | skills 无项目内容 | 各 `SKILL.md` 只描述操作方法与判断原则，不引用具体项目的模块名或业务规则 | LLM |
-| 11 | 可移植性自检 | 将该 agent 定义放入另一个完全不同的项目，是否仍然有意义？有意义 → 合规；无意义 → 存在项目耦合，必须清除 | LLM |
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 4 | Single responsibility | Responsibility description can be stated in one sentence within its professional domain; if it contains "and" / "also responsible for", responsibility is too broad | LLM |
+| 5 | Trigger scenarios focused | All entries in the trigger scenarios list point to the same category of needs; no cross-domain moonlighting | LLM |
 
 ---
 
-### 第五步 — 定义与表现一致性
+### Step 3 — Capability Focus (Per-Agent)
 
-收集近期执行记录：
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 6 | Skills direction consistent | All skills point to the same professional direction; no capability drift (e.g., agent has business dev + ops + review skills simultaneously) | LLM |
+| 7 | Skill count reasonable | When skill count reaches the threshold, suggest fission: capability too broad, should split into multiple specialized agents (threshold in `config.json`) | **Script** |
+| 8 | Tools minimally necessary | Authorized tools include only what the responsibility actually requires; no excess authorizations | LLM |
+
+---
+
+### Step 4 — Business Purity (Hard Rule)
+
+Agent definitions are **portable capability descriptions**, not project documents.
+
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 9 | Soul has no project content | `<id>.md` body does not contain: project names, module names, business logic, current task status, specific file paths (cbim/ framework paths excepted) | LLM |
+| 10 | Skills have no project content | Each `SKILL.md` describes only operation methods and judgment principles; does not reference specific project module names or business rules | LLM |
+| 11 | Portability self-check | If this agent definition were placed in a completely different project, would it still make sense? Yes → compliant; No → project coupling exists and must be removed | LLM |
+
+---
+
+### Step 5 — Definition–Behavior Consistency
+
+Collect recent execution records:
 
 ```bash
 python cbim/memory/engine/cli.py query "<agent-name>" --top-k 15
-python cbim/memory/engine/cli.py query "评审 <agent-name>" --top-k 5
+python cbim/memory/engine/cli.py query "review <agent-name>" --top-k 5
 ```
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 12 | 边界遵守 | 实际执行未越权（做了定义外的事）、未漏责（该做的没做） | LLM |
-| 13 | 定义支撑表现 | 实际高频执行的操作，在 soul 或 skills 中有对应描述；无"不在定义内但一直在做"的隐性职责 | LLM |
-| 14 | 表现支撑定义 | 定义的职责实际被使用；长期无任务的能力方向视为冗余，建议裁减或归档 | LLM |
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 12 | Boundary compliance | Actual execution did not exceed scope (did things outside definition) or miss scope (didn't do what it should) | LLM |
+| 13 | Definition supports behavior | Frequently executed operations have corresponding descriptions in soul or skills; no "not in definition but always done" hidden responsibilities | LLM |
+| 14 | Behavior supports definition | Defined responsibilities are actually used; directions with no tasks long-term are considered redundant — suggest trimming or archiving | LLM |
 
 ---
 
-### 第六步 — 能力重叠检查（横向：跨 agent 对比）
+### Step 6 — Capability Overlap Check (Horizontal: Cross-Agent Comparison)
 
-**全量评审专属。** 完成所有单 agent 审查后，对全部 work agent 做两两对比，找出能力重叠对。
+**Full assessment only.** After completing all single-agent reviews, compare all work agents pairwise to find capability overlap pairs.
 
-**对比方法**：
-1. 列出所有 work agent 的 `description` + `skills` 列表
-2. 两两比较：`description` 是否描述相似职责？`skills` 是否有实质交集？
-3. 对每个重叠对，判断重叠性质：
+**Comparison method**:
+1. List all work agents' `description` + `skills`
+2. Compare pairwise: do `description` fields describe similar responsibilities? Do `skills` have substantive overlap?
+3. For each overlap pair, classify the overlap:
 
-| 重叠类型 | 判断标准 | 处置建议 |
-|---------|---------|---------|
-| **完全重叠** | 两者 description 几乎等价，skills 高度重合 | 归并为一个，淘汰弱势方 |
-| **部分重叠** | 有 1–2 个 skill 指向相同能力方向 | 明确边界：哪个 agent 主责，另一个剔除该 skill |
-| **场景兼容** | description 不同但触发场景有交集 | 细化各自触发条件，避免助手派发歧义 |
+| Overlap Type | Criteria | Remediation |
+|-------------|----------|-------------|
+| **Full overlap** | Both descriptions are nearly equivalent; skills highly overlapping | Merge into one; retire the weaker |
+| **Partial overlap** | 1–2 skills point to the same capability direction | Clarify boundary: which agent owns it; remove that skill from the other |
+| **Scenario compatible** | Different descriptions but trigger scenarios intersect | Refine trigger conditions for each to avoid dispatch ambiguity |
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 15 | 无能力重叠 | 任意两个 work agent 的核心能力方向无实质交集 | LLM |
-| 16 | 无派发歧义 | 助手面对同一类需求时，能明确判断应派发哪个 agent，无二义性 | LLM |
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 15 | No capability overlap | Any two work agents' core capability directions have no substantive overlap | LLM |
+| 16 | No dispatch ambiguity | The assistant, facing the same type of request, can clearly determine which agent to dispatch — no ambiguity | LLM |
 
-**发现重叠时**，记录：重叠对 + 重叠类型 + 建议处置方式，输出到报告。
+**When overlap is found**: Record the overlap pair + overlap type + recommended remediation, output to report.
 
 ---
 
-## 输出：评审报告
+## Output: Assessment Report
 
 ```
-评审时间：<YYYY-MM-DD>
+Assessment Date: <YYYY-MM-DD>
 
-── 维度一：定义合理性 ──────────────────────────
+── Dimension 1: Definition Soundness ───────────────────────
 
-  基础格式（#1–3）：
-    - [MUST/SUGGEST] [#因子编号] <Agent-id>: <问题> → <建议>
+  Basic Format (#1–3):
+    - [MUST/SUGGEST] [#factor] <Agent-id>: <issue> → <recommendation>
 
-  职责单一性（#4–5，纵向）：
-    - [MUST/SUGGEST] [#因子编号] <Agent-id>: <问题> → <建议>
+  Single Responsibility (#4–5, vertical):
+    - [MUST/SUGGEST] [#factor] <Agent-id>: <issue> → <recommendation>
 
-  能力聚焦度（#6–8）：
-    - [SUGGEST] [#因子编号] <Agent-id>: <问题> → 裂变 / 裁减 tools
+  Capability Focus (#6–8):
+    - [SUGGEST] [#factor] <Agent-id>: <issue> → fission / trim tools
 
-  内容纯洁性（#9–11）：
-    - [MUST] [#因子编号] <Agent-id>: <具体耦合内容> → 移除，项目内容归入 .dna/
+  Business Purity (#9–11):
+    - [MUST] [#factor] <Agent-id>: <specific coupled content> → remove; project content goes to .dna/
 
-  能力重叠（#15–16，横向）：
-    - [MUST/SUGGEST] <Agent-A> × <Agent-B>: <重叠类型> — <具体重叠项> → <建议>
+  Capability Overlap (#15–16, horizontal):
+    - [MUST/SUGGEST] <Agent-A> × <Agent-B>: <overlap type> — <specific overlap> → <recommendation>
 
-── 维度二：定义与表现一致性（#12–14）────────────
+── Dimension 2: Definition–Behavior Consistency (#12–14) ────
 
-    - [MUST/SUGGEST/WARN] [#因子编号] <Agent-id>: <问题> → <建议>
+    - [MUST/SUGGEST/WARN] [#factor] <Agent-id>: <issue> → <recommendation>
 
-── 汇总 ────────────────────────────────────────
+── Summary ─────────────────────────────────────────────────
 
-MUST（必须修复）：<N> 条
-SUGGEST（建议改进）：<N> 条
-WARN（需确认）：<N> 条
+MUST (must fix): <N>
+SUGGEST (recommended): <N>
+WARN (needs confirmation): <N>
 
-处置结论（按 agent）：
-  - <Agent-id>: 培训 / 裂变 / 归档 / 无需操作
-后续行动：
-  - 培训 → 执行 hr-training/SKILL.md
-  - 裂变 / 归并 → 执行 hr-agents/SKILL.md 裂变流程
-  - 归档 → 执行 hr-agents/SKILL.md 归档流程
+Remediation conclusions (per agent):
+  - <Agent-id>: train / fission / archive / no action needed
+Follow-up actions:
+  - Training → execute hr-training/SKILL.md
+  - Fission / merge → execute hr-agents/SKILL.md fission flow
+  - Archive → execute hr-agents/SKILL.md archive flow
 ```
 
-**严重级别定义**：
-- `MUST` — 违反铁律（业务耦合、能力完全重叠）或严重格式缺失，必须修复
-- `SUGGEST` — 可改进（职责偏宽、能力漂移、tools 冗余、部分重叠），建议处理
-- `WARN` — 需人工判断（定义与表现不一致、长期闲置、场景兼容），上报助手确认
+**Severity definitions**:
+- `MUST` — Violates hard rules (business coupling, full capability overlap) or severe format omission; must fix
+- `SUGGEST` — Improvable (responsibility too broad, capability drift, redundant tools, partial overlap); recommended
+- `WARN` — Requires human judgment (definition–behavior mismatch, long-term idle, scenario compatible); escalate to assistant

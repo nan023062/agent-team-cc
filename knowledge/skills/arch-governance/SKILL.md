@@ -1,193 +1,193 @@
-# Skill: 架构评审（架构师）
+# Skill: Architecture Review (Architect)
 
-> 模拟资深 leader review：对项目模块树进行两个维度的结构化审查：
-> 1. **架构设计合理性** — 模块边界、职责分工、依赖方向是否健康
-> 2. **知识与工作区一致性** — `.dna/` 文档与实际内容是否对齐，防止两个方向的漂移
+> Simulates a senior leader review: structured inspection of the project module tree across two dimensions:
+> 1. **Architecture soundness** — module boundaries, responsibility allocation, dependency direction
+> 2. **Knowledge–workspace consistency** — whether `.dna/` docs align with actual content, preventing drift in either direction
 >
-> 输出等同于 leader review comment：指出问题、判断严重性、给出修复建议。
+> Output is equivalent to a leader review comment: identify issues, assess severity, give fix recommendations.
 
-## 触发场景
+## Trigger Scenarios
 
-- 新建 / 更新 / 废弃模块后（必须执行快速检查）
-- 助手发起定期巡检
-- 评审官指出架构问题后
+- After any module is created / updated / deprecated (quick check required)
+- Assistant-initiated periodic inspection
+- After the auditor flags an architecture issue
 
 ---
 
-## 快速检查（每次模块变更后）
+## Quick Check (After Each Module Change)
 
-仅对本次变更的模块执行基础格式检查（因子 1–3）：
+Run basic format checks (factors 1–3) on only the changed modules:
 
 ```bash
 python cbim/knowledge/engine/cli.py modules list
 ```
 
-- [ ] `module.json` 的 `name`（kebab-case）和 `owner` 已填写
-- [ ] `architecture.md` 和 `contract.md` 内容不是模板占位符
-- [ ] 根模块 `index.md` 已同步更新
+- [ ] `module.json` has `name` (kebab-case) and `owner` filled in
+- [ ] `architecture.md` and `contract.md` contain real content, not template placeholders
+- [ ] Root module `index.md` is in sync
 
 ---
 
-## 全量架构评审
+## Full Architecture Review
 
-### 准备：先跑脚本检查
+### Preparation: Run the Script First
 
 ```bash
 python cbim/knowledge/skills/arch-governance/check.py --root .
 ```
 
-脚本自动完成因子 **#1 #2 #3 #4 #10 #14 #15 #17** 的确定性检查，输出 MUST / SUGGEST 列表。
-**MUST 问题必须修复后再进行 LLM 分析阶段。**
+The script automatically handles deterministic checks for factors **#1 #2 #3 #4 #10 #14 #15 #17**, outputting a MUST / SUGGEST list.
+**MUST issues must be fixed before the LLM analysis phase.**
 
 ```bash
 python cbim/knowledge/engine/cli.py modules list --root .
 ```
 
-获得全部模块路径、层级关系、依赖列表，作为后续三序遍历的输入。
+Obtain all module paths, hierarchy, and dependency lists as input for the three-traversal steps below.
 
 ---
 
-### 第一步 — 基础格式（前置，任意模块）
+### Step 1 — Basic Format (Pre-pass, Any Module)
 
-逐模块检查因子 1–4，不合规直接修复，再进入遍历。
+Check factors 1–4 per module; fix non-compliant issues before proceeding.
 
-| # | 因子 | 合规标准 | 检查方式 |
-|---|------|---------|---------|
-| 1 | `name` 格式 | kebab-case，无大写无空格 | **脚本** |
-| 2 | 文档内容 | `architecture.md` 和 `contract.md` 均有实质内容，非模板占位符 | **脚本** |
-| 3 | 无修改记录 | `architecture.md` 和 `contract.md` 只含当前最终状态，不含任何历史记录、修改说明、曾经的方案 | **脚本** |
-| 4 | index 同步 | 根模块 `index.md` 与实际模块目录一一对应 | **脚本** |
-
----
-
-### 第二步 — 前序遍历（父 → 子，自上而下）
-
-**目的**：检查架构意图向下传导是否准确。
-
-从根模块开始，每个父模块先审查，再进入子模块。
-
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 5 | 父对子的认知准确 | `architecture.md` 中描述的子模块清单与实际子目录一致 | LLM |
-| 6 | 依赖方向描述合规 | 父描述的依赖关系符合 C3：单向，稳定侧拥有接口定义权 | LLM |
-
-**发现问题**：记录模块路径 + 违反的因子编号，继续遍历，汇总后统一修复。
+| # | Factor | Compliance Standard | Check Method |
+|---|--------|--------------------|----|
+| 1 | `name` format | kebab-case, no uppercase, no spaces | **Script** |
+| 2 | Document content | `architecture.md` and `contract.md` have real content, not template placeholders | **Script** |
+| 3 | No change history | `architecture.md` and `contract.md` contain only the current final state — no history, no changelog, no superseded designs | **Script** |
+| 4 | Index in sync | Root module `index.md` corresponds one-to-one with actual module directories | **Script** |
 
 ---
 
-### 第三步 — 中序遍历（同层兄弟横向对比）
+### Step 2 — Pre-order Traversal (Parent → Child, Top-down)
 
-**目的**：检查同级模块之间的分工是否合理、依赖是否单向。
+**Purpose**: Check whether architectural intent propagates downward accurately.
 
-按深度逐层扫描，对同一父模块下的所有子模块横向比较。
+Start from the root module; review each parent before entering its children.
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 7 | 无职责重叠 | 任意两个兄弟模块的职责描述不存在实质交集 | LLM |
-| 8 | 无职责空白 | 父模块的业务范围被子模块完整覆盖，无明显遗漏域 | LLM |
-| 9 | 抽象层级一致 | 同层模块均在相同粒度层次，不混用概念层与实现层 | LLM |
-| 10 | 同层单向依赖 | 兄弟模块间的依赖只沿一个方向流动，无回环（A→B→A 类型） | **脚本** |
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 5 | Parent's view of children is accurate | The child module list in `architecture.md` matches actual subdirectories | LLM |
+| 6 | Dependency direction description compliant | Parent-described dependencies conform to C3: unidirectional; stable side owns interface definitions | LLM |
 
-**同层依赖检测方法**：将同层模块 `dependencies` 中指向兄弟模块的条目提取出来，构建局部有向图，检查是否存在环。
+**When issues found**: Record module path + violated factor number; continue traversal and fix collectively at the end.
 
 ---
 
-### 第四步 — 后序遍历（叶 → 根，自下而上）
+### Step 3 — In-order Traversal (Same-level Siblings, Horizontal Comparison)
 
-**目的**：检查封装质量与契约完整性，从叶节点向上汇聚验证。
+**Purpose**: Check whether sibling responsibilities are well divided and dependencies are unidirectional.
 
-从叶子模块开始，逐层向上审查。
+Scan layer by layer; compare all child modules under the same parent side by side.
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 11 | 叶子封装干净 | `contract.md` 只暴露必要接口，无内部实现细节泄漏 | LLM |
-| 12 | 父只写关系与定位 | 父模块 `architecture.md` 只描述子模块间的关系（依赖/组合/聚合）与各自定位；不含任何子模块的内部细节 | LLM |
-| 13 | 父契约正确聚合 | 父模块 `contract.md` 覆盖子模块对外接口，无遗漏也无过度暴露 | LLM |
-| 14 | 全树无循环依赖 | 对全部模块的 `dependencies` 做拓扑排序，存在环则报告完整环路径 | **脚本** |
-| 15 | index 完整收录 | 根模块 `index.md` 收录了所有叶子模块路径 | **脚本** |
-| 18 | 知识与工作区一致性 | 仅叶子模块：对比 `.dna/` 文档与工作区实际内容，检测两个漂移方向（见下方） | LLM |
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 7 | No responsibility overlap | Any two sibling modules have no substantive overlap in their responsibility descriptions | LLM |
+| 8 | No responsibility gap | The parent's business scope is fully covered by child modules with no obvious missing domains | LLM |
+| 9 | Consistent abstraction level | Sibling modules are at the same granularity; no mixing of concept layer and implementation layer | LLM |
+| 10 | Unidirectional sibling dependencies | Dependencies among siblings flow in only one direction — no cycles (A→B→A) | **Script** |
 
-**#18 一致性检查方法**：
-
-读取叶子模块的 `architecture.md`、`contract.md`，再读取工作区的关键文件（入口文件、主接口文件、核心目录结构），逐项比对：
-
-| 检查项 | 参照源 | 对比目标 |
-|-------|-------|---------|
-| 接口签名 / API 名称 | `contract.md` | 工作区实际导出的函数 / 类 / 接口 |
-| 内部结构描述 | `architecture.md` | 工作区实际文件结构、核心组件 |
-| workflow 步骤 | `.dna/workflows/*/workflow.md` | 工作区实际执行路径 |
-
-**两个漂移方向**：
-
-- **工作区超前知识**（高危）— 工作区已变更，`.dna/` 仍描述旧状态。通常由「跳过知识直接改代码」引起。必须立即更新知识。
-- **知识超前工作区**（中危）— `.dna/` 描述了尚未实现的内容。若为有意的蓝图先行则标注说明；若无说明则视为遗漏实现，上报助手。
-
-发现一致性问题时，记录：漂移方向 + 具体不一致项 + 建议修复方式。
+**Sibling dependency detection**: Extract entries in `dependencies` pointing to sibling modules, build a local directed graph, check for cycles.
 
 ---
 
-### 第五步 — 全局因子（遍历中对任意模块附加）
+### Step 4 — Post-order Traversal (Leaf → Root, Bottom-up)
 
-在以上三序遍历过程中，对每个经过的模块同时检查：
+**Purpose**: Check encapsulation quality and contract completeness, aggregating upward from leaf nodes.
 
-| # | 因子 | 检查方法 | 检查方式 |
-|---|------|---------|---------|
-| 16 | 职责单一（相对） | 模块职责能在当前层级粒度下用一句话说清；若描述需要"以及""同时"等连接，视为职责过宽 | LLM |
-| 17 | 叶子体量检查 | 仅对叶子模块：`architecture.md` 行数、workflow 数、`contract.md` 接口数超过阈值时触发拆分建议（阈值见 `config.json`） | **脚本** |
-| WF1 | Workflow 非占位符 | 每个 `workflow.md` 有实质内容，非模板空壳（阈值见 `config.json`） | **脚本** |
-| WF2 | Workflow 必要章节 | 每个 `workflow.md` 包含必要章节（`## 触发条件`、`## 步骤`，见 `config.json`） | **脚本** |
+Start from leaf modules; review upward layer by layer.
+
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 11 | Clean leaf encapsulation | `contract.md` exposes only necessary interfaces; no internal implementation details leaked | LLM |
+| 12 | Parent writes only relationships and positioning | Parent `architecture.md` describes only child module relationships (dependency/composition/aggregation) and their positioning; no internal details of any child | LLM |
+| 13 | Parent contract correctly aggregates | Parent `contract.md` covers all child module external interfaces — no omissions, no over-exposure | LLM |
+| 14 | No circular dependencies in the full tree | Topological sort of all modules' `dependencies`; report complete cycle paths if found | **Script** |
+| 15 | Index fully inclusive | Root module `index.md` lists all leaf module paths | **Script** |
+| 18 | Knowledge–workspace consistency | Leaf modules only: compare `.dna/` docs with actual workspace content; detect both drift directions (see below) | LLM |
+
+**#18 Consistency Check Method**:
+
+Read the leaf module's `architecture.md` and `contract.md`, then read key workspace files (entry files, main interface files, core directory structure). Compare item by item:
+
+| Check Item | Reference Source | Comparison Target |
+|-----------|-----------------|------------------|
+| Interface signatures / API names | `contract.md` | Actual exported functions / classes / interfaces in workspace |
+| Internal structure description | `architecture.md` | Actual file structure and core components in workspace |
+| Workflow steps | `.dna/workflows/*/workflow.md` | Actual execution path in workspace |
+
+**Two drift directions**:
+
+- **Workspace ahead of knowledge** (high risk) — Workspace has changed; `.dna/` still describes the old state. Usually caused by "skip knowledge, edit code directly." Must update knowledge immediately.
+- **Knowledge ahead of workspace** (medium risk) — `.dna/` describes content not yet implemented. If intentional blueprint-first, annotate accordingly; otherwise treat as missing implementation and escalate to assistant.
+
+When consistency issues are found, record: drift direction + specific inconsistencies + recommended fix.
 
 ---
 
-## 输出：评审报告
+### Step 5 — Global Factors (Applied to Every Module During Traversal)
 
-评审报告模拟 leader review comment 风格：每条问题注明严重级别、位置、判断依据、修复建议。
+During the three traversals above, check every module visited:
+
+| # | Factor | Check Method | Check By |
+|---|--------|-------------|----------|
+| 16 | Single responsibility (relative) | Module responsibility can be stated in one sentence at current granularity; if description requires "and" / "also" connectors, responsibility is too broad | LLM |
+| 17 | Leaf size check | Leaf modules only: if `architecture.md` line count, workflow count, or `contract.md` interface count exceeds thresholds, suggest splitting (thresholds in `config.json`) | **Script** |
+| WF1 | Workflow not placeholder | Each `workflow.md` has real content, not a template shell (threshold in `config.json`) | **Script** |
+| WF2 | Workflow required sections | Each `workflow.md` contains required sections (`## Trigger Conditions`, `## Steps`, per `config.json`) | **Script** |
+
+---
+
+## Output: Review Report
+
+The review report simulates leader review comment style: each issue includes severity, location, rationale, and fix recommendation.
 
 ```
-评审时间：<YYYY-MM-DD>
-模块总数：<N>（叶子 <M> 个）
+Review Date: <YYYY-MM-DD>
+Module Count: <N> (leaf: <M>)
 
-── 维度一：架构设计合理性 ──────────────────────
+── Dimension 1: Architecture Soundness ─────────────────────
 
-基础格式（#1–4）：
-  - [MUST] <模块路径>: [#因子编号] <问题> → <建议>
+Basic Format (#1–4):
+  - [MUST] <module-path>: [#factor] <issue> → <recommendation>
 
-边界定义 · 前序（#5–6）：
-  - [MUST/SUGGEST] <模块路径>: [#因子编号] <问题> → <建议>
+Boundary Definition · Pre-order (#5–6):
+  - [MUST/SUGGEST] <module-path>: [#factor] <issue> → <recommendation>
 
-职责分工 · 中序（#7–10）：
-  - [MUST/SUGGEST] <模块路径>: [#因子编号] <问题> → <建议>
+Responsibility Allocation · In-order (#7–10):
+  - [MUST/SUGGEST] <module-path>: [#factor] <issue> → <recommendation>
 
-封装与契约 · 后序（#11–15）：
-  - [MUST/SUGGEST] <模块路径>: [#因子编号] <问题> → <建议>
+Encapsulation & Contract · Post-order (#11–15):
+  - [MUST/SUGGEST] <module-path>: [#factor] <issue> → <recommendation>
 
-全局（#16–17）：
-  - [SUGGEST] <模块路径>: [#因子编号] <问题> → <建议>
+Global (#16–17):
+  - [SUGGEST] <module-path>: [#factor] <issue> → <recommendation>
 
-── 维度二：知识与工作区一致性（#18）──────────
+── Dimension 2: Knowledge–Workspace Consistency (#18) ──────
 
-  - [MUST] <叶子模块路径>: 工作区超前 — <具体不一致项> → 立即更新知识
-  - [WARN] <叶子模块路径>: 知识超前 — <具体不一致项> → 确认是否有意蓝图先行
+  - [MUST] <leaf-module-path>: Workspace ahead — <specific inconsistency> → Update knowledge immediately
+  - [WARN] <leaf-module-path>: Knowledge ahead — <specific inconsistency> → Confirm whether intentional blueprint-first
 
-── 汇总 ───────────────────────────────────────
+── Summary ─────────────────────────────────────────────────
 
-MUST（必须修复）：<N> 条
-SUGGEST（建议改进）：<N> 条
-WARN（需确认）：<N> 条
+MUST (must fix): <N>
+SUGGEST (recommended): <N>
+WARN (needs confirmation): <N>
 
-已自主修复：<列表>
-待用户确认：<列表>
+Fixed autonomously: <list>
+Awaiting user confirmation: <list>
 ```
 
-**严重级别定义**：
-- `MUST` — 违反架构铁律（循环依赖、父写子细节、知识与工作区不一致），必须修复后才能继续
-- `SUGGEST` — 设计可改进（职责偏宽、抽象层级不齐、体量偏大），建议处理
-- `WARN` — 需人工判断（知识超前工作区、模块边界模糊），上报助手或用户确认
+**Severity definitions**:
+- `MUST` — Violates architecture laws (circular dependency, parent writes child internals, knowledge–workspace inconsistency); must fix before continuing
+- `SUGGEST` — Design can be improved (responsibility too broad, inconsistent abstraction levels, oversized module); recommended
+- `WARN` — Requires human judgment (knowledge ahead of workspace, ambiguous boundaries); escalate to assistant or user
 
 ---
 
-## 修复原则
+## Fix Principles
 
-- **可自主修复**：补充文档内容、更新 index、修正格式、补写 owner、同步知识到工作区
-- **需用户确认**：接口重构、模块拆分、依赖方向调整、工作区重大变更
-- 修复后对变更模块重跑快速检查（因子 #1–4），确认通过再提交报告
+- **Self-fixable**: Fill in missing doc content, update index, fix format, add missing owner, sync knowledge to workspace
+- **Requires user confirmation**: Interface refactoring, module splitting, dependency direction changes, major workspace changes
+- After fixing, re-run the quick check (factors #1–4) on changed modules; confirm pass before submitting report
