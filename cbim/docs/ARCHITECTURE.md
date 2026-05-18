@@ -20,6 +20,18 @@
 | 铁律 | soul/skills 不含任何项目特定内容 | 知识三件套不引用 agent 规范 |
 | 可验证性 | 放到另一个项目仍然有意义 → 合规 | 只描述当前最终工作状态，不描述 agent |
 
+**与标准 Claude Code 用法的对比**：
+
+| | 标准 Claude Code | CBIM |
+|---|---|---|
+| 项目上下文 | 一个 `CLAUDE.md`（随项目增长无限膨胀） | 多个模块 `.dna/`（按模块边界拆分，按需加载） |
+| 业务规则 | 写入 `CLAUDE.md` 或 `.claude/skills/` | 写入对应模块的 `architecture.md` / `contract.md` / `workflows/` |
+| 操作步骤 | `.claude/skills/` 全量注册，始终占用上下文 | `cbim/knowledge/skills/`（能力向）+ `.dna/workflows/`（业务向），按需读取 |
+| 治理 | 无 | 架构师（业务层）+ HR（能力层）双轨治理 |
+
+> **核心替换**：用更多模块的 `.dna/` 替代了单体的 `CLAUDE.md` 和堆积的 `skills/`。  
+> 模块化分解带来按需加载——会话上下文始终是常数级，不随项目规模线性增长。
+
 CBIM 同时也是一个**可部署到任意项目的多 Agent 协作框架**。安装后，在项目根目录启动 Claude Code，主 session 就是"助手"——它是你与整个 Agent 团队之间唯一的对话入口。
 
 你只需要和助手说话。助手负责理解意图、拆解任务、派发给合适的 Agent、汇总结果。
