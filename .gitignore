@@ -2,3 +2,6 @@ chroma_db/
 memory/entries/
 .env
 .venv/
+__pycache__/
+*.pyc
+template/memory/store/
