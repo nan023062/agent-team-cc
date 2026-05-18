@@ -86,3 +86,11 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 - 避免不必要的分配（热路径用 Span/stackalloc/池化）
 - 异步不阻塞（async/await 贯穿 IO 路径）
 - 延迟计算 + 批量优于逐条
+
+---
+
+## 任务收尾（必须）
+
+**每次任务完成前，自动写入记忆 entry。** 无需用户提醒。
+
+按 `.claude/agents/shared/memory-ops.md` 的格式，在 `memory/entries/` 创建本次 session 记录。任务成功、部分完成、遇到阻塞——均须写入，不得跳过。

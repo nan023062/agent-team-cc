@@ -40,10 +40,10 @@ python3 -m venv .venv
 **3. 安装依赖**
 
 ```bash
-.venv/bin/pip install -r tools/requirements.txt
+.venv/bin/pip install -r memory/requirements.txt
 ```
 
-只需要 `chromadb`（记忆系统）。
+只需要 `chromadb`（记忆系统向量索引）。
 
 **4. 配置 `.env`**
 
@@ -52,7 +52,7 @@ cp .env.example .env
 # 编辑 .env，把 ANTHROPIC_API_KEY 替换为你的真实 key（sk-ant-...）
 ```
 
-ChromaDB 默认本地 `./chroma_db/`，无需额外配置；如需团队共享再取消注释 `CHROMA_HOST/PORT`。
+ChromaDB 向量索引默认存 `memory/chroma_db/`，无需额外配置；如需团队共享再取消注释 `CHROMA_HOST/PORT`。
 
 **5. 启动 Claude Code**
 
@@ -88,15 +88,21 @@ CLAUDE.md                    ← 助手身份（主 session）
     hr/                      ← HR
     auditor/                 ← 评审官
     programmer/              ← 程序员
+    shared/
+      memory-ops.md          ← 记忆操作通用 skill（所有 agent 可用）
   commands/
     hr-daily-signal.md       ← /hr-daily-signal
     hr-weekly-assessment.md  ← /hr-weekly-assessment
-tools/
-  chroma_write.py            ← 记忆写入
-  chroma_query.py            ← 记忆检索
+memory/
+  entries/                   ← Agent 执行记录（明文 md，可提交 git）
+  chroma_db/                 ← 向量索引（不提交 git，可随时重建）
+  memory_index.py            ← 构建向量索引
+  memory_query.py            ← 向量查询（返回文件路径）
   requirements.txt
-ARCHITECTURE.md              ← 架构详解
-aimodule-convention.md       ← 内容层约定
+docs/
+  ARCHITECTURE.md            ← 架构详解
+  aimodule-convention.md     ← 内容层约定
+  INSTALL.md                 ← 安装指南
 .env.example                 ← 环境变量模板（复制为 .env 后填写）
 .venv/                       ← Python 虚拟环境（自行创建，已 gitignore）
 ```
@@ -106,8 +112,8 @@ aimodule-convention.md       ← 内容层约定
 - **助手** — `CLAUDE.md` 定义，主 session 本身即助手，无需额外启动
 - **Subagent 派发** — 所有业务 agent 通过 `Agent` tool 以独立 context spawn
 - **两层治理** — 架构师管内容层（`.aimodule/`），HR 管能力层（`.claude/agents/`）
-- **记忆系统** — ChromaDB 存储执行记录，支持语义检索；本地用 PersistentClient，团队服务器设 `CHROMA_HOST`
-- **venv 约定** — skill 内 ChromaDB 命令使用 `.venv/bin/python` 调用，确保依赖隔离
+- **记忆系统** — `memory/entries/` 存明文 md（可提交 git），ChromaDB 仅作向量索引；本地存 `memory/chroma_db/`，团队服务器设 `CHROMA_HOST`
+- **venv 约定** — skill 内命令使用 `.venv/bin/python` 调用，确保依赖隔离
 
 详见 `ARCHITECTURE.md`。
 

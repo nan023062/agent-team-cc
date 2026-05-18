@@ -14,7 +14,8 @@ memory/
 ```
 
 所有 entry 平铺在 `entries/` 下，每条对应一次 agent 执行记录。  
-每天可产生多条，命名唯一，多人团队并行写入无冲突。
+每天可产生多条，命名唯一，多人团队并行写入无冲突。  
+**entries/ 可提交 git**，是唯一数据源。
 
 ---
 
@@ -24,9 +25,8 @@ memory/
 
 ```markdown
 ---
-date: YYYY-MM-DD
-agent: <agent-id>
-tags: [module-combat, decision, refactor, blocked]
+modules: combat pathfinding
+tags: decision incident
 ---
 
 ## 任务概述
@@ -40,6 +40,8 @@ tags: [module-combat, decision, refactor, blocked]
 - [ ] 优秀模式：（描述）
 - [ ] 模块知识更新候选：（描述）
 ```
+
+`date` 和 `agent` 从文件名自动提取，无需在 frontmatter 中重复填写。
 
 **tags 约定**（自由组合）：
 
@@ -56,55 +58,51 @@ tags: [module-combat, decision, refactor, blocked]
 
 ## 存储架构
 
-所有 entry 统一存入 ChromaDB（同时存原文 + 向量），无本地文件双写。
+明文 markdown 文件是**唯一数据源**，ChromaDB 仅作向量索引。
 
-| 阶段 | 存储 | 切换方式 |
-|------|------|---------|
-| 本地测试 | `./chroma_db`（单文件夹） | 不设环境变量 |
-| 团队服务器 | ChromaDB HTTP Server | 设置 `CHROMA_HOST` |
+| 内容 | 存储位置 | git |
+|------|---------|-----|
+| entry 原文 | `memory/entries/*.md` | ✅ 提交 |
+| 向量索引 | `./chroma_db/` | ❌ gitignore |
 
-**写入命令：**
+**写入**：agent 直接创建 markdown 文件，无需调用脚本。
 
+**向量查询**（自动同步索引，返回文件路径，再读文件获取内容）：
 ```bash
-.venv/bin/python tools/chroma_write.py \
-    --agent <agent-id> \
-    --slug <简短描述> \
-    --content "<session 内容>" \
-    --modules <模块名，空格分隔> \
-    --tags <标记，空格分隔>
+# 按 agent 查（HR 用）
+.venv/bin/python memory/memory_query.py "踩坑 问题" --agent programmer --top-k 10
+
+# 按模块查（架构师用）
+.venv/bin/python memory/memory_query.py "架构决策" --module combat --top-k 10
+
+# 查询前自动更新索引
+.venv/bin/python memory/memory_query.py "寻路算法" --reindex --top-k 5
 ```
 
-**查询命令（返回原文，无需二次加载）：**
+索引（`memory/chroma_db/`）查询时自动维护，无需手动操作。损坏时运行 `memory_index.py` 重建。
 
-```bash
-# 按 agent 查询（HR 用）
-.venv/bin/python tools/chroma_query.py --agent programmer --query "架构决策" --top-k 10
+**本地 vs 服务器：**
 
-# 按模块查询（架构师用）
-.venv/bin/python tools/chroma_query.py --module combat --query "踩坑 incident" --top-k 5
-```
-
-**启动本地服务器（团队共享时）：**
-
-```bash
-chroma run --path ./chroma_db --port 8000
-```
+| 阶段 | 配置 |
+|------|------|
+| 本地测试 | 不设 `CHROMA_HOST` |
+| 团队服务器 | `export CHROMA_HOST=<ip>` |
 
 ---
 
 ## 写入方
 
-任意 agent 在任务结束后自行写入，或由助手代写。  
+任意 agent 在任务结束后自行创建 entry 文件，或由助手代写。  
 内容不限：可以是模块改动、设计决策、踩坑经验、阻塞记录——只要是这次 session 里值得记录的事实。
 
 ---
 
 ## 压缩升格
 
-**HR** 定期读取全部 entries，过滤 `agent=<id>`，提炼反复出现的能力模式：
+**HR** 定期查询 entries，过滤 `agent=<id>`，提炼反复出现的能力模式：
 → agent skill 升格 / soul 更新
 
-**架构师** 定期读取全部 entries，过滤 `tags` 含 `module-<name>`，提炼模块相关决策与约束：
+**架构师** 定期查询 entries，过滤 `module=<name>`，提炼模块相关决策与约束：
 → `.aimodule/` 知识三件套 / workflows 更新
 
 两条管线共用同一份原始记录，从不同维度提炼。
