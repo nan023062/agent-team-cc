@@ -119,12 +119,19 @@ your-project/
 
 ---
 
-## 两层治理
+## 两层治理 · 两类 Skill
 
 | 层级 | 治理者 | 管辖 | 铁律 |
 |------|--------|------|------|
-| **能力层** | HR | `.claude/agents/`（agent 定义与 skills） | soul/skills 不含任何项目特定内容 |
-| **业务层** | 架构师 | 项目各级 `.dna/`（模块知识三件套） | 知识三件套不引用 agent 规范 |
+| **能力层** | HR | `.claude/agents/`（soul）+ `cbim/knowledge/skills/`（能力向 skill） | soul/skills 不含任何项目特定内容 |
+| **业务层** | 架构师 | 项目各级 `.dna/`（模块知识三件套 + workflows/） | 知识三件套不引用 agent 规范 |
+
+CBIM 将 skill 按「谁拥有」一分为二，`.claude/` 下只有 `agents/`，不再堆积 `skills/`：
+
+| 类型 | 存储 | 特征 |
+|------|------|------|
+| **能力向 skill** | `cbim/knowledge/skills/` | agent 私有能力，可移植，HR 治理 |
+| **业务向 skill** | `.dna/workflows/` | 模块确定性流程，与项目绑定，架构师治理 |
 
 ---
 
