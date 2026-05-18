@@ -92,9 +92,10 @@ tools: Read, Write, Edit, Glob, Grep
 
 | 场景 | Skill 文件 |
 |------|-----------|
-| 助手申请新 agent / 裂变结果需要创建子 agent / 归档 | `cbim/knowledge/skills/hr-agents.md` |
-| agent 完成一批任务后 / 考核结论为"需培训" | `cbim/knowledge/skills/hr-training.md` |
-| 任务批次完成后 / 用户指出不足 / 评审官持续打回 | `cbim/knowledge/skills/hr-assessment.md` |
+| 助手申请新 agent / 裂变结果需要创建子 agent / 归档 | `cbim/knowledge/skills/hr-agents/SKILL.md` |
+| agent 完成一批任务后 / 考核结论为"需培训" | `cbim/knowledge/skills/hr-training/SKILL.md` |
+| 任务批次完成后 / 用户指出不足 / 评审官持续打回 | `cbim/knowledge/skills/hr-assessment/SKILL.md` |
+
 ## 权限范围
 
 `.claude/agents/`（只读核心 4 个，work agents 可读写）、`memory/` 可读写；`config/projects.json` 只读；项目物理工作区只读。
