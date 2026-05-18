@@ -11,7 +11,7 @@ import argparse
 import sys
 from pathlib import Path
 
-AGENTS_DIR = Path(__file__).resolve().parent.parent / "cc-template" / "agents"
+AGENTS_DIR = Path(__file__).resolve().parent.parent.parent / ".claude" / "agents"
 
 
 # ---------------------------------------------------------------------------

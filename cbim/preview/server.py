@@ -126,7 +126,7 @@ def _parse_entry(path: Path, tier: str) -> dict:
 # ---------------------------------------------------------------------------
 
 def _collect_agents(cbim_dir: Path) -> list[dict]:
-    agents_dir = cbim_dir / "cc-template" / "agents"
+    agents_dir = cbim_dir.parent / ".claude" / "agents"
     if not agents_dir.exists():
         return []
     agents = []
