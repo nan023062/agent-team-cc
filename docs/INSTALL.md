@@ -23,7 +23,7 @@ mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TA
 
 # 3. 复制文件
 cp "$SRC/template/CLAUDE-template.md"  "$TARGET/CLAUDE.md"
-cp "$SRC/template/.env.example"        "$TARGET/.env.example"
+cp "$SRC/template/skills/memory/.env.example"        "$TARGET/.env.example"
 cp -R "$SRC/template/agents"           "$TARGET/.claude/agents"
 cp -R "$SRC/template/commands"         "$TARGET/.claude/commands"
 cp -R "$SRC/template/hooks"            "$TARGET/.claude/hooks"
@@ -62,7 +62,7 @@ rm -rf /tmp/agent-team-cc-src
 | 来源（模板仓库） | 目标路径 | 说明 |
 |----------------|---------|------|
 | `template/CLAUDE-template.md` | `CLAUDE.md` | 助手身份 |
-| `template/.env.example` | `.env.example` | 环境变量模板 |
+| `template/skills/memory/.env.example` | `.env.example` | 记忆系统环境变量模板 |
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
 | `template/commands/` | `.claude/commands/` | slash 命令 |
 | `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
@@ -108,7 +108,7 @@ git clone https://github.com/nan023062/agent-team-cc.git /tmp/agent-team-cc-src
 白名单：
 ```
 template/CLAUDE-template.md      → CLAUDE.md
-template/.env.example            → .env.example
+template/skills/memory/.env.example            → .env.example
 template/agents/                 → .claude/agents/
 template/commands/               → .claude/commands/
 template/hooks/                  → .claude/hooks/
@@ -129,7 +129,7 @@ mkdir -p "$TARGET/.claude" "$TARGET/.claude/hooks" "$TARGET/.claude/skills" "$TA
 
 # 顶层
 cp -i "$SRC/template/CLAUDE-template.md" "$TARGET/CLAUDE.md"
-cp -i "$SRC/template/.env.example"       "$TARGET/.env.example"
+cp -i "$SRC/template/skills/memory/.env.example"       "$TARGET/.env.example"
 
 # .claude/（不要碰 settings.local.json）
 cp -R "$SRC/template/agents"          "$TARGET/.claude/agents"
