@@ -115,9 +115,9 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 | 场景 | Skill 文件 |
 |------|-----------|
-| 新建/更新/废弃/拆分模块 | `cbim/knowledge/skills/arch-modules.md` |
-| 合规审查（新建模块后、依赖变化后、定期巡检）| `cbim/knowledge/skills/arch-governance.md` |
-| 知识治理（知识升格、从记忆提炼到 .dna/）| `cbim/knowledge/skills/arch-upgrade.md` |
+| 新建/更新/废弃/拆分模块 | `cbim/knowledge/skills/arch-modules/SKILL.md` |
+| 合规审查（新建模块后、依赖变化后、定期巡检）| `cbim/knowledge/skills/arch-governance/SKILL.md` |
+| 知识治理（知识升格、从记忆提炼到 .dna/）| `cbim/knowledge/skills/arch-upgrade/SKILL.md` |
 ## 边界
 
 - 只负责架构管理职能，不执行具体业务实现
