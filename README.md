@@ -50,45 +50,47 @@ CBIM 同时解决这两个问题：
 
 ---
 
-## 安装
-
-### 自动安装（推荐）
-
-**macOS / Linux：**
-```bash
-python cbim/install.py
-```
-
-**Windows：**
-```
-双击 cbim/install.bat
-```
-
-脚本自动完成：创建 `.venv`、安装依赖、复制 agent 定义、注册 hooks、初始化 `CLAUDE.md`。
-
-### 手动安装
-
-详见 [INSTALL.md](INSTALL.md)。
-
----
-
 ## 快速开始
 
-```bash
-# 1. 安装框架
-python cbim/install.py
+### 方式一：一句话交给 Claude Code（推荐）
 
-# 2. 配置 API Key
+在目标项目目录打开 Claude Code，发送这条消息，Agent 会自动完成全部安装步骤：
+
+```
+请访问 https://raw.githubusercontent.com/nan023062/agent-team-cc/master/INSTALL.md 获取 CBIM 安装 SOP，从第一条分隔线之后的内容开始，在当前项目执行所有步骤完成安装
+```
+
+Agent 会自动克隆框架、安装依赖、注册 hooks、配置 CLAUDE.md，并在最后告知你下一步。
+
+### 方式二：手动运行安装脚本
+
+```bash
+# 1. 克隆 CBIM 到目标项目
+git clone https://github.com/nan023062/agent-team-cc.git /tmp/cbim-src
+cp -r /tmp/cbim-src/cbim ./cbim
+rm -rf /tmp/cbim-src
+
+# 2. 运行安装脚本
+python3 cbim/install.py        # macOS / Linux
+# 或双击 cbim/install.bat      # Windows
+
+# 3. 配置 API Key
 cp .env.example .env
 # 编辑 .env，填写 ANTHROPIC_API_KEY=sk-ant-...
 
-# 3. 启动 Claude Code
+# 4. 重启 Claude Code
 claude
 ```
 
-首句推荐：**"请初始化本项目的模块知识体系"**
+---
 
-助手会派发架构师在项目根建立 `.dna/` 知识体系，之后即可正常使用。
+## 安装后首次使用
+
+重启 Claude Code 后，发送：
+
+> **"请初始化本项目的模块知识体系"**
+
+助手派发架构师建立 `.dna/` 知识体系，之后即可正常使用。
 
 ---
 
