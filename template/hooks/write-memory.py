@@ -15,6 +15,28 @@ from datetime import datetime
 from pathlib import Path
 
 
+def _load_config(cwd: Path) -> dict:
+    defaults = {
+        "short_term": {
+            "max_request_chars": 300,
+            "max_result_chars": 600,
+            "max_slug_input_chars": 50,
+            "max_slug_chars": 30,
+        },
+        "hooks": {"timeout_seconds": 30},
+    }
+    config_path = cwd / "memory" / "config.json"
+    if config_path.exists():
+        try:
+            user = json.loads(config_path.read_text(encoding="utf-8"))
+            for section, values in user.items():
+                if section in defaults and isinstance(values, dict):
+                    defaults[section].update(values)
+        except Exception:
+            pass
+    return defaults
+
+
 def find_python(cwd: Path) -> str | None:
     for candidate in [
         cwd / ".venv" / "bin" / "python",
@@ -55,7 +77,8 @@ def extract_content_blocks(msg: dict) -> tuple[str, list]:
     return role, []
 
 
-def parse_transcript(messages: list) -> dict:
+def parse_transcript(messages: list, max_request_chars: int = 300,
+                     max_result_chars: int = 600) -> dict:
     user_request = ""
     agent_calls = {}
     files_changed = []
@@ -69,7 +92,7 @@ def parse_transcript(messages: list) -> dict:
             btype = block.get("type", "")
 
             if btype == "text" and role == "user" and not user_request:
-                user_request = block.get("text", "")[:300]
+                user_request = block.get("text", "")[:max_request_chars]
 
             elif btype == "tool_use" and block.get("name") == "Agent":
                 bid = block.get("id", "")
@@ -99,7 +122,7 @@ def parse_transcript(messages: list) -> dict:
                             c.get("text", "") for c in rc
                             if isinstance(c, dict) and c.get("type") == "text"
                         )
-                    agent_calls[tid]["result"] = str(rc)[:600]
+                    agent_calls[tid]["result"] = str(rc)[:max_result_chars]
 
     return {
         "user_request": user_request,
@@ -109,9 +132,9 @@ def parse_transcript(messages: list) -> dict:
     }
 
 
-def slug(text: str) -> str:
-    s = re.sub(r"[^\w一-鿿]+", "-", text[:50])
-    return s.strip("-")[:30] or "session"
+def slug(text: str, max_input: int = 50, max_output: int = 30) -> str:
+    s = re.sub(r"[^\w一-鿿]+", "-", text[:max_input])
+    return s.strip("-")[:max_output] or "session"
 
 
 def build_entry(info: dict) -> str:
@@ -167,6 +190,8 @@ def main():
 
     transcript_path = event.get("transcript_path", "")
     cwd = Path(event.get("cwd", os.getcwd()))
+    cfg = _load_config(cwd)
+    st = cfg["short_term"]
 
     if not transcript_path:
         sys.exit(0)
@@ -175,7 +200,11 @@ def main():
     if not messages:
         sys.exit(0)
 
-    info = parse_transcript(messages)
+    info = parse_transcript(
+        messages,
+        max_request_chars=st["max_request_chars"],
+        max_result_chars=st["max_result_chars"],
+    )
     if not info["user_request"] and not info["agent_calls"]:
         sys.exit(0)
 
@@ -183,7 +212,9 @@ def main():
     store_dir.mkdir(parents=True, exist_ok=True)
 
     date = datetime.now().strftime("%Y-%m-%d")
-    name = slug(info["user_request"])
+    name = slug(info["user_request"],
+                max_input=st["max_slug_input_chars"],
+                max_output=st["max_slug_chars"])
     entry_path = store_dir / f"{date}-main-{name}.md"
 
     if entry_path.exists():
@@ -201,7 +232,7 @@ def main():
             subprocess.run(
                 [python, "-m", "memory.engine.cli", "add", str(entry_path), "--tier", "short"],
                 cwd=str(cwd),
-                timeout=30,
+                timeout=cfg["hooks"]["timeout_seconds"],
                 check=False,
             )
         except Exception:

@@ -16,6 +16,23 @@ import sys
 from pathlib import Path
 
 
+def _load_config(cwd: Path) -> dict:
+    defaults = {
+        "query": {"load_top_k": 3, "entry_preview_chars": 800},
+        "hooks": {"timeout_seconds": 30},
+    }
+    config_path = cwd / "memory" / "config.json"
+    if config_path.exists():
+        try:
+            user = json.loads(config_path.read_text(encoding="utf-8"))
+            for section, values in user.items():
+                if section in defaults and isinstance(values, dict):
+                    defaults[section].update(values)
+        except Exception:
+            pass
+    return defaults
+
+
 def find_python(cwd: Path) -> str | None:
     for candidate in [
         cwd / ".venv" / "bin" / "python",
@@ -37,6 +54,7 @@ def main():
         sys.exit(0)
 
     cwd = Path(event.get("cwd", os.getcwd()))
+    cfg = _load_config(cwd)
     store_dir = cwd / "memory" / "store"
 
     # Bail out early if memory store isn't set up yet
@@ -52,14 +70,18 @@ def main():
 
     cli = [python, "-m", "memory.engine.cli"]
 
-    # Balanced query: engine queries each tier with top-k=3 independently and interleaves
+    load_top_k = cfg["query"]["load_top_k"]
+    timeout = cfg["hooks"]["timeout_seconds"]
+    preview_chars = cfg["query"]["entry_preview_chars"]
+
+    # Balanced query: engine queries each tier with load_top_k independently and interleaves
     try:
         result = subprocess.run(
-            cli + ["query", "最近任务 决策 问题 阻塞", "--top-k", "3", "--verbose"],
+            cli + ["query", "最近任务 决策 问题 阻塞", "--top-k", str(load_top_k), "--verbose"],
             capture_output=True,
             text=True,
             cwd=str(cwd),
-            timeout=30,
+            timeout=timeout,
         )
         all_lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
     except Exception:
@@ -75,7 +97,7 @@ def main():
         p = Path(path_str) if Path(path_str).is_absolute() else cwd / path_str
         try:
             content = p.read_text(encoding="utf-8")
-            entries.append(f"**{p.name}**\n{content[:800]}")
+            entries.append(f"**{p.name}**\n{content[:preview_chars]}")
         except (FileNotFoundError, PermissionError):
             pass
 

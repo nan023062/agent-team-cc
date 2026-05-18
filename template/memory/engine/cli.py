@@ -9,11 +9,14 @@ Commands:
   query   <text> --tier short|medium [--top-k N]  # single tier
   delete  <path>
   reindex [--tier short|medium]
+  cleanup [--keep-days N]
 """
 
 import argparse
 import sys
 from pathlib import Path
+
+from .config import load_config
 
 
 def _build_engine(args: argparse.Namespace):
@@ -81,6 +84,8 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    cfg = load_config()
+
     parser = argparse.ArgumentParser(prog="memory/engine/cli.py")
     sub = parser.add_subparsers(dest="command")
 
@@ -93,7 +98,7 @@ def main() -> int:
     p_query = sub.add_parser("query")
     p_query.add_argument("text")
     p_query.add_argument("--tier", choices=["short", "medium"], default=None)
-    p_query.add_argument("--top-k", type=int, default=5, dest="top_k")
+    p_query.add_argument("--top-k", type=int, default=cfg["query"]["default_top_k"], dest="top_k")
     p_query.add_argument("--verbose", action="store_true")
 
     # delete
@@ -106,8 +111,9 @@ def main() -> int:
 
     # cleanup
     p_cleanup = sub.add_parser("cleanup")
-    p_cleanup.add_argument("--keep-days", type=int, default=3, dest="keep_days",
-                           help="Keep entries from the last N days (default: 3)")
+    p_cleanup.add_argument("--keep-days", type=int, default=cfg["short_term"]["keep_days"],
+                           dest="keep_days",
+                           help=f"Keep entries from the last N days (default: {cfg['short_term']['keep_days']})")
 
     # shared optional overrides
     for p in [p_add, p_query, p_del, p_reindex, p_cleanup]:

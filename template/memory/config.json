@@ -1,0 +1,17 @@
+{
+  "short_term": {
+    "keep_days": 3,
+    "max_request_chars": 300,
+    "max_result_chars": 600,
+    "max_slug_input_chars": 50,
+    "max_slug_chars": 30
+  },
+  "query": {
+    "default_top_k": 5,
+    "load_top_k": 3,
+    "entry_preview_chars": 800
+  },
+  "hooks": {
+    "timeout_seconds": 30
+  }
+}
