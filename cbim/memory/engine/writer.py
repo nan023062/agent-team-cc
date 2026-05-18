@@ -50,6 +50,7 @@ def write_session(transcript_path: str, store_dir: Path,
 
     entry_path.write_text(_build_entry(info), encoding="utf-8")
     engine.add(entry_path, SHORT)
+    _write_last_session(info, store_dir)
     return entry_path
 
 
@@ -139,6 +140,46 @@ def _parse_transcript(messages: list, max_request_chars: int,
         "files_changed": list(dict.fromkeys(files_changed)),
         "modules": sorted(modules),
     }
+
+
+def _write_last_session(info: dict, store_dir: Path) -> None:
+    """Write last-session.md — a structured recovery note for the next session."""
+    lines = [
+        "## 上次 Session 恢复点",
+        "",
+        f"**任务**: {info['user_request'] or '（未能提取）'}",
+        "",
+    ]
+
+    calls = info["agent_calls"]
+    if calls:
+        lines.append("**执行记录**:")
+        for c in calls:
+            label = c["description"] or c["subagent_type"] or "subagent"
+            result = c["result"]
+            preview = (result[:120] + "…") if len(result) > 120 else result
+            lines.append(f"- {label}" + (f" → {preview}" if preview else ""))
+        lines.append("")
+
+    files = info["files_changed"]
+    if files:
+        lines.append("**改动文件**:")
+        for f in files[:10]:
+            lines.append(f"- {f}")
+        if len(files) > 10:
+            lines.append(f"- …共 {len(files)} 个文件")
+        lines.append("")
+
+    modules = info["modules"]
+    if modules:
+        lines.append(f"**涉及模块**: {', '.join(modules)}")
+        lines.append("")
+
+    lines.append("*如需接续上次工作，告知助手即可。*")
+
+    last = store_dir / "last-session.md"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    last.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _slug(text: str, max_input: int, max_output: int) -> str:
