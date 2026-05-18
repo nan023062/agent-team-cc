@@ -52,35 +52,26 @@ def main():
 
     cli = [python, "-m", "memory.engine.cli"]
 
-    def run_query(extra_args: list[str]) -> list[str]:
-        try:
-            result = subprocess.run(
-                cli + ["query", "最近任务 决策 问题 阻塞"] + extra_args,
-                capture_output=True,
-                text=True,
-                cwd=str(cwd),
-                timeout=30,
-            )
-            return [l.strip() for l in result.stdout.splitlines() if l.strip()]
-        except Exception:
-            return []
-
-    # Query both tiers independently to ensure both are represented
-    short_lines = run_query(["--tier", "short", "--top-k", "3", "--verbose"])
-    medium_lines = run_query(["--tier", "medium", "--top-k", "3", "--verbose"])
-    all_lines = short_lines + medium_lines
+    # Balanced query: engine queries each tier with top-k=3 independently and interleaves
+    try:
+        result = subprocess.run(
+            cli + ["query", "最近任务 决策 问题 阻塞", "--top-k", "3", "--verbose"],
+            capture_output=True,
+            text=True,
+            cwd=str(cwd),
+            timeout=30,
+        )
+        all_lines = [l.strip() for l in result.stdout.splitlines() if l.strip()]
+    except Exception:
+        all_lines = []
 
     if not all_lines:
         sys.exit(0)
 
-    # Parse "path  # tier=... date=... score=x.xx" lines
+    # Parse "path  # tier=... date=... score=x.xx" lines (engine already deduplicates)
     entries = []
-    seen: set[str] = set()
     for line in all_lines:
         path_str = line.split("#")[0].strip()
-        if path_str in seen:
-            continue
-        seen.add(path_str)
         p = Path(path_str) if Path(path_str).is_absolute() else cwd / path_str
         try:
             content = p.read_text(encoding="utf-8")

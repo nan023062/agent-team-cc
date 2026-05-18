@@ -4,9 +4,10 @@ cli.py — Command-line interface for MemoryEngine.
 Used by hooks and agents. Run from project root (cwd matters for default paths).
 
 Commands:
-  add    <path> [--tier short|medium]
-  query  <text> [--tier short|medium] [--top-k N] [--verbose]
-  delete <path>
+  add     <path> [--tier short|medium]
+  query   <text> [--top-k N] [--verbose]          # balanced by default (both tiers)
+  query   <text> --tier short|medium [--top-k N]  # single tier
+  delete  <path>
   reindex [--tier short|medium]
 """
 

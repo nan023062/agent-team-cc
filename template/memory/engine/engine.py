@@ -75,16 +75,37 @@ class MemoryEngine:
     def query(self, text: str, tier: str | None = None, top_k: int = 5) -> list[str]:
         """Semantic search. Returns list of file paths (strings).
 
-        tier=None queries across both tiers.
+        tier=None (default): balanced mode — query each tier independently with
+        top_k results each, then interleave. Guarantees representation from both
+        tiers regardless of text-density differences between short and medium entries.
+
+        tier="short"|"medium": single-tier query, returns top_k results.
         """
-        where = {"tier": tier} if tier else None
-        results = self._backend.query(text, n_results=top_k, where=where)
-        return [r["doc_id"] for r in results]
+        return [r["doc_id"] for r in self.query_verbose(text, tier=tier, top_k=top_k)]
 
     def query_verbose(self, text: str, tier: str | None = None, top_k: int = 5) -> list[dict]:
         """Same as query but returns full result dicts including score and metadata."""
-        where = {"tier": tier} if tier else None
-        return self._backend.query(text, n_results=top_k, where=where)
+        if tier is not None:
+            _check_tier(tier)
+            return self._backend.query(text, n_results=top_k, where={"tier": tier})
+
+        # Balanced: query each tier independently, interleave by position
+        seen: set[str] = set()
+        merged: list[dict] = []
+        tier_results = [
+            self._backend.query(text, n_results=top_k, where={"tier": t})
+            for t in TIERS
+        ]
+        # Round-robin interleave so both tiers are represented near the top
+        max_len = max((len(r) for r in tier_results), default=0)
+        for i in range(max_len):
+            for results in tier_results:
+                if i < len(results):
+                    r = results[i]
+                    if r["doc_id"] not in seen:
+                        seen.add(r["doc_id"])
+                        merged.append(r)
+        return merged
 
     def delete(self, path: Path) -> None:
         """Remove an entry from the index."""

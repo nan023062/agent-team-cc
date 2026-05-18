@@ -7,15 +7,16 @@
 ## 命令格式
 
 ```bash
-# 跨层查询（短期 + 中期，推荐）
+# 默认：balanced 查询（短期 + 中期各取 top-k，交叉合并）
 .venv/bin/python -m memory.engine.cli query "查询意图" --top-k 5 --verbose
 
-# 只查短期记忆（近期 session）
+# 只查单层（需要明确限定范围时）
 .venv/bin/python -m memory.engine.cli query "查询意图" --tier short --top-k 5
-
-# 只查中期记忆（压缩后的关键洞察）
 .venv/bin/python -m memory.engine.cli query "查询意图" --tier medium --top-k 3
 ```
+
+默认 balanced 模式会分别对短期和中期各取 top-k 结果，再按位置交叉合并——
+避免两层文本密度差异（短期原始、中期压缩）导致某层被完全压制。
 
 **输出格式（--verbose）：**
 ```
@@ -36,10 +37,5 @@ memory/store/medium/capability-programmer.md  # tier=medium date=2026-05-15 scor
 ## 索引损坏时重建
 
 ```bash
-# 重建全部索引
 .venv/bin/python -m memory.engine.cli reindex
-
-# 只重建某一层
-.venv/bin/python -m memory.engine.cli reindex --tier short
-.venv/bin/python -m memory.engine.cli reindex --tier medium
 ```
