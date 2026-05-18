@@ -133,7 +133,7 @@ python cbim/knowledge/engine/cli.py modules list --root .
 | # | 因子 | 检查方法 | 检查方式 |
 |---|------|---------|---------|
 | 16 | 职责单一（相对） | 模块职责能在当前层级粒度下用一句话说清；若描述需要"以及""同时"等连接，视为职责过宽 | LLM |
-| 17 | 叶子体量检查 | 仅对叶子模块：`architecture.md` 超过 200 行、workflow ≥ 3 个、或 `contract.md` 接口 ≥ 10 个，触发拆分建议 | **脚本** |
+| 17 | 叶子体量检查 | 仅对叶子模块：`architecture.md` 行数、workflow 数、`contract.md` 接口数超过阈值时触发拆分建议（阈值见 `config.json`） | **脚本** |
 
 ---
 

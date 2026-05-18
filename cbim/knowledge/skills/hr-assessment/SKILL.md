@@ -75,7 +75,7 @@ python cbim/knowledge/engine/cli.py agents list
 | # | 因子 | 检查方法 | 检查方式 |
 |---|------|---------|---------|
 | 6 | skills 方向一致 | 所有 skill 指向同一专业方向，无能力漂移（如一个 agent 同时有业务开发 + 运维 + 审查 skill） | LLM |
-| 7 | skills 数量合理 | skills ≥ 5 个时触发裂变建议：能力过广，应拆分为多个专精 agent | **脚本** |
+| 7 | skills 数量合理 | skills 数量达到阈值时触发裂变建议：能力过广，应拆分为多个专精 agent（阈值见 `config.json`） | **脚本** |
 | 8 | tools 最小必要 | 授权的 tools 只包含该职责实际需要的，无多余授权 | LLM |
 
 ---
