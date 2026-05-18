@@ -26,7 +26,7 @@
                 └── workflow.md
 ```
 
-> **变更记录不在模块目录内。** 模块的 changelog 统一写入 `memory/changelogs/`，由架构师定期压缩升格回 `.aimodule/`。详见 `.claude/agents/architect/skills/memory-convention.md`。
+> **变更记录不在模块目录内。** 模块的 changelog 写入 session 记忆（`cbim/memory/store/`），由架构师定期从记忆中提炼升格回 `.aimodule/`。
 
 **根模块专属文件**：
 
@@ -65,7 +65,6 @@
 
 ---
 
-
 ## index.md 格式（仅根模块）
 
 ```markdown
@@ -89,3 +88,18 @@
 ```
 
 workflow 描述的是**模块内确定性流程**，不含 agent 能力描述。触发条件明确、步骤自包含、执行无需额外人类指令。
+
+---
+
+## CRUD 工具
+
+```bash
+# 列出项目所有模块
+python cbim/knowledge/modules.py list
+
+# 查看某模块详情
+python cbim/knowledge/modules.py show <module-dir>
+
+# 初始化新模块
+python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner>
+```
