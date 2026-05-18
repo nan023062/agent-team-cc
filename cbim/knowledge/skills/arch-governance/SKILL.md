@@ -13,7 +13,7 @@
 ## 快速检查（每次模块变更后）
 
 ```bash
-python cbim/knowledge/modules.py list   # 确认模块树完整
+python cbim/knowledge/engine/cli.py modules list   # 确认模块树完整
 ```
 
 检查新建/更新模块：
@@ -29,7 +29,7 @@ python cbim/knowledge/modules.py list   # 确认模块树完整
 ### Step 1 — 扫描模块树
 
 ```bash
-python cbim/knowledge/modules.py list --root .
+python cbim/knowledge/engine/cli.py modules list --root .
 ```
 
 逐模块检查：

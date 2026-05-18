@@ -5,9 +5,9 @@
 ## 工具
 
 ```bash
-python cbim/knowledge/agents.py list                              # 列出所有 agents
-python cbim/knowledge/agents.py show <name>                       # 查看 agent 详情
-python cbim/knowledge/agents.py scaffold <name> --description "..." [--model claude-sonnet-4-6]
+python cbim/knowledge/engine/cli.py agents list                              # 列出所有 agents
+python cbim/knowledge/engine/cli.py agents show <name>                       # 查看 agent 详情
+python cbim/knowledge/engine/cli.py agents scaffold <name> --description "..." [--model claude-sonnet-4-6]
 ```
 
 ---

@@ -30,7 +30,7 @@ python cbim/memory/engine/cli.py query "评审 <agent-name>" --top-k 5
 ### Step 2 — 查看当前定义
 
 ```bash
-python cbim/knowledge/agents.py show <name>
+python cbim/knowledge/engine/cli.py agents show <name>
 ```
 
 对比 agent 的当前职责定义与实际表现，判断：

@@ -5,9 +5,9 @@
 ## 工具
 
 ```bash
-python cbim/knowledge/modules.py list [--root <path>]            # 列出所有模块
-python cbim/knowledge/modules.py show <module-dir>               # 查看模块详情
-python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner> [--description "..."]
+python cbim/knowledge/engine/cli.py modules list [--root <path>]            # 列出所有模块
+python cbim/knowledge/engine/cli.py modules show <module-dir>               # 查看模块详情
+python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <owner> [--description "..."]
 ```
 
 ---
@@ -19,7 +19,7 @@ python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner> [--des
 1. 确认目录存在（或先创建目录）
 2. 初始化：
    ```bash
-   python cbim/knowledge/modules.py init <dir> --name <name> --owner architect
+   python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner architect
    ```
 3. 填写 `.aimodule/module.json`（description / keywords / dependencies）
 4. 填写 `.aimodule/architecture.md`（内部结构、设计约束、关键决策）

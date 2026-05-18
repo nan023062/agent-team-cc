@@ -41,9 +41,8 @@
 ```
 knowledge/
 ├── README.md               # 本文件
-├── agents.py               # 能力层 CRUD CLI
-├── modules.py              # 内容层 CRUD CLI
-├── engine/                 # 运行时 CRUD 原语（供 CLI 和 skill 脚本 import）
+├── engine/                 # 运行时引擎（CRUD 原语 + 统一 CLI）
+│   ├── cli.py              # 统一入口：agents / modules 双域命令
 │   ├── agents.py           # list_agents / load_agent / scaffold_agent / archive_agent
 │   └── modules.py          # list_modules / load_module / init_module / update_index
 └── skills/                 # 操作 skill（SKILL.md + 可选运行时脚本）
@@ -61,17 +60,19 @@ knowledge/
 ## 快速使用
 
 ```bash
+CLI=python cbim/knowledge/engine/cli.py
+
 # 能力层
-python cbim/knowledge/agents.py list
-python cbim/knowledge/agents.py show <name>
-python cbim/knowledge/agents.py scaffold <name> --description "..."
-python cbim/knowledge/agents.py archive <name>
+$CLI agents list
+$CLI agents show <name>
+$CLI agents scaffold <name> --description "..."
+$CLI agents archive <name>
 
 # 内容层
-python cbim/knowledge/modules.py list
-python cbim/knowledge/modules.py show <module-dir>
-python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner>
-python cbim/knowledge/modules.py reindex
+$CLI modules list
+$CLI modules show <module-dir>
+$CLI modules init <dir> --name <name> --owner <owner>
+$CLI modules reindex
 ```
 
 ---

@@ -95,11 +95,11 @@ workflow 描述的是**模块内确定性流程**，不含 agent 能力描述。
 
 ```bash
 # 列出项目所有模块
-python cbim/knowledge/modules.py list
+python cbim/knowledge/engine/cli.py modules list
 
 # 查看某模块详情
-python cbim/knowledge/modules.py show <module-dir>
+python cbim/knowledge/engine/cli.py modules show <module-dir>
 
 # 初始化新模块
-python cbim/knowledge/modules.py init <dir> --name <name> --owner <owner>
+python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <owner>
 ```
