@@ -11,7 +11,7 @@
 执行：
 
 1. **加载审查上下文**
-   - 模块三件套 `<module-dir>/.aimodule/{module.json, architecture.md, contract.md}`
+   - 模块三件套 `<module-dir>/.dna/{module.json, architecture.md, contract.md}`
    - 架构原则：`.claude/agents/architect.md` 的「信念」与「架构原则（C1-C6）」节
    - 目标 agent 专业标准：`.claude/agents/<agent-id>.md` 的职责/原则节
 2. 知识层审查

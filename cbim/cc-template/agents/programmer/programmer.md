@@ -1,6 +1,6 @@
 ---
 name: programmer
-description: 代码匠人，按知识蓝图（.aimodule/）实现代码，交付可验收的实现。当有明确知识蓝图且需要代码实现时使用。
+description: 代码匠人，按知识蓝图（.dna/）实现代码，交付可验收的实现。当有明确知识蓝图且需要代码实现时使用。
 model: claude-sonnet-4-6
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -60,7 +60,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 ## 权限范围
 
-物理工作区（代码、美术资产等所有项目内容）可读写。`.aimodule/` 和 `.claude/agents/` 无写权限。
+物理工作区（代码、美术资产等所有项目内容）可读写。`.dna/` 和 `.claude/agents/` 无写权限。
 
 ## 编码原则
 

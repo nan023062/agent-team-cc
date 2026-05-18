@@ -1,6 +1,6 @@
 # Skill: 知识升格（架构师）
 
-> 将 session 记忆中的设计决策、架构洞察提炼，沉淀回 `.aimodule/`，形成持久知识。
+> 将 session 记忆中的设计决策、架构洞察提炼，沉淀回 `.dna/`，形成持久知识。
 
 ## 触发场景
 
@@ -51,7 +51,7 @@ python cbim/memory/engine/cli.py query "<模块名> 决策" --top-k 5
 
 **新建 Workflow**：
 ```
-.aimodule/workflows/<workflow-name>/workflow.md
+.dna/workflows/<workflow-name>/workflow.md
 
 格式：
 # Workflow: <名称>

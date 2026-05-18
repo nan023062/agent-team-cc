@@ -82,7 +82,7 @@ def cmd_modules_list(args: argparse.Namespace) -> int:
     root = Path(args.root) if args.root else Path.cwd()
     modules = list_modules(root)
     if not modules:
-        print("  No .aimodule modules found.")
+        print("  No .dna modules found.")
         return 0
     for m in modules:
         kw = f"  [{', '.join(m['keywords'])}]" if m["keywords"] else ""
@@ -95,7 +95,7 @@ def cmd_modules_show(args: argparse.Namespace) -> int:
     root = mod_dir.parent if mod_dir.parent != mod_dir else Path.cwd()
     m = load_module(mod_dir, root)
     if not m:
-        print(f"No .aimodule/ found in: {mod_dir}", file=sys.stderr)
+        print(f"No .dna/ found in: {mod_dir}", file=sys.stderr)
         return 1
     print(f"Name        : {m['name']}")
     print(f"Owner       : {m['owner']}")
@@ -112,7 +112,7 @@ def cmd_modules_init(args: argparse.Namespace) -> int:
     try:
         aimod = init_module(Path(args.dir), args.name, args.owner, args.description)
         print(f"Initialized: {aimod}/")
-        print(f"  Edit .aimodule/module.json, architecture.md, contract.md")
+        print(f"  Edit .dna/module.json, architecture.md, contract.md")
         print(f"  Then run: python cbim/knowledge/engine/cli.py modules reindex")
     except FileExistsError as e:
         print(str(e), file=sys.stderr)

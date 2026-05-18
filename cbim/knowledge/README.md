@@ -8,7 +8,7 @@
 
 ```
                         内容层（Content）
-                    .aimodule/ 知识三件套
+                    .dna/ 知识三件套
                             │
               低成熟度       │       高成熟度
               ─────────────┼─────────────
@@ -28,7 +28,7 @@
 | 象限 | 能力层 | 内容层 | 状态 | 行动 |
 |------|--------|--------|------|------|
 | **空白期** | 无 agent | 无模块 | 项目刚开始 | 先建根模块，再招募第一个 work agent |
-| **知识驱动期** | 无/弱 agent | 有 `.aimodule/` | 有蓝图缺执行 | HR 招募对应能力的 work agent |
+| **知识驱动期** | 无/弱 agent | 有 `.dna/` | 有蓝图缺执行 | HR 招募对应能力的 work agent |
 | **探索期** | 有 agent | 无/草稿模块 | 有执行缺沉淀 | 架构师从记忆中提炼知识建档 |
 | **成熟期** | 专精 agent | 完整知识体系 | 健康状态 | 持续治理，按需裂变 |
 
@@ -50,7 +50,7 @@ knowledge/
     ├── hr-training/        # agent 培训（记忆 → skill/soul）
     ├── hr-assessment/      # agent 考核
     ├── arch-modules/       # 模块 CRUD
-    ├── arch-upgrade/       # 知识升格（memory → .aimodule/）
+    ├── arch-upgrade/       # 知识升格（memory → .dna/）
     ├── arch-governance/    # 合规治理巡检
     └── audit-review/       # 对抗性审查（评审官）
 ```
@@ -81,7 +81,7 @@ $CLI modules reindex
 
 | | 能力层 | 内容层 |
 |---|---|---|
-| **数据源** | `.claude/agents/` | 项目各级 `.aimodule/` |
+| **数据源** | `.claude/agents/` | 项目各级 `.dna/` |
 | **治理者** | HR | 架构师 |
 | **生命周期** | 招募 → 培训 → 考核 → 裂变 / 归档 | 建档 → 更新 → 升格 → 废弃 |
 | **铁律** | soul 只含专业能力，不含项目细节 | 三件套只含模块知识，不引用 agent 规范 |

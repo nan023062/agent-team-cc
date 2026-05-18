@@ -6,7 +6,7 @@
 |------|------|---------|------|
 | **短期** | `store/short/` | 用户本地（gitignore） | session 结束自动写入 |
 | **中期** | `store/medium/` | 用户本地（gitignore） | 按关键字压缩，手动 distill |
-| **长期** | `.claude/agents/` + `.aimodule/` | 团队 git-tracked | HR / 架构师治理 |
+| **长期** | `.claude/agents/` + `.dna/` | 团队 git-tracked | HR / 架构师治理 |
 
 短期和中期是本地工作记忆。长期知识库（agent 能力文件、模块知识文件）才是团队共享资产。
 

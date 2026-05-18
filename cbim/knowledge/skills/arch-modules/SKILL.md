@@ -1,6 +1,6 @@
 # Skill: 内容层模块 CRUD（架构师）
 
-> 管理项目 `.aimodule/` 知识体系。知识先行——先建档，再动工。
+> 管理项目 `.dna/` 知识体系。知识先行——先建档，再动工。
 
 ## 工具
 
@@ -21,10 +21,10 @@ python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <ow
    ```bash
    python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner architect
    ```
-3. 填写 `.aimodule/module.json`（description / keywords / dependencies）
-4. 填写 `.aimodule/architecture.md`（内部结构、设计约束、关键决策）
-5. 填写 `.aimodule/contract.md`（对外 API / 协议 / 接口签名）
-6. 更新根模块 `.aimodule/index.md`，追加新模块路径
+3. 填写 `.dna/module.json`（description / keywords / dependencies）
+4. 填写 `.dna/architecture.md`（内部结构、设计约束、关键决策）
+5. 填写 `.dna/contract.md`（对外 API / 协议 / 接口签名）
+6. 更新根模块 `.dna/index.md`，追加新模块路径
 7. 运行合规检查：执行 `arch-governance.md`
 
 **命名约定**：`name` 用 kebab-case，`owner` 填负责的 agent id。
@@ -38,7 +38,7 @@ python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <ow
 - **内部变更** → 编辑 `architecture.md`
 - **接口变更** → 编辑 `contract.md`，同步通知依赖方模块
 - **元数据变更** → 编辑 `module.json`（keywords / dependencies / owner）
-- **确定性流程沉淀** → 在 `.aimodule/workflows/<name>/workflow.md` 新建 workflow
+- **确定性流程沉淀** → 在 `.dna/workflows/<name>/workflow.md` 新建 workflow
 
 变更后运行合规检查。
 

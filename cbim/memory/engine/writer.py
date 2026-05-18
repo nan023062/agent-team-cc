@@ -118,7 +118,7 @@ def _parse_transcript(messages: list, max_request_chars: int,
                 p = inp.get("file_path", "")
                 if p:
                     files_changed.append(p)
-                    m = re.search(r"[/\\]([^/\\]+)[/\\]\.aimodule[/\\]", p)
+                    m = re.search(r"[/\\]([^/\\]+)[/\\]\.dna[/\\]", p)
                     if m:
                         modules.add(m.group(1))
 

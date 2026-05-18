@@ -1,14 +1,14 @@
-# .aimodule/ 内容层约定
+# .dna/ 内容层约定
 
 > 内容层由架构师治理，与能力层（`.claude/agents/`）严格分离。
 
 ## 核心概念
 
-**模块**：任何包含 `.aimodule/` 子目录的目录即为一个模块。
+**模块**：任何包含 `.dna/` 子目录的目录即为一个模块。
 
-**根模块**：项目根目录本身必须包含 `.aimodule/`，即为根模块。
+**根模块**：项目根目录本身必须包含 `.dna/`，即为根模块。
 
-**模块树**：由文件系统目录层级隐式定义。父模块 = 最近的含 `.aimodule/` 的祖先目录。无需显式声明层级关系。
+**模块树**：由文件系统目录层级隐式定义。父模块 = 最近的含 `.dna/` 的祖先目录。无需显式声明层级关系。
 
 ---
 
@@ -17,7 +17,7 @@
 ```
 <project>/
 └── <module>/
-    └── .aimodule/
+    └── .dna/
         ├── module.json         # 元数据（必填：name、owner）
         ├── architecture.md     # 内部架构设计
         ├── contract.md         # 对外 API / 协议 / 接口
@@ -26,13 +26,13 @@
                 └── workflow.md
 ```
 
-> **变更记录不在模块目录内。** 模块的 changelog 写入 session 记忆（`cbim/memory/store/`），由架构师定期从记忆中提炼升格回 `.aimodule/`。
+> **变更记录不在模块目录内。** 模块的 changelog 写入 session 记忆（`cbim/memory/store/`），由架构师定期从记忆中提炼升格回 `.dna/`。
 
 **根模块专属文件**：
 
 ```
 <project>/
-└── .aimodule/
+└── .dna/
     └── index.md    # 全树所有模块的相对路径列表（仅根模块有）
 ```
 
@@ -83,7 +83,7 @@
 ## Workflow 结构
 
 ```
-.aimodule/workflows/<workflow-name>/
+.dna/workflows/<workflow-name>/
 └── workflow.md     # 触发条件 + 步骤 + 输出格式
 ```
 

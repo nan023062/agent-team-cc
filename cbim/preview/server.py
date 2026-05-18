@@ -4,7 +4,7 @@ server.py — Local HTTP server for CBIM preview.
 Serves static files from cbim/preview/ and provides:
   GET /api/entries    — memory entries (short + medium tier)
   GET /api/agents     — agent definitions from cbim/agents/
-  GET /api/knowledge  — .aimodule modules scanned from project root
+  GET /api/knowledge  — .dna modules scanned from project root
   GET /heartbeat      — keep-alive (client pings every 10s)
 """
 
@@ -162,7 +162,7 @@ def _collect_agents(cbim_dir: Path) -> list[dict]:
 
 def _collect_knowledge(root_dir: Path) -> list[dict]:
     modules = []
-    for mj in sorted(root_dir.rglob(".aimodule/module.json")):
+    for mj in sorted(root_dir.rglob(".dna/module.json")):
         mod_dir = mj.parent.parent
         try:
             data = json.loads(mj.read_text(encoding="utf-8"))

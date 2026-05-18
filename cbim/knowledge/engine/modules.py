@@ -1,7 +1,7 @@
 """
-engine/modules.py — Knowledge module (.aimodule) CRUD primitives.
+engine/modules.py — Knowledge module (.dna) CRUD primitives.
 
-Operates on .aimodule/ directories anywhere in the project tree.
+Operates on .dna/ directories anywhere in the project tree.
 """
 
 import json
@@ -13,7 +13,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 
 def load_module(mod_dir: Path, root: Path) -> dict | None:
-    aimod = mod_dir / ".aimodule"
+    aimod = mod_dir / ".dna"
     mj = aimod / "module.json"
     if not mj.exists():
         return None
@@ -47,7 +47,7 @@ def load_module(mod_dir: Path, root: Path) -> dict | None:
 
 def list_modules(root: Path) -> list[dict]:
     modules = []
-    for mj in sorted(root.rglob(".aimodule/module.json")):
+    for mj in sorted(root.rglob(".dna/module.json")):
         mod_dir = mj.parent.parent
         m = load_module(mod_dir, root)
         if m:
@@ -61,9 +61,9 @@ def list_modules(root: Path) -> list[dict]:
 
 def init_module(mod_dir: Path, name: str, owner: str,
                 description: str = "") -> Path:
-    aimod = mod_dir / ".aimodule"
+    aimod = mod_dir / ".dna"
     if aimod.exists():
-        raise FileExistsError(f".aimodule already exists: {aimod}")
+        raise FileExistsError(f".dna already exists: {aimod}")
 
     aimod.mkdir(parents=True)
     (aimod / "workflows").mkdir()
@@ -88,7 +88,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
 
 def update_module_meta(mod_dir: Path, **kwargs) -> None:
     """Merge kwargs into module.json (description, keywords, dependencies, owner, etc.)"""
-    mj = mod_dir / ".aimodule" / "module.json"
+    mj = mod_dir / ".dna" / "module.json"
     data = json.loads(mj.read_text(encoding="utf-8"))
     data.update({k: v for k, v in kwargs.items() if v is not None})
     mj.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -96,7 +96,7 @@ def update_module_meta(mod_dir: Path, **kwargs) -> None:
 
 def update_index(root: Path, paths: list[str] | None = None) -> None:
     """Rebuild index.md from all discovered modules (or accept explicit list)."""
-    index_path = root / ".aimodule" / "index.md"
+    index_path = root / ".dna" / "index.md"
     if paths is None:
         paths = [m["path"] for m in list_modules(root)]
     lines = ["# 模块索引\n"]
