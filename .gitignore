@@ -2,4 +2,4 @@
 .venv/
 __pycache__/
 *.pyc
-cbim/memory/store/
+memory/store/

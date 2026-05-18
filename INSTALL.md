@@ -32,29 +32,18 @@ git --version
 
 ## 第 2 步 — 下载 CBIM 框架
 
-将 CBIM 仓库克隆到临时目录，然后将 `cbim/` 框架目录复制到当前项目：
+将 CBIM 仓库直接克隆到当前项目的 `cbim/` 目录：
 
 ```bash
-git clone https://github.com/nan023062/cbim.git /tmp/cbim-install-src
+git clone https://github.com/nan023062/cbim.git cbim
 ```
 
 Windows 环境（PowerShell）：
 ```powershell
-git clone https://github.com/nan023062/cbim.git $env:TEMP\cbim-install-src
+git clone https://github.com/nan023062/cbim.git cbim
 ```
 
-克隆完成后，将 `cbim/` 目录复制到当前项目根目录：
-
-```bash
-cp -r /tmp/cbim-install-src/cbim ./cbim
-```
-
-Windows（PowerShell）：
-```powershell
-Copy-Item -Recurse "$env:TEMP\cbim-install-src\cbim" ".\cbim"
-```
-
-如果 `cbim/` 目录已存在，停下来向用户确认是否覆盖。
+如果 `cbim/` 目录已存在，停下来向用户确认是否覆盖（可先删除再克隆）。
 
 ## 第 3 步 — 运行安装脚本
 

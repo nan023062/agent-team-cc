@@ -16,8 +16,22 @@ from pathlib import Path
 
 from .engine import MemoryEngine, SHORT
 
-# Project root = 4 parents above this file (engine/ → memory/ → cbim/ → root)
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+def _find_project_root() -> Path:
+    """Walk up to find project root (has .claude/ or .env).
+
+    Works in both contexts:
+    - CBIM repo:    memory/engine/writer.py → 2 hops → repo root
+    - Target project: cbim/memory/engine/writer.py → 4 hops → target root
+    """
+    p = Path(__file__).resolve().parent
+    for _ in range(6):
+        if (p / ".claude").exists() or (p / ".env").exists():
+            return p
+        p = p.parent
+    return Path(__file__).resolve().parent.parent.parent
+
+
+_PROJECT_ROOT = _find_project_root()
 
 _CORRECTION_PATTERNS = [
     "不对", "错了", "不应该", "不要", "你不能", "应该改", "重新做",
