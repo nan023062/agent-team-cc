@@ -150,8 +150,6 @@ memory/entries/             原始 session 记录
 ```
 <project>/
 ├── CLAUDE.md                          ← 助手身份（主 session）
-├── .env                               ← 环境变量（本地，不提交 git）
-├── .venv/                             ← Python 虚拟环境（不提交 git）
 │
 ├── .claude/
 │   ├── settings.json                  ← 权限配置 + hook 注册
