@@ -88,7 +88,7 @@ Workflow 列表通过读取 `.aimodule/workflows/` 目录获得，不在 module.
 **Step 5 — 更新父模块 architecture.md**
 在父模块的内部结构图中加入新子模块。
 
-**Step 6 — 汇报秘书**，由秘书决定是否触发评审官审查。
+**Step 6 — 汇报助手**，由助手决定是否触发评审官审查。
 
 ---
 
@@ -112,7 +112,7 @@ Workflow 列表通过读取 `.aimodule/workflows/` 目录获得，不在 module.
 - 归档或删除 `.aimodule/` 目录
 - 更新父模块 architecture.md
 
-**Step 3 — 汇报秘书**
+**Step 3 — 汇报助手**
 
 ---
 

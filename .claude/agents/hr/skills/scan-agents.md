@@ -6,7 +6,7 @@
 
 - 招聘前做重叠检查，确认是否已有匹配 agent
 - 考核/培训前获取所有 work agent 列表
-- 秘书询问当前有哪些可用 agent
+- 助手询问当前有哪些可用 agent
 
 ## 执行脚本
 
@@ -88,7 +88,7 @@ python3 /tmp/scan_agents.py .claude/agents
 | 字段 | 含义 |
 |------|------|
 | `id` | agent 目录名，即唯一标识 |
-| `desc` | frontmatter description，秘书据此判断是否匹配 |
+| `desc` | frontmatter description，助手据此判断是否匹配 |
 | `model` | 使用的模型 |
 | `tools` | 允许的工具列表 |
 

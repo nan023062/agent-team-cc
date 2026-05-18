@@ -9,7 +9,7 @@
                            │
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  秘书（CLAUDE.md / 主 session）                                  │
+│  助手（CLAUDE.md / 主 session）                                  │
 │  · 唯一对外接口  · 任务拆解  · 派发调度  · 汇总结果             │
 │  · 不读原文：项目知识问架构师，人力知识问 HR                     │
 └──────┬───────────────────┬──────────────────┬───────────────────┘
@@ -36,7 +36,7 @@
 
 ```
 <repo-root>/
-├── CLAUDE.md                          ← 秘书身份（主 session）
+├── CLAUDE.md                          ← 助手身份（主 session）
 │
 ├── .claude/
 │   ├── settings.json                  ← 权限配置
@@ -81,9 +81,9 @@
 
 ## 核心机制
 
-### 秘书 = 主 session
+### 助手 = 主 session
 
-`CLAUDE.md` 即秘书身份。打开 Claude Code 后主 session 本身就是秘书，无需额外启动。
+`CLAUDE.md` 即助手身份。打开 Claude Code 后主 session 本身就是助手，无需额外启动。
 
 ### Subagent 派发
 
@@ -149,7 +149,7 @@ HR 日常治理通过 slash commands 手动触发：
 
 ### 知识获取机制
 
-秘书不直接读取 `.aimodule/` 或 `.claude/agents/`，所有知识通过 subagent 获取：
+助手不直接读取 `.aimodule/` 或 `.claude/agents/`，所有知识通过 subagent 获取：
 
 | 需要什么 | 找谁 | 工具 |
 |---------|------|------|
