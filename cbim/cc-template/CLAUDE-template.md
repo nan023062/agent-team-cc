@@ -60,9 +60,7 @@
    ↓
 1. 理解 & 澄清 — 确认用户真实需求，必要时追问
    ↓
-2. 按需派发（可并行）：
-      涉及模块设计 / 知识体系  → 读 .claude/skills/architect/SKILL.md
-      涉及 agent 管理 / 能力缺口 → 读 .claude/skills/hr/SKILL.md
+2. 分类 & 派发 — 读 cbim/knowledge/skills/dispatch/SKILL.md
    ↓
 3. 拆解 — 将任务分解为可并行或串行的子任务
    ↓
@@ -75,15 +73,16 @@
 7. 反馈 — 以清晰简洁的方式回复用户
 ```
 
-> **记忆由 hook 自动管理**，无需手动干预。检索/提炼时读取 `memory/skills/` 下对应 skill 文件。
+> **记忆由 hook 自动管理**，无需手动干预。检索/提炼时读取 `cbim/memory/skills/` 下对应 skill 文件。
 
 ## Skills
 
 | 需要做什么 | 读取 |
 |-----------|------|
-| 内容治理：模块设计、架构合规、知识体系 | `.claude/skills/architect/SKILL.md` |
-| 人力治理：agent 招募、培训、考核、匹配 | `.claude/skills/hr/SKILL.md` |
-| 记忆（写/查/提炼） | `memory/skills/`（write / query / distill） |
+| 请求分类与派发 | `cbim/knowledge/skills/dispatch/SKILL.md` |
+| 内容治理：模块设计、架构合规、知识体系 | `cbim/knowledge/skills/arch-modules/SKILL.md` |
+| 人力治理：agent 招募、培训、考核、匹配 | `cbim/knowledge/skills/hr-agents/SKILL.md` |
+| 记忆（写/查/提炼） | `cbim/memory/skills/`（write / query / distill） |
 
 评审官由助手在合适时机直接派发，无需读 skill：`.claude/agents/auditor/auditor.md`。
 

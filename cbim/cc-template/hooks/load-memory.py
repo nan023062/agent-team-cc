@@ -1,8 +1,10 @@
 """
 load-memory.py — SessionStart hook.
 
-Receives session-start event from Claude Code and delegates to the memory engine.
-Contains no memory logic — that lives in memory/engine/loader.py.
+Receives session-start event from Claude Code and:
+  1. Loads recent memory context (memory.engine.cli load-context)
+  2. Generates project knowledge snapshot (knowledge.engine.snapshot)
+Merges both into a single additionalContext JSON block.
 """
 
 import json
@@ -22,6 +24,21 @@ def _find_python(cwd: Path) -> str | None:
     return None
 
 
+def _run(python: str, args: list[str], cwd: str) -> str:
+    try:
+        result = subprocess.run(
+            [python] + args,
+            capture_output=True,
+            text=True,
+            cwd=cwd,
+            timeout=60,
+            check=False,
+        )
+        return result.stdout.strip()
+    except Exception:
+        return ""
+
+
 def main() -> None:
     raw = sys.stdin.read().strip()
     if not raw:
@@ -38,19 +55,37 @@ def main() -> None:
     if not python:
         sys.exit(0)
 
-    # Run with cwd=cbim/ so `memory` package is importable as memory.engine.cli
-    result = subprocess.run(
-        [python, "-m", "memory.engine.cli", "load-context"],
-        capture_output=True,
-        text=True,
-        cwd=str(cwd / "cbim"),
-        timeout=60,
-        check=False,
+    # 1. Memory context (cwd=cbim/ so `memory` package is importable)
+    memory_out = _run(
+        python,
+        ["-m", "memory.engine.cli", "load-context"],
+        str(cwd / "cbim"),
     )
 
-    if result.stdout.strip():
-        print(result.stdout.strip())
+    # 2. Project knowledge snapshot (cwd=cbim/ so `knowledge` package is importable)
+    snapshot_out = _run(
+        python,
+        ["-m", "knowledge.engine.snapshot", "--root", str(cwd)],
+        str(cwd / "cbim"),
+    )
 
+    parts = [p for p in [snapshot_out, memory_out] if p]
+    if not parts:
+        sys.exit(0)
+
+    combined = "\n\n---\n\n".join(parts)
+
+    # Extract memory additionalContext text if already JSON-wrapped
+    if memory_out.startswith("{"):
+        try:
+            mem_data = json.loads(memory_out)
+            mem_text = mem_data.get("additionalContext", memory_out)
+            parts = [p for p in [snapshot_out, mem_text] if p]
+            combined = "\n\n---\n\n".join(parts)
+        except json.JSONDecodeError:
+            pass
+
+    print(json.dumps({"additionalContext": combined}, ensure_ascii=False))
     sys.exit(0)
 
 
