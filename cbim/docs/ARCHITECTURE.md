@@ -252,33 +252,48 @@ SessionStart
 
 **助手是唯一的记忆持有者。** Subagent 专注执行，不直接操作记忆。
 
+记忆在 CBIM 中承担三个角色，不只是辅助恢复：
+
+| 角色 | 说明 |
+|------|------|
+| **Session 恢复** | `last-session.md` 在下次 session 开始时优先注入，让助手知道从哪里继续 |
+| **能力治理来源** | HR 从 `store/` 提炼 → 新增/更新 skill → 内化进 agent soul |
+| **业务治理来源** | 架构师从 `store/` 提炼 → `.dna/architecture.md` / `workflows/` |
+
+三者共用同一份原始记录（`cbim/memory/store/`），治理是记忆的**主要价值**，恢复是派生效果。
+
 | 层级 | 路径 | 生命周期 |
 |------|------|---------|
 | 短期 | `cbim/memory/store/short/` | 按天自动清理 |
 | 中期 | `cbim/memory/store/medium/` | 长期保留，手动管理 |
 
 - **Stop hook** — `write-memory.py` 在 session 结束时自动执行两件事：
-  1. 将本次调度内容写入短期记忆（`store/short/YYYY-MM-DD-*.md`），索引到 ChromaDB
+  1. 将本次调度内容写入短期记忆（`store/short/YYYY-MM-DD-*.md`）
   2. 写入 `store/last-session.md` — 结构化恢复点（任务、执行记录、改动文件、涉及模块）
 
 - **SessionStart hook** — `load-memory.py` 在 session 开始时自动注入三层上下文：
   1. **项目知识快照**（模块拓扑树 + agent 列表）
-  2. **上次 session 恢复点**（`last-session.md`，始终优先注入，无需向量检索）
-  3. **近期相关记忆**（向量检索 short + medium tier，top-k 条）
+  2. **上次 session 恢复点**（`last-session.md`，始终优先注入）
+  3. **近期记忆**（按修改时间排序，top-k 条）
 
 - **按需查询** — 会话中途可通过 `cbim/memory/engine/cli.py query` 检索历史
 
 ```
 session 结束
   └── Stop hook
-        ├── store/short/YYYY-MM-DD-*.md   ← 全量记忆（可检索）
+        ├── store/short/YYYY-MM-DD-*.md   ← 原始记录（治理 + 恢复的共同来源）
         └── store/last-session.md          ← 恢复点（下次直接注入）
 
 新 session 开始
   └── SessionStart hook 注入
         ├── 项目知识快照（模块树 + agent 列表）
-        ├── 上次 session 恢复点            ← 优先，让助手知道从哪里继续
-        └── 近期记忆（向量检索）
+        ├── 上次 session 恢复点
+        └── 近期记忆（按时间排序）
+
+治理周期（HR / 架构师主动触发）
+  └── store/short/ + store/medium/
+        ├── HR 提炼 → cbim/knowledge/skills/ → agent soul
+        └── 架构师提炼 → .dna/architecture.md + workflows/
 ```
 
 ---
