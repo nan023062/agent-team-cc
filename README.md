@@ -1,185 +1,185 @@
+[English](README.md) | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+
 # CBIM — Capability-Business Independence + Memory
 
-> Claude Code 的上下文管理框架。多 Agent 不是团队模拟，而是按能力维度隔离上下文的机制。
+> Context management framework for Claude Code. Multi-agent is not team simulation — it's a mechanism to isolate context along the capability dimension.
 
-**CBIM** = **CBI**（Capability-Business Independence，能力-业务独立性）+ **M**（Memory，记忆系统）
+**CBIM** = **CBI** (Capability-Business Independence) + **M** (Memory)
 
-## 解决什么问题
+## What Problem It Solves
 
-最常见的 Claude Code 工作模式：**一个默认 agent + 大量 CLAUDE.md + 大量 skill**。
+The most common Claude Code workflow: **one default agent + many CLAUDE.md rules + many skills**.
 
-这个模式有一个随时间恶化的结构性问题：随着对话轮次增加，CLAUDE.md 和 skill 文件逐渐被全量加载进上下文，token 暴增、幻觉概率上升、输出质量下降，纠正错误又进一步污染上下文。
+This pattern has a structural flaw that worsens over time: as conversation turns increase, CLAUDE.md and skill files get fully loaded into context — tokens explode, the LLM gets "lost in the middle," hallucination rates rise, output quality drops, and corrections pollute context further.
 
-重置 session 能清上下文，却带来另一个问题：记忆丢失，需要重新 grep 项目代码、重新理解结构，没有结构化的项目知识可以恢复。
+Resetting the session clears context but creates another problem: memory loss. You must re-grep the codebase, re-understand the structure, and manually re-brief the agent on project background every time.
 
-CBIM 同时解决这两个问题：
+CBIM solves both at once:
 
-| 问题 | 解法 |
-|------|------|
-| 上下文随轮次暴增 | 多 Agent × 模块拓扑树：每次任务只加载目标 agent soul + 任务子树 `.dna/` |
-| 重置后记忆丢失 | SessionStart hook 自动注入模块快照 + 近期记忆，重置 session 零成本恢复 |
-
----
-
-## 设计哲学
-
-核心 = **多 Agent（能力轴）× 模块拓扑树（业务轴）**
-
-- **能力轴**：多个专精 Agent，每次任务只加载目标 agent 的 soul，无多余能力上下文
-- **业务轴**：`.dna/` 按模块边界组成拓扑树，只加载任务所在子树，无多余业务上下文
-- **记忆**（Memory）：跨会话积累的原始素材 — session 恢复、能力治理（HR 提炼 → skills → soul）、业务治理（架构师提炼 → `.dna/` workflows）的共同来源
-
-每次任务上下文 = 专精 agent soul × 任务子树 `.dna/`，与项目总规模无关。  
-少上下文 → 少幻觉 → 少错误 → 少纠正 → 净 token 低于单体大 agent 方案。
+| Problem | CBIM Solution |
+|---------|---------------|
+| Context bloat accumulates with turns | Multi-agent × module topology tree: each task loads only target agent soul + task subtree `.dna/` |
+| Memory lost on session reset | SessionStart hook auto-injects module snapshot + recent memory — zero-cost recovery |
 
 ---
 
-## 执行角色（上下文隔离机制）
+## Design Philosophy
 
-CBIM 用多个专精 agent 实现能力维度的上下文隔离——每次任务只加载目标 agent 的 soul，无多余能力上下文。这不是团队模拟，是上下文控制机制。
+Core = **Multi-Agent (capability axis) × Module Topology Tree (business axis)**
+
+- **Capability axis**: Specialized agents — each task loads only the target agent's soul, no excess capability context
+- **Business axis**: `.dna/` forms a topology tree by module boundary, loads only the task's subtree, no excess business context
+- **Memory**: Cross-session accumulated material — shared source for session recovery, capability governance (HR distills → skills → soul), and business governance (architect distills → `.dna/` workflows)
+
+Each task's context = target agent soul × task subtree `.dna/` — independent of total project size.  
+Less context → fewer hallucinations → fewer errors → fewer corrections → net token cost lower than a monolithic agent.
+
+---
+
+## Execution Roles (Context Isolation Mechanism)
+
+CBIM uses specialized agents to isolate context along the capability dimension — each task loads only the target agent's soul, no excess capability context. This is not team simulation; it is context control.
 
 ```
-用户
+User
   ↓
-助手（CLAUDE.md — 唯一对外接口，任务拆解与调度）
-  ├── 架构师   业务层治理：设计并维护项目知识体系（.dna/）
-  ├── HR       能力层治理：work agent 全生命周期管理
-  ├── 评审官   独立批判审查（对抗性视角，只读）
-  └── work agents   执行具体任务（按需由 HR 创建）
+Assistant (CLAUDE.md — sole external interface, task routing)
+  ├── Architect    Business layer governance: design and maintain project knowledge (.dna/)
+  ├── HR           Capability layer governance: work agent lifecycle management
+  ├── Auditor      Independent critical review (adversarial perspective, read-only)
+  └── Work Agents  Execute specific tasks (created by HR on demand)
 ```
 
-你只需要和助手说话。助手负责理解意图、拆解任务、路由给目标 agent、汇总结果。
+You only talk to the assistant. The assistant understands intent, decomposes tasks, routes to the right agent, and consolidates results.
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 方式一：一句话交给 Claude Code（推荐）
+### Option 1: One-liner via Claude Code (recommended)
 
-在目标项目目录打开 Claude Code，发送这条消息，Agent 会自动完成全部安装步骤：
+Open Claude Code in the target project directory and send this message — the agent will complete all installation steps automatically:
 
 ```
-请访问 https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md 获取 CBIM 安装 SOP，从第一条分隔线之后的内容开始，在当前项目执行所有步骤完成安装
+Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
 ```
 
-Agent 会自动克隆框架、安装依赖、注册 hooks、配置 CLAUDE.md，并在最后告知你下一步。
-
-### 方式二：手动运行安装脚本
+### Option 2: Manual installation
 
 ```bash
-# 1. 克隆 CBIM 到目标项目的 cbim/ 目录
+# 1. Clone CBIM into the target project's cbim/ directory
 git clone https://github.com/nan023062/cbim.git cbim
 
-# 2. 运行安装脚本
+# 2. Run the installer
 python3 cbim/install.py        # macOS / Linux
-# 或双击 cbim/install.bat      # Windows
+# or double-click cbim/install.bat  # Windows
 
-# 3. 重启 Claude Code
+# 3. Restart Claude Code
 claude
 ```
 
 ---
 
-## 安装后首次使用
+## First Use After Installation
 
-重启 Claude Code 后，发送：
+After restarting Claude Code, send:
 
-> **"请初始化本项目的模块知识体系"**
+> **"Please initialize the module knowledge system for this project"**
 
-助手派发架构师建立 `.dna/` 知识体系，之后即可正常使用。
-
----
-
-## 后续怎么用
-
-直接告诉助手要做什么，不用指定 agent：
-
-| 你想做 | 直接说 |
-|--------|--------|
-| 初始化知识体系 | 请初始化本项目的模块知识体系 |
-| 新建功能模块 | 新建一个 combat 模块 |
-| 实现功能 | 按当前蓝图实现登录接口 |
-| 审查设计 | 审一下这次改动 |
-| 查历史决策 | 查一下 combat 模块的历史决策 |
-| 招募新 agent | 帮我招募一个 AI 工程师 |
+The assistant dispatches the architect to build the `.dna/` knowledge system. After that, you're ready to use it.
 
 ---
 
-## 目录结构（部署后）
+## How to Use
+
+Just tell the assistant what you want — no need to specify an agent:
+
+| What you want | Just say |
+|---------------|----------|
+| Initialize knowledge system | Please initialize the module knowledge system for this project |
+| Create a feature module | Create a combat module |
+| Implement a feature | Implement the login API per the current blueprint |
+| Review a design | Review this change |
+| Query a past decision | What was the decision history for the combat module |
+| Recruit a work agent | Help me recruit an AI engineer agent |
+
+---
+
+## Directory Structure (After Deployment)
 
 ```
 your-project/
-├── CLAUDE.md                      ← 助手身份（主 session）
-├── .venv/                         ← Python 虚拟环境（gitignore）
+├── CLAUDE.md                      ← Assistant identity (main session)
+├── .venv/                         ← Python virtual environment (gitignored)
 │
 ├── .claude/
-│   ├── settings.json              ← 权限配置 + hook 注册
+│   ├── settings.json              ← Permission config + hook registration
 │   └── agents/
-│       ├── architect/             ← 架构师
+│       ├── architect/             ← Architect
 │       ├── hr/                    ← HR
-│       ├── auditor/               ← 评审官
-│       └── programmer/            ← 程序员
+│       ├── auditor/               ← Auditor
+│       └── programmer/            ← Programmer (default work agent)
 │
-├── .dna/                          ← 项目知识根模块（架构师创建）
+├── .dna/                          ← Project knowledge root module (created by architect)
 │   ├── index.md
 │   ├── module.json
 │   ├── architecture.md
 │   └── contract.md
 │
-└── cbim/                          ← 框架本体（git clone 到此目录）
-    ├── install.py                 ← 自动安装脚本
-    ├── install.bat                ← Windows 安装入口
-    ├── cc-template/               ← Claude Code 安装模板
-    ├── knowledge/                 ← 知识库引擎（能力层 + 业务层 CRUD）
-    ├── memory/                    ← 记忆引擎（FileBackend）
-    └── preview/                   ← 本地可视化服务
+└── cbim/                          ← Framework (git cloned here)
+    ├── install.py                 ← Auto installer
+    ├── install.bat                ← Windows entry point
+    ├── cc-template/               ← Claude Code installation templates
+    ├── knowledge/                 ← Knowledge engine (capability + business CRUD)
+    ├── memory/                    ← Memory engine (FileBackend)
+    └── preview/                   ← Local visualization server
 ```
 
 ---
 
-## 两层治理 · 两类 Skill
+## Two-Layer Governance · Two Types of Skills
 
-| 层级 | 治理者 | 管辖 | 铁律 |
-|------|--------|------|------|
-| **能力层** | HR | `.claude/agents/`（soul）+ `cbim/knowledge/skills/`（能力向 skill） | soul/skills 不含任何项目特定内容 |
-| **业务层** | 架构师 | 项目各级 `.dna/`（模块知识三件套 + workflows/） | 知识三件套不引用 agent 规范 |
+| Layer | Governed by | Scope | Rule |
+|-------|-------------|-------|------|
+| **Capability layer** | HR | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | soul/skills must contain zero project-specific content |
+| **Business layer** | Architect | Each project's `.dna/` (module knowledge + workflows/) | knowledge files must not reference agent specs |
 
-CBIM 将 skill 按「谁拥有」一分为二，`.claude/` 下只有 `agents/`，不再堆积 `skills/`：
+CBIM splits skills by "who owns it" — `.claude/` only contains `agents/`, no skill pile-ups:
 
-| 类型 | 存储 | 特征 |
-|------|------|------|
-| **能力向 skill** | `cbim/knowledge/skills/` | agent 私有能力，可移植，HR 治理 |
-| **业务向 skill** | `.dna/workflows/` | 模块确定性流程，与项目绑定，架构师治理 |
-
----
-
-## 记忆系统
-
-记忆是三阶段蒸馏管道，不只是上下文恢复：
-
-| 阶段 | 路径 | 目的 |
-|------|------|------|
-| 短期 | `cbim/memory/store/short/` | 原始 session 记录；提炼后标记 `distilled`，至少保留 3 天后清理 |
-| 中期 | `cbim/memory/store/medium/` | 压缩提炼后的模式摘要；升格至知识层后归档 |
-| 知识（核心） | `cbim/knowledge/skills/` + `.dna/` | 固化结构：能力进 skills/soul，业务进 workflows |
-
-短期 → 中期 是**压缩**；中期 → 知识 是**最核心的一步**——将验证过的模式固化为治理结构，成为后续所有任务的基础。
-
-SessionStart hook 在每次会话开始时自动注入：项目知识快照（模块树 + agent 列表）+ 上次恢复点 + 近期记忆。
+| Type | Storage | Characteristics |
+|------|---------|----------------|
+| **Capability skill** | `cbim/knowledge/skills/` | Agent private capability; portable; governed by HR |
+| **Business skill** | `.dna/workflows/` | Module deterministic process; project-bound; governed by architect |
 
 ---
 
-## 架构详解
+## Memory System
 
-见 [cbim/docs/ARCHITECTURE.md](cbim/docs/ARCHITECTURE.md)
+Memory is a three-stage distillation pipeline, not just context recovery:
+
+| Stage | Path | Purpose |
+|-------|------|---------|
+| Short-term | `cbim/memory/store/short/` | Raw session records; tagged `distilled` after processing, cleaned up after 3 days |
+| Medium-term | `cbim/memory/store/medium/` | Compressed pattern summaries; archived after promotion to knowledge layer |
+| Knowledge (core) | `cbim/knowledge/skills/` + `.dna/` | Crystallized structure: capability → skills/soul, business → workflows |
+
+Short → Medium is **compression**; Medium → Knowledge is **the critical step** — crystallizing validated patterns into governance structures that serve as the foundation for all future tasks.
+
+SessionStart hook automatically injects at session start: project knowledge snapshot (module tree + agent list) + last session recovery point + recent memory.
 
 ---
 
-## 依赖
+## Architecture Details
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | [架构文档（中文）](docs/ARCHITECTURE.zh-CN.md)
+
+---
+
+## Requirements
 
 - Python 3.10+
 - Claude Code CLI
-- 无额外依赖（记忆引擎默认使用 FileBackend，纯标准库）
+- No extra dependencies (memory engine defaults to FileBackend, pure standard library)
 
 ---
 
