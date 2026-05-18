@@ -1,0 +1,221 @@
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Workspace/agent-team[39m
+
+ [32m✓[39m packages/core/src/__tests__/task-a.bench.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2m实例化成功，getStats() 返回全零初始值
+[22m[39m[2026-05-18T15:11:57.832Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2msuccessRate 初始值为 0，不是 NaN
+[22m[39m[2026-05-18T15:11:57.835Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mtask:started 事件正确累加 startedCount
+[22m[39m[2026-05-18T15:11:57.835Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mtask:completed 事件正确累加 completedCount
+[22m[39m[2026-05-18T15:11:57.835Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mtask:failed 事件正确累加 failedCount（error 字段是 string）
+[22m[39m[2026-05-18T15:11:57.835Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mstage:completed 事件正确累加 stagesCompleted（只含 stageIndex）
+[22m[39m[2026-05-18T15:11:57.836Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2msuccessRate = 1.0 当所有任务成功
+[22m[39m[2026-05-18T15:11:57.836Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2msuccessRate = 0.75 当 3 成功 1 失败
+[22m[39m[2026-05-18T15:11:57.836Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2msuccessRate = 0.0 当所有任务失败
+[22m[39m[2026-05-18T15:11:57.836Z] INFO  [TaskMonitor] TaskMonitor started
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mstop() 后事件不再被计数
+[22m[39m[2026-05-18T15:11:57.837Z] INFO  [TaskMonitor] TaskMonitor started
+[2026-05-18T15:11:57.837Z] INFO  [TaskMonitor] TaskMonitor stopped
+
+[90mstderr[2m | packages/core/src/__tests__/task-c.bench.test.ts[2m > [22m[2mTaskMonitor[2m > [22m[2mstop() 后可以再次 start() 重新订阅
+[22m[39m[2026-05-18T15:11:57.837Z] INFO  [TaskMonitor] TaskMonitor started
+[2026-05-18T15:11:57.837Z] INFO  [TaskMonitor] TaskMonitor stopped
+[2026-05-18T15:11:57.838Z] INFO  [TaskMonitor] TaskMonitor started
+
+ [32m✓[39m packages/core/src/__tests__/task-c.bench.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+[90mstderr[2m | packages/core/src/__tests__/task-b.bench.test.ts[2m > [22m[2mPermissionGuard - temp zone[2m > [22m[2mcheck() - temp zone 访问控制[2m > [22m[2mauditor write /tmp/tmp-output.md → allowed（temp zone 所有角色可写）
+[22m[39m[2026-05-18T15:11:57.835Z] WARN  [PermissionGuard] Role "auditor" cannot "write" in zone "project" (path: /tmp/tmp-output.md)
+
+[90mstderr[2m | packages/core/src/__tests__/task-b.bench.test.ts[2m > [22m[2mPermissionGuard - temp zone[2m > [22m[2mcheck() - temp zone 访问控制[2m > [22m[2mhr write /tmp/candidate.json → allowed
+[22m[39m[2026-05-18T15:11:57.840Z] WARN  [PermissionGuard] Role "hr" cannot "write" in zone "project" (path: /tmp/candidate.json)
+
+[90mstderr[2m | packages/core/src/__tests__/task-b.bench.test.ts[2m > [22m[2mPermissionGuard - temp zone[2m > [22m[2mcreateGuard() - temp zone 钩子[2m > [22m[2mauditor 用 bash 在 /tmp → 阻断（temp zone 无 execute）
+[22m[39m[2026-05-18T15:11:57.841Z] WARN  [PermissionGuard] Role "auditor" cannot "write" in zone "project" (path: /tmp/run.sh)
+
+ [31m❯[39m packages/core/src/__tests__/task-b.bench.test.ts [2m([22m[2m16 tests[22m[2m | [22m[31m8 failed[39m[2m)[22m[90m 18[2mms[22m[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp/scratch.txt → temp[90m 7[2mms[22m[31m[39m
+[31m     → expected 'project' to be 'temp' // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp → temp[90m 1[2mms[22m[31m[39m
+[31m     → expected 'project' to be 'temp' // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp/subdir/deep/file.json → temp[90m 1[2mms[22m[31m[39m
+[31m     → expected 'project' to be 'temp' // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mauditor write /tmp/tmp-output.md → allowed（temp zone 所有角色可写）[90m 2[2mms[22m[31m[39m
+[31m     → expected false to be true // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mworker execute /tmp/script.sh → denied（temp zone 无 execute 权限）[90m 1[2mms[22m[31m[39m
+[31m     → expected true to be false // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22msecretary execute /tmp/run.sh → denied（temp zone 无 execute 权限）[90m 0[2mms[22m[31m[39m
+[31m     → expected true to be false // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mhr write /tmp/candidate.json → allowed[90m 1[2mms[22m[31m[39m
+[31m     → expected false to be true // Object.is equality[39m
+[31m   [31m×[31m PermissionGuard - temp zone[2m > [22mcreateGuard() - temp zone 钩子[2m > [22mauditor 用 bash 在 /tmp → 阻断（temp zone 无 execute）[90m 2[2mms[22m[31m[39m
+[31m     → expected { block: true, …(1) } to be undefined[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[1m[7m Failed Tests 8 [27m[22m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp/scratch.txt → temp
+[31m[1mAssertionError[22m: expected 'project' to be 'temp' // Object.is equality[39m
+
+Expected: [32m"temp"[39m
+Received: [31m"project"[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m43:54[22m[39m
+    [90m 41| [39m  [34mdescribe[39m([32m'classifyPath() - temp 分类'[39m[33m,[39m () [33m=>[39m {
+    [90m 42| [39m    [34mit[39m([32m'/tmp/scratch.txt → temp'[39m[33m,[39m () [33m=>[39m {
+    [90m 43| [39m      [34mexpect[39m(guard[33m.[39m[34mclassifyPath[39m([32m'/tmp/scratch.txt'[39m))[33m.[39m[34mtoBe[39m([32m'temp'[39m)[33m;[39m
+    [90m   | [39m                                                     [31m^[39m
+    [90m 44| [39m    })[33m;[39m
+    [90m 45| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp → temp
+[31m[1mAssertionError[22m: expected 'project' to be 'temp' // Object.is equality[39m
+
+Expected: [32m"temp"[39m
+Received: [31m"project"[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m47:42[22m[39m
+    [90m 45| [39m
+    [90m 46| [39m    [34mit[39m([32m'/tmp → temp'[39m[33m,[39m () [33m=>[39m {
+    [90m 47| [39m      [34mexpect[39m(guard[33m.[39m[34mclassifyPath[39m([32m'/tmp'[39m))[33m.[39m[34mtoBe[39m([32m'temp'[39m)[33m;[39m
+    [90m   | [39m                                         [31m^[39m
+    [90m 48| [39m    })[33m;[39m
+    [90m 49| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mclassifyPath() - temp 分类[2m > [22m/tmp/subdir/deep/file.json → temp
+[31m[1mAssertionError[22m: expected 'project' to be 'temp' // Object.is equality[39m
+
+Expected: [32m"temp"[39m
+Received: [31m"project"[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m51:64[22m[39m
+    [90m 49| [39m
+    [90m 50| [39m    [34mit[39m([32m'/tmp/subdir/deep/file.json → temp'[39m[33m,[39m () [33m=>[39m {
+    [90m 51| [39m      [34mexpect[39m(guard[33m.[39m[34mclassifyPath[39m([32m'/tmp/subdir/deep/file.json'[39m))[33m.[39m[34mtoBe[39m([32m't[39m…
+    [90m   | [39m                                                               [31m^[39m
+    [90m 52| [39m    })[33m;[39m
+    [90m 53| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mauditor write /tmp/tmp-output.md → allowed（temp zone 所有角色可写）
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m90:25[22m[39m
+    [90m 88| [39m        toolName[33m:[39m [32m'write_file'[39m[33m,[39m
+    [90m 89| [39m      })[33m;[39m
+    [90m 90| [39m      [34mexpect[39m(r[33m.[39mallowed)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m 91| [39m    })[33m;[39m
+    [90m 92| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mworker execute /tmp/script.sh → denied（temp zone 无 execute 权限）
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m124:25[22m[39m
+    [90m122| [39m        toolName[33m:[39m [32m'bash'[39m[33m,[39m
+    [90m123| [39m      })[33m;[39m
+    [90m124| [39m      [34mexpect[39m(r[33m.[39mallowed)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m125| [39m    })[33m;[39m
+    [90m126| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22msecretary execute /tmp/run.sh → denied（temp zone 无 execute 权限）
+[31m[1mAssertionError[22m: expected true to be false // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- false[39m
+[31m+ true[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m136:25[22m[39m
+    [90m134| [39m        toolName[33m:[39m [32m'bash'[39m[33m,[39m
+    [90m135| [39m      })[33m;[39m
+    [90m136| [39m      [34mexpect[39m(r[33m.[39mallowed)[33m.[39m[34mtoBe[39m([35mfalse[39m)[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m137| [39m    })[33m;[39m
+    [90m138| [39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mcheck() - temp zone 访问控制[2m > [22mhr write /tmp/candidate.json → allowed
+[31m[1mAssertionError[22m: expected false to be true // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- true[39m
+[31m+ false[39m
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m158:25[22m[39m
+    [90m156| [39m        toolName[33m:[39m [32m'write_file'[39m[33m,[39m
+    [90m157| [39m      })[33m;[39m
+    [90m158| [39m      [34mexpect[39m(r[33m.[39mallowed)[33m.[39m[34mtoBe[39m([35mtrue[39m)[33m;[39m
+    [90m   | [39m                        [31m^[39m
+    [90m159| [39m    })[33m;[39m
+    [90m160| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯[22m[39m
+
+[31m[1m[7m FAIL [27m[22m[39m packages/core/src/__tests__/task-b.bench.test.ts[2m > [22mPermissionGuard - temp zone[2m > [22mcreateGuard() - temp zone 钩子[2m > [22mauditor 用 bash 在 /tmp → 阻断（temp zone 无 execute）
+[31m[1mAssertionError[22m: expected { block: true, …(1) } to be undefined[39m
+
+[32m- Expected:[39m 
+undefined
+
+[31m+ Received:[39m 
+Object {
+  "block": true,
+  "reason": "Role \"auditor\" cannot \"write\" in zone \"project\" (path: /tmp/run.sh)",
+}
+
+[36m [2m❯[22m packages/core/src/__tests__/task-b.bench.test.ts:[2m183:22[22m[39m
+    [90m181| [39m      })[33m;[39m
+    [90m182| [39m      [90m// auditor 在 temp 可以 write，所以放行[39m
+    [90m183| [39m      [34mexpect[39m(result)[33m.[39m[34mtoBeUndefined[39m()[33m;[39m
+    [90m   | [39m                     [31m^[39m
+    [90m184| [39m    })[33m;[39m
+    [90m185| [39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯[22m[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m2 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m25 passed[39m[22m[90m (33)[39m
+[2m   Start at [22m 23:11:57
+[2m   Duration [22m 445ms[2m (transform 219ms, setup 0ms, collect 326ms, tests 29ms, environment 1ms, prepare 390ms)[22m
+
