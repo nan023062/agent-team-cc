@@ -7,7 +7,6 @@ to separate the two memory layers within one ChromaDB collection.
 Replace this file to swap the storage backend without touching anything else.
 """
 
-import os
 from pathlib import Path
 
 from .base import MemoryBackend
@@ -20,15 +19,9 @@ class ChromaBackend(MemoryBackend):
     def __init__(self, db_path: Path | None = None):
         import chromadb
 
-        host = os.environ.get("CHROMA_HOST")
-        port = int(os.environ.get("CHROMA_PORT", "8000"))
-
-        if host:
-            self._client = chromadb.HttpClient(host=host, port=port)
-        else:
-            path = db_path or _DEFAULT_DB_PATH
-            path.mkdir(parents=True, exist_ok=True)
-            self._client = chromadb.PersistentClient(path=str(path))
+        path = db_path or _DEFAULT_DB_PATH
+        path.mkdir(parents=True, exist_ok=True)
+        self._client = chromadb.PersistentClient(path=str(path))
 
         self._col = self._client.get_or_create_collection(
             name="memory",

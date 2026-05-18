@@ -1,14 +1,27 @@
 # memory/ — 记忆系统
 
-两层记忆 + 可替换后端。
+## 三层记忆模型
+
+| 层级 | 存储位置 | 共享方式 | 格式 |
+|------|---------|---------|------|
+| **短期**（session） | `memory/store/short/` + ChromaDB | 用户本地，不共享 | markdown |
+| **中期**（关键字压缩） | `memory/store/medium/` + ChromaDB | 用户本地，不共享 | markdown |
+| **长期**（知识库） | `.claude/agents/` + `.aimodule/` | **团队共享，git-tracked** | 纯明文 |
+
+短期和中期是本地工作记忆，帮助主 agent 在 session 间保持连续性。  
+长期知识库是真正的团队资产——agent 能力文件和模块知识文件全部明文，方便 git 追踪和冲突管理。
+
+---
+
+## 目录结构
 
 ```
 memory/
 ├── engine/      ← CRUD 引擎（接口抽象 + ChromaDB 实现）
-├── store/       ← 存储库
-│   ├── short/   ← 短期记忆（session entries，.md，可 git 提交）
-│   ├── medium/  ← 中期记忆（关键字压缩条目，.md，可 git 提交）
-│   └── .chroma/ ← 向量索引（gitignore，可随时从 store/ 重建）
+├── store/       ← 本地存储库（整体 gitignore）
+│   ├── short/   ← 短期记忆（session entries）
+│   ├── medium/  ← 中期记忆（关键字压缩条目）
+│   └── .chroma/ ← 向量索引（可随时从 store/ 重建）
 └── skills/      ← Agent 交互 skills（write / query / distill）
 ```
 
@@ -17,7 +30,6 @@ memory/
 ## 安装
 
 ```bash
-# 在项目根目录（首次）
 python3 -m venv .venv
 .venv/bin/pip install -r memory/engine/requirements.txt
 ```
@@ -26,7 +38,7 @@ python3 -m venv .venv
 
 ## CLI 用法
 
-所有操作通过 `memory/engine/cli.py` 统一入口，在项目根目录运行：
+从项目根目录运行：
 
 ```bash
 # 索引一个 entry
@@ -43,12 +55,6 @@ python3 -m venv .venv
 .venv/bin/python -m memory.engine.cli reindex
 ```
 
-**输出格式（--verbose）：**
-```
-memory/store/short/2026-05-10-main-xxx.md  # tier=short date=2026-05-10 score=0.88
-```
-返回文件路径；读取原文用 Read 工具或 `cat`。
-
 ---
 
 ## 替换后端
@@ -59,21 +65,10 @@ memory/store/short/2026-05-10-main-xxx.md  # tier=short date=2026-05-10 score=0.
 
 ---
 
-## 团队服务器模式
-
-```bash
-export CHROMA_HOST=<ip>
-export CHROMA_PORT=8000
-```
-
-向量索引会连接远程 ChromaDB，`store/.chroma/` 不再使用。
-
----
-
 ## Agent Skills
 
 | 场景 | 读取 |
 |------|------|
 | 补写 session entry | `memory/skills/write.md` |
 | 检索历史记忆 | `memory/skills/query.md` |
-| 短期→中期提炼 | `memory/skills/distill.md` |
+| 短期→中期→长期提炼 | `memory/skills/distill.md` |

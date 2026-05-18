@@ -31,8 +31,7 @@ cp    "$SRC/.claude/settings.json"     "$TARGET/.claude/settings.json"
 cp -R "$SRC/template/memory"           "$TARGET/memory"
 
 # 4. 合并 .gitignore（确保这几条存在）
-# chroma_db/  .env  .venv/
-# 注意：memory/entries/ 是明文文件，可提交 git，无需 gitignore
+# memory/store/  .env  .venv/
 
 # 5. 创建虚拟环境并装依赖
 cd "$TARGET"
@@ -68,7 +67,7 @@ rm -rf /tmp/agent-team-cc-src
 
 **不安装**：`.git/`、`README.md`、`INSTALL.md`、`ARCHITECTURE.md`、`aimodule-convention.md`、`.claude/settings.local.json`
 
-> `memory/entries/` 是明文 markdown，可直接提交 git，无需特殊处理。
+> `memory/store/` 是用户本地工作记忆，整体 gitignore。团队共享知识库在 `.claude/agents/` 和 `.aimodule/`，正常 git 提交。
 
 ---
 
@@ -141,14 +140,15 @@ cp -R "$SRC/template/memory"          "$TARGET/memory"
 确保下列条目存在于目标 `.gitignore`（缺哪条加哪条，**不要覆盖**目标已有内容）：
 
 ```
-memory/store/.chroma/
+memory/store/
 .env
 .venv/
 ```
 
 目标若没有 `.gitignore`，直接创建一个只含上述条目的文件。
 
-> `memory/entries/` 是明文 markdown，可提交 git，无需 gitignore。
+> `memory/store/` 是用户本地工作记忆，不需要团队共享，整体 gitignore。  
+> 团队共享的长期知识库是 `.claude/agents/` 和 `.aimodule/`，已是明文，正常 git 提交即可。
 
 ## 步骤 4：创建虚拟环境并装依赖
 
@@ -181,7 +181,7 @@ python3 -m venv .venv
 
 **绝不**把真实 API key 写入任何被 git 追踪的文件，也不要回显到日志。
 
-ChromaDB 默认本地 `./chroma_db/`，`CHROMA_HOST/PORT` 保持注释。如用户需团队共享，改为取消注释并填写。
+ChromaDB 使用本地文件（`memory/store/.chroma/`），无需额外配置。
 
 ## 步骤 6：清理临时目录
 
