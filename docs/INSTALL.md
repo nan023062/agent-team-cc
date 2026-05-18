@@ -29,9 +29,9 @@ cp -R "$SRC/template/commands"         "$TARGET/.claude/commands"
 cp -R "$SRC/template/hooks"            "$TARGET/.claude/hooks"
 cp -R "$SRC/template/skills"           "$TARGET/.claude/skills"
 cp    "$SRC/.claude/settings.json"     "$TARGET/.claude/settings.json"
-cp    "$SRC/template/memory/memory_index.py"  "$TARGET/memory/"
-cp    "$SRC/template/memory/memory_query.py"  "$TARGET/memory/"
-cp    "$SRC/template/memory/requirements.txt" "$TARGET/memory/"
+cp    "$SRC/template/skills/memory/scripts/memory_index.py"  "$TARGET/memory/"
+cp    "$SRC/template/skills/memory/scripts/memory_query.py"  "$TARGET/memory/"
+cp    "$SRC/template/skills/memory/scripts/requirements.txt" "$TARGET/memory/"
 
 # 4. 合并 .gitignore（确保这几条存在）
 # chroma_db/  .env  .venv/
@@ -66,11 +66,11 @@ rm -rf /tmp/agent-team-cc-src
 | `template/agents/` | `.claude/agents/` | 4 类 agent 定义和 skills |
 | `template/commands/` | `.claude/commands/` | slash 命令 |
 | `template/hooks/` | `.claude/hooks/` | 记忆 hook 脚本（读/写自动化） |
-| `template/skills/` | `.claude/skills/` | 主 agent 共享 skill |
+| `template/skills/` | `.claude/skills/` | 主 agent skill（含记忆操作） |
 | `.claude/settings.json` | `.claude/settings.json` | 权限配置 + hook 注册 |
-| `template/memory/memory_index.py` | `memory/memory_index.py` | 构建向量索引 |
-| `template/memory/memory_query.py` | `memory/memory_query.py` | 向量查询（返回文件路径） |
-| `template/memory/requirements.txt` | `memory/requirements.txt` | Python 依赖 |
+| `template/skills/memory/scripts/memory_index.py` | `memory/memory_index.py` | 构建向量索引 |
+| `template/skills/memory/scripts/memory_query.py` | `memory/memory_query.py` | 向量查询（返回文件路径） |
+| `template/skills/memory/scripts/requirements.txt` | `memory/requirements.txt` | Python 依赖 |
 
 **不安装**：`.git/`、`README.md`、`INSTALL.md`、`ARCHITECTURE.md`、`aimodule-convention.md`、`.claude/settings.local.json`
 
@@ -114,9 +114,9 @@ template/commands/               → .claude/commands/
 template/hooks/                  → .claude/hooks/
 template/skills/                 → .claude/skills/
 .claude/settings.json            → .claude/settings.json
-template/memory/memory_index.py  → memory/memory_index.py
-template/memory/memory_query.py  → memory/memory_query.py
-template/memory/requirements.txt → memory/requirements.txt
+template/skills/memory/scripts/memory_index.py   → memory/memory_index.py
+template/skills/memory/scripts/memory_query.py   → memory/memory_query.py
+template/skills/memory/scripts/requirements.txt  → memory/requirements.txt
 ```
 
 参考写法（请逐项确认目标是否存在再决定动作）：
@@ -139,9 +139,9 @@ cp -R "$SRC/template/skills"          "$TARGET/.claude/skills"
 cp -i "$SRC/.claude/settings.json"    "$TARGET/.claude/settings.json"
 
 # memory/（工具脚本）
-cp -i "$SRC/template/memory/memory_index.py"  "$TARGET/memory/"
-cp -i "$SRC/template/memory/memory_query.py"  "$TARGET/memory/"
-cp -i "$SRC/template/memory/requirements.txt" "$TARGET/memory/"
+cp -i "$SRC/template/skills/memory/scripts/memory_index.py"  "$TARGET/memory/"
+cp -i "$SRC/template/skills/memory/scripts/memory_query.py"  "$TARGET/memory/"
+cp -i "$SRC/template/skills/memory/scripts/requirements.txt" "$TARGET/memory/"
 ```
 
 > `cp -i` 在目标存在时会询问；若在非交互环境，请先 `[ -e ... ]` 判断后停下来问用户。

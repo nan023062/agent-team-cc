@@ -88,13 +88,18 @@ CLAUDE.md                    ← 助手身份（主 session）
     hr/                      ← HR
     auditor/                 ← 评审官
     programmer/              ← 程序员
-    shared/
-      memory-ops.md          ← 记忆操作通用 skill（所有 agent 可用）
   commands/
     hr-daily-signal.md       ← /hr-daily-signal
     hr-weekly-assessment.md  ← /hr-weekly-assessment
+  hooks/
+    load-memory.py           ← SessionStart hook：自动注入近期记忆
+    write-memory.py          ← Stop hook：自动写入 session 记忆
+  skills/
+    memory/
+      memory-ops.md          ← 主 agent 记忆操作 skill
+      scripts/               ← 向量查询脚本（安装到 memory/）
 memory/
-  entries/                   ← Agent 执行记录（明文 md，可提交 git）
+  entries/                   ← 主 agent session 记录（明文 md，可提交 git）
   chroma_db/                 ← 向量索引（不提交 git，可随时重建）
   memory_index.py            ← 构建向量索引
   memory_query.py            ← 向量查询（返回文件路径）
