@@ -102,7 +102,7 @@ def _parse_transcript(messages: list, max_request_chars: int,
                 continue
             btype = block.get("type", "")
 
-            if btype == "text" and role == "user" and not user_request:
+            if btype == "text" and role == "user":
                 user_request = block.get("text", "")[:max_request_chars]
 
             elif btype == "tool_use" and block.get("name") == "Agent":
@@ -144,10 +144,12 @@ def _parse_transcript(messages: list, max_request_chars: int,
 
 def _write_last_session(info: dict, store_dir: Path) -> None:
     """Write last-session.md — a structured recovery note for the next session."""
+    ended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [
         "## 上次 Session 恢复点",
         "",
-        f"**任务**: {info['user_request'] or '（未能提取）'}",
+        f"**结束时间**: {ended_at}",
+        f"**最后任务**: {info['user_request'] or '（未能提取）'}",
         "",
     ]
 
