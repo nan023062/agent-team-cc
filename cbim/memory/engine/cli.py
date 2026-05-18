@@ -1,14 +1,13 @@
 """
 cli.py — Command-line interface for MemoryEngine.
 
-Used by hooks and agents. Run from project root (cwd matters for default paths).
+Used by hooks and agents. Run from cbim/ directory (cwd matters for default paths).
 
 Commands:
   write-session <transcript_path>               # Stop hook
   load-context                                  # SessionStart hook
   add     <path> [--tier short|medium]
-  query   <text> [--top-k N] [--verbose]        # balanced by default (both tiers)
-  query   <text> --tier short|medium [--top-k N]
+  query   <text> [--top-k N] [--tier short|medium]   # FileBackend: recency; SemanticBackend: similarity
   delete  <path>
   reindex [--tier short|medium]
   cleanup [--keep-days N]
@@ -23,12 +22,16 @@ from .config import load_config
 
 
 def _build_engine(args: argparse.Namespace):
-    from .chroma_backend import ChromaBackend
-    from .engine import MemoryEngine
+    """Build MemoryEngine with the default FileBackend.
 
-    db_path = Path(getattr(args, "db_path", None) or "memory/store/.chroma")
+    To swap backends: replace FileBackend with any MemoryBackend subclass
+    (e.g. ChromaBackend from .chroma_backend) — callers above are unaffected.
+    """
+    from .engine import MemoryEngine
+    from .file_backend import FileBackend
+
     store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    return MemoryEngine(backend=ChromaBackend(db_path=db_path), store_dir=store_dir)
+    return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -77,19 +80,18 @@ def cmd_add(args: argparse.Namespace) -> int:
 def cmd_query(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
     tier = args.tier or None
-    if args.verbose:
-        results = engine.query_verbose(args.text, tier=tier, top_k=args.top_k)
-        for r in results:
-            meta = r["metadata"]
+    results = engine.query_verbose(args.text, tier=tier, top_k=args.top_k)
+    for r in results:
+        meta = r["metadata"]
+        if args.verbose:
             print(
                 f"{r['doc_id']}  "
                 f"# tier={meta.get('tier','')} "
                 f"date={meta.get('date','')} "
                 f"score={r['score']:.4f}"
             )
-    else:
-        for path in engine.query(args.text, tier=tier, top_k=args.top_k):
-            print(path)
+        else:
+            print(r["doc_id"])
     return 0
 
 
@@ -175,20 +177,15 @@ def main() -> int:
     p_cleanup.add_argument(
         "--keep-days", type=int, default=cfg["short_term"]["keep_days"],
         dest="keep_days",
-        help=f"Keep entries from the last N days (default: {cfg['short_term']['keep_days']})",
     )
 
     # preview
     p_preview = sub.add_parser("preview")
-    p_preview.add_argument(
-        "--port", type=int, default=8765,
-        help="Local port to serve on (default: 8765)",
-    )
+    p_preview.add_argument("--port", type=int, default=8765)
 
-    # shared path overrides for all subcommands
+    # shared --store-dir override for all subcommands
     for p in [p_write, p_add, p_query, p_del, p_reindex, p_cleanup, p_preview,
               sub.choices["load-context"]]:
-        p.add_argument("--db-path", dest="db_path", default=None)
         p.add_argument("--store-dir", dest="store_dir", default=None)
 
     args = parser.parse_args()

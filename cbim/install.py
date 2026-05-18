@@ -60,15 +60,9 @@ def step_venv() -> None:
         _ok("Created .venv")
 
     _h("[2/5] Dependencies")
-    req = CBIM / "memory/engine/requirements.txt"
-    result = subprocess.run(
-        [_venv_python(), "-m", "pip", "install", "-q", "-r", str(req)],
-        capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        print(result.stderr.strip())
-        raise RuntimeError("pip install failed — check the error above")
-    _ok("cbim/memory/engine/requirements.txt installed")
+    # Default memory backend (FileBackend) uses only stdlib — no pip install needed.
+    # Optional: install chromadb for semantic search (see cbim/memory/engine/requirements.txt).
+    _ok("No required dependencies (FileBackend uses stdlib only)")
 
 
 def step_agents() -> None:

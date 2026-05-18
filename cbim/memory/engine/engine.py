@@ -2,6 +2,10 @@
 engine.py — MemoryEngine facade.
 
 Public CRUD API used by CLI, hooks, and agents. Backend-agnostic.
+
+Default backend: FileBackend (zero external dependencies, recency-based retrieval).
+To enable semantic search: pass ChromaBackend (or any MemoryBackend subclass)
+to MemoryEngine — all callers above this layer are unaffected.
 """
 
 import re
@@ -13,23 +17,15 @@ SHORT = "short"
 MEDIUM = "medium"
 TIERS = (SHORT, MEDIUM)
 
-_STORE_DIR = Path("memory/store")
-
-
-def _default_store(base: Path = Path(".")) -> Path:
-    return base / "memory" / "store"
-
 
 def _read_frontmatter(text: str) -> dict:
-    """Parse YAML-style frontmatter between --- delimiters."""
     meta: dict = {}
     if not text.startswith("---"):
         return meta
     end = text.find("\n---", 3)
     if end == -1:
         return meta
-    block = text[3:end].strip()
-    for line in block.splitlines():
+    for line in text[3:end].strip().splitlines():
         if ":" in line:
             k, _, v = line.partition(":")
             meta[k.strip()] = v.strip()
@@ -37,7 +33,6 @@ def _read_frontmatter(text: str) -> dict:
 
 
 def _entry_text(path: Path) -> str:
-    """Read file; strip frontmatter for embedding."""
     raw = path.read_text(encoding="utf-8")
     if raw.startswith("---"):
         end = raw.find("\n---", 3)
@@ -50,10 +45,10 @@ class MemoryEngine:
 
     def __init__(self, backend: MemoryBackend, store_dir: Path | None = None):
         self._backend = backend
-        self._store = store_dir or _default_store()
+        self._store = store_dir or Path("memory/store")
 
     # ------------------------------------------------------------------
-    # Public API
+    # Write
     # ------------------------------------------------------------------
 
     def add(self, path: Path, tier: str) -> None:
@@ -66,57 +61,46 @@ class MemoryEngine:
         meta["tier"] = tier
         meta["path"] = str(path)
         meta["filename"] = path.name
-        # Extract date from filename (YYYY-MM-DD-...)
         m = re.match(r"(\d{4}-\d{2}-\d{2})", path.name)
         if m:
             meta["date"] = m.group(1)
         self._backend.upsert(doc_id=str(path), text=text, metadata=meta)
 
+    def delete(self, path: Path) -> None:
+        """Remove an entry from the index and filesystem."""
+        self._backend.delete(str(path))
+
+    # ------------------------------------------------------------------
+    # Read / Search
+    # ------------------------------------------------------------------
+
     def query(self, text: str, tier: str | None = None, top_k: int = 5) -> list[str]:
-        """Semantic search. Returns list of file paths (strings).
+        """Return list of file paths. Ordering is backend-defined.
 
-        tier=None (default): balanced mode — query each tier independently with
-        top_k results each, then interleave. Guarantees representation from both
-        tiers regardless of text-density differences between short and medium entries.
-
-        tier="short"|"medium": single-tier query, returns top_k results.
+        FileBackend: most recently modified first (text ignored).
+        SemanticBackend: cosine similarity to text.
         """
         return [r["doc_id"] for r in self.query_verbose(text, tier=tier, top_k=top_k)]
 
-    def query_verbose(self, text: str, tier: str | None = None, top_k: int = 5) -> list[dict]:
-        """Same as query but returns full result dicts including score and metadata."""
+    def query_verbose(self, text: str, tier: str | None = None,
+                      top_k: int = 5) -> list[dict]:
+        """Same as query but returns full result dicts: doc_id, score, metadata."""
         if tier is not None:
             _check_tier(tier)
-            return self._backend.query(text, n_results=top_k, where={"tier": tier})
+        where = {"tier": tier} if tier else None
+        return self._backend.query(text, n_results=top_k, where=where)
 
-        # Balanced: query each tier independently, interleave by position
-        seen: set[str] = set()
-        merged: list[dict] = []
-        tier_results = [
-            self._backend.query(text, n_results=top_k, where={"tier": t})
-            for t in TIERS
-        ]
-        # Round-robin interleave so both tiers are represented near the top
-        max_len = max((len(r) for r in tier_results), default=0)
-        for i in range(max_len):
-            for results in tier_results:
-                if i < len(results):
-                    r = results[i]
-                    if r["doc_id"] not in seen:
-                        seen.add(r["doc_id"])
-                        merged.append(r)
-        return merged
+    def list_ids(self, tier: str | None = None) -> list[str]:
+        """Enumerate all indexed doc_ids, optionally filtered by tier."""
+        where = {"tier": tier} if tier else None
+        return self._backend.list_ids(where=where)
 
-    def delete(self, path: Path) -> None:
-        """Remove an entry from the index."""
-        self._backend.delete(str(path))
+    # ------------------------------------------------------------------
+    # Maintenance
+    # ------------------------------------------------------------------
 
     def cleanup_short(self, keep_days: int = 3) -> int:
-        """Delete short-term entries older than keep_days from both index and filesystem.
-
-        Entries from the last keep_days days are preserved for session continuity.
-        Returns count of deleted files.
-        """
+        """Delete short-term entries older than keep_days. Returns count deleted."""
         from datetime import datetime, timedelta
 
         cutoff = (datetime.now() - timedelta(days=keep_days)).strftime("%Y-%m-%d")
@@ -127,19 +111,21 @@ class MemoryEngine:
         deleted = 0
         for md_file in sorted(short_dir.glob("*.md")):
             m = re.match(r"(\d{4}-\d{2}-\d{2})", md_file.name)
-            if not m:
-                continue
-            if m.group(1) < cutoff:
+            if m and m.group(1) < cutoff:
                 try:
                     self.delete(md_file)
                 except Exception:
                     pass
-                md_file.unlink()
                 deleted += 1
         return deleted
 
     def reindex(self, tier: str | None = None) -> int:
-        """Rebuild index by scanning store directories. Returns count of indexed files."""
+        """Rebuild backend index by scanning store directories.
+
+        No-op for FileBackend (files are the index). Useful when switching
+        to a semantic backend to populate it from existing entries.
+        Returns count of indexed files.
+        """
         tiers = [tier] if tier else list(TIERS)
         count = 0
         for t in tiers:

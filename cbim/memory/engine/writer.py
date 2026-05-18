@@ -15,7 +15,7 @@ from .engine import MemoryEngine, SHORT
 
 def write_session(transcript_path: str, store_dir: Path,
                   engine: MemoryEngine, cfg: dict) -> Path | None:
-    """Parse transcript, write short-term entry, index it.
+    """Parse transcript, write short-term entry, notify backend.
 
     Returns the entry path on success, None if session is trivial or unreadable.
     """
@@ -49,7 +49,7 @@ def write_session(transcript_path: str, store_dir: Path,
         entry_path = short_dir / f"{date}-main-{name}-{ts}.md"
 
     entry_path.write_text(_build_entry(info), encoding="utf-8")
-    engine.add(entry_path, SHORT)
+    engine.add(entry_path, SHORT)   # no-op for FileBackend; indexes for semantic backends
     _write_last_session(info, store_dir)
     return entry_path
 

@@ -1,1 +1,5 @@
-chromadb>=0.6.0
+# No required dependencies — the default FileBackend uses only stdlib.
+#
+# Optional: semantic search backend
+#   pip install chromadb>=0.6.0
+#   Then pass ChromaBackend to MemoryEngine (see chroma_backend.py).

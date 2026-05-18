@@ -27,12 +27,14 @@ def load_context(store_dir: Path, engine: MemoryEngine, cfg: dict) -> str | None
         except (FileNotFoundError, PermissionError):
             pass
 
-    # 2. Recent memory from vector store.
+    # 2. Recent memory — backend determines ordering (recency or semantic).
     if store_dir.exists():
         has_entries = any((store_dir / t).glob("*.md") for t in ("short", "medium"))
         if has_entries:
             top_k = cfg["query"]["load_top_k"]
             preview_chars = cfg["query"]["entry_preview_chars"]
+            # FileBackend: recency order, text arg ignored.
+            # SemanticBackend: cosine similarity to this query text.
             results = engine.query_verbose("最近任务 决策 问题 阻塞", top_k=top_k)
             entries = []
             for r in results:
