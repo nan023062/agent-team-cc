@@ -2,7 +2,7 @@
 engine/snapshot.py — Project knowledge snapshot for session context.
 
 Generates a concise markdown summary of:
-  - Module tree (content layer, from .dna/)
+  - Module tree (business layer, from .dna/)
   - Agent roster (capability layer, from .claude/agents/)
 
 Usage:
@@ -26,7 +26,7 @@ def build_snapshot(root: Path) -> str:
 
     lines: list[str] = ["## 项目知识快照\n"]
 
-    lines.append("### 模块树（内容层）\n")
+    lines.append("### 模块树（业务层）\n")
     if modules:
         for m in modules:
             path = m["path"]

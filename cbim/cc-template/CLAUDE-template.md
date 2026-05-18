@@ -80,7 +80,7 @@
 | 需要做什么 | 读取 |
 |-----------|------|
 | 请求分类与派发 | `cbim/knowledge/skills/dispatch/SKILL.md` |
-| 内容治理：模块设计、架构合规、知识体系 | `cbim/knowledge/skills/arch-modules/SKILL.md` |
+| 业务治理：模块设计、架构合规、知识体系 | `cbim/knowledge/skills/arch-modules/SKILL.md` |
 | 人力治理：agent 招募、培训、考核、匹配 | `cbim/knowledge/skills/hr-agents/SKILL.md` |
 | 记忆（写/查/提炼） | `cbim/memory/skills/`（write / query / distill） |
 

@@ -2,7 +2,7 @@
 
 **主 agent 专用。定期或按需触发。**
 
-扫描短期记忆，按**能力关键字**和**内容关键字**压缩为中期记忆条目。
+扫描短期记忆，按**能力关键字**和**业务关键字**压缩为中期记忆条目。
 
 ---
 
@@ -20,7 +20,7 @@
 | 类型 | 来源 | 示例关键字 |
 |------|------|----------|
 | 能力关键字（capability） | 信号行中的 agent-id | `programmer`, `architect`, `hr` |
-| 内容关键字（content） | frontmatter `modules` 字段 + "知识更新候选"信号中的模块名 | `combat`, `auth-module` |
+| 业务关键字（business） | frontmatter `modules` 字段 + "知识更新候选"信号中的模块名 | `combat`, `auth-module` |
 
 ---
 

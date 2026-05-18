@@ -1,4 +1,4 @@
-# memory/ — 记忆系统
+# Memory — 记忆系统（短期和中期）
 
 ## 三层记忆模型
 
@@ -104,7 +104,7 @@ loader.py
 
 ```
 store/short/*.md
-    → 按能力关键字（agent-id）/ 内容关键字（模块名）分组
+    → 按能力关键字（agent-id）/ 业务关键字（模块名）分组
     → LLM 压缩汇总
     → store/medium/<type>-<keyword>.md
     → engine.add() → ChromaDB 索引

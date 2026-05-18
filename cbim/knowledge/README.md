@@ -1,13 +1,13 @@
-# Knowledge — 项目长期记忆知识库
+# Knowledge — 知识库（长期记忆）
 
-> CBIM 知识库：能力层（`.claude/agents/`）与内容层（`.dna/`）的双域管理引擎，体现 Capability-Business Independence 设计哲学。
+> CBIM 知识库：能力层（`.claude/agents/`）与业务层（`.dna/`）的双域管理引擎，体现 Capability-Business Independence 设计哲学。
 
 ---
 
 ## 四象限架构
 
 ```
-                        内容层（Content）
+                        业务层（Business）
                     .dna/ 知识三件套
                             │
               低成熟度       │       高成熟度
@@ -25,7 +25,7 @@
               └─────────────┴─────────────┘
 ```
 
-| 象限 | 能力层 | 内容层 | 状态 | 行动 |
+| 象限 | 能力层 | 业务层 | 状态 | 行动 |
 |------|--------|--------|------|------|
 | **空白期** | 无 agent | 无模块 | 项目刚开始 | 先建根模块，再招募第一个 work agent |
 | **知识驱动期** | 无/弱 agent | 有 `.dna/` | 有蓝图缺执行 | HR 招募对应能力的 work agent |
@@ -68,7 +68,7 @@ $CLI agents show <name>
 $CLI agents scaffold <name> --description "..."
 $CLI agents archive <name>
 
-# 内容层
+# 业务层
 $CLI modules list
 $CLI modules show <module-dir>
 $CLI modules init <dir> --name <name> --owner <owner>
@@ -79,7 +79,7 @@ $CLI modules reindex
 
 ## 两层治理边界
 
-| | 能力层 | 内容层 |
+| | 能力层 | 业务层 |
 |---|---|---|
 | **数据源** | `.claude/agents/` | 项目各级 `.dna/` |
 | **治理者** | HR | 架构师 |
