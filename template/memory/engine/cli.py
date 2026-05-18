@@ -4,9 +4,11 @@ cli.py — Command-line interface for MemoryEngine.
 Used by hooks and agents. Run from project root (cwd matters for default paths).
 
 Commands:
+  write-session <transcript_path>               # Stop hook
+  load-context                                  # SessionStart hook
   add     <path> [--tier short|medium]
-  query   <text> [--top-k N] [--verbose]          # balanced by default (both tiers)
-  query   <text> --tier short|medium [--top-k N]  # single tier
+  query   <text> [--top-k N] [--verbose]        # balanced by default (both tiers)
+  query   <text> --tier short|medium [--top-k N]
   delete  <path>
   reindex [--tier short|medium]
   cleanup [--keep-days N]
@@ -20,15 +22,45 @@ from .config import load_config
 
 
 def _build_engine(args: argparse.Namespace):
-    """Instantiate ChromaBackend + MemoryEngine with resolved paths."""
     from .chroma_backend import ChromaBackend
     from .engine import MemoryEngine
 
     db_path = Path(getattr(args, "db_path", None) or "memory/store/.chroma")
     store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    backend = ChromaBackend(db_path=db_path)
-    return MemoryEngine(backend=backend, store_dir=store_dir)
+    return MemoryEngine(backend=ChromaBackend(db_path=db_path), store_dir=store_dir)
 
+
+# ---------------------------------------------------------------------------
+# Hook-facing commands
+# ---------------------------------------------------------------------------
+
+def cmd_write_session(args: argparse.Namespace) -> int:
+    from .writer import write_session
+
+    cfg = load_config()
+    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    engine = _build_engine(args)
+    path = write_session(args.transcript_path, store_dir, engine, cfg)
+    if path:
+        print(f"[memory] wrote {path.name}", file=sys.stderr)
+    return 0
+
+
+def cmd_load_context(args: argparse.Namespace) -> int:
+    from .loader import load_context
+
+    cfg = load_config()
+    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    engine = _build_engine(args)
+    output = load_context(store_dir, engine, cfg)
+    if output:
+        print(output)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Agent-facing commands
+# ---------------------------------------------------------------------------
 
 def cmd_add(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
@@ -83,11 +115,22 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Argument parser
+# ---------------------------------------------------------------------------
+
 def main() -> int:
     cfg = load_config()
 
     parser = argparse.ArgumentParser(prog="memory/engine/cli.py")
     sub = parser.add_subparsers(dest="command")
+
+    # write-session (Stop hook)
+    p_write = sub.add_parser("write-session")
+    p_write.add_argument("transcript_path")
+
+    # load-context (SessionStart hook)
+    sub.add_parser("load-context")
 
     # add
     p_add = sub.add_parser("add")
@@ -98,7 +141,8 @@ def main() -> int:
     p_query = sub.add_parser("query")
     p_query.add_argument("text")
     p_query.add_argument("--tier", choices=["short", "medium"], default=None)
-    p_query.add_argument("--top-k", type=int, default=cfg["query"]["default_top_k"], dest="top_k")
+    p_query.add_argument("--top-k", type=int, default=cfg["query"]["default_top_k"],
+                         dest="top_k")
     p_query.add_argument("--verbose", action="store_true")
 
     # delete
@@ -111,12 +155,15 @@ def main() -> int:
 
     # cleanup
     p_cleanup = sub.add_parser("cleanup")
-    p_cleanup.add_argument("--keep-days", type=int, default=cfg["short_term"]["keep_days"],
-                           dest="keep_days",
-                           help=f"Keep entries from the last N days (default: {cfg['short_term']['keep_days']})")
+    p_cleanup.add_argument(
+        "--keep-days", type=int, default=cfg["short_term"]["keep_days"],
+        dest="keep_days",
+        help=f"Keep entries from the last N days (default: {cfg['short_term']['keep_days']})",
+    )
 
-    # shared optional overrides
-    for p in [p_add, p_query, p_del, p_reindex, p_cleanup]:
+    # shared path overrides for all subcommands
+    for p in [p_write, p_add, p_query, p_del, p_reindex, p_cleanup,
+              sub.choices["load-context"]]:
         p.add_argument("--db-path", dest="db_path", default=None)
         p.add_argument("--store-dir", dest="store_dir", default=None)
 
@@ -126,6 +173,8 @@ def main() -> int:
         return 1
 
     dispatch = {
+        "write-session": cmd_write_session,
+        "load-context": cmd_load_context,
         "add": cmd_add,
         "query": cmd_query,
         "delete": cmd_delete,
