@@ -35,12 +35,12 @@ git --version
 将 CBIM 仓库克隆到临时目录，然后将 `cbim/` 框架目录复制到当前项目：
 
 ```bash
-git clone https://github.com/nan023062/agent-team-cc.git /tmp/cbim-install-src
+git clone https://github.com/nan023062/cbim.git /tmp/cbim-install-src
 ```
 
 Windows 环境（PowerShell）：
 ```powershell
-git clone https://github.com/nan023062/agent-team-cc.git $env:TEMP\cbim-install-src
+git clone https://github.com/nan023062/cbim.git $env:TEMP\cbim-install-src
 ```
 
 克隆完成后，将 `cbim/` 目录复制到当前项目根目录：
