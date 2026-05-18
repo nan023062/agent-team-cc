@@ -75,7 +75,7 @@
 7. 反馈 — 以清晰简洁的方式回复用户
 ```
 
-> **记忆由 hook 自动管理**，无需手动干预。记忆提炼（短期→中期）参考 `memory/skills/distill.md`。
+> **记忆由 hook 自动管理**，无需手动干预。检索/提炼时读取 `memory/skills/` 下对应 skill 文件。
 
 ## Skills
 
@@ -83,7 +83,7 @@
 |-----------|------|
 | 内容治理：模块设计、架构合规、知识体系 | `.claude/skills/architect/SKILL.md` |
 | 人力治理：agent 招募、培训、考核、匹配 | `.claude/skills/hr/SKILL.md` |
-| 记忆提炼：短期→中期记忆蒸馏 | `memory/skills/distill.md` |
+| 记忆（写/查/提炼） | `memory/skills/`（write / query / distill） |
 
 评审官由助手在合适时机直接派发，无需读 skill：`.claude/agents/auditor/auditor.md`。
 

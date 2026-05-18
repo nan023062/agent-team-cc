@@ -2,12 +2,7 @@
 
 **主 agent 专用。定期或按需触发。**
 
-扫描全量短期记忆条目（`memory/entries/`），提炼出两类中期记忆信号：
-
-| 信号类型 | 归属 | 后续行动 |
-|---------|------|---------|
-| **能力信号** | agent 行为模式、缺口、优秀模式 | 传给 HR → 培训 / 考核 / 升格 |
-| **内容信号** | 模块架构决策、踩坑、接口变更 | 传给架构师 → 知识治理 |
+扫描短期记忆，按**能力关键字**和**内容关键字**压缩为中期记忆条目。
 
 ---
 
@@ -15,9 +10,18 @@
 
 | 频率 | 建议 |
 |------|------|
-| 每日 | 采集信号，输出信号摘要（不立即升格） |
-| 每周 | 汇总信号，驱动 HR / 架构师执行升格 |
+| 每日 | 采集信号，判断是否需要更新中期条目 |
+| 每周 | 全量提炼，驱动 HR / 架构师执行升格 |
 | 按需 | 用户主动触发，或感知到 agent / 模块质量下滑时 |
+
+---
+
+## 关键字规则
+
+| 类型 | 来源 | 示例关键字 |
+|------|------|----------|
+| 能力关键字（capability） | 信号行中的 agent-id | `programmer`, `architect`, `hr` |
+| 内容关键字（content） | frontmatter `modules` 字段 + "知识更新候选"信号中的模块名 | `combat`, `auth-module` |
 
 ---
 
@@ -25,26 +29,50 @@
 
 **Step 1 — 扫描短期记忆**
 
-读取 `memory/entries/` 下全部（或近期 N 天）entry 文件：
-- 按日期排序，优先最近条目
-- 提取每个 entry 的「信号」区（能力缺口 / 优秀模式 / 知识更新候选）
-- 同时关注「Subagent 执行记录」中隐含的阻塞和重复错误
+读取 `memory/store/short/` 下全部（或近 N 天）entry 文件：
+- 提取每个 entry 的「信号」区
+- 提取 frontmatter `modules` 字段
 
-**Step 2 — 分类汇总**
+**Step 2 — 提取关键字并分组**
 
 ```
-能力信号（按 agent 分组）
+能力关键字（按 agent-id 分组）
   - programmer: 缺口 × N，优秀模式 × M
-  - ...
+  - architect:  缺口 × N，优秀模式 × M
 
-内容信号（按模块分组）
-  - combat: 架构决策 × N，踩坑 × M
-  - ...
+内容关键字（按模块名分组）
+  - combat:     知识更新候选 × N
+  - auth:       知识更新候选 × N
 ```
 
-**Step 3 — 输出信号摘要**
+**Step 3 — 压缩写入中期 entry**
 
-向主 agent 汇报（不直接写入中期记忆，由主 agent 决定后续行动）：
+对每个关键字，生成或更新 `memory/store/medium/<type>-<keyword>.md`：
+
+```markdown
+---
+tier: medium
+type: capability
+keyword: programmer
+updated: YYYY-MM-DD
+sources: 12
+---
+
+## 摘要
+（LLM 对所有相关信号的压缩总结）
+
+## 信号汇总
+- 能力缺口 × 3: ...
+- 优秀模式 × 2: ...
+```
+
+写入后立即更新索引：
+
+```bash
+.venv/bin/python -m memory.engine.cli add memory/store/medium/<file>.md --tier medium
+```
+
+**Step 4 — 输出提炼摘要并决定后续行动**
 
 ```
 ## 记忆提炼摘要（{日期范围}，{N} 条 entry）
@@ -60,8 +88,4 @@
 - 知识治理：派发架构师，执行 knowledge-governance skill
 ```
 
-**Step 4 — 驱动升格（每周 / 按需）**
-
-主 agent 根据摘要决定是否立即触发：
-- 能力升格 → 读 `.claude/skills/hr/SKILL.md`，派发 HR
-- 知识治理 → 读 `.claude/skills/architect/SKILL.md`，派发架构师
+主 agent 根据摘要决定是否触发 HR 或架构师。

@@ -1,19 +1,28 @@
 """
-write-memory.py — Stop hook: parse session transcript and write a memory entry.
+write-memory.py — Stop hook: parse session transcript and write a short-term
+memory entry to memory/store/short/, then index it via the memory engine.
 
 Receives JSON via stdin (Claude Code Stop event):
   { "transcript_path": "...", "cwd": "...", "session_id": "..." }
-
-Parses the JSONL transcript to extract subagent dispatches and their results,
-then writes memory/entries/YYYY-MM-DD-main-<slug>.md automatically.
 """
 
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
+
+def find_python(cwd: Path) -> str | None:
+    for candidate in [
+        cwd / ".venv" / "bin" / "python",
+        cwd / ".venv" / "Scripts" / "python.exe",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return None
 
 
 def read_transcript(path: str) -> list:
@@ -33,17 +42,12 @@ def read_transcript(path: str) -> list:
 
 
 def extract_content_blocks(msg: dict) -> tuple[str, list]:
-    """Return (role, list_of_content_blocks) from various transcript formats."""
-    # Format A: {"role": "...", "content": ...}
     role = msg.get("role", "")
     content = msg.get("content", None)
-
-    # Format B: {"type": "...", "message": {"role": "...", "content": ...}}
     if not role and "message" in msg:
         inner = msg["message"] or {}
         role = inner.get("role", "")
         content = inner.get("content", None)
-
     if isinstance(content, str):
         return role, [{"type": "text", "text": content}]
     if isinstance(content, list):
@@ -53,22 +57,20 @@ def extract_content_blocks(msg: dict) -> tuple[str, list]:
 
 def parse_transcript(messages: list) -> dict:
     user_request = ""
-    agent_calls = {}   # id -> {description, result}
+    agent_calls = {}
     files_changed = []
+    modules: set[str] = set()
 
     for msg in messages:
         role, blocks = extract_content_blocks(msg)
-
         for block in blocks:
             if not isinstance(block, dict):
                 continue
             btype = block.get("type", "")
 
-            # Capture first user text as the session request
             if btype == "text" and role == "user" and not user_request:
                 user_request = block.get("text", "")[:300]
 
-            # Agent tool dispatches
             elif btype == "tool_use" and block.get("name") == "Agent":
                 bid = block.get("id", "")
                 inp = block.get("input", {}) or {}
@@ -78,14 +80,16 @@ def parse_transcript(messages: list) -> dict:
                     "result": "",
                 }
 
-            # File writes/edits
             elif btype == "tool_use" and block.get("name") in ("Write", "Edit"):
                 inp = block.get("input", {}) or {}
                 p = inp.get("file_path", "")
                 if p:
                     files_changed.append(p)
+                    # Infer module names from paths like .aimodule/ directories
+                    m = re.search(r"[/\\]([^/\\]+)[/\\]\.aimodule[/\\]", p)
+                    if m:
+                        modules.add(m.group(1))
 
-            # Tool results — match back to agent calls
             elif btype == "tool_result":
                 tid = block.get("tool_use_id", "")
                 if tid in agent_calls:
@@ -100,7 +104,8 @@ def parse_transcript(messages: list) -> dict:
     return {
         "user_request": user_request,
         "agent_calls": list(agent_calls.values()),
-        "files_changed": list(dict.fromkeys(files_changed)),  # dedupe, preserve order
+        "files_changed": list(dict.fromkeys(files_changed)),
+        "modules": sorted(modules),
     }
 
 
@@ -111,8 +116,9 @@ def slug(text: str) -> str:
 
 def build_entry(info: dict) -> str:
     req = info["user_request"] or "（未能提取）"
+    modules_line = " ".join(info["modules"]) if info["modules"] else ""
+    frontmatter_extra = f"\nmodules: {modules_line}" if modules_line else ""
 
-    # Subagent section
     calls = info["agent_calls"]
     if calls:
         agents_lines = []
@@ -125,12 +131,12 @@ def build_entry(info: dict) -> str:
     else:
         agents_section = "（本次 session 未调度 subagent）"
 
-    # Files section
     files = info["files_changed"]
     files_section = "\n".join(f"- {f}" for f in files) if files else "（无文件写入）"
 
     return f"""---
-tags: session
+tier: short
+tags: session{frontmatter_extra}
 ---
 
 ## 任务概述
@@ -160,7 +166,7 @@ def main():
         sys.exit(0)
 
     transcript_path = event.get("transcript_path", "")
-    cwd = event.get("cwd", os.getcwd())
+    cwd = Path(event.get("cwd", os.getcwd()))
 
     if not transcript_path:
         sys.exit(0)
@@ -170,26 +176,37 @@ def main():
         sys.exit(0)
 
     info = parse_transcript(messages)
-
-    # Skip trivial sessions (no user request and no agent calls)
     if not info["user_request"] and not info["agent_calls"]:
         sys.exit(0)
 
-    entries_dir = Path(cwd) / "memory" / "entries"
-    entries_dir.mkdir(parents=True, exist_ok=True)
+    store_dir = cwd / "memory" / "store" / "short"
+    store_dir.mkdir(parents=True, exist_ok=True)
 
     date = datetime.now().strftime("%Y-%m-%d")
     name = slug(info["user_request"])
-    entry_path = entries_dir / f"{date}-main-{name}.md"
+    entry_path = store_dir / f"{date}-main-{name}.md"
 
-    # Don't overwrite if already exists (e.g. hook fired twice)
     if entry_path.exists():
         import time
         ts = str(int(time.time()))[-4:]
-        entry_path = entries_dir / f"{date}-main-{name}-{ts}.md"
+        entry_path = store_dir / f"{date}-main-{name}-{ts}.md"
 
     entry_path.write_text(build_entry(info), encoding="utf-8")
     print(f"[memory] wrote {entry_path.name}", file=sys.stderr)
+
+    # Index the new entry via the engine CLI
+    python = find_python(cwd)
+    if python:
+        try:
+            subprocess.run(
+                [python, "-m", "memory.engine.cli", "add", str(entry_path), "--tier", "short"],
+                cwd=str(cwd),
+                timeout=30,
+                check=False,
+            )
+        except Exception:
+            pass
+
     sys.exit(0)
 
 

@@ -1,7 +1,16 @@
 # memory/ — 记忆系统
 
-markdown 文件是唯一数据源（`memory/entries/`，可提交 git）。  
-ChromaDB (`memory/chroma_db/`) 仅作向量索引，不提交 git，可随时从明文文件重建。
+两层记忆 + 可替换后端。
+
+```
+memory/
+├── engine/      ← CRUD 引擎（接口抽象 + ChromaDB 实现）
+├── store/       ← 存储库
+│   ├── short/   ← 短期记忆（session entries，.md，可 git 提交）
+│   ├── medium/  ← 中期记忆（关键字压缩条目，.md，可 git 提交）
+│   └── .chroma/ ← 向量索引（gitignore，可随时从 store/ 重建）
+└── skills/      ← Agent 交互 skills（write / query / distill）
+```
 
 ---
 
@@ -10,93 +19,61 @@ ChromaDB (`memory/chroma_db/`) 仅作向量索引，不提交 git，可随时从
 ```bash
 # 在项目根目录（首次）
 python3 -m venv .venv
-.venv/bin/pip install -r memory/scripts/requirements.txt
+.venv/bin/pip install -r memory/engine/requirements.txt
 ```
 
 ---
 
-## 工作流
+## CLI 用法
 
-```
-1. agent 写 entry → memory/entries/YYYY-MM-DD-<agent>-<slug>.md
-2. 向量查询       → .venv/bin/python memory/scripts/memory_query.py "查询意图"
-                    （自动同步索引，无需额外步骤）
-3. 读源文件       → 按返回路径读取 markdown 原文
-```
-
-`memory_index.py` 仅用于**首次安装**或**索引损坏**时手动重建。
-
----
-
-## memory_index.py — 构建向量索引
-
-扫描 `memory/entries/*.md`，增量更新 ChromaDB 索引。
+所有操作通过 `memory/engine/cli.py` 统一入口，在项目根目录运行：
 
 ```bash
-.venv/bin/python memory/scripts/memory_index.py
-# 指定其他目录
-.venv/bin/python memory/scripts/memory_index.py --entries-dir path/to/entries
+# 索引一个 entry
+.venv/bin/python -m memory.engine.cli add memory/store/short/xxx.md --tier short
+
+# 查询（跨层，推荐）
+.venv/bin/python -m memory.engine.cli query "缓存策略" --top-k 5 --verbose
+
+# 只查短期 / 只查中期
+.venv/bin/python -m memory.engine.cli query "agent 缺口" --tier short
+.venv/bin/python -m memory.engine.cli query "模块决策" --tier medium
+
+# 重建全部索引（首次安装或索引损坏时）
+.venv/bin/python -m memory.engine.cli reindex
 ```
+
+**输出格式（--verbose）：**
+```
+memory/store/short/2026-05-10-main-xxx.md  # tier=short date=2026-05-10 score=0.88
+```
+返回文件路径；读取原文用 Read 工具或 `cat`。
 
 ---
 
-## memory_query.py — 向量检索
+## 替换后端
 
-返回语义最相关的 entry 文件路径，**不返回内容**，调用方负责读取文件。
+1. 新建 `memory/engine/<your_backend>.py`，继承 `MemoryBackend`（`engine/base.py`）
+2. 在 `engine/cli.py` 的 `_build_engine()` 中替换 `ChromaBackend(...)` 为你的实现
+3. 其余代码无需修改
+
+---
+
+## 团队服务器模式
 
 ```bash
-# 基本查询（返回 top-5 文件路径）
-.venv/bin/python memory/scripts/memory_query.py "查询意图"
-
-# 过滤 agent（HR 用）
-.venv/bin/python memory/scripts/memory_query.py "踩坑 问题" --agent programmer --top-k 10
-
-# 过滤模块（架构师用）
-.venv/bin/python memory/scripts/memory_query.py "架构决策" --module combat --top-k 10
-
-# 查询前先更新索引
-.venv/bin/python memory/scripts/memory_query.py "寻路算法" --reindex
-
-# 输出时附带元数据（agent、日期、相似度）
-.venv/bin/python memory/scripts/memory_query.py "缓存策略" --verbose
+export CHROMA_HOST=<ip>
+export CHROMA_PORT=8000
 ```
 
-**输出格式：**
-- 默认：每行一个文件路径
-- `--verbose`：路径后附 `# agent=xxx date=xxx score=x.xx`
+向量索引会连接远程 ChromaDB，`store/.chroma/` 不再使用。
 
 ---
 
-## Entry 格式
+## Agent Skills
 
-文件命名：`YYYY-MM-DD-<agent-id>-<slug>.md`
-
-```markdown
----
-modules: combat pathfinding
-tags: decision incident
----
-
-## 任务概述
-（做了什么）
-
-## 关键事件
-（架构决策、踩坑、阻塞点——只写非平凡的事实）
-
-## 信号
-- [ ] 能力缺口：...
-- [ ] 优秀模式：...
-```
-
-`date` 和 `agent` 从文件名自动提取；`modules` 和 `tags` 通过 frontmatter 指定。
-
----
-
-## 本地 vs 服务器模式
-
-| 模式 | 配置 |
+| 场景 | 读取 |
 |------|------|
-| 本地（默认） | 不设环境变量，索引存 `memory/chroma_db/` |
-| 团队服务器 | `export CHROMA_HOST=<ip>; export CHROMA_PORT=8000` |
-
-索引可随时从 `memory/entries/` 重建，丢失无损失。
+| 补写 session entry | `memory/skills/write.md` |
+| 检索历史记忆 | `memory/skills/query.md` |
+| 短期→中期提炼 | `memory/skills/distill.md` |

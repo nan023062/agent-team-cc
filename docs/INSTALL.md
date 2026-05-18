@@ -38,7 +38,7 @@ cp -R "$SRC/template/memory"           "$TARGET/memory"
 cd "$TARGET"
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip -q
-.venv/bin/pip install -r memory/scripts/requirements.txt
+.venv/bin/pip install -r memory/engine/requirements.txt
 
 # 6. 配置 .env
 cp .env.example .env
@@ -141,7 +141,7 @@ cp -R "$SRC/template/memory"          "$TARGET/memory"
 确保下列条目存在于目标 `.gitignore`（缺哪条加哪条，**不要覆盖**目标已有内容）：
 
 ```
-memory/chroma_db/
+memory/store/.chroma/
 .env
 .venv/
 ```
@@ -157,7 +157,7 @@ Homebrew Python 不允许全局 pip 安装，必须用 venv（skill 内的命令
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip -q
-.venv/bin/pip install -r memory/scripts/requirements.txt
+.venv/bin/pip install -r memory/engine/requirements.txt
 ```
 
 验证：
