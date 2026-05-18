@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 
-CBIM = Path(__file__).resolve().parent.parent.parent.parent  # preview → engine → memory → cbim
+CBIM = Path(__file__).resolve().parent.parent  # preview → cbim
 ROOT = CBIM.parent                                           # project root (where .venv lives)
 PID_FILE = CBIM / "memory" / "store" / ".preview.pid"
 

@@ -120,7 +120,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     from .previewer import start_server
 
     store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    preview_dir = Path(__file__).parent / "preview"
+    preview_dir = Path(__file__).parent.parent.parent / "preview"  # cbim/preview/
     start_server(store_dir, preview_dir, port=args.port)
     return 0
 
