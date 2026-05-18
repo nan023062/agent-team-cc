@@ -115,9 +115,9 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 | 场景 | Skill 文件 |
 |------|-----------|
-| 新建/更新/废弃/拆分模块 | `.claude/agents/architect/skills/module-crud.md` |
-| 合规审查（新建模块后、依赖变化后、定期巡检）| `.claude/agents/architect/skills/arch-compliance.md` |
-| 知识治理（changelog 复盘、知识对齐、模块健康考核）| `.claude/agents/architect/skills/knowledge-governance.md` |
+| 新建/更新/废弃/拆分模块 | `cbim/knowledge/skills/arch-modules.md` |
+| 合规审查（新建模块后、依赖变化后、定期巡检）| `cbim/knowledge/skills/arch-governance.md` |
+| 知识治理（知识升格、从记忆提炼到 .aimodule/）| `cbim/knowledge/skills/arch-upgrade.md` |
 ## 边界
 
 - 只负责架构管理职能，不执行具体业务实现

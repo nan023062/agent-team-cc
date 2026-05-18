@@ -82,7 +82,7 @@ tools: Read, Glob, Grep, Bash
 - **目标 agent 专业标准** — 读取目标 agent 的 `.claude/agents/<agent-id>.md`，了解其职责定义与执行规范
 - **模块局部标准** — `<module-dir>/.aimodule/module.json` 中的 constraints 字段
 
-审查方法详见 `.claude/agents/auditor/skills/audit-review.md`。
+审查方法详见 `cbim/knowledge/skills/audit-review.md`。
 
 ## 权限范围
 
