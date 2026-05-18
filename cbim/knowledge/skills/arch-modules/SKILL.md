@@ -22,8 +22,14 @@ python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <ow
    python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner architect
    ```
 3. 填写 `.dna/module.json`（description / keywords / dependencies）
-4. 填写 `.dna/architecture.md`（内部结构、设计约束、关键决策）
-5. 填写 `.dna/contract.md`（对外 API / 协议 / 接口签名）
+4. 填写 `.dna/architecture.md`，遵守以下规则：
+   - 只写当前最终工作状态，不写修改记录或历史背景
+   - 高密度：用最简洁的文字概括整个模块，能一文说清
+   - 若为父模块：只描述子模块之间的关系与各自定位，不写任何子模块内部细节
+   - 若为叶子模块：描述内部结构、设计约束、关键决策
+5. 填写 `.dna/contract.md`，遵守以下规则：
+   - 只写当前对外有效接口，不写修改记录或废弃接口
+   - 高密度：以接口签名为主，描述精简
 6. 更新根模块 `.dna/index.md`，追加新模块路径
 7. 运行合规检查：执行 `arch-governance.md`
 
