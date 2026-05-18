@@ -169,8 +169,12 @@ memory/entries/             原始 session 记录
 │   │   └── hr-weekly-assessment.md    ← /hr-weekly-assessment
 │   ├── hooks/                         ← 记忆系统 hook（自动读写，用户无感）
 │   └── skills/
-│       └── memory/                    ← 记忆 skill（主 agent 专用）
-│           └── SKILL.md              ← 对外接口
+│       ├── architect/
+│       │   └── SKILL.md              ← 内容治理接口
+│       ├── hr/
+│       │   └── SKILL.md              ← 人力治理接口
+│       └── memory/                   ← 记忆 skill
+│           └── SKILL.md              ← 记忆操作接口
 │
 ├── .aimodule/                         ← 架构师创建，项目知识根模块
 │   ├── index.md

@@ -53,19 +53,6 @@
 - **评审官** — 由助手在合适时机派发；独立审查，不被其他 agent 私自调起
 - **work agents** — 由 HR 分配，助手凭 agent 文件派发任务；具体有哪些 work agent 见 `.claude/agents/` 目录
 
-## 知识获取铁律
-
-**助手不直接读原文。** 所有项目知识和人力知识均通过 subagent 获取：
-
-| 需要什么 | 找谁 | 禁止做什么 |
-|---------|------|-----------|
-| 模块结构、架构设计、契约接口 | 派发架构师 | 自己读 `.aimodule/` |
-| 可用 agent 列表、agent 能力 | 派发 HR | 自己读 `.claude/agents/` |
-
-助手的职责是理解需求、拆解任务、派发调度、汇总结果，不是读文件。
-
----
-
 ## 工作流程
 
 ```
@@ -73,18 +60,13 @@
    ↓
 1. 理解 & 澄清 — 确认用户真实需求，必要时追问
    ↓
-2. 判断所需知识 — 按需并行派发：
-      需要项目结构/模块知识 → 派发架构师（架构师用 scan-modules 脚本扫描后汇报）
-      需要可用 agent/能力知识 → 派发 HR（HR 用 scan-agents 脚本扫描后汇报）
-      两者都需要 → 并行派发，等结果汇总后继续
-
-      【初始化项目】用户明确要初始化时：
-      → 派发架构师在仓库根目录创建 .aimodule/ 知识体系
-      → 架构师完成后通知用户项目已就绪
+2. 按需派发（可并行）：
+      涉及模块设计 / 知识体系  → 读 .claude/skills/architect/SKILL.md
+      涉及 agent 管理 / 能力缺口 → 读 .claude/skills/hr/SKILL.md
    ↓
-3. 拆解 — 基于汇报结果将任务分解为可并行或串行的子任务
+3. 拆解 — 将任务分解为可并行或串行的子任务
    ↓
-4. 派发 — 用 Agent tool 调度业务 Agent（见派发规范）
+4. 派发 — 用 Agent tool 调度（所有 agent 以 subagent 模式运行）
    ↓
 5. 跟踪 — 监控执行状态，处理异常和阻塞
    ↓
@@ -93,73 +75,17 @@
 7. 反馈 — 以清晰简洁的方式回复用户
 ```
 
-> **记忆由 hook 自动管理**：SessionStart hook 在启动时注入近期记忆作为上下文；Stop hook 在 session 结束时自动写入 entry，记录本次调度了哪些 subagent、做了什么、遇到什么问题。主 agent 是唯一的记忆持有者，subagent 不直接操作记忆。
+> **记忆由 hook 自动管理**，无需手动干预。session 中途需要检索历史时，读取 `.claude/skills/memory/SKILL.md`。
 
-## 人力需求流程
+## Skills
 
-```
-助手拆解需求得到任务列表，发现缺少合适的执行 agent
-   ↓
-派发 HR（描述所需能力，HR 用 scan-agents 脚本匹配现有 agent）
-   ↓
-HR 检索现有 work agents（排除核心 4 个）
-   ├─ 有匹配 → 返回 agent 文件路径，助手直接派发
-   └─ 无匹配 → HR 起草新 agent → 用户确认 → 创建 .claude/agents/<id>/<id>.md → 通知助手
-```
+| 需要做什么 | 读取 |
+|-----------|------|
+| 内容治理：模块设计、架构合规、知识体系 | `.claude/skills/architect/SKILL.md` |
+| 人力治理：agent 招募、培训、考核、匹配 | `.claude/skills/hr/SKILL.md` |
+| 记忆查询：检索历史 session 记录 | `.claude/skills/memory/SKILL.md` |
 
-## 派发规范
-
-所有业务 agent 以 **subagent** 模式运行，使用 Agent tool 生成，每次任务独立上下文。
-
-**Step 1 — 构建 prompt**
-
-```
-你是[角色名]。读取 .claude/agents/<agent>/<agent>.md 加载你的完整身份（性格、职责、skills）。
-
-本次任务：
-  [具体任务描述]
-
-知识上下文（如有）：
-  项目路径：[绝对路径]
-  相关模块：[path]/.aimodule/[module]/
-  按需读取：module.json、architecture.md、contract.md
-
-完成后输出结构化结果，我（助手）将汇总回复用户。
-```
-
-**Step 2 — 调用 Agent tool**
-
-```python
-Agent(
-  description="[子任务一句话描述，如：架构师-初始化Combat模块]",
-  prompt="[Step 1 构建的完整 prompt]"
-)
-```
-
-**并行派发**：无依赖的子任务同时调用多个 Agent tool。有依赖的串行，前序结果作为后序输入。
-
-## 可用 Agent 清单
-
-| Agent | 文件 | 适用场景 |
-|-------|------|---------|
-| 架构师 | `.claude/agents/architect/architect.md` | 模块设计、知识三件套维护、架构合规 |
-| HR | `.claude/agents/hr/hr.md` | agent 招募/培训/考核/归档、记忆提炼 |
-| 评审官 | `.claude/agents/auditor/auditor.md` | 独立批判审查（只由助手派发） |
-| 程序员 | `.claude/agents/programmer/programmer.md` | 按蓝图实现代码 |
-| Work agents | `.claude/agents/<id>/<id>.md` | 按具体能力匹配 |
-
-列出所有可用 agent：读取 `.claude/agents/` 目录，每个子目录即一个 agent。
-
-## 调度原则
-
-- **任务匹配** — 根据子任务类型选择对应的业务 Agent
-- **并行优先** — 无依赖的子任务尽量并行派发
-- **结果验证** — 收到 Agent 结果后判断是否满足要求，不满足则重新派发
-- **透明沟通** — 让用户知道任务在处理中，不让用户等待无响应
-
-## 记忆查询
-
-需要在 session 中途查询历史记忆时，读取 `.claude/skills/memory/SKILL.md` 执行。
+评审官由助手在合适时机直接派发，无需读 skill：`.claude/agents/auditor/auditor.md`。
 
 ---
 
