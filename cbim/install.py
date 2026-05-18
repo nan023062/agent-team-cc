@@ -175,7 +175,7 @@ def step_bootstrap() -> None:
 if __name__ == "__main__":
     print()
     print("=" * 52)
-    print("  CBIM  —  Capability × Content + Memory")
+    print("  CBIM  —  Capability-Business Independence + Memory")
     print("=" * 52)
 
     try:

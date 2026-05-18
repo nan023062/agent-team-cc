@@ -1,131 +1,158 @@
-# agent-team-cc
+# CBIM — Capability-Business Independence + Memory
 
-为 Claude Code 项目部署一套开箱即用的 Agent Team 工作流。
+> 一种多 Agent 协作的设计哲学，以及基于该哲学的 Claude Code 多 Agent 框架。
 
-## 是什么
+**CBIM** = **CBI**（Capability-Business Independence，能力-业务独立性）+ **M**（Memory，记忆系统）
 
-一个可复制部署的 agent team 模板。将本仓库内容覆盖到任意目标项目的根目录，该项目即获得完整的多 agent 协作能力。
+核心理念：**能力与业务必须严格分离。**
+
+- **能力**（Agent 定义、Skills）—— 可移植的专业技能，存于 `.claude/agents/`，由 HR 治理
+- **业务**（模块知识、架构蓝图）—— 特定项目的知识图谱，存于 `.dna/`，由架构师治理
+- **记忆**（Memory）—— 跨会话的上下文积累，短期 + 中期，自动注入每次会话
+
+两者只通过任务接口协作，不相互耦合。Agent 定义放到任何项目仍然有意义 → 合规。
+
+---
+
+## Agent 团队
 
 ```
 用户
   ↓
-助手（CLAUDE.md — 唯一对外接口）
-  ├── 架构师   模块设计、知识体系维护
-  ├── HR       Agent 全生命周期管理
-  ├── 评审官   独立批判审查
-  └── 程序员   按蓝图实现代码
+助手（CLAUDE.md — 唯一对外接口，任务拆解与调度）
+  ├── 架构师   设计并维护项目知识体系（.dna/）
+  ├── HR       Agent 全生命周期管理（招募 / 培训 / 考核 / 归档）
+  ├── 评审官   独立批判审查（对抗性视角，只读）
+  └── 程序员   按蓝图实现代码（可按需裂变为多个专精 agent）
 ```
 
-## 快速开始
-
-5 步完成本地启用。手动安装看下面;**想让 AI agent 一键安装**,把 `INSTALL.md` 的 SOP 正文贴给目标项目里的 Claude Code 即可。
-
-**1. 复制到目标项目**
-
-```bash
-cp -r agent-team-cc/. your-project/
-cd your-project
-```
-
-或直接在本仓库目录内继续。
-
-**2. 创建虚拟环境**
-
-Homebrew Python 默认禁止全局 pip 安装，统一用项目内的 `.venv`：
-
-```bash
-python3 -m venv .venv
-```
-
-**3. 安装依赖**
-
-```bash
-.venv/bin/pip install -r memory/requirements.txt
-```
-
-只需要 `chromadb`（记忆系统向量索引）。
-
-**4. 配置 `.env`**
-
-```bash
-cp .env.example .env
-# 编辑 .env，把 ANTHROPIC_API_KEY 替换为你的真实 key（sk-ant-...）
-```
-
-ChromaDB 向量索引默认存 `memory/chroma_db/`，无需额外配置；如需团队共享再取消注释 `CHROMA_HOST/PORT`。
-
-**5. 启动 Claude Code**
-
-在项目根目录 `claude`，主 session 即助手。首句对话推荐：
-
-> 请初始化本项目的模块知识体系
-
-助手会派发架构师创建 `.aimodule/` 知识体系，之后即可进入正常使用。
+你只需要和助手说话。助手负责理解意图、拆解任务、派发给合适的 Agent、汇总结果。
 
 ---
 
-### 后续怎么用
+## 安装
 
-所有交互都通过助手，**直接说要做的事**，不用指定 agent。常见话术：
+### 自动安装（推荐）
+
+**macOS / Linux：**
+```bash
+python cbim/install.py
+```
+
+**Windows：**
+```
+双击 cbim/install.bat
+```
+
+脚本自动完成：创建 `.venv`、安装依赖、复制 agent 定义、注册 hooks、初始化 `CLAUDE.md`。
+
+### 手动安装
+
+详见 [INSTALL.md](INSTALL.md)。
+
+---
+
+## 快速开始
+
+```bash
+# 1. 安装框架
+python cbim/install.py
+
+# 2. 配置 API Key
+cp .env.example .env
+# 编辑 .env，填写 ANTHROPIC_API_KEY=sk-ant-...
+
+# 3. 启动 Claude Code
+claude
+```
+
+首句推荐：**"请初始化本项目的模块知识体系"**
+
+助手会派发架构师在项目根建立 `.dna/` 知识体系，之后即可正常使用。
+
+---
+
+## 后续怎么用
+
+直接告诉助手要做什么，不用指定 agent：
 
 | 你想做 | 直接说 |
 |--------|--------|
-| 让架构师设计/初始化模块 | "新建一个 combat 模块" / "重新设计支付流程" |
-| 让程序员实现某功能 | "按当前模块蓝图实现登录接口" |
-| 启动独立审查 | "审一下这次改动" / "评一下这个设计" |
-| 招人 / 培训 / 考核 | "帮我做日常信号采集" / "对 programmer 做本周考核" |
-| 查记忆 | "查一下 combat 模块的历史决策" |
+| 初始化知识体系 | 请初始化本项目的模块知识体系 |
+| 新建功能模块 | 新建一个 combat 模块 |
+| 实现功能 | 按当前蓝图实现登录接口 |
+| 审查设计 | 审一下这次改动 |
+| 查历史决策 | 查一下 combat 模块的历史决策 |
+| 招募新 agent | 帮我招募一个 AI 工程师 |
 
-助手会自动判断派发给谁、是否并行、要不要找 HR 招人。
+---
 
-## 目录结构
+## 目录结构（部署后）
 
 ```
-CLAUDE.md                    ← 助手身份（主 session）
-.claude/
-  agents/
-    architect/               ← 架构师
-    hr/                      ← HR
-    auditor/                 ← 评审官
-    programmer/              ← 程序员
-  hooks/
-    load-memory.py           ← SessionStart hook：自动注入近期记忆
-    write-memory.py          ← Stop hook：自动写入 session 记忆
-  skills/
-    memory/
-      SKILL.md               ← 主 agent 记忆操作接口（内部封装脚本）
-      scripts/               ← 向量查询脚本（安装到 memory/）
-memory/
-  entries/                   ← 主 agent session 记录（明文 md，可提交 git）
-  chroma_db/                 ← 向量索引（不提交 git，可随时重建）
-  memory_index.py            ← 构建向量索引
-  memory_query.py            ← 向量查询（返回文件路径）
-  requirements.txt
-docs/
-  ARCHITECTURE.md            ← 架构详解
-  aimodule-convention.md     ← 内容层约定
-  INSTALL.md                 ← 安装指南
-.env.example                 ← 环境变量模板（复制为 .env 后填写）
-.venv/                       ← Python 虚拟环境（自行创建，已 gitignore）
+your-project/
+├── CLAUDE.md                      ← 助手身份（主 session）
+├── .env                           ← API Key（gitignore）
+├── .venv/                         ← Python 虚拟环境（gitignore）
+│
+├── .claude/
+│   ├── settings.json              ← 权限配置 + hook 注册
+│   └── agents/
+│       ├── architect/             ← 架构师
+│       ├── hr/                    ← HR
+│       ├── auditor/               ← 评审官
+│       └── programmer/            ← 程序员
+│
+├── .dna/                          ← 项目知识根模块（架构师创建）
+│   ├── index.md
+│   ├── module.json
+│   ├── architecture.md
+│   └── contract.md
+│
+└── cbim/                          ← 框架本体（随项目提交 git）
+    ├── install.py                 ← 自动安装脚本
+    ├── install.bat                ← Windows 安装入口
+    ├── cc-template/               ← Claude Code 安装模板
+    ├── knowledge/                 ← 知识库引擎（能力层 + 业务层 CRUD）
+    └── memory/                    ← 记忆引擎（ChromaDB）
 ```
 
-## 核心机制
+---
 
-- **助手** — `CLAUDE.md` 定义，主 session 本身即助手，无需额外启动
-- **Subagent 派发** — 所有业务 agent 通过 `Agent` tool 以独立 context spawn
-- **两层治理** — 架构师管内容层（`.aimodule/`），HR 管能力层（`.claude/agents/`）
-- **记忆系统** — `memory/entries/` 存明文 md（可提交 git），ChromaDB 仅作向量索引；本地存 `memory/chroma_db/`，团队服务器设 `CHROMA_HOST`
-- **venv 约定** — skill 内命令使用 `.venv/bin/python` 调用，确保依赖隔离
+## 两层治理
 
-详见 `ARCHITECTURE.md`。
+| 层级 | 治理者 | 管辖 | 铁律 |
+|------|--------|------|------|
+| **能力层** | HR | `.claude/agents/`（agent 定义与 skills） | soul/skills 不含任何项目特定内容 |
+| **业务层** | 架构师 | 项目各级 `.dna/`（模块知识三件套） | 知识三件套不引用 agent 规范 |
 
-## 常见问题
+---
 
-**Q：跳过 venv，直接全局 pip 装 chromadb 行不行？**
-不行（Homebrew Python 默认拒绝），且 skill 写死走 `.venv/bin/python`，必须在项目根创建 `.venv`。
+## 记忆系统
 
-**Q：换其他项目目录部署，还要重做 venv 吗？**
-要。每个部署的项目根都需要自己的 `.venv`。如不想重装，可以在新项目 `.venv/bin/` 软链到统一安装位置的 python。
+| 层级 | 路径 | 触发 |
+|------|------|------|
+| 短期 | `cbim/memory/store/short/` | Stop hook 自动写入 |
+| 中期 | `cbim/memory/store/medium/` | 助手定期提炼压缩 |
 
-**Q：API key 安全吗？**
-`.env` 已加入 `.gitignore`，不会被提交。请勿把 key 写入任何被追踪的文件。
+SessionStart hook 在每次会话开始时自动注入：项目知识快照（模块树 + agent 列表）+ 近期相关记忆。
+
+---
+
+## 架构详解
+
+见 [cbim/docs/ARCHITECTURE.md](cbim/docs/ARCHITECTURE.md)
+
+---
+
+## 依赖
+
+- Python 3.10+
+- Claude Code CLI
+- chromadb ≥ 0.6.0（记忆向量索引，`install.py` 自动安装）
+
+---
+
+## License
+
+[MIT](LICENSE)
