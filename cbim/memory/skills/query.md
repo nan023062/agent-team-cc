@@ -7,22 +7,16 @@
 ## 命令格式
 
 ```bash
-# 默认：balanced 查询（短期 + 中期各取 top-k，交叉合并）
-.venv/bin/python -m memory.engine.cli query "查询意图" --top-k 5 --verbose
+# 默认：返回最近修改的 top-k 条（短期 + 中期合并，按时间排序）
+.venv/bin/python -m memory.engine.cli query "" --top-k 5
 
-# 只查单层（需要明确限定范围时）
-.venv/bin/python -m memory.engine.cli query "查询意图" --tier short --top-k 5
-.venv/bin/python -m memory.engine.cli query "查询意图" --tier medium --top-k 3
+# 只查单层
+.venv/bin/python -m memory.engine.cli query "" --tier short --top-k 5
+.venv/bin/python -m memory.engine.cli query "" --tier medium --top-k 3
 ```
 
-默认 balanced 模式会分别对短期和中期各取 top-k 结果，再按位置交叉合并——
-避免两层文本密度差异（短期原始、中期压缩）导致某层被完全压制。
-
-**输出格式（--verbose）：**
-```
-memory/store/short/2026-05-10-main-xxx.md  # tier=short date=2026-05-10 score=0.8821
-memory/store/medium/capability-programmer.md  # tier=medium date=2026-05-15 score=0.7432
-```
+默认后端（FileBackend）按修改时间排序，查询文本参数忽略。
+若已切换为语义后端（ChromaBackend），查询文本会参与相似度计算。
 
 ---
 
@@ -34,7 +28,19 @@ memory/store/medium/capability-programmer.md  # tier=medium date=2026-05-15 scor
 
 ---
 
-## 索引损坏时重建
+## 常见场景
+
+| 需要查什么 | 建议命令 |
+|-----------|---------|
+| 最近几次 session 做了什么 | `query "" --tier short --top-k 5` |
+| agent 的能力模式摘要 | `query "" --tier medium --top-k 10`，再 Read capability-*.md |
+| 某模块的历史决策 | `query "" --tier medium`，再 Read business-<module>.md |
+
+---
+
+## 索引重建
+
+切换到语义后端后，需要将现有文件重新索引：
 
 ```bash
 .venv/bin/python -m memory.engine.cli reindex
