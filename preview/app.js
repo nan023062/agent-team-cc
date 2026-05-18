@@ -1,5 +1,92 @@
 /* app.js — CBIM Preview UI (Memory / Agents / Knowledge) */
 
+// ---------------------------------------------------------------------------
+// i18n
+// ---------------------------------------------------------------------------
+
+const LANG = { current: 'zh' };
+
+const I18N = {
+  zh: {
+    nav_memory:      '记忆',
+    nav_agents:      '能力',
+    nav_knowledge:   '知识',
+    filter_all:      '全部',
+    filter_short:    '短期',
+    filter_medium:   '中期',
+    search_memory:   '搜索记忆...',
+    search_agents:   '搜索能力...',
+    search_knowledge:'搜索知识模块...',
+    placeholder:     '从左侧选择一条记录查看详情',
+    empty_memory:    '无匹配条目',
+    empty_agents:    '无匹配能力',
+    empty_knowledge: '无匹配模块',
+    error_connect:   '无法连接到本地服务\n请通过 CLI 启动 preview',
+    badge_short:     '短期',
+    badge_medium:    '中期',
+    stat_entries:    n => `${n} 条`,
+    stat_agents:     n => `${n} 个 work agent`,
+    stat_modules:    n => `${n} 个模块`,
+    meta_entries:    n => `${n} entries`,
+    lang_toggle:     'EN',
+  },
+  en: {
+    nav_memory:      'Memory',
+    nav_agents:      'Agents',
+    nav_knowledge:   'Knowledge',
+    filter_all:      'All',
+    filter_short:    'Short',
+    filter_medium:   'Medium',
+    search_memory:   'Search memory...',
+    search_agents:   'Search agents...',
+    search_knowledge:'Search modules...',
+    placeholder:     'Select an item on the left to view details',
+    empty_memory:    'No matching entries',
+    empty_agents:    'No matching agents',
+    empty_knowledge: 'No matching modules',
+    error_connect:   'Cannot connect to local server\nPlease start preview via CLI',
+    badge_short:     'Short',
+    badge_medium:    'Medium',
+    stat_entries:    n => `${n} entr${n === 1 ? 'y' : 'ies'}`,
+    stat_agents:     n => `${n} work agent${n === 1 ? '' : 's'}`,
+    stat_modules:    n => `${n} module${n === 1 ? '' : 's'}`,
+    meta_entries:    n => `${n} entries`,
+    lang_toggle:     '中',
+  },
+};
+
+function t(key, ...args) {
+  const v = I18N[LANG.current][key];
+  return typeof v === 'function' ? v(...args) : v;
+}
+
+function toggleLang() {
+  LANG.current = LANG.current === 'zh' ? 'en' : 'zh';
+  applyI18n();
+  renderHeader();
+  renderSidebar();
+  renderMainForSelected();
+}
+
+function applyI18n() {
+  document.getElementById('lang-btn').textContent        = t('lang_toggle');
+  document.getElementById('nav-memory').textContent      = t('nav_memory');
+  document.getElementById('nav-agents').textContent      = t('nav_agents');
+  document.getElementById('nav-knowledge').textContent   = t('nav_knowledge');
+  document.getElementById('filter-all').textContent      = t('filter_all');
+  document.getElementById('filter-short').textContent    = t('filter_short');
+  document.getElementById('filter-medium').textContent   = t('filter_medium');
+  document.getElementById('search-memory').placeholder   = t('search_memory');
+  document.getElementById('search-agents').placeholder   = t('search_agents');
+  document.getElementById('search-knowledge').placeholder= t('search_knowledge');
+  const ph = document.getElementById('placeholder-text');
+  if (ph) ph.textContent = t('placeholder');
+}
+
+// ---------------------------------------------------------------------------
+// Data & state
+// ---------------------------------------------------------------------------
+
 const DATA = { memory: [], agents: [], knowledge: [] };
 const STATE = {
   section: 'memory',
@@ -36,15 +123,15 @@ function renderHeader() {
     const short  = DATA.memory.filter(e => e.tier === 'short').length;
     const medium = DATA.memory.filter(e => e.tier === 'medium').length;
     el.innerHTML =
-      `<span>${DATA.memory.length} 条</span>` +
-      `<span class="badge badge-short">短期 ${short}</span>` +
-      `<span class="badge badge-medium">中期 ${medium}</span>`;
+      `<span>${t('stat_entries', DATA.memory.length)}</span>` +
+      `<span class="badge badge-short">${t('badge_short')} ${short}</span>` +
+      `<span class="badge badge-medium">${t('badge_medium')} ${medium}</span>`;
   } else if (s === 'agents') {
     const totalSkills = DATA.agents.reduce((n, a) => n + a.skills.length, 0);
-    el.innerHTML = `<span>${DATA.agents.length} 个 work agent</span>` +
+    el.innerHTML = `<span>${t('stat_agents', DATA.agents.length)}</span>` +
       (totalSkills ? `<span class="badge badge-agent">${totalSkills} skills</span>` : '');
   } else {
-    el.innerHTML = `<span>${DATA.knowledge.length} 个模块</span>`;
+    el.innerHTML = `<span>${t('stat_modules', DATA.knowledge.length)}</span>`;
   }
 }
 
@@ -68,9 +155,10 @@ function renderMemorySidebar() {
            e.keyword.toLowerCase().includes(q) || e.date.includes(q);
   });
   const sb = document.getElementById('sidebar');
-  if (!items.length) { sb.innerHTML = '<div class="empty">无匹配条目</div>'; return; }
+  if (!items.length) { sb.innerHTML = `<div class="empty">${t('empty_memory')}</div>`; return; }
   sb.innerHTML = items.map(e => {
-    const badge = `<span class="badge badge-${e.tier}">${e.tier}</span>`;
+    const tierLabel = e.tier === 'short' ? t('badge_short') : t('badge_medium');
+    const badge = `<span class="badge badge-${e.tier}">${tierLabel}</span>`;
     const kw    = e.keyword ? `<span class="entry-keyword">#${e.keyword}</span>` : '';
     const sel   = STATE.selected.memory === e.id ? ' selected' : '';
     return `<div class="entry-item${sel}" onclick="selectItem('memory','${esc(e.id)}')">
@@ -86,7 +174,7 @@ function renderAgentsSidebar() {
     !q || a.name.toLowerCase().includes(q) || a.description.toLowerCase().includes(q)
   );
   const sb = document.getElementById('sidebar');
-  if (!items.length) { sb.innerHTML = '<div class="empty">无匹配能力</div>'; return; }
+  if (!items.length) { sb.innerHTML = `<div class="empty">${t('empty_agents')}</div>`; return; }
   sb.innerHTML = items.map(a => {
     const sc  = a.skills.length
       ? `<span class="badge badge-skill">${a.skills.length} skills</span>` : '';
@@ -106,7 +194,7 @@ function renderKnowledgeSidebar() {
     m.keywords.join(' ').toLowerCase().includes(q)
   );
   const sb = document.getElementById('sidebar');
-  if (!items.length) { sb.innerHTML = '<div class="empty">无匹配模块</div>'; return; }
+  if (!items.length) { sb.innerHTML = `<div class="empty">${t('empty_knowledge')}</div>`; return; }
   sb.innerHTML = items.map(m => {
     const kws = m.keywords.map(k => `<span class="entry-keyword">#${k}</span>`).join('');
     const wfBadge = m.workflows.length
@@ -130,7 +218,7 @@ function renderMainForSelected() {
   const el = document.getElementById('main');
   if (!id) {
     el.className = 'empty-state';
-    el.innerHTML = '<div class="placeholder"><div style="font-size:32px">📋</div><p>从左侧选择一条记录查看详情</p></div>';
+    el.innerHTML = `<div class="placeholder"><div style="font-size:32px">📋</div><p id="placeholder-text">${t('placeholder')}</p></div>`;
     return;
   }
   if (s === 'memory') {
@@ -146,12 +234,13 @@ function renderMainForSelected() {
 }
 
 function renderMemoryDetail(el, entry) {
+  const tierLabel = entry.tier === 'short' ? t('badge_short') : t('badge_medium');
   const pairs = [
-    ['tier', entry.tier], ['date', entry.date],
+    ['tier', tierLabel], ['date', entry.date],
     ...(entry.keyword ? [['keyword', entry.keyword]] : []),
     ...(entry.type    ? [['type',    entry.type]]    : []),
     ...(entry.modules ? [['modules', entry.modules]] : []),
-    ...(entry.sources ? [['sources', entry.sources + ' entries']] : []),
+    ...(entry.sources ? [['sources', t('meta_entries', entry.sources)]] : []),
   ];
   const meta = pairs.map(([k, v]) =>
     `<div class="meta-item"><strong>${k}</strong>: ${esc(v)}</div>`).join('');
@@ -278,5 +367,5 @@ Promise.all([
   if (DATA.memory.length) selectItem('memory', DATA.memory[0].id);
 }).catch(() => {
   document.getElementById('sidebar').innerHTML =
-    '<div class="empty">无法连接到本地服务<br>请通过 CLI 启动 preview</div>';
+    `<div class="empty">${t('error_connect')}</div>`;
 });

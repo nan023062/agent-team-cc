@@ -65,6 +65,21 @@ header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
 
 .stats { font-size: 13px; color: #94a3b8; margin-left: auto; display: flex; align-items: center; gap: 10px; }
 
+.lang-btn {
+  padding: 4px 11px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: background 0.15s, color 0.15s;
+}
+.lang-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
 .badge {
   display: inline-block;
   padding: 1px 7px;
