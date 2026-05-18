@@ -252,15 +252,17 @@ SessionStart
 
 **助手是唯一的记忆持有者。** Subagent 专注执行，不直接操作记忆。
 
-记忆在 CBIM 中承担三个角色，不只是辅助恢复：
+记忆在 CBIM 中是一条**三阶段蒸馏管道**，每阶段目的不同：
 
-| 角色 | 说明 |
-|------|------|
-| **Session 恢复** | `last-session.md` 在下次 session 开始时优先注入，让助手知道从哪里继续 |
-| **能力治理来源** | HR 从 `store/` 提炼 → 新增/更新 skill → 内化进 agent soul |
-| **业务治理来源** | 架构师从 `store/` 提炼 → `.dna/architecture.md` / `workflows/` |
+| 阶段 | 路径 | 目的 |
+|------|------|------|
+| **短期** | `cbim/memory/store/short/` | 原始 session 记录；主要用于近期上下文恢复，自动清理 |
+| **中期** | `cbim/memory/store/medium/` | 压缩提炼后的模式摘要；去噪、保留有效信号，长期留存 |
+| **知识**（核心） | `cbim/knowledge/skills/` + `.dna/` | 结构化落地：能力进 skills/soul，业务进 `.dna/workflows/` |
 
-三者共用同一份原始记录（`cbim/memory/store/`），治理是记忆的**主要价值**，恢复是派生效果。
+三个阶段的转化关系：
+- **短期 → 中期**：压缩过程 — 去掉执行细节，保留值得记录的模式和教训
+- **中期 → 知识**：最核心的一步 — 将验证过的模式固化为治理结构，成为后续所有任务的基础
 
 | 层级 | 路径 | 生命周期 |
 |------|------|---------|
@@ -291,31 +293,38 @@ session 结束
         └── 近期记忆（按时间排序）
 
 治理周期（HR / 架构师主动触发）
-  └── store/short/ + store/medium/
-        ├── HR 提炼 → cbim/knowledge/skills/ → agent soul
-        └── 架构师提炼 → .dna/architecture.md + workflows/
+  └── 三阶段蒸馏
+        ├── short/ → medium/         （压缩：助手提炼摘要）
+        ├── medium/ → skills/soul    （固化：HR 将模式转为能力治理结构）
+        └── medium/ → .dna/          （固化：架构师将模式转为业务治理结构）
 ```
 
 ---
 
-## 能力进化路径（HR 侧）
+## 记忆蒸馏路径
+
+### 能力蒸馏（HR 侧）
 
 ```
-session 记录 / 用户反馈 / 评审官报告
-    ↓ HR 从 cbim/memory/store/ 提炼
-cbim/knowledge/skills/<name>/SKILL.md   新增或更新 Skill
+store/short/          原始 session 记录（自动写入）
+    ↓ 压缩提炼
+store/medium/         能力模式摘要（去噪，保留有效信号）
+    ↓ 固化（最核心的一步）
+cbim/knowledge/skills/<name>/SKILL.md   新增或更新能力向 Skill
     ↓ 多次验证后内化
 .claude/agents/<id>/<id>.md             更新 Soul / Identity
 ```
 
-## 知识进化路径（架构师侧）
+### 业务蒸馏（架构师侧）
 
 ```
-cbim/memory/store/            session 原始记录
-    ↓ 架构师提炼
-.dna/architecture.md + contract.md
+store/short/          原始 session 记录（自动写入）
+    ↓ 压缩提炼
+store/medium/         业务模式摘要（决策、接口变更、反复出现的流程）
+    ↓ 固化（最核心的一步）
+.dna/architecture.md + contract.md      更新模块蓝图
     ↓ 出现 ≥2 次的确定性流程
-.dna/workflows/<name>/        新增 Workflow
+.dna/workflows/<name>/                  新增业务向 Workflow
     ↓ 模块职责过重
 拆分为多个子模块
 ```
