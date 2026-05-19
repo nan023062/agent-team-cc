@@ -21,6 +21,52 @@ _CORRECTION_PATTERNS = [
     "incorrect", "wrong", "don't do", "shouldn't", "stop doing",
 ]
 
+_FORCE_WRITE_KEYWORDS = [
+    # 显式记忆请求
+    "记住", "记下", "保存", "remember", "save this",
+    # 对错判断
+    "对了", "正确", "没错", "就是这样", "exactly", "correct", "confirmed",
+    # 下决策
+    "决定", "定了", "就用", "采用", "改成", "换成", "decided", "we'll go with",
+    # 是什么 / 不是什么（精确短语，避免"不是"误触发）
+    "应该是", "不是而是", "而不是", "指的是", "定义",
+    # 怎么做 / 规则
+    "规则是", "约定", "原则", "以后都", "每次都", "不再", "统一",
+]
+
+
+def _should_write(info: dict, short_dir: Path) -> bool:
+    req = info["user_request"]
+    req_lower = req.lower()
+    if any(kw in req_lower for kw in _FORCE_WRITE_KEYWORDS):
+        return True
+
+    try:
+        candidates = list(short_dir.glob("*.md"))
+        if not candidates:
+            return True
+        latest = max(candidates, key=lambda p: p.stat().st_mtime)
+        text = latest.read_text(encoding="utf-8")
+
+        task_match = re.search(r"## 任务概述\n(.*?)(?=\n##|\Z)", text, re.DOTALL)
+        prev_request = task_match.group(1).strip() if task_match else ""
+
+        files_match = re.search(r"## 写入/修改文件\n(.*?)(?=\n##|\Z)", text, re.DOTALL)
+        prev_files: set[str] = set()
+        if files_match:
+            for line in files_match.group(1).splitlines():
+                line = line.strip().lstrip("- ").strip()
+                if line:
+                    prev_files.add(line)
+
+        current_files = set(info["files_changed"])
+        if req == prev_request and current_files == prev_files:
+            return False
+    except Exception:
+        return True
+
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -50,18 +96,21 @@ def write_session(transcript_path: str, store_dir: Path,
     short_dir = store_dir / SHORT
     short_dir.mkdir(parents=True, exist_ok=True)
 
-    date = datetime.now().strftime("%Y-%m-%d")
+    now = datetime.now()
+    ts = now.strftime("%Y-%m-%d-%H%M%S")
     name = _slug(
         info["user_request"],
         max_input=st["max_slug_input_chars"],
         max_output=st["max_slug_chars"],
     )
-    entry_path = short_dir / f"{date}-main-{name}.md"
+    entry_path = short_dir / f"{ts}-main-{name}.md"
+
+    if not _should_write(info, short_dir):
+        return None
 
     if entry_path.exists():
-        import time
-        ts = str(int(time.time()))[-4:]
-        entry_path = short_dir / f"{date}-main-{name}-{ts}.md"
+        ms = now.strftime("%f")[:3]
+        entry_path = short_dir / f"{ts}-{ms}-main-{name}.md"
 
     entry_path.write_text(_build_entry(info), encoding="utf-8")
     engine.add(entry_path, SHORT)
