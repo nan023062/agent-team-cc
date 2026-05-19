@@ -24,25 +24,25 @@ List all medium-tier entries:
 Find `business-<module>.md` and `decision-<scope>.md` related to the target module; read their full content with the Read tool.
 
 Focus on:
-- `## IS Records`: interface changes, business rule changes, config changes (→ `contract.md`)
+- `## IS Records`: interface changes, business rule changes, config changes (→ `contract.md` if protocol-boundary module, otherwise `module.md`)
 - `## HOW Records`: recurring deterministic execution flows (→ `workflows/`)
-- `## Decision Records`: WANT-type selections and trade-offs (→ `architecture.md`)
+- `## Decision Records`: WANT-type selections and trade-offs (→ `module.md`)
 - `## Governance Recommendations`: unchecked items from the last distillation
 
 ### Step 2 — Determine Promotion Target by Four-Quadrant
 
 | Quadrant | Signal Content | Promotion Target | Condition |
 |----------|---------------|-----------------|-----------|
-| **IS** | Interface signatures, business rule definitions, config values | `contract.md` | Promote on any change; sync current facts |
-| **WANT** | Selection decision with trade-off rationale (ADR format) | `architecture.md` | Promote once decision is implemented |
+| **IS** | Interface signatures, business rule definitions, config values | `contract.md` (if protocol-boundary module) or `module.md` | Promote on any change; sync current facts |
+| **WANT** | Selection decision with trade-off rationale (ADR format) | `module.md` | Promote once decision is implemented |
 | **HOW** (business) | Deterministic execution flow within the module | `workflows/<name>/workflow.md` | Appeared ≥`distill.how_to_workflow_threshold` times, steps stable (default 2, see `memory/config.json`) |
 | HOW (once only) | Flow not yet validated | Keep in medium, continue observing | Continue accumulating |
 
 **Do NOT promote**: one-time debug records, unvalidated assumptions, temporary project-specific solutions.
 
-### Step 3 — Write to the Knowledge Three-Pack
+### Step 3 — Write to the Knowledge Pack (module.md + optional contract)
 
-**`contract.md`** (handling IS signals)
+**`contract.md`** (handling IS signals -- only for protocol-boundary modules that have contract.md)
 
 Sync the current latest facts, including old and new values:
 
@@ -68,7 +68,7 @@ Change log:
   Note: historical data before 2026-Q2 still uses the old definition
 ```
 
-**`architecture.md`** (handling WANT signals)
+**`module.md`** (handling WANT signals)
 
 Append decision entries using ADR (Y-statement) format:
 
@@ -114,7 +114,7 @@ Check off completed governance items to prevent re-processing:
 
 ```markdown
 ## Governance Recommendations
-- [x] IS changes written to `.dna/contract.md` (interface signature updated)                       ← done
+- [x] IS changes written to `.dna/contract.md` or `module.md` (interface signature updated)   ← done
 - [x] HOW flow distilled to `.dna/workflows/` (appeared ≥`how_to_workflow_threshold` times)       ← done
 - [ ] Notify architect for review (interface changed)                                               ← pending
 ```
@@ -130,10 +130,10 @@ Report to the assistant:
 ```
 ## Knowledge Promotion Report — <module name>
 
-### contract.md Updates
+### contract.md / module.md Updates
 - <interface/rule name>: <change summary> (source: business-<module>.md IS records × N times)
 
-### architecture.md Updates
+### module.md Updates
 - New decision: <title> (source: decision-<scope>.md WANT record)
 
 ### New Workflows

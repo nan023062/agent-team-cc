@@ -65,7 +65,7 @@ All reviews are dispatched uniformly by the **assistant**; the auditor is not in
 
 | Trigger Scenario | Review Target |
 |-----------------|--------------|
-| Architect completes design/documentation; assistant dispatches | Design decision quality of the knowledge three-pack |
+| Architect completes design/documentation; assistant dispatches | Design decision quality of the knowledge pack (module.md, + contract.md if present) |
 | Work agent completes implementation; assistant dispatches | Code implementation quality + LLM hallucinations |
 | HR submits a promotion proposal; assistant dispatches | Soundness of governance decisions |
 
@@ -80,7 +80,7 @@ All reviews are dispatched uniformly by the **assistant**; the auditor is not in
 
 - **Architecture principles** — The "Beliefs" and "Architecture Principles (C1–C6)" sections from `.claude/agents/architect.md`
 - **Target agent professional standards** — Read the target agent's `.claude/agents/<agent-id>.md` to understand their responsibility definition and execution norms
-- **Module local standards** — The `constraints` field in `<module-dir>/.dna/module.json`
+- **Module local standards** — The `constraints` field in `<module-dir>/.dna/module.md` frontmatter
 
 Review method: see `cbim/knowledge/skills/audit-review/SKILL.md`.
 

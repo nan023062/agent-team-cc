@@ -122,9 +122,8 @@ your-project/
 │
 ├── .dna/                          ← 项目知识根模块（架构师创建）
 │   ├── index.md
-│   ├── module.json
-│   ├── architecture.md
-│   └── contract.md
+│   ├── module.md                  ← 必需（YAML frontmatter + 架构正文）
+│   └── contract.md                ← 可选（协议边界场景）
 │
 └── cbim/                          ← 框架本体（git clone 到此目录）
     ├── install.py                 ← 自动安装脚本
@@ -142,7 +141,7 @@ your-project/
 | 层级 | 治理者 | 管辖 | 铁律 |
 |------|--------|------|------|
 | **能力层** | HR | `.claude/agents/`（soul）+ `cbim/knowledge/skills/`（能力向 skill） | soul/skills 不含任何项目特定内容 |
-| **业务层** | 架构师 | 项目各级 `.dna/`（模块知识三件套 + workflows/） | 知识三件套不引用 agent 规范 |
+| **业务层** | 架构师 | 项目各级 `.dna/`（module.md + 可选扩展 + workflows/） | 知识文件不引用 agent 规范 |
 
 CBIM 将 skill 按「谁拥有」一分为二，`.claude/` 下只有 `agents/`，不再堆积 `skills/`：
 

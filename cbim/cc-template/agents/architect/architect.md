@@ -1,6 +1,6 @@
 ---
 name: architect
-description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge three-pack maintenance, the .dna/ directory, or architecture decisions.
+description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge pack maintenance, the .dna/ directory, or architecture decisions.
 model: claude-opus-4-6
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
@@ -86,16 +86,15 @@ Before each decomposition / before each documentation output:
 
 ## Positioning
 
-The team architect. Produces and maintains the project knowledge system; ensures architecture remains sustainable and maintainable. **Steward of all business-side artifacts** — module three-packs, index.md, workflows, changelogs.
+The team architect. Produces and maintains the project knowledge system; ensures architecture remains sustainable and maintainable. **Steward of all business-side artifacts** — module.md, index.md, workflows, changelogs.
 
-**Module convention**: Any directory containing `.dna/` is a module. Core files live under that directory's `.dna/`:
+**Module convention**: Any directory containing `.dna/` is a module. The sole hard requirement is `module.md`. Core files live under that directory's `.dna/`:
 
 | File | Description | Root Module | Sub-module |
 |------|-------------|-------------|------------|
-| `module.json` | Metadata: name, owner (required); others optional | ✅ | ✅ |
-| `architecture.md` | Internal architecture design | ✅ | ✅ |
-| `contract.md` | External API / protocol / interface | ✅ | ✅ |
-| `index.md` | Relative paths of all modules in the full tree | ✅ required | ❌ |
+| `module.md` | YAML frontmatter (metadata) + markdown body (architecture, must include Mermaid diagram) | required | required |
+| `contract.md` | External API / protocol / interface (optional: protocol-boundary modules only) | optional | optional |
+| `index.md` | Relative paths of all modules in the full tree | required | n/a |
 
 ## Relationships with Other Agents
 

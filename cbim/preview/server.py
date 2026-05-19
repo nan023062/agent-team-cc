@@ -183,9 +183,49 @@ def _collect_agent_skills(agent_dir: Path) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 def _collect_knowledge(root_dir: Path) -> list[dict]:
+    """Scan modules using dual format: module.md (new) or module.json (legacy)."""
     modules = []
+    seen_dirs: set[Path] = set()
+
+    # New format: .dna/module.md
+    for mm in sorted(root_dir.rglob(".dna/module.md")):
+        mod_dir = mm.parent.parent
+        seen_dirs.add(mod_dir)
+        aimod = mm.parent
+        try:
+            raw = mm.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        data = _parse_frontmatter(raw)
+        body = _strip_frontmatter(raw)
+        rel = str(mod_dir.relative_to(root_dir))
+        contract = (aimod / "contract.md").read_text(encoding="utf-8") \
+            if (aimod / "contract.md").exists() else ""
+        workflows = _collect_workflows(aimod / "workflows")
+        kw = data.get("keywords", "")
+        if isinstance(kw, str):
+            kw = [k.strip() for k in kw.split(",") if k.strip()] if kw else []
+        deps = data.get("dependencies", "")
+        if isinstance(deps, str):
+            deps = [d.strip() for d in deps.split(",") if d.strip()] if deps else []
+        modules.append({
+            "id": rel or ".",
+            "path": rel or ".",
+            "name": data.get("name", rel),
+            "owner": data.get("owner", ""),
+            "description": data.get("description", ""),
+            "keywords": kw if isinstance(kw, list) else [],
+            "dependencies": deps if isinstance(deps, list) else [],
+            "architecture": body,
+            "contract": contract,
+            "workflows": workflows,
+        })
+
+    # Legacy format: .dna/module.json (only if not already loaded)
     for mj in sorted(root_dir.rglob(".dna/module.json")):
         mod_dir = mj.parent.parent
+        if mod_dir in seen_dirs:
+            continue
         try:
             data = json.loads(mj.read_text(encoding="utf-8"))
         except Exception:

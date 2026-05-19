@@ -21,17 +21,18 @@ python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <ow
    ```bash
    python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner architect
    ```
-3. Fill in `.dna/module.json` (description / keywords / dependencies)
-4. Fill in `.dna/architecture.md`, following these rules:
-   - Write only the current final working state; no change history or background
+3. Fill in `.dna/module.md`, following these rules:
+   - **Frontmatter**: fill in `description`, `keywords`, `dependencies` as needed
+   - **Body**: write only the current final working state; no change history or background
    - High-density: describe the entire module as concisely as possible in a single document
-   - If parent module: describe only the relationships between child modules and each child's positioning; never write child module internal details
-   - If leaf module: describe internal structure, design constraints, key decisions
-5. Fill in `.dna/contract.md`, following these rules:
+   - If parent module: Positioning + sub-module relationship diagram (Mermaid) + key decisions; never write child module internal details
+   - If leaf module: Positioning + class diagram (Mermaid `classDiagram`) + key decisions
+4. (Optional) If this is a protocol-boundary module (REST/gRPC/cross-language/public SDK), add `--with-contract` to the init command above, then fill in `.dna/contract.md`:
    - Write only the currently valid external interfaces; no change history or deprecated interfaces
    - High-density: interface signatures are the primary content, descriptions are concise
-6. Update the root module's `.dna/index.md`, appending the new module path
-7. Run compliance check: execute `arch-governance.md`
+   - **Do NOT create contract.md for ordinary internal modules** — in strongly-typed languages, source code is the contract
+5. Update the root module's `.dna/index.md`, appending the new module path
+6. Run compliance check: execute `arch-governance.md`
 
 **Naming convention**: `name` uses kebab-case; `owner` is the responsible agent id.
 
@@ -41,9 +42,9 @@ python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <ow
 
 **Trigger**: Interface changes, architecture adjustments, design decision updates.
 
-- **Internal changes** → edit `architecture.md`
-- **Interface changes** → edit `contract.md`, notify dependent modules
-- **Metadata changes** → edit `module.json` (keywords / dependencies / owner)
+- **Internal changes** → edit `module.md` body (architecture sections)
+- **Interface changes** → edit `contract.md` (if present), notify dependent modules
+- **Metadata changes** → edit `module.md` frontmatter (keywords / dependencies / owner)
 - **Deterministic process crystallization** → create a new workflow at `.dna/workflows/<name>/workflow.md`
 
 Run compliance check after changes.
@@ -54,8 +55,8 @@ Run compliance check after changes.
 
 **Trigger**: Module merged, feature retired, responsibility eliminated after refactoring.
 
-1. Mark in `module.json`: `"status": "deprecated"`
-2. Add deprecation reason and replacement module at the top of `architecture.md`
+1. Mark in `module.md` frontmatter: add `status: deprecated`
+2. Add deprecation reason and replacement module at the top of `module.md` body
 3. Update the root module's `index.md` — remove or annotate the module path
 4. Check if other modules' `dependencies` reference this module; update each one
 
@@ -68,7 +69,7 @@ Run compliance check after changes.
 1. Identify independently separable sub-domains
 2. `init` a new module for each sub-domain
 3. Distribute original module content to sub-modules by ownership
-4. Original module's `architecture.md` retains: its own positioning + child module list + relationships between child modules
+4. Original module's `module.md` body retains: its own positioning + child module list + relationships between child modules
 5. Update `index.md`
 
 **Hard rule**: No circular dependencies between sub-modules; parent module must never write the internal implementation details of any child module.

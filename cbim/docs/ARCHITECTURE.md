@@ -43,7 +43,7 @@ This philosophy is reflected in every layer of the framework's design:
 
 | Separation Dimension | Capability Side | Business Side |
 |---------------------|-----------------|---------------|
-| Storage | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | `.dna/` (module.json + architecture + contract + workflows/) |
+| Storage | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | `.dna/` (module.md + optional contract + workflows/) |
 | Governed by | HR | Architect |
 | Hard rule | soul/skills must contain zero project-specific content | knowledge files must not reference agent specs |
 | Verifiable | still meaningful when moved to another project → compliant | describes only current final working state, never describes agents |
@@ -77,7 +77,7 @@ CBIM solves both simultaneously:
 | | Standard Claude Code | CBIM |
 |---|---|---|
 | Project context | One `CLAUDE.md` (grows unboundedly with project) | Module topology tree `.dna/` (split by module boundary, load subtree on demand) |
-| Business rules | Written into `CLAUDE.md` or `.claude/skills/` | Written into the module's `architecture.md` / `contract.md` / `workflows/` |
+| Business rules | Written into `CLAUDE.md` or `.claude/skills/` | Written into the module's `module.md` / `contract.md` / `workflows/` |
 | Operational steps | `.claude/skills/` fully registered, always in context | `cbim/knowledge/skills/` (capability) + `.dna/workflows/` (business), loaded on demand |
 | Agent | One large catch-all agent + countless skills | Multiple specialized agents, each task loads only the target agent soul |
 | Governance | None | Architect (business layer, three-traversal topology tree) + HR (capability layer) dual-track governance |
@@ -239,8 +239,8 @@ SessionStart
 
 Task dispatch (on-demand loading)
   └── agent reads target module's .dna/
-        ├── architecture.md
-        ├── contract.md
+        ├── module.md
+        ├── contract.md (if present)
         └── workflows/<name>/workflow.md   ← loaded here, includes metadata and steps
 ```
 
@@ -261,7 +261,7 @@ A project can have dozens of modules, each with multiple workflows — the press
 | Layer | Governed by | Scope |
 |-------|-------------|-------|
 | **Capability layer** | HR | `.claude/agents/` (agent definitions and skills) |
-| **Business layer** | Architect | Each project's `.dna/` (module knowledge three-pack) |
+| **Business layer** | Architect | Each project's `.dna/` (module knowledge pack) |
 
 **Hard rule**: Capability goes into `.claude/agents/`; business goes into `.dna/`. Never mix.
 
@@ -350,7 +350,7 @@ CBIM treats knowledge as a first-class citizen of the architecture, not an appen
 .dna/ (tree structure)   → Business picture
   ├── What modules exist and their responsibility boundaries
   ├── Inter-module interface contracts (contract.md)
-  ├── Architecture layers and dependency directions (architecture.md)
+  ├── Architecture layers and dependency directions (module.md)
   └── Crystallized deterministic business flows (workflows/)
 
 .claude/agents/          → Team picture
@@ -374,7 +374,7 @@ Combined → project progress + virtual team state, readable at a glance
 
 Because knowledge is actively maintained by the Architect and synchronized with code implementation (knowledge-first), human reviewers encounter a knowledge base with:
 
-- **Completeness**: Every module has the three-pack (module.json + architecture + contract)
+- **Completeness**: Every module has module.md (+ optional contract.md for protocol boundaries)
 - **Currency**: Knowledge is updated before implementation, not retrofitted after
 - **Hierarchy**: Topology tree structure, granularity naturally matches task scope
 
@@ -456,7 +456,7 @@ store/short/          Raw session records (auto-written)
     ↓ compress & distill
 store/medium/         Business pattern summary (decisions, interface changes, recurring processes)
     ↓ crystallize (the critical step)
-.dna/architecture.md + contract.md      Updated module blueprint
+.dna/module.md + contract.md            Updated module blueprint
     ↓ deterministic processes appearing ≥2 times
 .dna/workflows/<name>/                  New business workflow
     ↓ module responsibilities become too heavy
@@ -485,9 +485,8 @@ Split into multiple sub-modules
 │
 ├── .dna/                              ← Created by architect, project knowledge root module
 │   ├── index.md
-│   ├── module.json
-│   ├── architecture.md
-│   ├── contract.md
+│   ├── module.md                      ← required (YAML frontmatter + architecture body)
+│   ├── contract.md                    ← optional (protocol-boundary modules only)
 │   └── workflows/
 │
 └── cbim/                              ← Framework

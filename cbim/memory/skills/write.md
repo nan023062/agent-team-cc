@@ -51,9 +51,9 @@ Signals are the raw material for distilling medium-term memory and governance de
 | Quadrant | Type | Answers What | Cross-Project | Final Destination |
 |----------|------|-------------|---------------|------------------|
 | **MUST** | maxim (principle) | What must never be violated? | **Yes** — holds across projects and languages | Agent soul / `cbim/knowledge/skills/` |
-| **WANT** | decision | Why choose this approach? | No — an active trade-off in the current project | `.dna/architecture.md` (ADR format) |
+| **WANT** | decision | Why choose this approach? | No — an active trade-off in the current project | `.dna/module.md` (ADR format) |
 | **HOW** | pipeline (flow) | How should this flow run? | Depends | Cross-project → `cbim/knowledge/skills/`; project-specific → `.dna/workflows/` |
-| **IS** | knowledge (fact) | What is the current fact? | No — a verifiable system fact | `.dna/contract.md` |
+| **IS** | knowledge (fact) | What is the current fact? | No — a verifiable system fact | `.dna/contract.md` (if protocol-boundary) or `module.md` |
 
 ---
 

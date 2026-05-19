@@ -103,16 +103,20 @@ def cmd_modules_show(args: argparse.Namespace) -> int:
     if m["keywords"]:     print(f"Keywords    : {', '.join(m['keywords'])}")
     if m["dependencies"]: print(f"Dependencies: {', '.join(m['dependencies'])}")
     if m["workflows"]:    print(f"Workflows   : {', '.join(m['workflows'])}")
-    if m["architecture"]: print(f"\n--- architecture.md ---\n{m['architecture'][:600]}")
+    if m["architecture"]: print(f"\n--- module.md (body) ---\n{m['architecture'][:600]}")
     if m["contract"]:     print(f"\n--- contract.md ---\n{m['contract'][:600]}")
     return 0
 
 
 def cmd_modules_init(args: argparse.Namespace) -> int:
     try:
-        aimod = init_module(Path(args.dir), args.name, args.owner, args.description)
+        aimod = init_module(Path(args.dir), args.name, args.owner,
+                            args.description, with_contract=args.with_contract)
         print(f"Initialized: {aimod}/")
-        print(f"  Edit .dna/module.json, architecture.md, contract.md")
+        files = ".dna/module.md"
+        if args.with_contract:
+            files += ", contract.md"
+        print(f"  Edit {files}")
         print(f"  Then run: python cbim/knowledge/engine/cli.py modules reindex")
     except FileExistsError as e:
         print(str(e), file=sys.stderr)
@@ -168,6 +172,8 @@ def main() -> int:
     p_init.add_argument("--name", required=True)
     p_init.add_argument("--owner", required=True)
     p_init.add_argument("--description", default="")
+    p_init.add_argument("--with-contract", action="store_true",
+                        help="Generate contract.md (for protocol-boundary modules only)")
 
     p_reindex = modules_sub.add_parser("reindex")
     p_reindex.add_argument("--root", default=None)

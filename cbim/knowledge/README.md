@@ -8,7 +8,7 @@
 
 ```
                         Business Layer
-                    .dna/ knowledge three-pack
+                    .dna/ knowledge pack
                             │
               Low maturity   │   High maturity
               ─────────────┼─────────────
@@ -84,4 +84,4 @@ $CLI modules reindex
 | **Data source** | `.claude/agents/` | Each project's `.dna/` |
 | **Governed by** | HR | Architect |
 | **Lifecycle** | recruit → train → assess → split / archive | document → update → promote → deprecate |
-| **Hard rule** | soul contains only professional capability, no project-specific content | knowledge three-pack contains only module knowledge, no agent specs |
+| **Hard rule** | soul contains only professional capability, no project-specific content | knowledge pack contains only module knowledge, no agent specs |

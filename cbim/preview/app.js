@@ -294,7 +294,7 @@ function renderKnowledgeDetail(el, mod) {
     `<div class="meta-item"><strong>${k}</strong>: ${esc(v)}</div>`).join('');
   const sections = [];
   if (mod.architecture) sections.push(
-    `<div class="doc-section"><h3>architecture.md</h3>` +
+    `<div class="doc-section"><h3>module.md</h3>` +
     `<pre class="content-body">${esc(mod.architecture)}</pre></div>`);
   if (mod.contract) sections.push(
     `<div class="doc-section"><h3>contract.md</h3>` +

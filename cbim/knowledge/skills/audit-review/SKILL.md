@@ -11,7 +11,7 @@ When invoked, the caller should provide in the prompt:
 Execute:
 
 1. **Load review context**
-   - Module three-pack `<module-dir>/.dna/{module.json, architecture.md, contract.md}`
+   - Module knowledge pack `<module-dir>/.dna/module.md` (+ `contract.md` if present)
    - Architecture principles: the "Beliefs" and "Architecture Principles (C1-C6)" sections from `.claude/agents/architect.md`
    - Target agent's professional standards: the responsibilities/principles section from `.claude/agents/<agent-id>.md`
 2. Knowledge layer review
@@ -27,7 +27,7 @@ Execute:
 
 | Layer | Review Target | What to Find |
 |-------|--------------|-------------|
-| **Knowledge layer** | module.json + architecture.md + contract.md | Whether design decisions are sound; any blind spots |
+| **Knowledge layer** | module.md (+ contract.md if present) | Whether design decisions are sound; any blind spots |
 | **Code layer** | Physical workspace source code | Implementation quality + LLM hallucinations + logic flaws |
 
 Knowledge layer review comes first — if the blueprint is flawed, perfect code is still wrong.
@@ -80,14 +80,14 @@ Knowledge layer review comes first — if the blueprint is flawed, perfect code 
 - Fake implementations (empty methods / TODOs)
 - Ghost dependencies (using non-existent namespaces)
 - Extraneous artifacts (types not designed in the knowledge)
-- Signature drift (actual vs contract.md)
+- Signature drift (actual vs contract.md / module.md class diagram)
 - Dead code (unreferenced public types)
 
 ### LLM-Specific Hallucinations
 - Fabricated APIs: referencing methods or parameters that don't exist in the framework/library
 - Fabricated patterns: claiming to use a design pattern but implementation doesn't match
 - Fabricated constraints: claiming "must do it this way" with no real technical reason
-- Self-consistent hallucinations: architecture.md is internally consistent but misaligns with code reality
+- Self-consistent hallucinations: module.md is internally consistent but misaligns with code reality
 - Concept drift: the same term has different meanings across documents
 
 ---

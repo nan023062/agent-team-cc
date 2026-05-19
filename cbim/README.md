@@ -48,9 +48,8 @@ your-project/
 │
 ├── .dna/                          ← Project knowledge root module (created by architect)
 │   ├── index.md
-│   ├── module.json
-│   ├── architecture.md
-│   └── contract.md
+│   ├── module.md                  ← required (YAML frontmatter + architecture body)
+│   └── contract.md                ← optional (protocol-boundary modules only)
 │
 └── cbim/                          ← Framework (this directory)
     ├── install.py / install.bat   ← Installer

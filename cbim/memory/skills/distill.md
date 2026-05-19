@@ -143,7 +143,7 @@ Decision by: linan, date: 2026-05-18
 
 ## Governance Recommendations
 
-- [ ] Write to `.dna/architecture.md` (decision is stable, no further changes needed)
+- [ ] Write to `.dna/module.md` (decision is stable, no further changes needed)
 ```
 
 ### Business Medium Entry (business-oriented HOW + IS)
@@ -178,7 +178,7 @@ Overall description of this module's current state and key patterns (rewrite on 
 
 ## Governance Recommendations
 
-- [ ] IS changes written to `.dna/contract.md` (interface signature updated)
+- [ ] IS changes written to `.dna/contract.md` or `module.md` (interface signature updated)
 - [ ] HOW flow distilled to `.dna/workflows/` (appeared ≥`how_to_workflow_threshold` times, see `memory/config.json`)
 - [ ] Notify architect for review (interface changed)
 ```
@@ -257,9 +257,9 @@ Capability governance:
 - HR distill architect HOW to Skill (appeared × 3 times)
 
 Business governance:
-- Architect update combat contract.md (interface signature changed)
+- Architect update combat contract.md / module.md (interface signature changed)
 - Architect distill combat HOW to workflow (× 2 times)
-- Architect record memory-module WANT decision to architecture.md
+- Architect record memory-module WANT decision to module.md
 ```
 
 Whether to trigger HR assessment / architect governance after distillation is decided by the user.

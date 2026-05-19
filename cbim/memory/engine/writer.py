@@ -143,6 +143,8 @@ def _heuristic_signals(info: dict) -> list[str]:
         mod = m.group(1) if m else (info["modules"][0] if info["modules"] else "unknown")
         if norm.endswith("contract.md"):
             signals.append(f"IS: {mod}: contract.md 已修改")
+        elif norm.endswith("module.md"):
+            signals.append(f"WANT: {mod}: module.md 已修改（决策待补充）")
         elif norm.endswith("architecture.md"):
             signals.append(f"WANT: {mod}: architecture.md 已修改（决策待补充）")
 

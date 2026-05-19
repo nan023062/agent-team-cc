@@ -4,6 +4,10 @@ check.py — Deterministic architecture governance checks.
 Scriptable factors: #1 #2 #3 #4 #10 #14 #15 #17 #WF1 #WF2
 Remaining factors require LLM analysis (see SKILL.md).
 
+Supports dual format:
+  - New: .dna/module.md (YAML frontmatter + markdown body)
+  - Legacy: .dna/module.json + .dna/architecture.md (deprecated)
+
 Usage:
   python cbim/knowledge/skills/arch-governance/check.py [--root <path>] [--json]
 Exit code: 0 = all MUST pass, 1 = MUST issues found.
@@ -28,7 +32,8 @@ LEAF_CONTRACT_MAX_ITEMS      = _cfg["leaf_contract_max_items"]
 WORKFLOW_REQUIRED_SECTIONS   = _cfg["workflow_required_sections"]
 
 # Placeholder: freshly initialized files have only these headers with no body
-_PLACEHOLDER_ARCH_HEADERS = {"## Overview", "## Structure", "## Key Decisions"}
+_PLACEHOLDER_ARCH_HEADERS = {"## Overview", "## Structure", "## Key Decisions",
+                             "## Positioning", "## Class Diagram"}
 _PLACEHOLDER_CONTRACT_HEADERS = {"## Interfaces", "## Events"}
 
 # History/modification record markers
@@ -114,6 +119,26 @@ def _count_contract_items(content: str) -> int:
     return count
 
 
+def _read_arch_content(mod_dir: Path) -> str:
+    """Read architecture content: module.md body (new format) or architecture.md (legacy)."""
+    dna_dir = mod_dir / ".dna"
+    module_md = dna_dir / "module.md"
+    if module_md.exists():
+        raw = module_md.read_text(encoding="utf-8")
+        # Strip frontmatter to get just the body
+        if raw.startswith("---"):
+            end = raw.find("\n---", 3)
+            if end != -1:
+                return raw[end + 4:].strip()
+        return raw.strip()
+
+    # Legacy fallback
+    arch_file = dna_dir / "architecture.md"
+    if arch_file.exists():
+        return arch_file.read_text(encoding="utf-8")
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Graph helpers
 # ---------------------------------------------------------------------------
@@ -178,10 +203,9 @@ def run_checks(root: Path) -> dict[str, list[str]]:
         mod_dir = root / path if path != "." else root
         dna_dir = mod_dir / ".dna"
 
-        # Read files
-        arch_file = dna_dir / "architecture.md"
+        # Read architecture content (module.md body or legacy architecture.md)
+        arch = _read_arch_content(mod_dir)
         contract_file = dna_dir / "contract.md"
-        arch = arch_file.read_text(encoding="utf-8") if arch_file.exists() else ""
         contract = contract_file.read_text(encoding="utf-8") if contract_file.exists() else ""
 
         # #1 — kebab-case name
@@ -194,14 +218,19 @@ def run_checks(root: Path) -> dict[str, list[str]]:
                     f"[#1] {path}: directory name '{leaf_dir}' is not kebab-case"
                 )
 
-        # #2 — not placeholder
+        # #2 — not placeholder (contract.md is optional; only check if present)
         if arch and _is_placeholder(arch, _PLACEHOLDER_ARCH_HEADERS):
-            issues["MUST"].append(f"[#2] {path}: architecture.md has no real content (still a template)")
-        if contract and _is_placeholder(contract, _PLACEHOLDER_CONTRACT_HEADERS):
+            issues["MUST"].append(f"[#2] {path}: module.md body has no real content (still a template)")
+        elif not arch:
+            issues["MUST"].append(f"[#2] {path}: module.md body is empty")
+        if contract_file.exists() and contract and _is_placeholder(contract, _PLACEHOLDER_CONTRACT_HEADERS):
             issues["MUST"].append(f"[#2] {path}: contract.md has no real content (still a template)")
 
-        # #3 — no modification history
-        for content, fname in [(arch, "architecture.md"), (contract, "contract.md")]:
+        # #3 — no modification history (contract.md checked only if present)
+        check_pairs = [(arch, "module.md")]
+        if contract_file.exists():
+            check_pairs.append((contract, "contract.md"))
+        for content, fname in check_pairs:
             hits = _history_markers(content)
             if hits:
                 issues["MUST"].append(
@@ -220,14 +249,15 @@ def run_checks(root: Path) -> dict[str, list[str]]:
             # #17 — volume check
             arch_lines = len([l for l in arch.splitlines() if l.strip()]) if arch else 0
             wf_count = _count_workflows(mod_dir)
-            ci_count = _count_contract_items(contract) if contract else 0
             reasons = []
             if arch_lines > LEAF_ARCH_MAX_LINES:
-                reasons.append(f"architecture.md {arch_lines} non-empty lines (>{LEAF_ARCH_MAX_LINES})")
+                reasons.append(f"module.md body {arch_lines} non-empty lines (>{LEAF_ARCH_MAX_LINES})")
             if wf_count >= LEAF_WORKFLOW_MAX_COUNT:
                 reasons.append(f"{wf_count} workflows (>={LEAF_WORKFLOW_MAX_COUNT})")
-            if ci_count >= LEAF_CONTRACT_MAX_ITEMS:
-                reasons.append(f"contract has {ci_count} items (>={LEAF_CONTRACT_MAX_ITEMS})")
+            if contract_file.exists() and contract:
+                ci_count = _count_contract_items(contract)
+                if ci_count >= LEAF_CONTRACT_MAX_ITEMS:
+                    reasons.append(f"contract has {ci_count} items (>={LEAF_CONTRACT_MAX_ITEMS})")
             if reasons:
                 issues["SUGGEST"].append(
                     f"[#17] {path}: leaf volume too large ({'; '.join(reasons)}) — consider splitting"
@@ -314,7 +344,7 @@ def main() -> None:
             for item in suggest:
                 print(f"  {item}")
         if not must and not suggest:
-            print("  ✓ 所有脚本检查通过")
+            print("  All script checks passed")
 
     sys.exit(1 if must else 0)
 

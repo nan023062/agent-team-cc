@@ -22,8 +22,9 @@ Run basic format checks (factors 1–3) on only the changed modules:
 python cbim/knowledge/engine/cli.py modules list
 ```
 
-- [ ] `module.json` has `name` (kebab-case) and `owner` filled in
-- [ ] `architecture.md` and `contract.md` contain real content, not template placeholders
+- [ ] `module.md` frontmatter has `name` (kebab-case) and `owner` filled in
+- [ ] `module.md` body contains real content, not a template placeholder
+- [ ] `contract.md` (if present) contains real content, not a template placeholder
 - [ ] Root module `index.md` is in sync
 
 ---
@@ -54,8 +55,8 @@ Check factors 1–4 per module; fix non-compliant issues before proceeding.
 | # | Factor | Compliance Standard | Check Method |
 |---|--------|--------------------|----|
 | 1 | `name` format | kebab-case, no uppercase, no spaces | **Script** |
-| 2 | Document content | `architecture.md` and `contract.md` have real content, not template placeholders | **Script** |
-| 3 | No change history | `architecture.md` and `contract.md` contain only the current final state — no history, no changelog, no superseded designs | **Script** |
+| 2 | Document content | `module.md` body has real content, not a template placeholder; `contract.md` checked only if present | **Script** |
+| 3 | No change history | `module.md` body (and `contract.md` if present) contains only the current final state — no history, no changelog, no superseded designs | **Script** |
 | 4 | Index in sync | Root module `index.md` corresponds one-to-one with actual module directories | **Script** |
 
 ---
@@ -68,7 +69,7 @@ Start from the root module; review each parent before entering its children.
 
 | # | Factor | Check Method | Check By |
 |---|--------|-------------|----------|
-| 5 | Parent's view of children is accurate | The child module list in `architecture.md` matches actual subdirectories | LLM |
+| 5 | Parent's view of children is accurate | The child module list in `module.md` matches actual subdirectories | LLM |
 | 6 | Dependency direction description compliant | Parent-described dependencies conform to C3: unidirectional; stable side owns interface definitions | LLM |
 
 **When issues found**: Record module path + violated factor number; continue traversal and fix collectively at the end.
@@ -100,27 +101,27 @@ Start from leaf modules; review upward layer by layer.
 
 | # | Factor | Check Method | Check By |
 |---|--------|-------------|----------|
-| 11 | Clean leaf encapsulation | `contract.md` exposes only necessary interfaces; no internal implementation details leaked | LLM |
-| 12 | Parent writes only relationships and positioning | Parent `architecture.md` describes only child module relationships (dependency/composition/aggregation) and their positioning; no internal details of any child | LLM |
-| 13 | Parent contract correctly aggregates | Parent `contract.md` covers all child module external interfaces — no omissions, no over-exposure | LLM |
+| 11 | Clean leaf encapsulation | If `contract.md` exists, it exposes only necessary interfaces; no internal implementation details leaked | LLM |
+| 12 | Parent writes only relationships and positioning | Parent `module.md` body describes only child module relationships (dependency/composition/aggregation) and their positioning; no internal details of any child | LLM |
+| 13 | Parent contract correctly aggregates (if present) | If parent has `contract.md`, it covers all child module external interfaces — no omissions, no over-exposure | LLM |
 | 14 | No circular dependencies in the full tree | Topological sort of all modules' `dependencies`; report complete cycle paths if found | **Script** |
 | 15 | Index fully inclusive | Root module `index.md` lists all leaf module paths | **Script** |
 | 18 | Knowledge–workspace consistency | Leaf modules only: compare `.dna/` docs with actual workspace content; detect both drift directions (see below) | LLM |
 
 **#18 Consistency Check Method**:
 
-Read the leaf module's `architecture.md` and `contract.md`, then read key workspace files (entry files, main interface files, core directory structure). Compare item by item:
+Read the leaf module's `module.md` body (and `contract.md` if present), then read key workspace files (entry files, main interface files, core directory structure). Compare item by item:
 
 | Check Item | Reference Source | Comparison Target |
 |-----------|-----------------|------------------|
-| Interface signatures / API names | `contract.md` | Actual exported functions / classes / interfaces in workspace |
-| Internal structure description | `architecture.md` | Actual file structure and core components in workspace |
+| Interface signatures / API names | `contract.md` (if present) | Actual exported functions / classes / interfaces in workspace |
+| Internal structure description | `module.md` body | Actual file structure and core components in workspace |
 | Workflow steps | `.dna/workflows/*/workflow.md` | Actual execution path in workspace |
 
 **Two drift directions**:
 
-- **Workspace ahead of knowledge** (high risk) — Workspace has changed; `.dna/` still describes the old state. Usually caused by "skip knowledge, edit code directly." Must update knowledge immediately.
-- **Knowledge ahead of workspace** (medium risk) — `.dna/` describes content not yet implemented. If intentional blueprint-first, annotate accordingly; otherwise treat as missing implementation and escalate to assistant.
+- **Workspace ahead of knowledge** (high risk) — Workspace has changed; `module.md` still describes the old state. Usually caused by "skip knowledge, edit code directly." Must update knowledge immediately.
+- **Knowledge ahead of workspace** (medium risk) — `module.md` describes content not yet implemented. If intentional blueprint-first, annotate accordingly; otherwise treat as missing implementation and escalate to assistant.
 
 When consistency issues are found, record: drift direction + specific inconsistencies + recommended fix.
 
@@ -133,7 +134,7 @@ During the three traversals above, check every module visited:
 | # | Factor | Check Method | Check By |
 |---|--------|-------------|----------|
 | 16 | Single responsibility (relative) | Module responsibility can be stated in one sentence at current granularity; if description requires "and" / "also" connectors, responsibility is too broad | LLM |
-| 17 | Leaf size check | Leaf modules only: if `architecture.md` line count, workflow count, or `contract.md` interface count exceeds thresholds, suggest splitting (thresholds in `config.json`) | **Script** |
+| 17 | Leaf size check | Leaf modules only: if `module.md` body line count, workflow count, or `contract.md` interface count (when present) exceeds thresholds, suggest splitting (thresholds in `config.json`) | **Script** |
 | WF1 | Workflow not placeholder | Each `workflow.md` has real content, not a template shell (threshold in `config.json`) | **Script** |
 | WF2 | Workflow required sections | Each `workflow.md` contains required sections (`## Trigger Conditions`, `## Steps`, per `config.json`) | **Script** |
 
