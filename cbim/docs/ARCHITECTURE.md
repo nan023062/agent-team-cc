@@ -252,6 +252,110 @@ Both architect and HR governance simulate senior leader review, across two dimen
 
 ---
 
+## Architectural Sustainability
+
+CBIM solves more than just context efficiency — it solves a deeper problem: **even with pure vibe coding, the output is layered, bounded code with unidirectional dependencies**.
+
+### The Architectural Risk in Vibe Coding
+
+"Near-vibe coding" is the most adversarial condition for AI coding tools: natural language requirement descriptions with no file paths, class names, or function names provided. Under these conditions:
+
+**Base mode** (single agent) typical output:
+- Agent self-explores the codebase, modifies files found along the way
+- New code placed randomly in the nearest relevant file
+- No layer awareness, fuzzy module boundaries, arbitrary dependency directions
+- As requirements accumulate, the codebase degrades into an unmaintainable flat network
+
+**CBIM mode** under the same conditions:
+- Every implementation task must first pass through the Architect
+- Architect confirms module placement, dependency direction, interface contracts, updates or creates `.dna/`
+- Programmer implements with explicit module context
+- Even if the user never mentions "architecture", "layers", or "module boundaries" — these constraints are still enforced
+
+### Knowledge-First Principle (Architect Gate)
+
+```
+Every implementation task:
+  User requirement
+    → Assistant → Architect
+                      ├── Which module does this belong to?
+                      ├── New module needed? Which existing modules does it depend on?
+                      ├── What is the interface contract?
+                      └── Confirm/update .dna/ documentation
+    → Architect returns module context (path + blueprint)
+    → Assistant → Programmer (with explicit path and blueprint)
+                      └── Implements in the correct module location
+```
+
+The Architect is not an optional review step — it is the **mandatory gateway** for every implementation task. Every requirement development cycle repeats this loop — architectural awareness doesn't depend on the user's technical knowledge or the programmer's experience. It is guaranteed by the process.
+
+### Output Comparison Under Vibe Coding Conditions
+
+| | Base | CBIM |
+|--|--|--|
+| Code placement | Random exploration, nearest-file modification | Module-assigned, implemented in confirmed path |
+| Layer structure | Flat, no layer control | Layered, new code assigned to a definite module node |
+| Module boundaries | Fuzzy, spreading with each requirement | Clear, architect confirms boundary before implementation |
+| Dependency direction | Arbitrary, bidirectional coupling common | Unidirectional, constrained by topology tree structure |
+| Interface contracts | Implicit, implementation is the contract | Explicit, `contract.md` exists before implementation |
+
+### The Larger the Project, the Stronger the Advantage
+
+The smaller the project, the less visible Base mode's flat code problem is (fewer files, simpler relationships). As the project grows:
+
+- **Base**: Flat network keeps expanding, module boundaries become increasingly blurry, any change may cause unexpected side effects
+- **CBIM**: Topology tree constraints always present, new modules slot into the appropriate parent node, dependency direction always root-to-leaf
+
+**Architectural sustainability is not dependent on manual review — it is embedded in the execution process of every task.**
+
+---
+
+## Structured Auditability
+
+CBIM's third core value serves **human reviewers**: after an agent team has been running autonomously for a while, humans don't need to read code — just `.dna/` and `agents/` to get a clear picture of the entire project state and virtual team progress.
+
+### Knowledge as a First-Class Citizen
+
+CBIM treats knowledge as a first-class citizen of the architecture, not an appendage to code. `.dna/` is not after-the-fact documentation — it is a **living knowledge base that the Architect confirms before each task and updates after each change**. This means human reviewers encounter structured, dependable knowledge — not fragmented commit messages and scattered comments.
+
+### Two Entry Points, Full Project Picture at a Glance
+
+```
+.dna/ (tree structure)   → Business picture
+  ├── What modules exist and their responsibility boundaries
+  ├── Inter-module interface contracts (contract.md)
+  ├── Architecture layers and dependency directions (architecture.md)
+  └── Crystallized deterministic business flows (workflows/)
+
+.claude/agents/          → Team picture
+  ├── What agents exist and their capability boundaries
+  ├── Which skills each agent has
+  └── Skill evolution state (active / validating / internalized into soul)
+
+Combined → project progress + virtual team state, readable at a glance
+```
+
+### Comparison with Base Mode
+
+| Review Dimension | Base | CBIM |
+|-----------------|------|------|
+| Project state | Read git log → read diff → guess intent | Read `.dna/` tree, module boundaries and decisions explicit |
+| Team state | No virtual team concept | Read `agents/`, capability boundaries and skill distribution clear |
+| Knowledge source | Code comments + commit messages (after-the-fact, fragmented) | Architecture-driven write (confirmed before task, structured) |
+| Impact assessment | Must deeply read code to assess impact scope | Read module contracts and dependency tree, quickly locate impact boundary |
+
+### Maintainability Comes from Structure
+
+Because knowledge is actively maintained by the Architect and synchronized with code implementation (knowledge-first), human reviewers encounter a knowledge base with:
+
+- **Completeness**: Every module has the three-pack (module.json + architecture + contract)
+- **Currency**: Knowledge is updated before implementation, not retrofitted after
+- **Hierarchy**: Topology tree structure, granularity naturally matches task scope
+
+This makes CBIM projects far easier to **hand off, collaborate on, and maintain long-term** than Base mode — even newly onboarded human developers can quickly build a mental model of the project through the knowledge tree, rather than reading code from scratch.
+
+---
+
 ## Memory System
 
 **The assistant is the sole memory holder.** Subagents focus on execution; they don't operate memory directly.
