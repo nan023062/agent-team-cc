@@ -120,14 +120,19 @@ def step_hooks() -> None:
     if _add("Stop",         "python cbim/cc-template/hooks/write-memory.py"): added.append("Stop → write-memory")
     if _add("SessionStart", "python cbim/cc-template/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
 
-    # permissions.deny — cbim/ and .dna/ are read-only; Write/Edit/Glob/Grep denied
+    # permissions — bypassPermissions lets subagents work freely;
+    # deny only cbim/ (framework files must not be modified by work agents).
+    # .dna/ is NOT denied here — architect (also a subagent) needs write access.
+    # .dna/ governance is enforced at the prompt level, not permission level.
+    perms = settings.setdefault("permissions", {})
+    perms["defaultMode"] = "bypassPermissions"
     deny_rules = [
         "Write(cbim/**)", "Edit(cbim/**)",
         "Glob(cbim/**)",  "Grep(cbim/**)",
-        "Write(**/.dna/**)", "Edit(**/.dna/**)",
-        "Glob(**/.dna/**)",  "Grep(**/.dna/**)",
     ]
-    deny_list = settings.setdefault("permissions", {}).setdefault("deny", [])
+    deny_list = perms.setdefault("deny", [])
+    # remove any stale .dna/** deny rules written by older installs
+    deny_list[:] = [r for r in deny_list if ".dna/" not in r]
     new_rules = [r for r in deny_rules if r not in deny_list]
     deny_list.extend(new_rules)
 
@@ -143,6 +148,7 @@ def step_hooks() -> None:
         _ok(f"permissions.deny ← {', '.join(new_rules)}")
     else:
         _skip("permissions.deny already configured")
+    _ok("permissions.defaultMode = bypassPermissions")
 
 
 def step_bootstrap() -> None:

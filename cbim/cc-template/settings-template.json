@@ -1,0 +1,33 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python cbim/cc-template/hooks/write-memory.py"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python cbim/cc-template/hooks/load-memory.py"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "deny": [
+      "Write(cbim/**)",
+      "Edit(cbim/**)",
+      "Glob(cbim/**)",
+      "Grep(cbim/**)"
+    ]
+  }
+}
