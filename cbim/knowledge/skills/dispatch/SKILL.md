@@ -26,6 +26,11 @@ Understand intent using snapshot context (module tree + agent list)
   ↓
 Classify (business / capability / execution / review)
   ↓
+Refresh knowledge snapshot — run before composing task description:
+  Bash: python -m knowledge.engine.snapshot --root <project-root>
+  cwd: cbim/  (or cbim root where knowledge package lives)
+  Use output to locate current module paths; do not rely solely on session-start snapshot
+  ↓
 Select agent → compose task description (include relevant module paths, constraints, expected output)
   ↓
 Agent(subagent_type=<id>, prompt=<task>)
@@ -51,7 +56,7 @@ Consolidate results, feed back to user
 ## Key Principles
 
 1. **No direct execution** — The assistant is the dispatcher, not the implementer. Business changes go to the architect, capability changes go to HR, code goes to the work agent.
-2. **Context first** — Use known context from the snapshot and memory to populate the task description, reducing the agent's search overhead.
+2. **Fresh snapshot before dispatch** — Always re-run the knowledge snapshot at decomposition time; the session-start snapshot is stale if the architect has made changes mid-session. Use the live module tree to populate module paths in the task description, minimizing the agent's source-file search overhead.
 3. **One goal per call** — Each `Agent()` call has exactly one clear objective; compound tasks are split into multiple sequential or parallel calls.
 4. **Consolidate results** — After the agent returns, the assistant extracts key conclusions to feed back to the user; do not paste raw output directly.
 5. **No matching agent** — If the required work agent does not exist, recruit one through HR first, then dispatch the task.
