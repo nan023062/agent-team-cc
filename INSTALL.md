@@ -32,20 +32,40 @@ git --version
 
 ## Step 2 — Download CBIM Framework
 
-Clone the repository into a temporary directory, copy only the `cbim/` subdirectory into the project root, then remove the temporary directory. This works for both first-time installs and upgrades (existing `cbim/` will be overwritten with the latest framework files — user data is preserved by the installer in Step 3).
+Clone the repository into a temporary directory, then perform a clean replacement of the `cbim/` directory in the project root. On both first-time installs and upgrades, the old `cbim/` is fully removed before the new one is copied in, so no stale files from previous versions can linger. The one exception is `cbim/memory/store/`, which holds user memory data and is backed up before replacement and restored afterward.
 
 Linux / macOS:
 ```bash
 git clone https://github.com/nan023062/cbim.git _cbim_tmp
+# 备份记忆数据
+[ -d cbim/memory/store ] && cp -r cbim/memory/store _cbim_store_bak
+# 完整替换
+rm -rf cbim
 cp -r _cbim_tmp/cbim .
 rm -rf _cbim_tmp
+# 还原记忆数据
+if [ -d _cbim_store_bak ]; then
+  rm -rf cbim/memory/store
+  mv _cbim_store_bak cbim/memory/store
+fi
 ```
 
 Windows (PowerShell):
 ```powershell
 git clone https://github.com/nan023062/cbim.git _cbim_tmp
+# 备份记忆数据
+if (Test-Path cbim\memory\store) {
+    Copy-Item -Recurse cbim\memory\store _cbim_store_bak
+}
+# 完整替换
+Remove-Item -Recurse -Force cbim -ErrorAction SilentlyContinue
 Copy-Item -Recurse _cbim_tmp\cbim .\cbim
 Remove-Item -Recurse -Force _cbim_tmp
+# 还原记忆数据
+if (Test-Path _cbim_store_bak) {
+    Remove-Item -Recurse -Force cbim\memory\store -ErrorAction SilentlyContinue
+    Move-Item _cbim_store_bak cbim\memory\store
+}
 ```
 
 ## Step 3 — Run the Installer
