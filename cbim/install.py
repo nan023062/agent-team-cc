@@ -75,14 +75,21 @@ def step_agents() -> None:
         return
     for item in sorted(src.iterdir()):
         target = dst / item.name
-        if target.exists():
-            _skip(item.name)
-        else:
-            if item.is_dir():
+        if item.is_dir():
+            if target.exists():
+                shutil.rmtree(str(target))
                 shutil.copytree(str(item), str(target))
+                print(f"    * {item.name}  (updated)")
+            else:
+                shutil.copytree(str(item), str(target))
+                _ok(item.name)
+        else:
+            if target.exists():
+                shutil.copy2(str(item), str(target))
+                print(f"    * {item.name}  (updated)")
             else:
                 shutil.copy2(str(item), str(target))
-            _ok(item.name)
+                _ok(item.name)
 
 
 def step_hooks() -> None:

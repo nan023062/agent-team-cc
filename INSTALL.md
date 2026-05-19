@@ -32,18 +32,21 @@ git --version
 
 ## Step 2 — Download CBIM Framework
 
-Clone the CBIM repository into the `cbim/` directory of the current project:
+Clone the repository into a temporary directory, copy only the `cbim/` subdirectory into the project root, then remove the temporary directory. This works for both first-time installs and upgrades (existing `cbim/` will be overwritten with the latest framework files — user data is preserved by the installer in Step 3).
 
+Linux / macOS:
 ```bash
-git clone https://github.com/nan023062/cbim.git cbim
+git clone https://github.com/nan023062/cbim.git _cbim_tmp
+cp -r _cbim_tmp/cbim .
+rm -rf _cbim_tmp
 ```
 
 Windows (PowerShell):
 ```powershell
-git clone https://github.com/nan023062/cbim.git cbim
+git clone https://github.com/nan023062/cbim.git _cbim_tmp
+Copy-Item -Recurse _cbim_tmp\cbim .\cbim
+Remove-Item -Recurse -Force _cbim_tmp
 ```
-
-If `cbim/` already exists, stop and ask the user whether to overwrite (you may delete and re-clone).
 
 ## Step 3 — Run the Installer
 
