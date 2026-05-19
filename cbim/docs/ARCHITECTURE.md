@@ -2,6 +2,32 @@
 
 # CBIM Architecture
 
+## Why CBIM
+
+For an agent to genuinely replace human labor and improve efficiency, two conditions must be met simultaneously:
+
+```
+Real efficiency gain = Can run autonomously × Runs healthily
+```
+
+Neither condition alone is sufficient:
+
+- **Can run autonomously, but runs unhealthily**: Output is flat and chaotic — no layers, no boundaries, review costs more than writing the code manually, maintainability collapses at scale. Still requires heavy human intervention.
+- **Runs healthily, but requires human driving**: Every step needs a human to prompt the conversation forward — no order-of-magnitude efficiency gain, cannot genuinely replace human labor.
+
+The reason AI coding agents haven't yet replaced human labor at scale is not that models aren't powerful enough — it's that **no system architecture has existed that simultaneously satisfies "can run autonomously" and "runs healthily"**.
+
+CBIM is designed specifically to solve both:
+
+| Goal | CBIM's Solution |
+|------|----------------|
+| **Can run autonomously** | SessionStart/Stop hooks for zero-cost cross-session context recovery; coordinator dispatch with no human routing needed; knowledge snapshot gives agents full project picture at startup; v2 task queue for autonomous consumption of requirement lists, bug reports, and test runs |
+| **Runs healthily** | Architect Gate ensures layered, bounded output; `.dna/` knowledge base makes human review extremely low-cost; two-layer governance continuously ensures architecture quality; context minimization reduces hallucinations and rework |
+
+Both conditions met simultaneously — **agents deliver autonomously, humans handle only final review**.
+
+---
+
 ## What Is It
 
 **CBIM** = **CBI** (Capability-Business Independence) + **M** (Memory)
