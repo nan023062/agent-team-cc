@@ -10,7 +10,7 @@ CBIM vs Base（单 Agent）开发效率对比测试。
 |------|------|
 | Token 消耗 | Input / Cache read / Cache write / Output |
 | 开发速度 | 墙钟时间（用户实际等待时间） |
-| 代码正确率 | 测试通过率（/33） |
+| 代码正确率 | 测试通过率（v3: /72） |
 | 导航能力 | 模型自主定位相关文件的效率 |
 
 ---
@@ -28,33 +28,45 @@ cbim/benchmark/agent-team/        ← 本目录（在 cbim 项目中）
 ├── prompts/
 │   ├── task-a-prompts-v2.md     ← Task A 提示词 v2（纯自然语言）
 │   ├── task-b-prompts-v2.md     ← Task B 提示词 v2（纯自然语言）
-│   └── task-c-prompts-v2.md     ← Task C 提示词 v2（纯自然语言）
+│   ├── task-c-prompts-v2.md     ← Task C 提示词 v2（纯自然语言）
+│   ├── task-d-prompts-v3.md     ← Task D 提示词 v3（纯自然语言）
+│   ├── task-e-prompts-v3.md     ← Task E 提示词 v3（纯自然语言）
+│   └── task-f-prompts-v3.md     ← Task F 提示词 v3（纯自然语言）
 ├── tests/                        ← 测试用例源文件（需部署到 agent-team 运行）
 │   ├── task-a.bench.test.ts
 │   ├── task-b.bench.test.ts
-│   └── task-c.bench.test.ts
+│   ├── task-c.bench.test.ts
+│   ├── task-d.bench.test.ts
+│   ├── task-e.bench.test.ts
+│   └── task-f.bench.test.ts
 └── results/                      ← 历史测试数据（长期积累）
     └── report-001.md
 ```
 
 ---
 
-## 三个测试任务
+## 六个测试任务（v3）
 
 | 任务 | 功能描述 | 测试文件 | 用例数 |
 |------|---------|---------|-------|
 | **Task A** | 调度器试运行模式 `Scheduler.dryRun()` | `task-a.bench.test.ts` | 6 |
 | **Task B** | 权限系统新增 temp zone（/tmp/） | `task-b.bench.test.ts` | 16 |
 | **Task C** | 任务监控器 `TaskMonitor` 类 | `task-c.bench.test.ts` | 11 |
+| **Task D** | EventBus 增强（优先级 / 历史记录 / 通配符） | `task-d.bench.test.ts` | 15 |
+| **Task E** | Scheduler 调度策略（独立超时 / 指数退避 / 优先级） | `task-e.bench.test.ts` | 12 |
+| **Task F** | Agent 资源管控（并发限制 / 速率限制 / 使用统计） | `task-f.bench.test.ts` | 12 |
 
-**基线**：14 fail / 8 pass（还原后的状态）
-**目标**：33/33 pass
+**v3 基线**：34 fail / 15 pass（A+B+C=14/8, D=12fail/3pass, E=8fail/4pass, F=file error 12 untested）
+**目标**：72/72 pass
 
 ### 关键陷阱（用于验证理解深度）
 
 - **Task A**：`DEFAULT_SCHEDULER_CONFIG.maxRetries = 1`（scheduler.ts 第 43 行）→ `withRetry()` 循环 `attempt = 0; attempt <= maxRetries`，每任务执行 **2 次**；3 个任务 totalAttempts = **6**（不是 3）
 - **Task B**：`DEFAULT_PERMISSION_MATRIX` 在 **两个文件** 中都有定义（types/permission.ts 和 agent/permission-guard.ts），必须同时修改；`/tmp-backup/config.json` → `project`（classifyPath 必须用 `startsWith('/tmp/')` 含斜杠，而非 `startsWith('/tmp')`）；temp zone 无 execute 权限，即使 secretary/worker/programmer
 - **Task C**：`EventBus.on()` 返回 `() => void` 取消订阅函数（event-bus.ts 第 72 行），`start()` 必须保存、`stop()` 必须调用它；`StageCompletedEvent` 只有 `stageIndex`（types/events.ts 第 126 行），无任务结果；`successRate` 分母为 0 时返回 0（不是 NaN）
+- **Task D**：优先级排序在每次 emit 时生效，高优先级先被调用；历史缓冲区上限 50 条；通配符只匹配"命名空间前缀"（`task:*` 不匹配 `stage:completed`）
+- **Task E**：`task.timeoutMs` 只影响单个任务；`calcRetryDelay(0)` 返回 0（首次执行无延迟）；优先级排序只在同 stage 内生效，stage 边界仍然严格串行
+- **Task F**：`call()` 排队不丢弃，超限任务最终都会执行；`peakConcurrency` 记录历史峰值；`getStats()` 不传参返回 `Record<string, AgentUsageStats>`，传参返回单个 `AgentUsageStats`
 
 ---
 
@@ -83,7 +95,7 @@ bash benchmark/agent-team/reset-bench.sh /path/to/target-project
 # 或者
 BENCH_TARGET_DIR=/path/to/target-project bash benchmark/agent-team/reset-bench.sh
 
-# 确认输出：14 failed | 8 passed
+# 确认输出：34 failed | 15 passed（v3 基线）
 ```
 
 ### Base 测试
@@ -92,7 +104,7 @@ BENCH_TARGET_DIR=/path/to/target-project bash benchmark/agent-team/reset-bench.s
 # 2. 新开 Claude Code session（不要用 claude clear，直接关掉重开）
 #    在 agent-team 项目根目录打开，不要有 CBIM hooks
 
-# 3. 按顺序粘贴提示词（三个任务连续在同一 session）
+# 3. 按顺序粘贴提示词（六个任务连续在同一 session）
 #    Task A: benchmark/prompts/task-a-prompts-v2.md（Turn 1 → 2 → 3）
 #    Task B: benchmark/prompts/task-b-prompts-v2.md（Turn 1 → 2 → 3 → 4）
 #    Task C: benchmark/prompts/task-c-prompts-v2.md（Turn 1 → 2 → 3）
@@ -133,10 +145,13 @@ npx vitest run \
 ```
 轮次：___   模式：Base / CBIM   日期：___
 
-测试通过率：___ / 33
+测试通过率：___ / 72
   Task A: ___ / 6
   Task B: ___ / 16
   Task C: ___ / 11
+  Task D: ___ / 15
+  Task E: ___ / 12
+  Task F: ___ / 12
 
 Token（Sonnet）：
   Input:        ___

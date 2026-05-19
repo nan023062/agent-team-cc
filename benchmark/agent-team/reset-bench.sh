@@ -8,9 +8,9 @@
 # 执行内容：
 #   1. 可选地将当前测试结果保存到 cbim/benchmark/agent-team/results/
 #   2. git 恢复 agent-team 被测文件到原始状态
-#   3. 删除 TaskMonitor（Task C 的产出文件）
+#   3. 删除产出文件（TaskMonitor/AgentResourceManager）
 #   4. 部署最新测试文件（benchmark/tests/ → target/__tests__/）
-#   5. 验证基线（14 fail | 8 pass）
+#   5. 验证基线（v3: 53 fail | 8 pass）
 
 set -euo pipefail
 
@@ -68,6 +68,9 @@ if [[ "$SAVE_RUN" == true ]]; then
     packages/core/src/__tests__/task-a.bench.test.ts \
     packages/core/src/__tests__/task-b.bench.test.ts \
     packages/core/src/__tests__/task-c.bench.test.ts \
+    packages/core/src/__tests__/task-d.bench.test.ts \
+    packages/core/src/__tests__/task-e.bench.test.ts \
+    packages/core/src/__tests__/task-f.bench.test.ts \
     2>&1 | tee "$LOG_FILE" || true
   echo ""
   echo "Results saved to: $LOG_FILE"
@@ -87,11 +90,26 @@ git checkout HEAD -- packages/core/src/types/permission.ts
 echo "  ✓ permission-guard.ts restored"
 echo "  ✓ types/permission.ts restored"
 
+git checkout HEAD -- packages/core/src/orchestration/event-bus.ts
+echo "  ✓ event-bus.ts restored"
+
+if git ls-files --error-unmatch packages/core/src/types/task.ts &>/dev/null 2>&1; then
+  git checkout HEAD -- packages/core/src/types/task.ts
+  echo "  ✓ types/task.ts restored"
+fi
+
 if [[ -f "packages/core/src/orchestration/task-monitor.ts" ]]; then
   rm "packages/core/src/orchestration/task-monitor.ts"
   echo "  ✓ task-monitor.ts deleted"
 else
   echo "  - task-monitor.ts not found (already clean)"
+fi
+
+if [[ -f "packages/core/src/agent/agent-resource-manager.ts" ]]; then
+  rm "packages/core/src/agent/agent-resource-manager.ts"
+  echo "  ✓ agent-resource-manager.ts deleted"
+else
+  echo "  - agent-resource-manager.ts not found (already clean)"
 fi
 
 # ─── 部署测试文件 ─────────────────────────────────────────────────────────────────
@@ -101,14 +119,10 @@ TESTS_DST="$TARGET_DIR/packages/core/src/__tests__"
 echo ""
 echo "=== Deploying benchmark test files ==="
 
-cp "$TESTS_SRC/task-a.bench.test.ts" "$TESTS_DST/task-a.bench.test.ts"
-echo "  ✓ task-a.bench.test.ts deployed"
-
-cp "$TESTS_SRC/task-b.bench.test.ts" "$TESTS_DST/task-b.bench.test.ts"
-echo "  ✓ task-b.bench.test.ts deployed"
-
-cp "$TESTS_SRC/task-c.bench.test.ts" "$TESTS_DST/task-c.bench.test.ts"
-echo "  ✓ task-c.bench.test.ts deployed"
+for task in a b c d e f; do
+  cp "$TESTS_SRC/task-${task}.bench.test.ts" "$TESTS_DST/task-${task}.bench.test.ts"
+  echo "  ✓ task-${task}.bench.test.ts deployed"
+done
 
 # ─── 验证基线 ───────────────────────────────────────────────────────────────────
 echo ""
@@ -118,6 +132,9 @@ RESULT=$(npx vitest run \
   packages/core/src/__tests__/task-a.bench.test.ts \
   packages/core/src/__tests__/task-b.bench.test.ts \
   packages/core/src/__tests__/task-c.bench.test.ts \
+  packages/core/src/__tests__/task-d.bench.test.ts \
+  packages/core/src/__tests__/task-e.bench.test.ts \
+  packages/core/src/__tests__/task-f.bench.test.ts \
   2>&1 || true)
 
 echo "$RESULT" | tail -5
@@ -126,10 +143,12 @@ FAILED=$(echo "$RESULT" | grep -E '^\s+Tests\s+' | grep -o '[0-9]* failed' | gre
 PASSED=$(echo "$RESULT" | grep -E '^\s+Tests\s+' | grep -o '[0-9]* passed' | grep -o '[0-9]*' || echo "?")
 
 echo ""
-if [[ "$FAILED" == "14" && "$PASSED" == "8" ]]; then
+# v3 baseline: A+B+C=14fail/8pass, D=12fail/3pass, E=8fail/4pass, F=0(file error)
+# Total: 34 fail | 15 pass (49 counted tests; F's 12 tests don't count until class exists)
+if [[ "$FAILED" == "34" && "$PASSED" == "15" ]]; then
   echo "✅ Baseline verified: ${FAILED} failed | ${PASSED} passed"
 else
-  echo "⚠️  Baseline mismatch: ${FAILED} failed | ${PASSED} passed (expected 14 failed | 8 passed)"
+  echo "⚠️  Baseline mismatch: ${FAILED} failed | ${PASSED} passed (expected 34 failed | 15 passed)"
   echo "   Run: cd $TARGET_DIR && git status"
 fi
 
