@@ -110,7 +110,100 @@ v2 在用户工程内的文件结构：
   - 父模块：Positioning + 子模块关系图 + Key Decisions
 - 可选扩展：`contract.md`、`workflows/`、任意自定义文件
 
-## 七、v1 → v2 能力映射
+## 七、知识访问的封闭性原则
+
+**v2 强制所有对 `.cbim/` 和 `**/.dna/` 的访问通过 `cbim_*` 语义 tool，禁止 agent 使用通用文件 tool 直接触碰。** 这是 v2 与 v1 最大的架构差异——v1 靠提示词约束约定，v2 靠权限守卫强制约定。
+
+### 7.1 规则
+
+| 区域 | 访问方式 |
+|--|--|
+| `.cbim/**` | 仅 `cbim_*` tool |
+| `**/.dna/**` | 仅 `cbim_*` tool |
+| 其他（源码、测试、文档、配置） | 通用 Read/Write/Edit/Glob/Grep 正常使用 |
+
+### 7.2 实现：SDK `canUseTool` 路径守卫
+
+```typescript
+canUseTool: async (toolName, input) => {
+  if (['Read', 'Write', 'Edit', 'Glob', 'Grep'].includes(toolName)) {
+    const path = extractPath(input)
+    if (isCbimPath(path)) {
+      return {
+        behavior: 'deny',
+        message: `Direct ${toolName} on CBIM-managed paths is forbidden. ` +
+                 `Use cbim_${suggestSemanticTool(path)} instead.`
+      }
+    }
+  }
+  return { behavior: 'allow' }
+}
+
+function isCbimPath(p: string): boolean {
+  return p.startsWith('.cbim/') || /(\/|^)\.dna\//.test(p)
+}
+```
+
+### 7.3 为什么必须硬禁，不能"建议"
+
+| 软约束失败模式 | 硬约束效果 |
+|--|--|
+| Agent 直接 Write 改 module.md，跳过 schema 校验 | tool 是唯一通路，frontmatter 必合规 |
+| 改子模块没更新父模块 architecture | tool 副作用强制级联 |
+| 用 Edit 给 module.md 加段乱七八糟内容 | tool 用 section-level update，结构稳定 |
+| 删 agent 直接 rm，丢失审计 | `cbim_agent_archive` 强制留档 |
+| 直接读 memory 文件绕过 query 索引 | `cbim_memory_query` 是唯一入口，支持后端切换 |
+
+### 7.4 Custom Tools 域划分
+
+五大实体域 + 跨实体 tool：
+
+| 域 | Tools（CRUD 按需裁剪） |
+|--|--|
+| **agent** | `cbim_agent_list` / `_get` / `_create` / `_update` / `_archive` |
+| **skill** | `cbim_skill_list` / `_get` / `_create` / `_update` / `_delete` |
+| **module** | `cbim_module_list` / `_get` / `_init` / `_update` / `_deprecate` |
+| **workflow** | `cbim_workflow_list` / `_get` / `_create` / `_update` / `_delete` |
+| **memory** | `cbim_memory_query` / `_write_short` / `_distill_to_medium` / `_promote_to_distilled` |
+| **跨实体** | `cbim_snapshot_build` / `cbim_dispatch` / `cbim_audit_log` |
+
+详细 schema 与行为契约见 `docs/v2-tools-spec.md`（Phase 0 完成时落定）。
+
+### 7.5 Tool 设计准则
+
+1. **单一职责**：每个动作一个 tool，禁止"瑞士军刀"式 `action: 'create' | 'update'`
+2. **JSON Schema 强约束**：输入必须经 schema 校验，约定不再靠提示词
+3. **结构化输出**：返回解析后的对象，不返 raw markdown
+4. **副作用集中**：tool 内部完成级联（如 init 子模块时自动更新父模块）
+5. **权限分级**：read-only / mutating / privileged 三级，绑定 agent role
+
+### 7.6 实现位置
+
+```
+@cbim/engine/
+├── knowledge/        ← 核心 CRUD 函数（纯 TS，无 SDK 依赖）
+├── memory/
+└── tools/            ← ★ SDK Tool 适配层（薄壳）
+    ├── agent-tools.ts
+    ├── module-tools.ts
+    ├── memory-tools.ts
+    └── index.ts      ← 按 role 过滤导出 toolSet
+```
+
+**`tools/` 是薄壳**——只做 Schema 定义 + 调 engine 函数 + 格式化输出。engine 主体逻辑与 SDK 解耦，CLI 复用同一套函数。
+
+### 7.7 例外
+
+- **`@cbim/cli migrate`**：迁移工具直接读写 `.cbim/`，不是 agent，不走 SDK，不受守卫约束
+- **v2 extension 自身**：扩展进程通过 engine API 直接读写，LLM 始终走 tool
+
+### 7.8 反推到 Tool Set 完备性
+
+既然硬禁通用 tool 触 CBIM 区域，`cbim_*` tool 必须**功能完备**到能覆盖所有合法 CRUD 场景，否则 agent 卡死或被迫钻空子。Tool Set 完备性是 Phase 0 的硬验收指标。
+
+---
+
+## 八、v1 → v2 能力映射
 
 | v1 机制 | v2 实现 |
 |--|--|
@@ -123,7 +216,7 @@ v2 在用户工程内的文件结构：
 | Python `memory/engine` | `packages/engine/memory/` TS 移植 |
 | `.dna/index.md` 手维护 | engine 自动扫描生成，不入库 |
 
-## 八、v1 → v2 迁移路径
+## 九、v1 → v2 迁移路径
 
 绿地重写，但提供迁移 CLI 帮助现有 v1 项目升级：
 
@@ -149,7 +242,7 @@ npx @cbim/cli migrate <project-path>
 2. 在项目内运行：`npx @cbim/cli migrate .`
 3. 在 VS Code 内打开侧边栏 CBIM 视图，验证模块树、agents、memory 加载正常
 
-## 九、Phase 路线
+## 十、Phase 路线
 
 | Phase | 周期 | 交付 | 关键依赖 |
 |--|--|--|--|
@@ -160,7 +253,7 @@ npx @cbim/cli migrate <project-path>
 
 **MVP（Phase 0+1）目标**：6 周可发布的"v2 alpha"——一个能浏览模块、与单 agent 对话、能从 v1 项目迁移的最小可用插件。
 
-## 十、Engine 详细设计要点
+## 十一、Engine 详细设计要点
 
 `@cbim/engine` 是 v2 的核心抽象，必须做到：
 
@@ -191,7 +284,7 @@ interface DispatchEngine {
 
 具体接口在 Phase 0 完成时落定。
 
-## 十一、待决与风险
+## 十二、待决与风险
 
 **待决：**
 
@@ -205,7 +298,7 @@ interface DispatchEngine {
 - v1 用户的迁移成本：`.claude/agents/` 多文件结构 → `.cbim/agents/` 单文件，要小心保留原 SOUL/IDENTITY/skills 内容
 - 多 agent 协作的并发模型：v1 靠 Claude Code 进程隔离，v2 在一个 Node 进程内可能需要显式 worker 隔离
 
-## 十二、下一步
+## 十三、下一步
 
 1. **Phase 0 启动**：创建 monorepo 骨架（`pnpm-workspace.yaml` + `packages/{engine,extension,ui,cli}` + 基础 tsconfig + tsup）
 2. **同步调研 Claude Agent SDK**：阅读官方文档与示例，确定 dispatch 设计的关键约束
