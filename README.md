@@ -28,7 +28,7 @@ CBIM solves both at once:
 Core = **Multi-Agent (capability axis) × Module Topology Tree (business axis)**
 
 - **Capability axis**: Specialized agents — each task loads only the target agent's soul, no excess capability context
-- **Business axis**: `.dna/` forms a topology tree by module boundary, loads only the task's subtree, no excess business context
+- **Business axis**: `.dna/` directories form a topology tree by module boundary (`module.md` = sole hard constraint per module), loads only the task's subtree, no excess business context
 - **Memory**: Cross-session accumulated material — shared source for session recovery, capability governance (HR distills → skills → soul), and business governance (architect distills → `.dna/` workflows)
 
 Each task's context = target agent soul × task subtree `.dna/` — independent of total project size.  
@@ -121,9 +121,11 @@ your-project/
 │       └── programmer/            ← Programmer (default work agent)
 │
 ├── .dna/                          ← Project knowledge root module (created by architect)
-│   ├── index.md
-│   ├── module.md                  ← required (YAML frontmatter + architecture body)
-│   └── contract.md                ← optional (protocol-boundary modules only)
+│   ├── index.md                   ← root-module-only: all module paths in the tree
+│   ├── module.md                  ← required: sole hard constraint (frontmatter + architecture)
+│   ├── contract.md                ← optional: protocol boundary
+│   ├── workflows/                 ← optional: deterministic process definitions
+│   └── ...                        ← optional: any user-defined files
 │
 └── cbim/                          ← Framework (git cloned here)
     ├── install.py                 ← Auto installer
@@ -141,7 +143,9 @@ your-project/
 | Layer | Governed by | Scope | Rule |
 |-------|-------------|-------|------|
 | **Capability layer** | HR | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | soul/skills must contain zero project-specific content |
-| **Business layer** | Architect | Each project's `.dna/` (module knowledge + workflows/) | knowledge files must not reference agent specs |
+| **Business layer** | Architect | Each project's `.dna/` (`module.md` = sole hard constraint; extensions optional) | knowledge files must not reference agent specs |
+
+The `.dna/` convention: **minimal constraint + open extension**. Directory exists = module. `module.md` is the only required file (YAML frontmatter + architecture body). `contract.md`, `workflows/`, and user-defined files are all optional.
 
 CBIM splits skills by "who owns it" — `.claude/` only contains `agents/`, no skill pile-ups:
 

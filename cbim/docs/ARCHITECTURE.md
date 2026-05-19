@@ -43,7 +43,7 @@ This philosophy is reflected in every layer of the framework's design:
 
 | Separation Dimension | Capability Side | Business Side |
 |---------------------|-----------------|---------------|
-| Storage | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | `.dna/` (module.md + optional contract + workflows/) |
+| Storage | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | `.dna/` directory = module identity; `module.md` = sole hard constraint; everything else optional |
 | Governed by | HR | Architect |
 | Hard rule | soul/skills must contain zero project-specific content | knowledge files must not reference agent specs |
 | Verifiable | still meaningful when moved to another project → compliant | describes only current final working state, never describes agents |
@@ -77,7 +77,7 @@ CBIM solves both simultaneously:
 | | Standard Claude Code | CBIM |
 |---|---|---|
 | Project context | One `CLAUDE.md` (grows unboundedly with project) | Module topology tree `.dna/` (split by module boundary, load subtree on demand) |
-| Business rules | Written into `CLAUDE.md` or `.claude/skills/` | Written into the module's `module.md` / `contract.md` / `workflows/` |
+| Business rules | Written into `CLAUDE.md` or `.claude/skills/` | Written into the module's `module.md` (the sole required file); `contract.md` and `workflows/` are optional extensions |
 | Operational steps | `.claude/skills/` fully registered, always in context | `cbim/knowledge/skills/` (capability) + `.dna/workflows/` (business), loaded on demand |
 | Agent | One large catch-all agent + countless skills | Multiple specialized agents, each task loads only the target agent soul |
 | Governance | None | Architect (business layer, three-traversal topology tree) + HR (capability layer) dual-track governance |
@@ -99,9 +99,25 @@ CBIM's core is not just multi-agent — it's the two-dimensional structure of **
 
 Only with both axes can each task simultaneously pinpoint "which agent to use" and "which subtree to load."
 
+### `.dna/` Convention: Minimal Constraint + Open Extension
+
+The `.dna/` convention follows a philosophy of **minimal constraint + open extension**:
+
+- **`.dna/` directory exists = module identity.** No directory, no module. The directory's presence is the sole marker.
+- **`module.md` is the only hard constraint** — one file, YAML frontmatter (metadata) + markdown body (architecture), replacing the former `module.json` + `architecture.md` combination. This mirrors the unified `frontmatter + body` pattern used by `.claude/agents/<name>.md` and `cbim/knowledge/skills/<name>/SKILL.md`.
+- **Everything else is optional** — `contract.md` (protocol boundary), `workflows/` (deterministic processes), or any user-defined files. The framework recommends them but never requires them.
+
+```
+.dna/
+├── module.md           # required: the sole hard constraint
+├── contract.md         # optional: protocol boundary (REST / gRPC / SDK)
+├── workflows/          # optional: deterministic process definitions
+└── ...                 # optional: any user-defined files
+```
+
 ### The Role of the Module Topology Tree
 
-`.dna/` forms a tree by directory hierarchy, not a flat module list:
+`.dna/` directories form a tree by filesystem hierarchy, not a flat module list:
 
 ```
 .dna/ (root)
@@ -229,19 +245,19 @@ cbim/knowledge/skills/   ← capability skills (HR governance, reusable across p
 
 ### On-Demand Loading of Business Skills
 
-Business skills (workflows) are not bulk-injected into session context. **Only when a module is designated for processing does that module's workflow get loaded — including even the workflow metadata (header description).**
+Business skills (workflows) are not bulk-injected into session context. **Only when a module is designated for processing does that module's `.dna/` get loaded — `module.md` first (always), then optional files only if they exist.**
 
 ```
 SessionStart
   └── snapshot.py injects into session
-        ├── Module tree: path + name + owner (no workflow content)
+        ├── Module tree: path + name + owner (from module.md frontmatter)
         └── Agent list: id + description (no skill content)
 
 Task dispatch (on-demand loading)
   └── agent reads target module's .dna/
-        ├── module.md
-        ├── contract.md (if present)
-        └── workflows/<name>/workflow.md   ← loaded here, includes metadata and steps
+        ├── module.md                          ← always loaded (the sole required file)
+        ├── contract.md (if present)           ← optional
+        └── workflows/<name>/workflow.md       ← optional, loaded only when relevant
 ```
 
 This is why CBIM doesn't need to pile up large numbers of skills in `.claude/`:
@@ -261,7 +277,7 @@ A project can have dozens of modules, each with multiple workflows — the press
 | Layer | Governed by | Scope |
 |-------|-------------|-------|
 | **Capability layer** | HR | `.claude/agents/` (agent definitions and skills) |
-| **Business layer** | Architect | Each project's `.dna/` (module knowledge pack) |
+| **Business layer** | Architect | Each project's `.dna/` (`module.md` + optional extensions) |
 
 **Hard rule**: Capability goes into `.claude/agents/`; business goes into `.dna/`. Never mix.
 
@@ -348,10 +364,9 @@ CBIM treats knowledge as a first-class citizen of the architecture, not an appen
 
 ```
 .dna/ (tree structure)   → Business picture
-  ├── What modules exist and their responsibility boundaries
-  ├── Inter-module interface contracts (contract.md)
-  ├── Architecture layers and dependency directions (module.md)
-  └── Crystallized deterministic business flows (workflows/)
+  ├── module.md per module: positioning, class diagram, key decisions
+  ├── contract.md (where present): cross-boundary interface contracts
+  └── workflows/ (where present): crystallized deterministic business flows
 
 .claude/agents/          → Team picture
   ├── What agents exist and their capability boundaries
@@ -374,7 +389,7 @@ Combined → project progress + virtual team state, readable at a glance
 
 Because knowledge is actively maintained by the Architect and synchronized with code implementation (knowledge-first), human reviewers encounter a knowledge base with:
 
-- **Completeness**: Every module has module.md (+ optional contract.md for protocol boundaries)
+- **Completeness**: Every module has exactly one required file (`module.md`) — metadata and architecture in one place, with optional extensions (`contract.md`, `workflows/`) only where they add value
 - **Currency**: Knowledge is updated before implementation, not retrofitted after
 - **Hierarchy**: Topology tree structure, granularity naturally matches task scope
 
@@ -484,10 +499,11 @@ Split into multiple sub-modules
 │           └── programmer.md
 │
 ├── .dna/                              ← Created by architect, project knowledge root module
-│   ├── index.md
-│   ├── module.md                      ← required (YAML frontmatter + architecture body)
-│   ├── contract.md                    ← optional (protocol-boundary modules only)
-│   └── workflows/
+│   ├── index.md                       ← root-module-only: all module paths in the tree
+│   ├── module.md                      ← required: sole hard constraint (frontmatter + architecture)
+│   ├── contract.md                    ← optional: protocol boundary (REST / gRPC / SDK)
+│   ├── workflows/                     ← optional: deterministic process definitions
+│   └── ...                            ← optional: any user-defined files
 │
 └── cbim/                              ← Framework
     ├── install.py / install.bat
@@ -535,3 +551,92 @@ Split into multiple sub-modules
         ├── index.html / app.js / style.css
         └── __init__.py
 ```
+
+---
+
+## Appendix: `module.md` Example
+
+`module.md` is the sole required file in `.dna/`. It combines metadata (YAML frontmatter) and architecture (markdown body) in one file — following the same `frontmatter + body` pattern as `.claude/agents/<name>.md` and `cbim/knowledge/skills/<name>/SKILL.md`.
+
+### Leaf Module Example
+
+````markdown
+---
+name: event-bus
+owner: architect
+description: Decoupled, type-safe in-process event dispatch
+keywords: [event, pub-sub, decoupling]
+dependencies: []
+---
+
+## Positioning
+
+Decoupled, type-safe in-process event dispatch for cross-module communication.
+
+## Class Diagram
+
+```mermaid
+classDiagram
+    class IEventBus {
+        <<interface>>
+        +on(event: string, handler: EventHandler) Disposable
+        +emit(event: string, payload?: unknown) void
+    }
+
+    class EventBus {
+        -handlers: Map~string, Set~EventHandler~~
+        +on(event, handler) Disposable
+        +emit(event, payload?) void
+        -ensureSlot(event) Set~EventHandler~
+    }
+
+    class Disposable {
+        <<interface>>
+        +dispose() void
+    }
+
+    IEventBus <|.. EventBus : implements
+    EventBus ..> Disposable : returns
+```
+
+## Key Decisions
+
+- **Interface-first**: Consumers depend on `IEventBus`, never on `EventBus` directly, enabling test doubles without mocking frameworks.
+- **Disposable return**: `on()` returns a `Disposable` instead of requiring `off()`, preventing forgotten-unsubscribe memory leaks.
+- **No async emit**: Handlers are synchronous by design; async side-effects should be managed by the handler itself, keeping the bus simple and predictable.
+````
+
+### Parent Module Example
+
+A parent module's body describes only positioning, child-module relationships, and cross-child emergent insights — never any child's internal details.
+
+````markdown
+---
+name: combat
+owner: architect
+description: Combat system root module
+keywords: [combat, battle]
+dependencies:
+  - src/types
+---
+
+## Positioning
+
+Top-level container for all combat-related subsystems.
+
+## Sub-module Relationships
+
+```mermaid
+graph TD
+    combat --> skill[combat/skill]
+    combat --> buff[combat/buff]
+    skill --> buff
+```
+
+- **skill** — Active ability execution (cast, cooldown, targeting)
+- **buff** — Passive status effects (apply, tick, expire)
+
+## Key Decisions
+
+- **skill depends on buff, not the reverse**: Abilities can apply buffs, but buffs must never trigger abilities — this prevents recursive combat loops.
+````

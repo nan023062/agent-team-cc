@@ -81,7 +81,7 @@ $CLI modules reindex
 
 | | Capability Layer | Business Layer |
 |---|---|---|
-| **Data source** | `.claude/agents/` | Each project's `.dna/` |
+| **Data source** | `.claude/agents/` | Each project's `.dna/` (`module.md` = sole hard constraint) |
 | **Governed by** | HR | Architect |
 | **Lifecycle** | recruit → train → assess → split / archive | document → update → promote → deprecate |
-| **Hard rule** | soul contains only professional capability, no project-specific content | knowledge pack contains only module knowledge, no agent specs |
+| **Hard rule** | soul contains only professional capability, no project-specific content | module knowledge only; `module.md` required, everything else optional; no agent specs |

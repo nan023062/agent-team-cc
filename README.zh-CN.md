@@ -28,7 +28,7 @@ CBIM 同时解决这两个问题：
 核心 = **多 Agent（能力轴）× 模块拓扑树（业务轴）**
 
 - **能力轴**：多个专精 Agent，每次任务只加载目标 agent 的 soul，无多余能力上下文
-- **业务轴**：`.dna/` 按模块边界组成拓扑树，只加载任务所在子树，无多余业务上下文
+- **业务轴**：`.dna/` 目录按模块边界组成拓扑树（`module.md` = 每个模块的唯一硬约束），只加载任务所在子树，无多余业务上下文
 - **记忆**（Memory）：跨会话积累的原始素材 — session 恢复、能力治理（HR 提炼 → skills → soul）、业务治理（架构师提炼 → `.dna/` workflows）的共同来源
 
 每次任务上下文 = 专精 agent soul × 任务子树 `.dna/`，与项目总规模无关。  
@@ -121,9 +121,11 @@ your-project/
 │       └── programmer/            ← 程序员（默认 work agent）
 │
 ├── .dna/                          ← 项目知识根模块（架构师创建）
-│   ├── index.md
-│   ├── module.md                  ← 必需（YAML frontmatter + 架构正文）
-│   └── contract.md                ← 可选（协议边界场景）
+│   ├── index.md                   ← 仅根模块：全树模块路径列表
+│   ├── module.md                  ← 必需：唯一硬约束（frontmatter + 架构）
+│   ├── contract.md                ← 可选：协议边界
+│   ├── workflows/                 ← 可选：确定性流程定义
+│   └── ...                        ← 可选：用户自定义文件
 │
 └── cbim/                          ← 框架本体（git clone 到此目录）
     ├── install.py                 ← 自动安装脚本
@@ -141,7 +143,9 @@ your-project/
 | 层级 | 治理者 | 管辖 | 铁律 |
 |------|--------|------|------|
 | **能力层** | HR | `.claude/agents/`（soul）+ `cbim/knowledge/skills/`（能力向 skill） | soul/skills 不含任何项目特定内容 |
-| **业务层** | 架构师 | 项目各级 `.dna/`（module.md + 可选扩展 + workflows/） | 知识文件不引用 agent 规范 |
+| **业务层** | 架构师 | 项目各级 `.dna/`（`module.md` = 唯一硬约束；扩展全部可选） | 知识文件不引用 agent 规范 |
+
+`.dna/` 约定：**约定最小化 + 扩展开放**。目录存在 = 模块。`module.md` 是唯一必需文件（YAML frontmatter + 架构正文）。`contract.md`、`workflows/`、用户自定义文件全部可选。
 
 CBIM 将 skill 按「谁拥有」一分为二，`.claude/` 下只有 `agents/`，不再堆积 `skills/`：
 

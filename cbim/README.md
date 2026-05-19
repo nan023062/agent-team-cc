@@ -47,9 +47,11 @@ your-project/
 │       └── programmer/            ← Programmer (default work agent)
 │
 ├── .dna/                          ← Project knowledge root module (created by architect)
-│   ├── index.md
-│   ├── module.md                  ← required (YAML frontmatter + architecture body)
-│   └── contract.md                ← optional (protocol-boundary modules only)
+│   ├── index.md                   ← root-module-only: all module paths in the tree
+│   ├── module.md                  ← required: sole hard constraint (frontmatter + architecture)
+│   ├── contract.md                ← optional: protocol boundary
+│   ├── workflows/                 ← optional: deterministic process definitions
+│   └── ...                        ← optional: any user-defined files
 │
 └── cbim/                          ← Framework (this directory)
     ├── install.py / install.bat   ← Installer
@@ -66,7 +68,9 @@ your-project/
 | Layer | Governed by | Scope | Rule |
 |-------|-------------|-------|------|
 | **Capability layer** | HR | `.claude/agents/` + `cbim/knowledge/skills/` | No project-specific content |
-| **Business layer** | Architect | `.dna/` (module knowledge + workflows/) | No agent spec references |
+| **Business layer** | Architect | `.dna/` (`module.md` = sole hard constraint; extensions optional) | No agent spec references |
+
+The `.dna/` convention follows **minimal constraint + open extension**: the directory's existence marks a module; `module.md` is the only required file (YAML frontmatter + architecture body in one file); `contract.md`, `workflows/`, and any user-defined files are optional.
 
 | Skill type | Storage | Characteristics |
 |------------|---------|----------------|
