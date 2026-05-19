@@ -120,6 +120,16 @@ def step_hooks() -> None:
     if _add("Stop",         "python cbim/cc-template/hooks/write-memory.py"): added.append("Stop → write-memory")
     if _add("SessionStart", "python cbim/cc-template/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
 
+    # permissions.deny — block direct file access to cbim/ and .dna/ directories
+    deny_rules = [
+        "Read(cbim/**)", "Read(**/.dna/**)",
+        "Glob(cbim/**)", "Glob(**/.dna/**)",
+        "Grep(cbim/**)", "Grep(**/.dna/**)",
+    ]
+    deny_list = settings.setdefault("permissions", {}).setdefault("deny", [])
+    new_rules = [r for r in deny_rules if r not in deny_list]
+    deny_list.extend(new_rules)
+
     settings_path.write_text(
         json.dumps(settings, indent=2, ensure_ascii=False), encoding="utf-8"
     )
@@ -128,6 +138,10 @@ def step_hooks() -> None:
         _ok(h)
     if not added:
         _skip("hooks already configured")
+    if new_rules:
+        _ok(f"permissions.deny ← {', '.join(new_rules)}")
+    else:
+        _skip("permissions.deny already configured")
 
 
 def step_bootstrap() -> None:
