@@ -120,11 +120,12 @@ def step_hooks() -> None:
     if _add("Stop",         "python cbim/cc-template/hooks/write-memory.py"): added.append("Stop → write-memory")
     if _add("SessionStart", "python cbim/cc-template/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
 
-    # permissions.deny — block direct file access to cbim/ and .dna/ directories
+    # permissions.deny — cbim/ and .dna/ are read-only; Write/Edit/Glob/Grep denied
     deny_rules = [
-        "Read(cbim/**)", "Read(**/.dna/**)",
-        "Glob(cbim/**)", "Glob(**/.dna/**)",
-        "Grep(cbim/**)", "Grep(**/.dna/**)",
+        "Write(cbim/**)", "Edit(cbim/**)",
+        "Glob(cbim/**)",  "Grep(cbim/**)",
+        "Write(**/.dna/**)", "Edit(**/.dna/**)",
+        "Glob(**/.dna/**)",  "Grep(**/.dna/**)",
     ]
     deny_list = settings.setdefault("permissions", {}).setdefault("deny", [])
     new_rules = [r for r in deny_rules if r not in deny_list]
