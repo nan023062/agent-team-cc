@@ -8,6 +8,7 @@
  *   MonitorStats 接口
  *
  * 构造器：new TaskMonitor(eventBus: EventBus)
+ *   EventBus 接口定义在 types/events.ts，SimpleEventBus 是其实现（在 orchestration/event-bus.ts）
  *
  * 方法：
  *   start(): void  —— 订阅 task:started / task:completed / task:failed / stage:completed
@@ -23,12 +24,16 @@
  *                               当两者均为 0 时返回 0（不是 NaN）
  *
  * 关键陷阱：
- *   1. EventBus.on() 返回 () => void 取消订阅函数，start() 必须保存，stop() 必须调用
- *      —— 只调用 eventBus.off() 而不使用返回的函数同样有效，但必须实现取消
- *   2. StageCompletedEvent 结构只有 { stageIndex: number }，不含任务信息
- *      —— 不能从 stage:completed 事件中读取任务结果
+ *   1. EventBus.on() 返回 () => void 取消订阅函数（见 event-bus.ts 第 72 行）
+ *      start() 必须保存这些返回值，stop() 必须调用它们来取消订阅
+ *   2. StageCompletedEvent 只有 { stageIndex: number }（见 types/events.ts 第 126 行）
+ *      不含任务结果信息，不能从中读取任务状态
  *   3. successRate 当 completedCount + failedCount === 0 时必须返回 0，而非 NaN
- *   4. task:failed 事件的 error 字段是 string，不是 TaskResult 对象
+ *      （0 / 0 在 JS 中是 NaN，实现必须特殊处理）
+ *   4. task:failed 事件的 error 字段是 string 类型（见 types/events.ts 第 121 行）
+ *      不是 TaskResult 对象
+ *
+ * 基线状态：11/11 FAIL（TaskMonitor 类尚未创建，导入就会失败）
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -99,19 +104,20 @@ describe('TaskMonitor', () => {
   });
 
   it('task:failed 事件正确累加 failedCount（error 字段是 string）', async () => {
+    // 关键陷阱：TaskFailedEvent.error 是 string 类型，不是 TaskResult 对象
     await eventBus.emit({
       id: 'e4',
       type: 'task:failed',
       timestamp: Date.now(),
       taskId: 'task-2',
-      error: 'timeout exceeded',  // string，不是 TaskResult 对象
+      error: 'timeout exceeded',
     });
 
     expect(monitor.getStats().failedCount).toBe(1);
   });
 
   it('stage:completed 事件正确累加 stagesCompleted（只含 stageIndex）', async () => {
-    // 关键陷阱：StageCompletedEvent 只有 stageIndex，不含任务信息
+    // 关键陷阱：StageCompletedEvent 只有 { stageIndex }，不含任务信息
     await eventBus.emit({
       id: 'e5',
       type: 'stage:completed',
@@ -205,7 +211,7 @@ describe('TaskMonitor', () => {
     });
 
     // 关键陷阱：stop() 必须正确调用 on() 返回的取消订阅函数
-    // 若实现只是持有 listener 引用但未调用取消函数，此处会失败
+    // 若实现只是新建 listener 但未保存/调用 on() 的返回值，此处会失败
     expect(monitor.getStats().startedCount).toBe(1); // 仍为 1，不增加
   });
 

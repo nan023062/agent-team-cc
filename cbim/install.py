@@ -131,7 +131,7 @@ def step_hooks() -> None:
 
 
 def step_bootstrap() -> None:
-    _h("[5/5] CLAUDE.md  +  .gitignore  +  memory store")
+    _h("[5/5] CLAUDE.md  +  .gitignore  +  .claudeignore  +  memory store")
 
     # CLAUDE.md
     src = CC / "CLAUDE-template.md"
@@ -167,6 +167,22 @@ def step_bootstrap() -> None:
         _ok(f".gitignore ← {', '.join(missing)}")
     else:
         _skip(".gitignore already up to date")
+
+    # .claudeignore — keep cbim/ and .dna/ out of agent file searches
+    claudeignore = ROOT / ".claudeignore"
+    ci_needed = ["cbim/", "**/.dna/"]
+    ci_existing = claudeignore.read_text(encoding="utf-8") if claudeignore.exists() else ""
+    ci_missing = [e for e in ci_needed if e not in ci_existing]
+    if ci_missing:
+        with claudeignore.open("a", encoding="utf-8") as f:
+            if not ci_existing:
+                f.write("# CBIM framework files — access via skill Python scripts only\n")
+            elif not ci_existing.endswith("\n"):
+                f.write("\n")
+            f.write("\n".join(ci_missing) + "\n")
+        _ok(f".claudeignore ← {', '.join(ci_missing)}")
+    else:
+        _skip(".claudeignore already up to date")
 
 
 # ---------------------------------------------------------------------------

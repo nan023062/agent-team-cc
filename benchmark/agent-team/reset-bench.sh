@@ -2,29 +2,68 @@
 # reset-bench.sh — 重置 agent-team benchmark 到基线状态
 #
 # 用法（从任意位置运行）：
-#   bash /path/to/cbim/benchmark/agent-team/reset-bench.sh [--save-run]
+#   bash /path/to/reset-bench.sh /path/to/target-project [--save-run]
+#   BENCH_TARGET_DIR=/path/to/target-project bash /path/to/reset-bench.sh [--save-run]
 #
 # 执行内容：
 #   1. 可选地将当前测试结果保存到 cbim/benchmark/agent-team/results/
 #   2. git 恢复 agent-team 被测文件到原始状态
 #   3. 删除 TaskMonitor（Task C 的产出文件）
-#   4. 验证基线（14 fail | 8 pass）
+#   4. 部署最新测试文件（benchmark/tests/ → target/__tests__/）
+#   5. 验证基线（14 fail | 8 pass）
 
 set -euo pipefail
 
-# ─── 路径配置 ──────────────────────────────────────────────────────────────────
-AGENT_TEAM_DIR="/c/Workspace/agent-team"
-CBIM_DIR="/c/Workspace/cbim"
+# ─── 路径推导 ──────────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CBIM_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="$CBIM_DIR/benchmark/agent-team/results"
 
-# ─── 可选：保存本次结果 ─────────────────────────────────────────────────────────
+# ─── TARGET_DIR 解析 ───────────────────────────────────────────────────────────
+SAVE_RUN=false
+
+if [[ "${1:-}" != "--save-run" && -n "${1:-}" ]]; then
+  TARGET_DIR="$1"
+  shift
+else
+  TARGET_DIR="${BENCH_TARGET_DIR:-}"
+fi
+
 if [[ "${1:-}" == "--save-run" ]]; then
+  SAVE_RUN=true
+fi
+
+if [[ -z "${TARGET_DIR:-}" ]]; then
+  echo "Usage:"
+  echo "  bash $0 /path/to/target-project [--save-run]"
+  echo "  BENCH_TARGET_DIR=/path/to/target-project bash $0 [--save-run]"
+  exit 1
+fi
+
+# ─── 启动验证 ──────────────────────────────────────────────────────────────────
+if [[ ! -d "$TARGET_DIR" ]]; then
+  echo "Error: TARGET_DIR does not exist: $TARGET_DIR"
+  exit 1
+fi
+
+if [[ ! -d "$TARGET_DIR/.git" ]]; then
+  echo "Error: TARGET_DIR is not a git repository: $TARGET_DIR"
+  exit 1
+fi
+
+if [[ ! -d "$TARGET_DIR/packages/core/src" ]]; then
+  echo "Error: TARGET_DIR does not contain packages/core/src/: $TARGET_DIR"
+  exit 1
+fi
+
+# ─── 可选：保存本次结果 ─────────────────────────────────────────────────────────
+if [[ "$SAVE_RUN" == true ]]; then
   mkdir -p "$RESULTS_DIR"
   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
   LOG_FILE="$RESULTS_DIR/run_${TIMESTAMP}.log"
 
   echo "Saving current test results to $LOG_FILE ..."
-  cd "$AGENT_TEAM_DIR"
+  cd "$TARGET_DIR"
   npx vitest run \
     packages/core/src/__tests__/task-a.bench.test.ts \
     packages/core/src/__tests__/task-b.bench.test.ts \
@@ -35,7 +74,7 @@ if [[ "${1:-}" == "--save-run" ]]; then
 fi
 
 # ─── 还原被测文件 ───────────────────────────────────────────────────────────────
-cd "$AGENT_TEAM_DIR"
+cd "$TARGET_DIR"
 
 echo ""
 echo "=== Resetting agent-team benchmark files ==="
@@ -55,6 +94,22 @@ else
   echo "  - task-monitor.ts not found (already clean)"
 fi
 
+# ─── 部署测试文件 ─────────────────────────────────────────────────────────────────
+TESTS_SRC="$CBIM_DIR/benchmark/agent-team/tests"
+TESTS_DST="$TARGET_DIR/packages/core/src/__tests__"
+
+echo ""
+echo "=== Deploying benchmark test files ==="
+
+cp "$TESTS_SRC/task-a.bench.test.ts" "$TESTS_DST/task-a.bench.test.ts"
+echo "  ✓ task-a.bench.test.ts deployed"
+
+cp "$TESTS_SRC/task-b.bench.test.ts" "$TESTS_DST/task-b.bench.test.ts"
+echo "  ✓ task-b.bench.test.ts deployed"
+
+cp "$TESTS_SRC/task-c.bench.test.ts" "$TESTS_DST/task-c.bench.test.ts"
+echo "  ✓ task-c.bench.test.ts deployed"
+
 # ─── 验证基线 ───────────────────────────────────────────────────────────────────
 echo ""
 echo "=== Verifying baseline ==="
@@ -67,15 +122,15 @@ RESULT=$(npx vitest run \
 
 echo "$RESULT" | tail -5
 
-FAILED=$(echo "$RESULT" | grep -oP '\d+(?= failed)' || echo "?")
-PASSED=$(echo "$RESULT" | grep -oP '\d+(?= passed)' || echo "?")
+FAILED=$(echo "$RESULT" | grep -E '^\s+Tests\s+' | grep -o '[0-9]* failed' | grep -o '[0-9]*' || echo "?")
+PASSED=$(echo "$RESULT" | grep -E '^\s+Tests\s+' | grep -o '[0-9]* passed' | grep -o '[0-9]*' || echo "?")
 
 echo ""
 if [[ "$FAILED" == "14" && "$PASSED" == "8" ]]; then
   echo "✅ Baseline verified: ${FAILED} failed | ${PASSED} passed"
 else
   echo "⚠️  Baseline mismatch: ${FAILED} failed | ${PASSED} passed (expected 14 failed | 8 passed)"
-  echo "   Run: cd $AGENT_TEAM_DIR && git status"
+  echo "   Run: cd $TARGET_DIR && git status"
 fi
 
 echo ""

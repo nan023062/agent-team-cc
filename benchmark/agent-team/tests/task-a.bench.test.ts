@@ -11,10 +11,12 @@
  *   detectedIssues: string[] —— 检测到的结构性问题（如依赖任务不在计划中）
  *
  * 关键陷阱：
- *   DEFAULT_SCHEDULER_CONFIG.maxRetries = 1
+ *   DEFAULT_SCHEDULER_CONFIG.maxRetries = 1（见 scheduler.ts 第 43 行）
  *   → TaskRunner.withRetry(): for (let attempt = 0; attempt <= maxRetries; attempt++)
- *   → attempt 取 0 和 1，共 2 次执行
- *   → 3 个任务的 totalAttempts = 6（不是 3）
+ *   → 循环执行 attempt=0 和 attempt=1，共 2 次
+ *   → 3 个任务的 totalAttempts = 3 × (1 + 1) = 6（不是 3）
+ *
+ * 基线状态：6/6 FAIL（dryRun 方法尚未实现）
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -91,9 +93,9 @@ describe('Scheduler.dryRun()', () => {
   });
 
   it('3 个任务 + maxRetries=1（默认）→ totalAttempts=6', () => {
-    // 关键陷阱：maxRetries=1 等于 withRetry() 中 attempt 跑 0 和 1，共 2 次
-    // 3 个任务 × 2 次执行 = 6，而不是 3
-    const scheduler = makeScheduler({ maxRetries: 1 });
+    // 关键陷阱：maxRetries=1 意味着 withRetry() 中 attempt 从 0 到 1（含），共 2 次
+    // 3 个任务 × 2 次执行 = 6，不是 3
+    const scheduler = makeScheduler(); // maxRetries 不传，走默认值 1
     const tasks = [makeTask('A'), makeTask('B'), makeTask('C')];
     const plan = makePlan(tasks, [{ stageIndex: 0, taskIds: ['A', 'B', 'C'] }]);
 
@@ -125,7 +127,7 @@ describe('Scheduler.dryRun()', () => {
     expect(report.detectedIssues.length).toBeGreaterThan(0);
     // 报告中应提及缺失的依赖 ID
     const issues: string[] = report.detectedIssues;
-    expect(issues.some((msg) => msg.includes('task-A'))).toBe(true);
+    expect(issues.some((msg: string) => msg.includes('task-A'))).toBe(true);
   });
 
   it('依赖完整的正常计划 → detectedIssues 为空', () => {

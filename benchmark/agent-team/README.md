@@ -52,9 +52,9 @@ cbim/benchmark/agent-team/        ← 本目录（在 cbim 项目中）
 
 ### 关键陷阱（用于验证理解深度）
 
-- **Task A**：`maxRetries=1` → 每任务执行 **2 次**（`attempt <= maxRetries` 循环），10 个任务 = 20 次总执行
-- **Task B**：`DEFAULT_PERMISSION_MATRIX` 在 **两个文件** 中都有定义，必须同时修改；`/tmp/.aiworkspace/x` 归 `aiworkspace` 不归 `temp`；temp zone 无 execute 权限
-- **Task C**：`EventBus.on()` 返回取消订阅函数，`stop()` 必须调用它；`StageCompletedEvent` 只有 `stageIndex`，无任务结果；`successRate` 分母为 0 时返回 0
+- **Task A**：`DEFAULT_SCHEDULER_CONFIG.maxRetries = 1`（scheduler.ts 第 43 行）→ `withRetry()` 循环 `attempt = 0; attempt <= maxRetries`，每任务执行 **2 次**；3 个任务 totalAttempts = **6**（不是 3）
+- **Task B**：`DEFAULT_PERMISSION_MATRIX` 在 **两个文件** 中都有定义（types/permission.ts 和 agent/permission-guard.ts），必须同时修改；`/tmp-backup/config.json` → `project`（classifyPath 必须用 `startsWith('/tmp/')` 含斜杠，而非 `startsWith('/tmp')`）；temp zone 无 execute 权限，即使 secretary/worker/programmer
+- **Task C**：`EventBus.on()` 返回 `() => void` 取消订阅函数（event-bus.ts 第 72 行），`start()` 必须保存、`stop()` 必须调用它；`StageCompletedEvent` 只有 `stageIndex`（types/events.ts 第 126 行），无任务结果；`successRate` 分母为 0 时返回 0（不是 NaN）
 
 ---
 
@@ -79,7 +79,9 @@ cbim/benchmark/agent-team/        ← 本目录（在 cbim 项目中）
 
 ```bash
 # 1. 还原所有被测文件到基线
-bash benchmark/reset-bench.sh
+bash benchmark/agent-team/reset-bench.sh /path/to/target-project
+# 或者
+BENCH_TARGET_DIR=/path/to/target-project bash benchmark/agent-team/reset-bench.sh
 
 # 确认输出：14 failed | 8 passed
 ```
@@ -108,7 +110,7 @@ npx vitest run \
 
 ```bash
 # 6. reset-bench.sh 还原文件
-bash benchmark/reset-bench.sh
+bash benchmark/agent-team/reset-bench.sh /path/to/target-project
 
 # 7. 新开 Claude Code session（在 agent-team 项目根目录，CBIM hooks 已激活）
 #    首条消息确认 hooks 加载：看到「记忆加载完成」或类似提示

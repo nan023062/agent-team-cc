@@ -10,7 +10,7 @@
 
 ## Turn 2
 
-/tmp/.aiworkspace/xxx 这种路径应该归哪个区域？
+/tmp-backup/config.json 这种路径应该归哪个区域？
 
 ---
 
