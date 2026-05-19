@@ -71,7 +71,9 @@ describe('AgentResourceManager — 并发限制（maxConcurrentTasks）', () => 
     expect(started).toContain('t1');
     expect(started).toContain('t2');
 
-    resolvers.forEach(r => r());
+    resolvers.forEach(r => r()); // 释放 t1/t2，t3 进入执行并推入新 resolver
+    await new Promise(r => setTimeout(r, 10)); // 等 t3 启动
+    resolvers.forEach(r => r()); // 释放 t3
     await Promise.all(tasks);
   }, 2000);
 
