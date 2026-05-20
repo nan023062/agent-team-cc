@@ -1,23 +1,14 @@
-// @cbim/engine — knowledge sub-module placeholder
-// Phase 1 will implement: listModules, loadModule, buildSnapshot
+// Types
+export type { ModuleFrontmatter, ModuleSections, Module, ModuleNode, Snapshot } from './types.js'
 
-export type ModuleNode = {
-  path: string
-  children: ModuleNode[]
-}
+// Errors
+export {
+  ModuleNotFoundError,
+  FrontmatterParseError,
+  InvalidModuleError,
+  InvalidProjectRootError,
+} from './errors.js'
 
-export type Module = {
-  path: string
-  content: string
-}
-
-export type Snapshot = {
-  modules: ModuleNode[]
-  focusPath?: string
-}
-
-export interface KnowledgeEngine {
-  listModules(): ModuleNode[]
-  loadModule(path: string): Module
-  buildSnapshot(focusModule?: string): Snapshot
-}
+// Functions
+export { discoverModules, loadModule, buildSnapshot, resolveModulePath } from './api.js'
+export { parseModuleMd } from './parser.js'

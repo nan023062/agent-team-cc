@@ -1,25 +1,18 @@
-// @cbim/engine — migration sub-module placeholder
-// Phase 0 CLI uses this to migrate v1 projects to v2 layout
+// Types
+export type {
+  MigrationAction,
+  MigrationPlan,
+  MigrationResult,
+  MigrationActionError,
+  MigrationSummary,
+} from './types.js'
 
-export type MigrationPlan = {
-  projectPath: string
-  actions: MigrationAction[]
-}
+// Errors
+export { InvalidProjectPathError, NotV1ProjectError, TargetExistsError, TransformError } from './errors.js'
 
-export type MigrationAction = {
-  type: 'move' | 'delete' | 'transform'
-  src: string
-  dest?: string
-  description: string
-}
+// Functions
+export { planMigration, applyMigration, summarizeMigration } from './api.js'
 
-export type MigrationResult = {
-  success: boolean
-  applied: MigrationAction[]
-  errors: string[]
-}
-
-export interface MigrationEngine {
-  plan(projectPath: string): MigrationPlan
-  apply(plan: MigrationPlan): MigrationResult
-}
+// Exported for testing
+export { parseClaudeMd } from './claude-parser.js'
+export type { ClaudeSection, ClaudeMdParseResult } from './claude-parser.js'
