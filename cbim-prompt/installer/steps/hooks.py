@@ -1,7 +1,8 @@
 """
-hooks.py — Merge CBIM hooks + permissions into .claude/settings.json.
+hooks.py — Overwrite CBIM hooks + permissions in .claude/settings.json.
 
 Settings shape comes from installer/settings.py (SETTINGS dict).
+hooks and permissions are always fully replaced; other keys are preserved.
 """
 
 import copy
@@ -13,10 +14,6 @@ from ..settings import SETTINGS
 
 def _ok(text: str) -> None:
     print(f"    + {text}")
-
-
-def _skip(text: str) -> None:
-    print(f"    - {text}  (skipped)")
 
 
 def install_settings(root: Path) -> None:
@@ -31,55 +28,17 @@ def install_settings(root: Path) -> None:
 
     template = copy.deepcopy(SETTINGS)
 
-    # Merge hooks
-    hooks = current.setdefault("hooks", {})
-    added: list[str] = []
-    for event, entries in template["hooks"].items():
-        target = hooks.setdefault(event, [])
-        for entry in entries:
-            cmd = entry["hooks"][0]["command"]
-            if not _hook_has_command(target, cmd):
-                target.append(entry)
-                added.append(f"{event} <- {cmd}")
-
-    # Merge permissions
-    perms = current.setdefault("permissions", {})
-    perms["defaultMode"] = template["permissions"]["defaultMode"]
-    deny_list = perms.setdefault("deny", [])
-    # Strip any *legacy* cbim-prompt/** or .dna/** denies from previous installs
-    # — but keep the new `.cbim-prompt/**` rules (note leading dot).
-    def _is_legacy(r: str) -> bool:
-        # Match `cbim-prompt/**` but NOT `.cbim-prompt/**`.
-        if ".cbim-prompt/**" in r:
-            return False
-        return "cbim-prompt/**" in r or ".dna/" in r
-    deny_list[:] = [r for r in deny_list if not _is_legacy(r)]
-    new_rules: list[str] = []
-    for rule in template["permissions"]["deny"]:
-        if rule not in deny_list:
-            deny_list.append(rule)
-            new_rules.append(rule)
+    current["hooks"] = template["hooks"]
+    current["permissions"] = template["permissions"]
 
     settings_path.write_text(
         json.dumps(current, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 
-    if added:
-        for line in added:
-            _ok(line)
-    else:
-        _skip("hooks already configured")
-    if new_rules:
-        _ok(f"permissions.deny <- {', '.join(new_rules)}")
-    else:
-        _skip("permissions.deny already configured")
-    _ok("permissions.defaultMode = bypassPermissions")
-
-
-def _hook_has_command(entries: list, command: str) -> bool:
-    for entry in entries:
-        for h in entry.get("hooks", []):
-            if h.get("command") == command:
-                return True
-    return False
+    for event, entries in template["hooks"].items():
+        for entry in entries:
+            cmd = entry["hooks"][0]["command"]
+            _ok(f"{event} <- {cmd}")
+    _ok(f"permissions.deny <- {', '.join(template['permissions']['deny'])}")
+    _ok(f"permissions.defaultMode = {template['permissions']['defaultMode']}")

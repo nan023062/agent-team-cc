@@ -14,6 +14,7 @@ Steps:
   5. Bootstrap CLAUDE.md, memory store, .dna/index.md, .gitignore, .claudeignore
 """
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -39,10 +40,14 @@ def _venv_python(root: Path) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--root", default=None, help="Target project root (default: parent of cbim-prompt/)")
+    args, _ = parser.parse_known_args()
+
     # Locate source cbim-prompt/ and project root.
     # cli.py lives at cbim-prompt/installer/cli.py
     cbim_src = Path(__file__).resolve().parent.parent
-    root = cbim_src.parent  # project root (where .venv lives)
+    root = Path(args.root).resolve() if args.root else cbim_src.parent
 
     print()
     print("=" * 52)
