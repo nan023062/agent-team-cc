@@ -5,12 +5,13 @@ Usage (cwd=cbim-prompt/):
   python .cbim-prompt/engine <domain> <command> [args]
 
 Domains:
-  memory      write-session | load-context | add | query | delete | reindex | cleanup | preview
+  memory      write-session | load-context | create | add | query | delete | reindex | cleanup | preview
   dna         list | show | init | reindex
   agent       list | show | scaffold | archive
   snapshot    [--root PATH]
   skill       list | show <name>
-  soul       list | show <name>
+  soul        list | show <name>
+  config      get <key> | set <key> <value> | show
 """
 import argparse
 import importlib
@@ -94,6 +95,14 @@ def main() -> int:
     _p = lsub.add_parser("tail"); _p.add_argument("--interval", type=float, default=1.0)
     log_cmds = {"show": cmd_log_show, "tail": cmd_log_tail}
 
+    # config ------------------------------------------------------------------
+    from engine.config import cmd_config_get, cmd_config_set, cmd_config_show
+    pc = sub.add_parser("config", help="Read/write .cbim/config.json")
+    csub = pc.add_subparsers(dest="command")
+    _p = csub.add_parser("get"); _p.add_argument("key")
+    _p = csub.add_parser("set"); _p.add_argument("key"); _p.add_argument("value")
+    csub.add_parser("show")
+
     # debug -------------------------------------------------------------------
     pdb = sub.add_parser("debug", help="Toggle debug logging flag")
     dbsub = pdb.add_subparsers(dest="command")
@@ -127,6 +136,10 @@ def main() -> int:
         if not args.command:
             pl.print_help(); return 1
         return log_cmds[args.command](args)
+    if domain == "config":
+        if not args.command:
+            pc.print_help(); return 1
+        return {"get": cmd_config_get, "set": cmd_config_set, "show": cmd_config_show}[args.command](args)
     if domain == "debug":
         if not args.command:
             pdb.print_help(); return 1

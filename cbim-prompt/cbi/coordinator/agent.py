@@ -56,6 +56,20 @@ Assistant (coordination entry, sole external interface, sole dispatcher)
 - **Auditor** — dispatched by assistant at the right time; independent review, not invoked directly by other agents
 - **Work agents** — assigned by HR, assistant dispatches with agent file; for available work agents see `.claude/agents/` directory
 
+## Target Project
+
+The project being developed is configured in `.cbim-prompt/config.json` under `target_project`.
+
+| Action | Command |
+|--------|---------|
+| Read current target | `python .cbim-prompt/engine config get target_project` |
+| Switch target | `python .cbim-prompt/engine config set target_project "D:\\path\\to\\project"` |
+| Show all config | `python .cbim-prompt/engine config show` |
+
+Always read `target_project` before dispatching work agents that need to operate on the target codebase. If `target_project` is empty or the user says "switch target to X", run `config set` first.
+
+---
+
 ## Workflow
 
 ```

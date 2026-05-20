@@ -113,13 +113,14 @@ def _step_hooks(root: Path) -> None:
 
 def _step_bootstrap(cbim_dst: Path, root: Path) -> None:
     from .steps.bootstrap import (
-        write_claude_md, ensure_store, ensure_registry,
+        write_claude_md, ensure_store, ensure_config, ensure_registry,
         update_gitignore, update_claudeignore,
     )
 
-    _h("[5/5] CLAUDE.md  +  .gitignore  +  .claudeignore  +  memory store  +  registry")
+    _h("[5/5] CLAUDE.md  +  config  +  .gitignore  +  .claudeignore  +  memory store  +  registry")
     write_claude_md(root)
     ensure_store(cbim_dst)
+    ensure_config(root)
     ensure_registry(cbim_dst, root)
     update_gitignore(root)
     update_claudeignore(root)

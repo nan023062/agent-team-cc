@@ -37,12 +37,13 @@ def _copy_tree(src: Path, dst: Path) -> None:
     preserved: dict[str, bytes] = {}
     registry = dst / ".dna" / "index.md"
     store = dst / "memory" / "store"
+    config = dst / "config.json"
 
     if dst.exists():
-        # Stash the registry so we don't lose module bookkeeping.
         if registry.exists():
             preserved["registry"] = registry.read_bytes()
-        # Stash memory store paths -> bytes (small, file backend is plain md).
+        if config.exists():
+            preserved["config"] = config.read_bytes()
         stash: dict[str, bytes] = {}
         if store.exists():
             for p in store.rglob("*"):
@@ -63,11 +64,11 @@ def _copy_tree(src: Path, dst: Path) -> None:
     if fresh_store.exists():
         shutil.rmtree(str(fresh_store))
 
-    # Restore preserved registry, if any.
     if "registry" in preserved:
         registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_bytes(preserved["registry"])  # type: ignore[arg-type]
-    # Restore preserved memory store, if any.
+    if "config" in preserved:
+        config.write_bytes(preserved["config"])
     stash = preserved.get("store", {})  # type: ignore[assignment]
     if stash:
         for rel, data in stash.items():
@@ -107,6 +108,26 @@ def ensure_store(cbim_dst: Path) -> None:
     for d in ("short", "medium"):
         (cbim_dst / "memory" / "store" / d).mkdir(parents=True, exist_ok=True)
     _ok(".cbim-prompt/memory/store/{short,medium}/ ready")
+
+
+def ensure_config(root: Path) -> None:
+    import json
+    config_path = root / ".cbim-prompt" / "config.json"
+    if config_path.exists():
+        _skip(".cbim-prompt/config.json already exists")
+        return
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    default = {
+        "target_project": "",
+        "memory": {
+            "short_term": {"keep_days": 3}
+        }
+    }
+    config_path.write_text(
+        json.dumps(default, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    _ok("created .cbim-prompt/config.json")
 
 
 def ensure_registry(cbim_dst: Path, root: Path) -> None:

@@ -58,12 +58,25 @@ _DEFAULTS: dict = {
 
 
 def load_config(cwd=None) -> dict:
-    """Return merged config: defaults overridden by memory/config.py CONFIG."""
+    """Return merged config: defaults <- memory/config.py <- config.json[memory]."""
     cfg = copy.deepcopy(_DEFAULTS)
-    user = copy.deepcopy(_USER_CONFIG)
-    for section, values in user.items():
+    # Layer 1: memory/config.py overrides
+    for section, values in copy.deepcopy(_USER_CONFIG).items():
         if section in cfg and isinstance(values, dict):
             cfg[section].update(values)
         else:
             cfg[section] = values
+    # Layer 2: .cbim-prompt/config.json "memory" section overrides everything
+    try:
+        from pathlib import Path as _Path
+        from engine.config import load_config as _load_global
+        global_cfg = _load_global(cwd and _Path(cwd))
+        memory_overrides = global_cfg.get("memory", {})
+        for section, values in memory_overrides.items():
+            if section in cfg and isinstance(values, dict):
+                cfg[section].update(values)
+            else:
+                cfg[section] = values
+    except Exception:
+        pass
     return cfg
