@@ -7,6 +7,9 @@ def _logs_dir() -> Path:
     return d
 
 def log_call(argv: list, exit_code: int) -> None:
+    from .debug import is_debug
+    if not is_debug():
+        return
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cmd = " ".join(str(a) for a in argv)

@@ -2,8 +2,8 @@
 __pycache__/
 *.pyc
 cbim-prompt/memory/store/
-.claude/
-CLAUDE.md
+#.claude/
+#CLAUDE.md
 .cbim-prompt/memory/store/
 
 cbim-prompt/logs/

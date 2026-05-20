@@ -7,6 +7,9 @@ def _logs_dir() -> Path:
     return d
 
 def log_import(module_path: str, status: str, trigger: str) -> None:
+    from .debug import is_debug
+    if not is_debug():
+        return
     try:
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         line = f"[IMP]{ts}: trigger={trigger} | status={status} | module={module_path}\n"
