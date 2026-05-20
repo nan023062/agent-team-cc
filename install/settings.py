@@ -42,4 +42,10 @@ SETTINGS: dict = {
             "Grep(.cbim/**)",
         ],
     },
+    "mcpServers": {
+        "cbim": {
+            "command": "python",
+            "args": [".cbim/mcp_server/server.py"],
+        },
+    },
 }

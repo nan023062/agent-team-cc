@@ -58,6 +58,7 @@ def main() -> int:
     try:
         _step_venv(root)
         cbim_dst = _step_copy(cbim_src, root)
+        _step_install_deps(root)  # must run after copy (needs .cbim/mcp_server/)
         _step_agents(root)
         _step_hooks(root)
         _step_bootstrap(cbim_dst, root)
@@ -86,9 +87,26 @@ def _step_venv(root: Path) -> None:
         subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
         _ok("created .venv")
 
-    _h("[2a/5] Dependencies")
-    # FileBackend (default) uses stdlib only — no pip install needed.
-    _ok("no required dependencies (FileBackend uses stdlib only)")
+
+def _step_install_deps(root: Path) -> None:
+    _h("[2a/5] Dependencies (MCP SDK)")
+    venv = root / ".venv"
+    pip = venv / ("Scripts/pip.exe" if sys.platform == "win32" else "bin/pip")
+    req = root / ".cbim" / "mcp_server" / "requirements.txt"
+    if not pip.exists():
+        _skip("no .venv/pip — skipping MCP SDK install")
+        return
+    if not req.exists():
+        _skip(f"{req.relative_to(root)} missing — skipping MCP SDK install")
+        return
+    try:
+        subprocess.run(
+            [str(pip), "install", "-q", "-r", str(req)],
+            check=True,
+        )
+        _ok(f"installed MCP SDK from {req.relative_to(root)}")
+    except subprocess.CalledProcessError as exc:
+        print(f"    ! pip install failed (rc={exc.returncode}); MCP server will not start")
 
 
 def _step_copy(cbim_src: Path, root: Path) -> Path:

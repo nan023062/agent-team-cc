@@ -37,8 +37,22 @@
 | 命令 | 作用 |
 |---|---|
 | `/cbim_help` | 框架总览（工作流 + 命令清单 + 关键路径） |
-| `/cbim_debug on\|off\|status` | 开启/关闭/查看工具调用日志 |
-| `/cbim_log [N]` | 查看最近 N 条工具调用日志 |
+| `/cbim_debug on\|off\|status` | 开启/关闭/查看额外的引擎内部日志 |
+| `/cbim_log [N]` | 查看当前会话日志（agent 循环信号） |
+
+## MCP 工具
+
+CBIM 还作为 MCP server 注册在 `.claude/settings.json` 的 `mcpServers.cbim` 下。助手可以直接调用以下工具，不再需要 `python .cbim/engine ...` Bash：
+
+| 工具 | 作用 |
+|---|---|
+| `memory_query` / `memory_list` / `memory_create` / `memory_delete` | CBIM 记忆存储访问 |
+| `dna_list` / `dna_show` / `dna_reindex` | 模块知识（.dna/） |
+| `agent_list` / `agent_show` | Claude Code agent 注册表 |
+| `skill_list` / `skill_show` | CBIM skill 目录 |
+| `project_snapshot` | 完整项目知识快照 |
+
+Server 用官方 `mcp` Python SDK（FastMCP）实现。源码：`.cbim/mcp_server/server.py`；通过 `pip install -r .cbim/mcp_server/requirements.txt` 在项目 venv 中安装依赖。
 
 ---
 

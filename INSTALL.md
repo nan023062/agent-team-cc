@@ -188,21 +188,23 @@ Get-Content "$TMP\src\.claudeignore" | ForEach-Object {
 }
 ```
 
-## Step 4 — Create the Virtual Environment
+## Step 4 — Create the Virtual Environment + Install MCP SDK
 
-The framework's hooks shell out to `python` — a project-local `.venv` is the convention.
+Hooks and the CLI engine use stdlib only — no deps. The **MCP server** (`mcpServers.cbim` in `.claude/settings.json`) requires the `mcp` package.
 
 Linux / macOS:
 ```bash
 [ -d .venv ] || python3 -m venv .venv
+.venv/bin/pip install -q -r .cbim/mcp_server/requirements.txt
 ```
 
 Windows (PowerShell):
 ```powershell
 if (-not (Test-Path .venv)) { python -m venv .venv }
+.venv\Scripts\pip install -q -r .cbim\mcp_server\requirements.txt
 ```
 
-(FileBackend uses stdlib only — no `pip install` step required.)
+The MCP server registration in settings.json invokes `python .cbim/mcp_server/server.py`. Activate the venv (`source .venv/bin/activate` / `.venv\Scripts\Activate.ps1`) before launching Claude Code so that `python` resolves to the venv interpreter with the `mcp` SDK available. Alternatively, install `mcp` into the global Python on your PATH.
 
 ## Step 5 — Update .gitignore
 

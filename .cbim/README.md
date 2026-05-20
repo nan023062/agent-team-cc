@@ -37,8 +37,22 @@ Just tell the assistant what you want — no need to specify an agent:
 | Command | Purpose |
 |---|---|
 | `/cbim_help` | Framework overview (workflow + command list + key paths) |
-| `/cbim_debug on\|off\|status` | Toggle/inspect tool-call logging |
-| `/cbim_log [N]` | Tail the last N tool-call log entries |
+| `/cbim_debug on\|off\|status` | Toggle/inspect extra engine-internal logging |
+| `/cbim_log [N]` | Show the current session log (agent loop signals) |
+
+## MCP Tools
+
+CBIM also ships as an MCP server registered in `.claude/settings.json` under `mcpServers.cbim`. The assistant can invoke the following tools directly, no `python .cbim/engine ...` Bash needed:
+
+| Tool | Purpose |
+|---|---|
+| `memory_query` / `memory_list` / `memory_create` / `memory_delete` | CBIM memory store access |
+| `dna_list` / `dna_show` / `dna_reindex` | Module knowledge (.dna/) |
+| `agent_list` / `agent_show` | Claude Code agent registry |
+| `skill_list` / `skill_show` | CBIM skill catalog |
+| `project_snapshot` | Full project knowledge snapshot |
+
+The server is implemented with the official `mcp` Python SDK (FastMCP). Source: `.cbim/mcp_server/server.py`; install via `pip install -r .cbim/mcp_server/requirements.txt` in the project venv.
 
 ---
 
