@@ -79,7 +79,7 @@ v2 在用户工程内的文件结构：
 │   ├── memory/
 │   │   ├── short/                  # 短期会话记忆
 │   │   ├── medium/                 # 中期蒸馏（四象限：MUST/WANT/HOW/IS）
-│   │   └── distilled/              # 已固化归档
+│   │   └── distilled/              # 已固化归档（懒创建：迁移时不创建，由 memory engine 首次写入时按需创建）
 │   ├── snapshots/                  # 每次 session 的上下文快照（调试用）
 │   └── dna/                        # 根模块（项目级模块知识）
 │       ├── module.md               # 必需
@@ -97,6 +97,7 @@ v2 在用户工程内的文件结构：
 - **`.cbim/`** = 框架工作区，存放项目级状态（agents、memory、根模块知识、snapshots）
 - **`.dna/`** = 模块身份标识，与代码 co-located；代码迁移它跟着迁移
 - **根模块知识**在 `.cbim/dna/`（不在项目根贴 `.dna/`，保持源码根整洁）
+- **根模块路径不对称**：根模块 `module.md` 位于 `<root>/.cbim/dna/module.md`（直接在 `dna/` 下），子模块位于 `<src>/<x>/.dna/module.md`（在模块目录内的 `.dna/` 下）。`loadModule` 必须处理这一结构差异——当路径以 `.cbim/dna` 结尾时，直接在该目录内查找 `module.md`，而非再进入 `.dna/` 子目录
 - **模块树索引**由 engine 自动从文件系统扫描生成，不再手动维护 `index.md`
 
 ## 六、模块约定（沿用 v1）
@@ -230,11 +231,25 @@ npx @cbim/cli migrate <project-path>
 |--|--|--|
 | `<project>/.dna/` | `<project>/.cbim/dna/` | 整体搬迁 |
 | `<project>/.dna/index.md` | （删除） | 不再需要，engine 自动生成 |
-| `<project>/.claude/agents/<id>/` | `<project>/.cbim/agents/<id>.md` | 整合多文件结构为单文件 |
+| `<project>/.claude/agents/<id>/<id>.md` | `<project>/.cbim/agents/<id>.md` | 单文件直接复制（+ 可选 frontmatter 补全） |
 | `<project>/cbim/memory/store/` | `<project>/.cbim/memory/` | 整体搬迁 |
 | `<project>/CLAUDE.md` | `<project>/.cbim/config.yaml`（角色定义部分）+ 保留（用户自由内容部分） | 拆分 |
 | `<project>/src/x/.dna/` | `<project>/src/x/.dna/` | 不变 |
 | `<project>/cbim/` 框架文件 | （删除） | v2 用 npm 包，不入用户库 |
+
+**CLAUDE.md 拆分规则**（权威约定）：
+
+迁移时按 `## ` 标题将 CLAUDE.md 分为"系统"和"用户"两类内容：
+
+| 标题（精确匹配或包含关键词） | 分类 | 去向 |
+|--|--|--|
+| `Role`、`Execution Roles`、`Workflow`、`Skills`、`Hard Rules`、`Stance` | system | `.cbim/config.yaml` 的 `assistant.sections` |
+| 标题含 "Personality" 或 "Communication" | system | `.cbim/config.yaml` 的 `assistant.sections` |
+| 标题含 "Emotional" | system | `.cbim/config.yaml` 的 `assistant.sections` |
+| 首个 `## ` 之前的内容（标题 + 前言） | system | `.cbim/config.yaml` 的 `assistant.preamble` |
+| 其他所有章节 | user | 保留在 CLAUDE.md |
+
+如果 CLAUDE.md 无 `## ` 标题（非结构化纯文本），整体保留为 user 内容，不提取，生成警告。
 
 **用户行动**：
 
@@ -260,6 +275,7 @@ npx @cbim/cli migrate <project-path>
 - **无 VS Code 依赖**：可以被 CLI、Web、其他 IDE 复用
 - **三个子模块独立可用**：knowledge、memory、dispatch 之间靠接口耦合
 - **Migration 单独成包**：一次性使用，不污染运行时
+- **`discoverModules` 默认跳过目录**：递归扫描模块树时，以下目录永远不进入：`node_modules`、`dist`、`build`、`out`、`.git`、`.cbim`（已在步骤 1 作为根模块单独处理）、以及其他 dotfiles 目录（`.` 开头但不是 `.dna` 的目录）。此列表硬编码于 engine，不可由 config.yaml 覆盖
 
 ```typescript
 // 接口草图（待 Phase 0 落地）
@@ -295,7 +311,7 @@ interface DispatchEngine {
 **风险：**
 
 - Claude Agent SDK 的能力边界未知（不能像 Claude Code 那样自动注入 hook），可能需要在 extension 层补足
-- v1 用户的迁移成本：`.claude/agents/` 多文件结构 → `.cbim/agents/` 单文件，要小心保留原 SOUL/IDENTITY/skills 内容
+- v1 用户的迁移成本：`.claude/agents/<id>/<id>.md` 单文件直接复制到 `.cbim/agents/<id>.md`，风险低；主要复杂度在 CLAUDE.md 拆分
 - 多 agent 协作的并发模型：v1 靠 Claude Code 进程隔离，v2 在一个 Node 进程内可能需要显式 worker 隔离
 
 ## 十三、下一步

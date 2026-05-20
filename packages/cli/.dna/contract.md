@@ -143,7 +143,7 @@ interface TargetExistsError extends Error {
 }
 
 /**
- * A transform action failed (e.g., CLAUDE.md parsing failure, agent merge failure).
+ * A transform action failed (e.g., CLAUDE.md parsing failure, agent frontmatter synthesis failure).
  */
 interface TransformError extends Error {
   readonly name: 'TransformError'
@@ -249,49 +249,35 @@ Each v1 indicator maps to a set of migration actions. All paths below are relati
 3. Synthesize a `module.md` with YAML frontmatter from JSON fields + markdown body from architecture.md content.
 4. Write to `.cbim/dna/module.md`.
 
-### 5.2 Agents: `.claude/agents/<id>/` -> `.cbim/agents/<id>.md`
+### 5.2 Agents: `.claude/agents/<id>/<id>.md` -> `.cbim/agents/<id>.md`
 
-**Input structure (v1)**: Each agent is a directory under `.claude/agents/` containing one or more `.md` files. The primary file is typically `<id>.md` (the agent definition). Some agents may have additional files.
+**Input structure (v1)**: Each agent is a single markdown file at `.claude/agents/<id>/<id>.md`. The directory name matches the filename stem.
 
-**Output structure (v2)**: Each agent is a single `.md` file under `.cbim/agents/`.
+**Output structure (v2)**: Each agent is a single `.md` file directly under `.cbim/agents/`.
 
-**Merge algorithm**:
+**Migration rule**: Direct copy with optional frontmatter normalization.
 
 1. For each directory `<id>/` under `.claude/agents/`:
-   a. Identify the **primary file**: `<id>.md` (matches the directory name). If not found, use the first `.md` file alphabetically.
-   b. Read the primary file. Its content becomes the **base** of the merged output.
-   c. Scan for additional `.md` files in the directory (excluding the primary file).
-   d. If additional files exist, append their content after the primary file's content, separated by a horizontal rule and a heading indicating the source file name.
-   e. Write the merged result to `.cbim/agents/<id>.md`.
+   a. Locate the agent file: `.claude/agents/<id>/<id>.md`. If not found, generate a warning and skip.
+   b. Read the file content.
+   c. If frontmatter exists, validate and normalize (see frontmatter mapping below).
+   d. If no frontmatter exists, synthesize minimal frontmatter: `name: <id>`.
+   e. Write the result to `.cbim/agents/<id>.md`.
 
-2. **Merged file structure**:
+2. **Frontmatter field mapping** (v1 -> v2):
 
-```markdown
----
-name: <from primary file frontmatter, or id>
-description: <from primary file frontmatter, or "">
-model: <from primary file frontmatter, if present>
-tools: <from primary file frontmatter, if present>
----
+| v1 field | v2 field | Handling |
+|----------|----------|----------|
+| (none) | `name` | Synthesize from `<id>` if absent |
+| Any existing field | Same key | Pass through unchanged |
 
-<primary file body content>
+   The v1 agent files do not use structured frontmatter (they are pure markdown system prompts). If a v1 file happens to have frontmatter, all fields are preserved as-is. No fields are renamed or removed.
 
----
-<!-- Merged from: <additional-file-1.md> -->
+3. **Core agent handling**: The 4 core agents (`architect`, `hr`, `auditor`, and the assistant defined in `CLAUDE.md`) are migrated like any other agent. The assistant's identity extraction from `CLAUDE.md` is handled separately in Section 5.4.
 
-<additional file 1 content>
-
----
-<!-- Merged from: <additional-file-2.md> -->
-
-<additional file 2 content>
-```
-
-3. If the primary file has no frontmatter, synthesize minimal frontmatter with `name: <id>`.
-
-4. **Core agent handling**: The 4 core agents (`architect`, `hr`, `auditor`, and the assistant defined in `CLAUDE.md`) are migrated like any other agent. The assistant's identity extraction from `CLAUDE.md` is handled separately in Section 5.4.
-
-**Edge case**: If `.claude/agents/<id>/` contains only non-`.md` files (e.g., only `.json` or binary files), generate a warning and skip this agent.
+4. **Edge cases**:
+   - Directory contains no `.md` file matching the directory name: generate a warning, skip this agent.
+   - Directory contains additional files beyond `<id>.md` (e.g., assets, scratch notes): generate a warning listing the extra files, migrate only `<id>.md`. Extra files are NOT copied.
 
 ### 5.3 Memory: `cbim/memory/store/` -> `.cbim/memory/`
 
@@ -384,7 +370,7 @@ Within `applyMigration`, actions execute in this strict order:
 1. **Create** `.cbim/` directory structure (`dna/`, `agents/`, `memory/`, `memory/short/`, `memory/medium/`)
 2. **Move** root module files (`.dna/` -> `.cbim/dna/`)
 3. **Move** memory files (`cbim/memory/store/` -> `.cbim/memory/`)
-4. **Transform** agents (`.claude/agents/` -> `.cbim/agents/`)
+4. **Move** agents (`.claude/agents/<id>/<id>.md` -> `.cbim/agents/<id>.md`)
 5. **Transform** config (`CLAUDE.md` -> `.cbim/config.yaml` + trimmed `CLAUDE.md`)
 6. **Delete** `index.md`
 7. **Delete** framework files (`cbim/` minus already-moved store)
@@ -450,7 +436,7 @@ Migrating: /path/to/project
 
 [1/7] Moving root module .dna/ -> .cbim/dna/                    OK
 [2/7] Deleting .dna/index.md                                     OK
-[3/7] Migrating agents (3 found)                                 OK
+[3/7] Copying agents (3 found)                                    OK
 [4/7] Moving memory store -> .cbim/memory/                       OK
 [5/7] Extracting config from CLAUDE.md -> .cbim/config.yaml      OK
 [6/7] Cleaning up cbim/ framework files                          OK
@@ -483,9 +469,9 @@ Migration plan:
   [root-module] Move .dna/contract.md -> .cbim/dna/contract.md
   [root-module] Move .dna/workflows/ -> .cbim/dna/workflows/
   [root-module] Delete .dna/index.md
-  [agents]      Merge .claude/agents/architect/ -> .cbim/agents/architect.md (1 file)
-  [agents]      Merge .claude/agents/programmer/ -> .cbim/agents/programmer.md (1 file)
-  [agents]      Merge .claude/agents/hr/ -> .cbim/agents/hr.md (1 file)
+  [agents]      Copy .claude/agents/architect/architect.md -> .cbim/agents/architect.md
+  [agents]      Copy .claude/agents/programmer/programmer.md -> .cbim/agents/programmer.md
+  [agents]      Copy .claude/agents/hr/hr.md -> .cbim/agents/hr.md
   [memory]      Move cbim/memory/store/short/ -> .cbim/memory/short/ (38 files)
   [memory]      Move cbim/memory/store/medium/ -> .cbim/memory/medium/ (4 files)
   [config]      Transform CLAUDE.md -> .cbim/config.yaml + trimmed CLAUDE.md
@@ -505,7 +491,7 @@ No files were modified (dry run).
 ```
 Error: Migration failed for 1 action(s):
 
-  [agents] Merge .claude/agents/broken/ -> .cbim/agents/broken.md
+  [agents] Copy .claude/agents/broken/broken.md -> .cbim/agents/broken.md
            Error: Permission denied reading .claude/agents/broken/broken.md
 
 Migration partially completed. 6 of 7 actions succeeded.
