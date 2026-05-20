@@ -35,13 +35,13 @@ git --version
 Linux / macOS:
 ```bash
 TMP=$(mktemp -d)
-git clone --depth=1 --branch master https://github.com/nan023062/agent-team-cc.git "$TMP/src"
+git clone --depth=1 --branch master https://github.com/nan023062/cbim.git "$TMP/src"
 ```
 
 Windows (PowerShell):
 ```powershell
 $TMP = (New-Item -ItemType Directory -Path ([System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid())).FullName
-git clone --depth=1 --branch master https://github.com/nan023062/agent-team-cc.git "$TMP\src"
+git clone --depth=1 --branch master https://github.com/nan023062/cbim.git "$TMP\src"
 ```
 
 Verify the four required artifacts exist in the clone:
