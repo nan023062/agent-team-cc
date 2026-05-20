@@ -61,7 +61,7 @@ You only talk to the assistant. The assistant understands intent, decomposes tas
 Open Claude Code in the target project directory and send this message — the agent will complete all installation steps automatically:
 
 ```
-Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
+Please fetch https://raw.githubusercontent.com/nan023062/cbim/v1-claude-code/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
 ```
 
 ### Option 2: Manual installation
