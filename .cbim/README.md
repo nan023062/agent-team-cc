@@ -3,6 +3,7 @@
 > This file travels with the framework. Read it after installation to understand how to use CBIM.
 >
 > Full documentation: https://github.com/nan023062/cbim
+> 中文版: [README.zh-CN.md](README.zh-CN.md)
 
 ---
 
@@ -31,6 +32,16 @@ Just tell the assistant what you want — no need to specify an agent:
 
 ---
 
+## Slash Commands
+
+| Command | Purpose |
+|---|---|
+| `/cbim_help` | Framework overview (workflow + command list + key paths) |
+| `/cbim_debug on\|off\|status` | Toggle/inspect tool-call logging |
+| `/cbim_log [N]` | Tail the last N tool-call log entries |
+
+---
+
 ## Directory Structure
 
 ```
@@ -40,11 +51,8 @@ your-project/
 │
 ├── .claude/
 │   ├── settings.json              ← Permission config + hook registration
-│   └── agents/
-│       ├── architect/             ← Architect
-│       ├── hr/                    ← HR
-│       ├── auditor/               ← Auditor
-│       └── programmer/            ← Programmer (default work agent)
+│   ├── agents/                    ← Architect / HR / Auditor / Programmer
+│   └── commands/                  ← Slash commands (/cbim_*)
 │
 ├── .dna/                          ← Project knowledge root module (created by architect)
 │   ├── index.md                   ← root-module-only: all module paths in the tree
@@ -53,12 +61,15 @@ your-project/
 │   ├── workflows/                 ← optional: deterministic process definitions
 │   └── ...                        ← optional: any user-defined files
 │
-└── cbim-prompt/                          ← Framework (this directory)
-    ├── install.py / install.bat   ← Installer
-    ├── cc-template/               ← Claude Code templates
-    ├── knowledge/                 ← Knowledge engine + capability skills
+└── .cbim/                         ← Framework (this directory)
+    ├── install.py / install.bat   ← Installer (legacy; pure-copy install is preferred)
+    ├── cbi/                       ← Capability + business definitions, agents, skills
+    ├── engine/                    ← Unified CLI entry (python .cbim/engine ...)
+    ├── installer/                 ← Install scripts + SessionStart/Stop hooks
     ├── memory/                    ← Memory engine + store
-    └── preview/                   ← Local visualization server
+    ├── preview/                   ← Local visualization server
+    ├── docs/                      ← Architecture documentation
+    └── config.json                ← Local framework config
 ```
 
 ---
@@ -67,14 +78,14 @@ your-project/
 
 | Layer | Governed by | Scope | Rule |
 |-------|-------------|-------|------|
-| **Capability layer** | HR | `.claude/agents/` + `cbim-prompt/cbi/skills/` | No project-specific content |
+| **Capability layer** | HR | `.claude/agents/` + `.cbim/cbi/skills/` | No project-specific content |
 | **Business layer** | Architect | `.dna/` (`module.md` = sole hard constraint; extensions optional) | No agent spec references |
 
 The `.dna/` convention follows **minimal constraint + open extension**: the directory's existence marks a module; `module.md` is the only required file (YAML frontmatter + architecture body in one file); `contract.md`, `workflows/`, and any user-defined files are optional.
 
 | Skill type | Storage | Characteristics |
 |------------|---------|----------------|
-| **Capability skill** | `cbim-prompt/cbi/skills/` | Agent private capability; portable; governed by HR |
+| **Capability skill** | `.cbim/cbi/skills/` | Agent private capability; portable; governed by HR |
 | **Business skill** | `.dna/workflows/` | Module deterministic process; project-bound; governed by architect |
 
 ---
@@ -83,18 +94,20 @@ The `.dna/` convention follows **minimal constraint + open extension**: the dire
 
 | Stage | Path | Purpose |
 |-------|------|---------|
-| Short-term | `cbim-prompt/memory/store/short/` | Raw session records |
-| Medium-term | `cbim-prompt/memory/store/medium/` | Compressed pattern summaries |
-| Knowledge | `cbim-prompt/cbi/skills/` + `.dna/` | Crystallized into governance structures |
+| Short-term | `.cbim/memory/store/short/` | Raw session records (cleaned after 3 days) |
+| Medium-term | `.cbim/memory/store/medium/` | Compressed pattern summaries |
+| Knowledge | `.cbim/cbi/skills/` + `.dna/` | Crystallized into governance structures |
 
-SessionStart hook automatically injects at session start: project knowledge snapshot + last session recovery point + recent memory.
+`SessionStart` hook automatically injects at session start: project knowledge snapshot + last session recovery point + recent memory.
+`Stop` hook distills the just-finished session into `memory/store/short/`.
+`PreToolUse` hook (inert by default) writes tool-call logs to `.cbim/logs/tools.txt` when `/cbim_debug on` is set.
 
 ---
 
 ## Preview
 
 ```bash
-python -m preview.preview      # macOS / Linux  (run from cbim-prompt/)
+python -m preview.preview      # macOS / Linux  (run from .cbim/)
 preview\preview.bat            # Windows
 ```
 
