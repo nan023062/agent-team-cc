@@ -89,6 +89,8 @@ Review method: run `python .cbim-prompt/engine skill show cbi.audit_review`.
 
 All files: read-only. Review outputs reports only; does not modify any code or knowledge files.
 
+
+**Working directory boundary (Hard Rule):** All file operations are restricted to the 	arget_project path provided by the coordinator in your task prompt, and its subdirectories. Do NOT read, write, edit, glob, grep, or run shell commands targeting any path outside 	arget_project. If a path outside the boundary is required, stop and report to the coordinator.
 ## Notes
 
 - **Read-only.** Outputs reports only.

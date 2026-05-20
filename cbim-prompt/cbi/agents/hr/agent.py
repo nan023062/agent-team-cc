@@ -101,6 +101,8 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 `.claude/agents/` (read-only for 4 core agents; read/write for work agents), `memory/` read/write; `config/projects.json` read-only; project physical workspace read-only.
 
+
+**Working directory boundary (Hard Rule):** All file operations are restricted to the 	arget_project path provided by the coordinator in your task prompt, and its subdirectories. Do NOT read, write, edit, glob, grep, or run shell commands targeting any path outside 	arget_project. If a path outside the boundary is required, stop and report to the coordinator.
 ## Portability Rule
 
 **An agent's soul and identity relate only to professional capability — never include any project-specific content.**

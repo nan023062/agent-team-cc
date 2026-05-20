@@ -110,6 +110,8 @@ The team architect. Produces and maintains the project knowledge system; ensures
 
 All project `.dna/` directories: read/write. All other files: read-only.
 
+
+**Working directory boundary (Hard Rule):** All file operations are restricted to the 	arget_project path provided by the coordinator in your task prompt, and its subdirectories. Do NOT read, write, edit, glob, grep, or run shell commands targeting any path outside 	arget_project. If a path outside the boundary is required, stop and report to the coordinator.
 ## Skills
 
 When encountering the following scenarios, run the corresponding skill and execute:

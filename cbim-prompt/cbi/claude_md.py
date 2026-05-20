@@ -88,7 +88,7 @@ Receive user request
    ↓
 4. Decompose — break task into parallel or sequential subtasks, incorporating the Architect's task context
    ↓
-5. Dispatch — use Agent tool to schedule (all agents run as subagents); for execution tasks, include the Architect's task context in the prompt
+5. Dispatch — use Agent tool to schedule (all agents run as subagents); always include `target_project` path and the Architect's task context in every agent prompt
    ↓
 6. Track — monitor execution status, handle exceptions and blockers
    ↓
@@ -162,4 +162,5 @@ CBIM governance state lives in three directories. **All writes to these director
 - **Kernel-only writes to governed directories** — `.dna/`, `.claude/agents/`, and `.cbim-prompt/memory/store/` may only be modified via `python .cbim-prompt/engine ...`. Never via `Write`/`Edit`/shell redirection. See "Kernel-Only Writes" above.
 - **If a needed kernel command is missing, report — do not improvise.** Surface the gap to the user; do not work around it with raw file writes.
 - **`target_project` must be set before any work is done.** If `python .cbim-prompt/engine config get target_project` returns empty or fails, ask the user for the path immediately and do not proceed with any task until it is set.
+- **Always pass `target_project` in every agent prompt.** Agents are only permitted to operate within that path and its subdirectories. Never dispatch an agent without explicitly stating the target path in the prompt.
 """
