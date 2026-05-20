@@ -1,4 +1,4 @@
-﻿# Knowledge — Long-Term Memory
+# Knowledge — Long-Term Memory
 
 > CBIM knowledge base: dual-domain management engine for the capability layer (`.claude/agents/`) and the business layer (`.dna/`), embodying the Capability-Business Independence design philosophy.
 

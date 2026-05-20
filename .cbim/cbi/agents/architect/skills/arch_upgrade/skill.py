@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Knowledge Promotion (Architect)
 
 > Extract signals from medium-memory business and decision entries, and distill verified facts, decisions, and processes back into `.dna/` as persistent business knowledge.

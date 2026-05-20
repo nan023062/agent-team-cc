@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Agent Training (HR)
 
 > Extract signals from medium-memory capability entries, and promote validated patterns to Skills or internalize them into the Soul, raising a work agent's capability ceiling.

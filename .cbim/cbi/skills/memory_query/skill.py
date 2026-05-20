@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Query Memory
 
 **Main agent only. Use when historical retrieval is needed mid-session.**

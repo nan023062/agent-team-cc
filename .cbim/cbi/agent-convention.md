@@ -1,4 +1,4 @@
-﻿# Agent Capability Layer Convention
+# Agent Capability Layer Convention
 
 > The capability layer is governed by HR, strictly separated from the business layer (`.dna/`).
 

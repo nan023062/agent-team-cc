@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Architecture Review (Architect)
 
 > Simulates a senior leader review: structured inspection of the project module tree across two dimensions:

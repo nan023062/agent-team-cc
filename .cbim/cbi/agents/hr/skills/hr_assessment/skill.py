@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Agent Assessment (HR)
 
 > Simulates a senior leader review: structured inspection of agent definitions across two dimensions:

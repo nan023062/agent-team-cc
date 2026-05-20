@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Capability Layer CRUD (HR)
 
 > Manage work agent definitions under `.claude/agents/`. The 4 core agents (architect / hr / auditor and the assistant) are read-only and must not be modified.

@@ -1,4 +1,4 @@
-﻿"""
+"""
 load_memory.py — SessionStart hook.
 
 Receives session-start event from Claude Code and:

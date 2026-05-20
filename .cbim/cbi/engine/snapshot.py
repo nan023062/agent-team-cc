@@ -1,4 +1,4 @@
-﻿"""
+"""
 engine/snapshot.py — Project knowledge snapshot for session context.
 
 Generates a concise markdown summary of:

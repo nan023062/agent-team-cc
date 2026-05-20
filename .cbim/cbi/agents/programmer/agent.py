@@ -1,4 +1,4 @@
-﻿PROGRAMMER_MD: str = """\
+PROGRAMMER_MD: str = """\
 ---
 name: programmer
 description: Code craftsman — explores codebases, implements features, fixes bugs, and refactors. Works from blueprints when available; explores and implements independently when not.

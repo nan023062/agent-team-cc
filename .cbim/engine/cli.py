@@ -1,4 +1,4 @@
-﻿"""
+"""
 engine/cli.py — Unified CBIM CLI entry point.
 
 Usage (cwd=cbim-prompt/):

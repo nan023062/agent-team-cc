@@ -1,4 +1,4 @@
-﻿AUDITOR_MD: str = """\
+AUDITOR_MD: str = """\
 ---
 name: auditor
 description: Independent adversarial reviewer with read-only access. Performs adversarial review of architecture designs and code implementations. Use when the assistant directs review of a specific module or implementation quality — not invoked by other agents directly.

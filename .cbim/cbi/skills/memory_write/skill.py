@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Write Short-term Memory (Session Entry)
 
 **Main agent only.** Two first-class triggers — both write to `cbim-prompt/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).

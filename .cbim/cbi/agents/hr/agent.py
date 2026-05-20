@@ -1,4 +1,4 @@
-﻿HR_MD: str = """\
+HR_MD: str = """\
 ---
 name: hr
 description: Capability layer steward — manages the full work agent lifecycle (recruit / train / assess / archive), maintaining the .claude/agents/ directory. Use when agent management or capability promotion is involved.

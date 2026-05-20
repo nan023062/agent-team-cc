@@ -1,4 +1,4 @@
-﻿# `.dna/` Business Layer Convention
+# `.dna/` Business Layer Convention
 
 > The business layer is governed by the architect, strictly separated from the capability layer (`.claude/agents/`).
 

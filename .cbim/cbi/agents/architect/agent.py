@@ -1,4 +1,4 @@
-﻿ARCHITECT_MD: str = """\
+ARCHITECT_MD: str = """\
 ---
 name: architect
 description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge pack maintenance, the .dna/ directory, or architecture decisions.

@@ -1,4 +1,4 @@
-﻿"""
+"""
 cli.py — Memory engine command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI

@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Memory Distillation (Short → Medium)
 
 **Main agent only. Triggered periodically or on demand.**

@@ -1,4 +1,4 @@
-﻿SKILL: str = """\
+SKILL: str = """\
 # Skill: Business Layer Module CRUD (Architect)
 
 > Manage the project's `.dna/` knowledge system. Knowledge first — document before you build.
