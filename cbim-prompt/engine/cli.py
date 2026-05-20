@@ -125,12 +125,16 @@ def _load_skills() -> dict[str, str]:
         except ModuleNotFoundError:
             pass
 
-    # memory skills
-    import memory.skills as mem_skills_pkg
-    for info in pkgutil.iter_modules(mem_skills_pkg.__path__):
-        mod = importlib.import_module(f"{mem_skills_pkg.__name__}.{info.name}")
-        if hasattr(mod, "SKILL"):
-            skills[f"memory.{info.name}"] = mod.SKILL
+    try:
+        import cbi.coordinator.skills as coord_skills_pkg
+        for skill_info in pkgutil.iter_modules(coord_skills_pkg.__path__):
+            mod = importlib.import_module(
+                f"{coord_skills_pkg.__name__}.{skill_info.name}.skill"
+            )
+            if hasattr(mod, "SKILL"):
+                skills[f"coordinator.{skill_info.name}"] = mod.SKILL
+    except ModuleNotFoundError:
+        pass
 
     return skills
 
@@ -165,6 +169,16 @@ def _load_souls() -> dict[str, str]:
             if attr.endswith("_MD"):
                 souls[info.name] = getattr(mod, attr)
                 break
+
+    try:
+        import cbi.coordinator.agent as coord_mod
+        for attr in dir(coord_mod):
+            if attr.endswith("_MD"):
+                souls["assistant"] = getattr(coord_mod, attr)
+                break
+    except ModuleNotFoundError:
+        pass
+
     return souls
 
 

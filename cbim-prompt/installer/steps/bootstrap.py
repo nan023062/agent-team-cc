@@ -6,7 +6,7 @@ store + module registry, update .gitignore / .claudeignore.
 import shutil
 from pathlib import Path
 
-from cbi.agents.assistant.agent import ASSISTANT_MD as CLAUDE_MD
+from cbi.coordinator.agent import ASSISTANT_MD as CLAUDE_MD
 
 
 # Directories never copied into the install destination.

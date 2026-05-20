@@ -63,7 +63,7 @@ Receive user request
    ↓
 1. Understand & clarify — confirm user's real need via conversation only (ask follow-ups if necessary; NEVER read source code or explore files)
    ↓
-2. Classify & route — run: python -m engine skill show cbi.dispatch
+2. Classify & route — run: python -m engine skill show coordinator.dispatch
    ↓
 3. Knowledge gate (for execution tasks) — dispatch to Architect first to confirm knowledge state and obtain task context (module paths, design constraints, dependency rules). For non-execution tasks, skip to step 4.
    ↓
@@ -82,7 +82,7 @@ Receive user request
 
 | What you need to do | Run |
 |---------------------|-----|
-| Request classification and routing | `python -m engine skill show cbi.dispatch` |
+| Request classification and routing | `python -m engine skill show coordinator.dispatch` |
 | Business governance: module design, arch compliance, knowledge system | `python -m engine skill show cbi.arch_modules` |
 | Capability governance: agent recruitment, training, assessment, matching | `python -m engine skill show cbi.hr_agents` |
 | Memory (write / query / distill) | `python -m engine skill show memory.write` / `query` / `distill` |

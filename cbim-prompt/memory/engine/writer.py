@@ -129,11 +129,7 @@ def write_session(transcript_path: str, store_dir: Path,
 
     now = datetime.now()
     ts = now.strftime("%Y-%m-%d-%H%M%S")
-    name = _slug(
-        info["user_request"],
-        max_input=st["max_slug_input_chars"],
-        max_output=st["max_slug_chars"],
-    )
+    name = _slug(_task_summary(info), max_input=st["max_slug_input_chars"], max_output=st["max_slug_chars"])
     entry_path = short_dir / f"{ts}-main-{name}.md"
 
     if not _should_write(info, short_dir):
@@ -613,6 +609,15 @@ def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None)
 def _slug(text: str, max_input: int, max_output: int) -> str:
     s = re.sub(r"[^\w一-鿿]+", "-", text[:max_input])
     return s.strip("-")[:max_output] or "session"
+
+
+def _task_summary(info: dict) -> str:
+    calls = info.get("agent_calls") or []
+    if calls:
+        desc = (calls[0].get("description") or "").strip()
+        if desc:
+            return desc
+    return info.get("user_request", "")
 
 
 def _build_entry(info: dict, distill: str | None = None) -> str:
