@@ -28,11 +28,9 @@ Display the following overview to the user verbatim (in Chinese):
 
 | 命令 | 作用 |
 |---|---|
-| `/debug-on` | 开启工具调用日志（创建 `.cbim/.debug`） |
-| `/debug-off` | 关闭工具调用日志 |
-| `/debug-status` | 查看调试状态 + 最近日志 |
-| `/log [N]` | 查看最近 N 条工具调用日志（默认 30） |
-| `/cbim` | 本帮助 |
+| `/cbim_help` | 本帮助 |
+| `/cbim_debug on\|off\|status` | 开启/关闭/查看工具调用日志（控制 `.cbim/.debug`） |
+| `/cbim_log [N]` | 查看最近 N 条工具调用日志（默认 30） |
 
 ## CBIM Engine 命令 (`python .cbim/engine <domain> <cmd>`)
 
