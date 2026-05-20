@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim-prompt/installer/hooks/write_memory.py"
+            "command": "python .cbim/installer/hooks/write_memory.py"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim-prompt/installer/hooks/load_memory.py"
+            "command": "python .cbim/installer/hooks/load_memory.py"
           }
         ]
       }
@@ -24,10 +24,10 @@
   "permissions": {
     "defaultMode": "bypassPermissions",
     "deny": [
-      "Write(.cbim-prompt/**)",
-      "Edit(.cbim-prompt/**)",
-      "Glob(.cbim-prompt/**)",
-      "Grep(.cbim-prompt/**)"
+      "Write(.cbim/**)",
+      "Edit(.cbim/**)",
+      "Glob(.cbim/**)",
+      "Grep(.cbim/**)"
     ]
   }
 }

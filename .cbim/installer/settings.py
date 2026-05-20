@@ -1,0 +1,33 @@
+SETTINGS: dict = {
+    "hooks": {
+        "Stop": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python .cbim/installer/hooks/write_memory.py",
+                    }
+                ]
+            }
+        ],
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python .cbim/installer/hooks/load_memory.py",
+                    }
+                ]
+            }
+        ],
+    },
+    "permissions": {
+        "defaultMode": "bypassPermissions",
+        "deny": [
+            "Write(.cbim/**)",
+            "Edit(.cbim/**)",
+            "Glob(.cbim/**)",
+            "Grep(.cbim/**)",
+        ],
+    },
+}

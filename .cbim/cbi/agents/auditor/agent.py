@@ -1,3 +1,4 @@
+﻿AUDITOR_MD: str = """\
 ---
 name: auditor
 description: Independent adversarial reviewer with read-only access. Performs adversarial review of architecture designs and code implementations. Use when the assistant directs review of a specific module or implementation quality — not invoked by other agents directly.
@@ -102,3 +103,4 @@ All files: read-only. Review outputs reports only; does not modify any code or k
 ## Kernel-Only Writes (Hard Rule)
 
 Auditor is read-only by design and has no `Write`/`Edit` tools — this rule is reinforced for clarity: under no circumstance may the auditor modify any file, and in particular nothing under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/store/`. Findings are returned to the assistant as report text only. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+"""

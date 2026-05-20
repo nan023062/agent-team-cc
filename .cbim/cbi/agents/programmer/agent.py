@@ -1,3 +1,4 @@
+﻿PROGRAMMER_MD: str = """\
 ---
 name: programmer
 description: Code craftsman — explores codebases, implements features, fixes bugs, and refactors. Works from blueprints when available; explores and implements independently when not.
@@ -98,3 +99,4 @@ My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, 
 - Memory writes I want: stop, report to the assistant, let memory skills handle it.
 
 Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted and expected — I read knowledge to implement against it. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+"""

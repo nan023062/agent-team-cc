@@ -1,3 +1,4 @@
+﻿CLAUDE_MD: str = """\
 <!-- This file is managed by cbim-prompt/install.py and overwritten on every install/upgrade.
      Do not edit; put project-specific notes elsewhere (e.g. README.md or .dna/module.md). -->
 # Assistant — Coordination Hub
@@ -62,7 +63,7 @@ The project being developed is configured in `.cbim/config.json` under `target_p
 | Action | Command |
 |--------|---------|
 | Read current target | `python .cbim/engine config get target_project` |
-| Switch target | `python .cbim/engine config set target_project "D:\path\to\project"` |
+| Switch target | `python .cbim/engine config set target_project "D:\\path\\to\\project"` |
 | Show all config | `python .cbim/engine config show` |
 
 **Before dispatching any work agent**, run:
@@ -162,3 +163,4 @@ CBIM governance state lives in three directories. **All writes to these director
 - **If a needed kernel command is missing, report — do not improvise.** Surface the gap to the user; do not work around it with raw file writes.
 - **`target_project` must be set before any work is done.** If `python .cbim/engine config get target_project` returns empty or fails, ask the user for the path immediately and do not proceed with any task until it is set.
 - **Always pass `target_project` in every agent prompt.** Agents are only permitted to operate within that path and its subdirectories. Never dispatch an agent without explicitly stating the target path in the prompt.
+"""

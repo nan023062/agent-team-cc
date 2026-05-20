@@ -46,7 +46,7 @@ git clone --depth=1 --branch master https://github.com/nan023062/cbim.git "$TMP\
 
 Verify the four required artifacts exist in the clone:
 ```bash
-ls "$TMP/src/.cbim-prompt" "$TMP/src/.claude" "$TMP/src/CLAUDE.md" "$TMP/src/.claudeignore"
+ls "$TMP/src/.cbim" "$TMP/src/.claude" "$TMP/src/CLAUDE.md" "$TMP/src/.claudeignore"
 ```
 
 If any is missing, stop and report — the upstream repo is incomplete.
@@ -57,7 +57,7 @@ Two artifacts are overwritten cleanly; two are merged to preserve user data.
 
 | Artifact | Strategy | Why |
 |---|---|---|
-| `.cbim-prompt/` | clean replace, **preserve** `memory/store/`, `.dna/`, `config.json` | framework files must match upstream; runtime data must survive |
+| `.cbim/` | clean replace, **preserve** `memory/store/`, `.dna/`, `config.json` | framework files must match upstream; runtime data must survive |
 | `.claude/agents/` | clean replace | agents are framework-defined |
 | `.claude/settings.json` | **merge** — overwrite only `hooks` and `permissions` keys | preserve user-added MCP servers, env, model, theme, custom permissions |
 | `CLAUDE.md` | overwrite, backup to `CLAUDE.md.bak` if different | template owned by framework |
@@ -67,17 +67,17 @@ Two artifacts are overwritten cleanly; two are merged to preserve user data.
 
 Linux / macOS:
 ```bash
-[ -d .cbim-prompt/memory/store ] && cp -r .cbim-prompt/memory/store "$TMP/_store_bak"
-[ -d .cbim-prompt/.dna ]         && cp -r .cbim-prompt/.dna         "$TMP/_dna_bak"
-[ -f .cbim-prompt/config.json ]  && cp    .cbim-prompt/config.json  "$TMP/_config_bak"
+[ -d .cbim/memory/store ] && cp -r .cbim/memory/store "$TMP/_store_bak"
+[ -d .cbim/.dna ]         && cp -r .cbim/.dna         "$TMP/_dna_bak"
+[ -f .cbim/config.json ]  && cp    .cbim/config.json  "$TMP/_config_bak"
 [ -f CLAUDE.md ] && cp CLAUDE.md "$TMP/_claude_md_bak"
 ```
 
 Windows (PowerShell):
 ```powershell
-if (Test-Path .cbim-prompt\memory\store) { Copy-Item -Recurse .cbim-prompt\memory\store "$TMP\_store_bak" }
-if (Test-Path .cbim-prompt\.dna)         { Copy-Item -Recurse .cbim-prompt\.dna         "$TMP\_dna_bak" }
-if (Test-Path .cbim-prompt\config.json)  { Copy-Item          .cbim-prompt\config.json  "$TMP\_config_bak" }
+if (Test-Path .cbim\memory\store) { Copy-Item -Recurse .cbim\memory\store "$TMP\_store_bak" }
+if (Test-Path .cbim\.dna)         { Copy-Item -Recurse .cbim\.dna         "$TMP\_dna_bak" }
+if (Test-Path .cbim\config.json)  { Copy-Item          .cbim\config.json  "$TMP\_config_bak" }
 if (Test-Path CLAUDE.md) { Copy-Item CLAUDE.md "$TMP\_claude_md_bak" }
 ```
 
@@ -85,47 +85,47 @@ if (Test-Path CLAUDE.md) { Copy-Item CLAUDE.md "$TMP\_claude_md_bak" }
 
 Linux / macOS:
 ```bash
-rm -rf .cbim-prompt .claude/agents
+rm -rf .cbim .claude/agents
 mkdir -p .claude
-cp -R "$TMP/src/.cbim-prompt"   .cbim-prompt
+cp -R "$TMP/src/.cbim"   .cbim
 cp -R "$TMP/src/.claude/agents" .claude/agents
 ```
 
 Windows (PowerShell):
 ```powershell
-Remove-Item -Recurse -Force .cbim-prompt, .claude\agents -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .cbim, .claude\agents -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path .claude | Out-Null
-Copy-Item -Recurse "$TMP\src\.cbim-prompt"   .cbim-prompt
+Copy-Item -Recurse "$TMP\src\.cbim"   .cbim
 Copy-Item -Recurse "$TMP\src\.claude\agents" .claude\agents
 ```
 
 ### 3c. Restore runtime data + ensure required dirs
 
-`.cbim-prompt/memory/store/{short,medium}/` and `.cbim-prompt/.dna/index.md` are gitignored or runtime-managed and won't be in the clone — create them if missing.
+`.cbim/memory/store/{short,medium}/` and `.cbim/.dna/index.md` are gitignored or runtime-managed and won't be in the clone — create them if missing.
 
 Linux / macOS:
 ```bash
 # Restore preserved data
-[ -d "$TMP/_store_bak" ]  && { rm -rf .cbim-prompt/memory/store; mkdir -p .cbim-prompt/memory; cp -r "$TMP/_store_bak" .cbim-prompt/memory/store; }
-[ -d "$TMP/_dna_bak" ]    && { rm -rf .cbim-prompt/.dna;          cp -r "$TMP/_dna_bak"   .cbim-prompt/.dna; }
-[ -f "$TMP/_config_bak" ] && cp "$TMP/_config_bak" .cbim-prompt/config.json
+[ -d "$TMP/_store_bak" ]  && { rm -rf .cbim/memory/store; mkdir -p .cbim/memory; cp -r "$TMP/_store_bak" .cbim/memory/store; }
+[ -d "$TMP/_dna_bak" ]    && { rm -rf .cbim/.dna;          cp -r "$TMP/_dna_bak"   .cbim/.dna; }
+[ -f "$TMP/_config_bak" ] && cp "$TMP/_config_bak" .cbim/config.json
 
 # Ensure required runtime dirs/files exist (no-op if already restored)
-mkdir -p .cbim-prompt/memory/store/short .cbim-prompt/memory/store/medium
-mkdir -p .cbim-prompt/.dna
-[ -f .cbim-prompt/.dna/index.md ] || printf "# Module Index\n" > .cbim-prompt/.dna/index.md
-[ -f .cbim-prompt/config.json ]   || printf '{\n  "target_project": "",\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim-prompt/config.json
+mkdir -p .cbim/memory/store/short .cbim/memory/store/medium
+mkdir -p .cbim/.dna
+[ -f .cbim/.dna/index.md ] || printf "# Module Index\n" > .cbim/.dna/index.md
+[ -f .cbim/config.json ]   || printf '{\n  "target_project": "",\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim/config.json
 ```
 
 Windows (PowerShell):
 ```powershell
-if (Test-Path "$TMP\_store_bak")  { Remove-Item -Recurse -Force .cbim-prompt\memory\store -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path .cbim-prompt\memory | Out-Null; Copy-Item -Recurse "$TMP\_store_bak" .cbim-prompt\memory\store }
-if (Test-Path "$TMP\_dna_bak")    { Remove-Item -Recurse -Force .cbim-prompt\.dna -ErrorAction SilentlyContinue; Copy-Item -Recurse "$TMP\_dna_bak" .cbim-prompt\.dna }
-if (Test-Path "$TMP\_config_bak") { Copy-Item "$TMP\_config_bak" .cbim-prompt\config.json }
+if (Test-Path "$TMP\_store_bak")  { Remove-Item -Recurse -Force .cbim\memory\store -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path .cbim\memory | Out-Null; Copy-Item -Recurse "$TMP\_store_bak" .cbim\memory\store }
+if (Test-Path "$TMP\_dna_bak")    { Remove-Item -Recurse -Force .cbim\.dna -ErrorAction SilentlyContinue; Copy-Item -Recurse "$TMP\_dna_bak" .cbim\.dna }
+if (Test-Path "$TMP\_config_bak") { Copy-Item "$TMP\_config_bak" .cbim\config.json }
 
-New-Item -ItemType Directory -Force -Path .cbim-prompt\memory\store\short, .cbim-prompt\memory\store\medium, .cbim-prompt\.dna | Out-Null
-if (-not (Test-Path .cbim-prompt\.dna\index.md)) { Set-Content -Path .cbim-prompt\.dna\index.md -Value "# Module Index" -NoNewline; Add-Content -Path .cbim-prompt\.dna\index.md -Value "" }
-if (-not (Test-Path .cbim-prompt\config.json))   { Set-Content -Path .cbim-prompt\config.json   -Value '{"target_project":"","memory":{"short_term":{"keep_days":3}}}' }
+New-Item -ItemType Directory -Force -Path .cbim\memory\store\short, .cbim\memory\store\medium, .cbim\.dna | Out-Null
+if (-not (Test-Path .cbim\.dna\index.md)) { Set-Content -Path .cbim\.dna\index.md -Value "# Module Index" -NoNewline; Add-Content -Path .cbim\.dna\index.md -Value "" }
+if (-not (Test-Path .cbim\config.json))   { Set-Content -Path .cbim\config.json   -Value '{"target_project":"","memory":{"short_term":{"keep_days":3}}}' }
 ```
 
 ### 3d. Merge .claude/settings.json (preserve user keys)
@@ -208,7 +208,7 @@ if (-not (Test-Path .venv)) { python -m venv .venv }
 
 Append these lines if missing:
 ```
-.cbim-prompt/memory/store/
+.cbim/memory/store/
 __pycache__/
 *.pyc
 .venv/
@@ -217,7 +217,7 @@ __pycache__/
 Linux / macOS one-liner:
 ```bash
 touch .gitignore
-for line in '.cbim-prompt/memory/store/' '__pycache__/' '*.pyc' '.venv/'; do
+for line in '.cbim/memory/store/' '__pycache__/' '*.pyc' '.venv/'; do
   grep -qxF -- "$line" .gitignore || printf "%s\n" "$line" >> .gitignore
 done
 ```
@@ -225,7 +225,7 @@ done
 ## Step 6 — Verify
 
 ```bash
-ls CLAUDE.md .cbim-prompt/ .claude/agents/ .claude/settings.json .claudeignore .venv/ .cbim-prompt/.dna/index.md .cbim-prompt/memory/store/short .cbim-prompt/memory/store/medium
+ls CLAUDE.md .cbim/ .claude/agents/ .claude/settings.json .claudeignore .venv/ .cbim/.dna/index.md .cbim/memory/store/short .cbim/memory/store/medium
 ```
 
 All paths must exist.
@@ -255,4 +255,4 @@ Briefly report to the user:
 
 - Any step fails → stop immediately, report the failure reason and completed steps, wait for user decision
 - Do not execute irreversible operations like `git push`, `git commit`, `rm -rf` on user files (unless explicitly requested)
-- If the cloned source repo is missing `.cbim-prompt/`, `.claude/`, `CLAUDE.md`, or `.claudeignore`, abort — the upstream repo must commit these four artifacts for the copy-based install to work
+- If the cloned source repo is missing `.cbim/`, `.claude/`, `CLAUDE.md`, or `.claudeignore`, abort — the upstream repo must commit these four artifacts for the copy-based install to work
