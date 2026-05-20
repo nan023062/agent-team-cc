@@ -4,3 +4,5 @@ __pycache__/
 #.claude/
 #CLAUDE.md
 .cbim/memory/store/
+.cbim/logs/
+.cbim/.debug

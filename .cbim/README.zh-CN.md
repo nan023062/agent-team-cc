@@ -44,6 +44,8 @@
 
 ## 目录结构
 
+`.dna/` 目录是**模块**，散落在代码任意深度的子目录下，按文件系统层级形成模块树。项目根**不需要**一定有 `.dna/`。唯一硬要求是框架管理的注册表 `.cbim/.dna/index.md`（install 时创建，`init_module` 时更新）。
+
 ```
 your-project/
 ├── CLAUDE.md                      ← 协调者身份（主会话）
@@ -54,18 +56,26 @@ your-project/
 │   ├── agents/                    ← 架构师 / HR / 评审 / 程序员
 │   └── commands/                  ← Slash 命令（/cbim_*）
 │
-├── .dna/                          ← 项目知识根模块（架构师创建）
-│   ├── index.md                   ← 仅根模块：模块树所有路径
-│   ├── module.md                  ← 必需：唯一硬约束（frontmatter + 架构主体）
-│   ├── contract.md                ← 可选：协议边界
-│   ├── workflows/                 ← 可选：确定性流程定义
-│   └── ...                        ← 可选：任意自定义文件
+├── src/                           ← 你的代码（任意结构）
+│   ├── combat/
+│   │   ├── .dna/                  ← 模块（parent）：描述子模块 + 边界
+│   │   │   ├── module.md          ← 必需：frontmatter + 架构主体
+│   │   │   ├── contract.md        ← 可选：协议边界
+│   │   │   ├── workflows/         ← 可选：确定性流程定义
+│   │   │   └── ...                ← 可选：任意自定义文件
+│   │   ├── skill/.dna/            ← 模块（leaf）：具体实现
+│   │   └── buff/.dna/             ← 模块（leaf）
+│   └── economy/.dna/              ← 模块
+│
+├── .dna/                          ← 可选的「项目根模块」
+│   └── module.md                  ←   （仅当项目根本身是模块时——
+│                                  ←    单应用形态适合；monorepo 通常省略）
 │
 └── .cbim/                         ← 框架（即本目录）
-    ├── install.py / install.bat   ← 安装器（遗留；推荐用纯拷贝式安装）
+    ├── .dna/index.md              ← 模块注册表（框架管，install 后必有）
     ├── cbi/                       ← 能力 + 业务定义、agents、skills
     ├── engine/                    ← 统一 CLI 入口（python .cbim/engine ...）
-    ├── installer/                 ← 安装脚本 + SessionStart/Stop 钩子
+    ├── hooks/                     ← SessionStart / Stop / PreToolUse 钩子脚本
     ├── memory/                    ← 记忆引擎 + 存储
     ├── preview/                   ← 本地可视化服务
     ├── docs/                      ← 架构文档

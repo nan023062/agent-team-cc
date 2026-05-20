@@ -21,7 +21,7 @@ SETTINGS: dict = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python .cbim/installer/hooks/write_memory.py",
+                        "command": "python .cbim/hooks/write_memory.py",
                     }
                 ]
             }
@@ -31,7 +31,7 @@ SETTINGS: dict = {
                 "hooks": [
                     {
                         "type": "command",
-                        "command": "python .cbim/installer/hooks/load_memory.py",
+                        "command": "python .cbim/hooks/load_memory.py",
                     }
                 ]
             }

@@ -1,6 +1,6 @@
 """
-bootstrap.py — Copy cbim-prompt/ -> .cbim/, write CLAUDE.md, create memory
-store + module registry, update .gitignore / .claudeignore.
+bootstrap.py — Copy <repo>/.cbim/ -> <target>/.cbim/, write CLAUDE.md, create
+memory store + module registry, update .gitignore / .claudeignore.
 """
 
 import shutil
@@ -11,7 +11,7 @@ from cbi.claude_md import CLAUDE_MD
 
 # Directories never copied into the install destination.
 _COPY_SKIP_DIRS = {"__pycache__", "store", ".chroma"}
-# Top-level paths in cbim-prompt/ that are runtime data and should not be
+# Top-level paths in .cbim/ that are runtime data and should not be
 # shipped into a fresh install.
 _COPY_SKIP_TOP = {"memory/store"}
 
@@ -78,13 +78,13 @@ def _copy_tree(src: Path, dst: Path) -> None:
 
 
 def copy_framework(cbim_src: Path, root: Path) -> Path:
-    """Copy cbim-prompt/ as .cbim/ inside the project root.
+    """Copy the source .cbim/ tree into <target-root>/.cbim/.
 
-    Returns the destination path (.cbim/).
+    Returns the destination path.
     """
     dst = root / ".cbim"
     _copy_tree(cbim_src, dst)
-    _ok(f"copied cbim-prompt/ -> {dst.relative_to(root)}/")
+    _ok(f"copied {cbim_src.name}/ -> {dst.relative_to(root)}/")
     return dst
 
 
@@ -135,10 +135,10 @@ def ensure_registry(cbim_dst: Path, root: Path) -> None:
 
     The cbi.engine.modules helpers expect a project layout where the registry
     lives at <project-root>/.cbim/.dna/index.md (renamed from the legacy
-    cbim-prompt/.dna/index.md location). We seed it with a fresh filesystem
+    .cbim/.dna/index.md location). We seed it with a fresh filesystem
     scan if nothing exists yet.
     """
-    # cbi is already importable from the source cbim-prompt/ (install.py
+    # cbi is already importable from the source .cbim/ (install.py
     # inserts it into sys.path). Don't re-insert cbim_dst — namespace package
     # aggregation would then drop __pycache__ into the user-facing
     # .cbim/ tree.

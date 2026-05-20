@@ -44,6 +44,8 @@ Just tell the assistant what you want — no need to specify an agent:
 
 ## Directory Structure
 
+`.dna/` directories are **modules** scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The only hard requirement is the framework-managed registry at `.cbim/.dna/index.md` (created by install, updated by `init_module`).
+
 ```
 your-project/
 ├── CLAUDE.md                      ← Assistant identity (main session)
@@ -54,18 +56,26 @@ your-project/
 │   ├── agents/                    ← Architect / HR / Auditor / Programmer
 │   └── commands/                  ← Slash commands (/cbim_*)
 │
-├── .dna/                          ← Project knowledge root module (created by architect)
-│   ├── index.md                   ← root-module-only: all module paths in the tree
-│   ├── module.md                  ← required: sole hard constraint (frontmatter + architecture)
-│   ├── contract.md                ← optional: protocol boundary
-│   ├── workflows/                 ← optional: deterministic process definitions
-│   └── ...                        ← optional: any user-defined files
+├── src/                           ← Your code (any layout you like)
+│   ├── combat/
+│   │   ├── .dna/                  ← Module (parent): describes children + boundaries
+│   │   │   ├── module.md          ← required: frontmatter + architecture body
+│   │   │   ├── contract.md        ← optional: protocol boundary
+│   │   │   ├── workflows/         ← optional: deterministic process definitions
+│   │   │   └── ...                ← optional: any user-defined files
+│   │   ├── skill/.dna/            ← Module (leaf): specific implementation
+│   │   └── buff/.dna/             ← Module (leaf)
+│   └── economy/.dna/              ← Module
+│
+├── .dna/                          ← OPTIONAL project-root module
+│   └── module.md                  ←   (only if your project root is itself a module —
+│                                  ←    single-app shape; monorepos often skip this)
 │
 └── .cbim/                         ← Framework (this directory)
-    ├── install.py / install.bat   ← Installer (legacy; pure-copy install is preferred)
+    ├── .dna/index.md              ← Module registry (framework-managed, required after install)
     ├── cbi/                       ← Capability + business definitions, agents, skills
     ├── engine/                    ← Unified CLI entry (python .cbim/engine ...)
-    ├── installer/                 ← Install scripts + SessionStart/Stop hooks
+    ├── hooks/                     ← SessionStart / Stop / PreToolUse hook scripts
     ├── memory/                    ← Memory engine + store
     ├── preview/                   ← Local visualization server
     ├── docs/                      ← Architecture documentation

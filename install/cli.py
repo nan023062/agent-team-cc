@@ -1,14 +1,14 @@
 """
-installer/cli.py — CBIM one-shot installer.
+install/cli.py — CBIM legacy one-shot installer.
 
-Run from anywhere — the script locates itself and the project root automatically.
+Prefer the copy-based install documented in INSTALL.md at the repo root.
+This script is kept for users who want a one-command install:
 
-    python cbim-prompt/install.py   # from project root
-    python install.py               # from inside cbim-prompt/
+    python install/install.py            # from repo root
 
 Steps:
   1. Create .venv (no required dependencies — FileBackend uses stdlib only)
-  2. Copy cbim-prompt/  ->  .cbim/  (framework files at install destination)
+  2. Copy <repo>/.cbim/  ->  <target>/.cbim/  (framework files at install destination)
   3. Materialize core agent .md files into .claude/agents/
   4. Merge hooks + permissions into .claude/settings.json
   5. Bootstrap CLAUDE.md, memory store, .dna/index.md, .gitignore, .claudeignore
@@ -41,13 +41,14 @@ def _venv_python(root: Path) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--root", default=None, help="Target project root (default: parent of cbim-prompt/)")
+    parser.add_argument("--root", default=None, help="Target project root (default: repo root containing install/)")
     args, _ = parser.parse_known_args()
 
-    # Locate source cbim-prompt/ and project root.
-    # cli.py lives at cbim-prompt/installer/cli.py
-    cbim_src = Path(__file__).resolve().parent.parent
-    root = Path(args.root).resolve() if args.root else cbim_src.parent
+    # Locate source .cbim/ and project root.
+    # cli.py lives at <repo>/install/cli.py; .cbim/ is at <repo>/.cbim/.
+    repo_root = Path(__file__).resolve().parent.parent
+    cbim_src = repo_root / ".cbim"
+    root = Path(args.root).resolve() if args.root else repo_root
 
     print()
     print("=" * 52)

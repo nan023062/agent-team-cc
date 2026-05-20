@@ -1,7 +1,7 @@
 """
 hooks.py — Overwrite CBIM hooks + permissions in .claude/settings.json.
 
-Settings shape comes from installer/settings.py (SETTINGS dict).
+Settings shape comes from install/settings.py (SETTINGS dict).
 hooks and permissions are always fully replaced; other keys are preserved.
 """
 
