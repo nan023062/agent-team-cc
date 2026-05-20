@@ -25,6 +25,9 @@ CBIM = Path(__file__).resolve().parent   # cbim/
 ROOT = CBIM.parent                       # project root (where .venv will live)
 CC   = CBIM / "cc-template"             # Claude Code install sources
 
+# Make knowledge.engine importable for root .dna/ bootstrap
+sys.path.insert(0, str(CBIM))
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -105,20 +108,40 @@ def step_hooks() -> None:
 
     hooks = settings.setdefault("hooks", {})
 
-    def _add(event: str, command: str) -> bool:
+    def _add(event: str, command: str, matcher: str | None = None) -> bool:
+        """Return True if anything was added/changed (new entry OR matcher upgrade)."""
         entries = hooks.setdefault(event, [])
-        exists = any(
-            h.get("command") == command
-            for entry in entries
-            for h in entry.get("hooks", [])
-        )
-        if not exists:
-            entries.append({"hooks": [{"type": "command", "command": command}]})
-        return not exists
+        changed = False
+        existing_entry = None
+        for entry in entries:
+            for h in entry.get("hooks", []):
+                if h.get("command") == command:
+                    existing_entry = entry
+                    break
+            if existing_entry:
+                break
+
+        if existing_entry is None:
+            entry: dict = {"hooks": [{"type": "command", "command": command}]}
+            if matcher:
+                entry["matcher"] = matcher
+            entries.append(entry)
+            changed = True
+        elif matcher and existing_entry.get("matcher") != matcher:
+            # Upgrade an existing entry that's missing (or out of date on) the matcher
+            existing_entry["matcher"] = matcher
+            changed = True
+        return changed
 
     added = []
-    if _add("Stop",         "python cbim/cc-template/hooks/write-memory.py"): added.append("Stop → write-memory")
-    if _add("SessionStart", "python cbim/cc-template/hooks/load-memory.py"):  added.append("SessionStart → load-memory")
+    if _add("Stop", "python cbim/cc-template/hooks/write-memory.py"):
+        added.append("Stop → write-memory")
+    # SessionStart matcher: fire on every kind of session entry so memory is
+    # always loaded — startup (fresh CLI), resume (--resume/--continue), clear (/clear).
+    if _add("SessionStart",
+            "python cbim/cc-template/hooks/load-memory.py",
+            matcher="startup|resume|clear"):
+        added.append("SessionStart → load-memory  (matcher: startup|resume|clear)")
 
     # permissions — bypassPermissions lets subagents work freely;
     # deny only cbim/ (framework files must not be modified by work agents).
@@ -152,20 +175,25 @@ def step_hooks() -> None:
 
 
 def step_bootstrap() -> None:
-    _h("[5/5] CLAUDE.md  +  .gitignore  +  .claudeignore  +  memory store")
+    _h("[5/5] CLAUDE.md  +  .gitignore  +  .claudeignore  +  memory store  +  registry")
 
-    # CLAUDE.md
+    # CLAUDE.md is owned by CBIM (it's the assistant identity). Always
+    # overwrite with the latest template so upgrades take effect. If a file
+    # already exists, back it up once to CLAUDE.md.bak so the user can recover
+    # any local edits — but don't try to merge.
     src = CC / "CLAUDE-template.md"
     dst = ROOT / "CLAUDE.md"
     if src.exists():
-        content = src.read_text(encoding="utf-8")
+        new_content = src.read_text(encoding="utf-8")
         if dst.exists():
             existing = dst.read_text(encoding="utf-8")
-            if "cbim" in existing.lower():
-                _skip("CLAUDE.md already references cbim")
+            if existing == new_content:
+                _skip("CLAUDE.md already current")
             else:
-                dst.write_text(existing.rstrip() + "\n\n" + content, encoding="utf-8")
-                _ok("Appended cbim section to CLAUDE.md")
+                bak = ROOT / "CLAUDE.md.bak"
+                bak.write_text(existing, encoding="utf-8")
+                dst.write_text(new_content, encoding="utf-8")
+                _ok(f"Overwrote CLAUDE.md with latest template (old saved to {bak.name})")
         else:
             shutil.copy2(str(src), str(dst))
             _ok("Created CLAUDE.md")
@@ -174,6 +202,29 @@ def step_bootstrap() -> None:
     for d in ["short", "medium"]:
         (CBIM / "memory" / "store" / d).mkdir(parents=True, exist_ok=True)
     _ok("cbim/memory/store/{short,medium}/ ready")
+
+    # Module registry — cbim/.dna/index.md.
+    # ALWAYS created (required by list_modules / snapshot for performance).
+    # A project-root .dna/ is OPTIONAL and intentionally NOT auto-created here:
+    # mixed monorepos (v1 + v2 in one repo, multi-system) usually shouldn't
+    # have a top-level module. If you do want one, run
+    #   python cbim/knowledge/engine/cli.py modules init . --type root ...
+    from knowledge.engine.modules import ensure_registry, update_index
+    idx = ensure_registry(ROOT)
+    already_existed = idx.read_text(encoding="utf-8").strip() != "# Module Index"
+    if not already_existed:
+        # First-time install: scan filesystem and seed the registry with any
+        # pre-existing modules (lets users with already-laid-out monorepos
+        # skip a manual reindex step).
+        update_index(ROOT)
+        from knowledge.engine.modules import read_index
+        n = len(read_index(ROOT))
+        if n:
+            _ok(f"Created cbim/.dna/index.md  (seeded with {n} existing module(s))")
+        else:
+            _ok("Created cbim/.dna/index.md  (empty — architect will populate)")
+    else:
+        _skip("cbim/.dna/index.md already exists")
 
     # .gitignore
     gitignore = ROOT / ".gitignore"

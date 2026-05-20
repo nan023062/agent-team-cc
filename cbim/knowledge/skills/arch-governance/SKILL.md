@@ -37,7 +37,7 @@ python cbim/knowledge/engine/cli.py modules list
 python cbim/knowledge/skills/arch-governance/check.py --root .
 ```
 
-The script automatically handles deterministic checks for factors **#1 #2 #3 #4 #10 #14 #15 #17**, outputting a MUST / SUGGEST list.
+The script automatically handles deterministic checks for factors **#1 #2 #3 #4 #10 #14 #15 #17 #19 #20 #21**, outputting a MUST / SUGGEST list.
 **MUST issues must be fixed before the LLM analysis phase.**
 
 ```bash
@@ -102,7 +102,7 @@ Start from leaf modules; review upward layer by layer.
 | # | Factor | Check Method | Check By |
 |---|--------|-------------|----------|
 | 11 | Clean leaf encapsulation | If `contract.md` exists, it exposes only necessary interfaces; no internal implementation details leaked | LLM |
-| 12 | Parent writes only relationships and positioning | Parent `module.md` body describes only child module relationships (dependency/composition/aggregation) and their positioning; no internal details of any child | LLM |
+| 12 | Parent writes only relationships and positioning | Parent `module.md` body describes only child module relationships (dependency/composition/aggregation) and their positioning; no internal details of any child | LLM (also: #19 #20 script-level smell tests) |
 | 13 | Parent contract correctly aggregates (if present) | If parent has `contract.md`, it covers all child module external interfaces — no omissions, no over-exposure | LLM |
 | 14 | No circular dependencies in the full tree | Topological sort of all modules' `dependencies`; report complete cycle paths if found | **Script** |
 | 15 | Index fully inclusive | Root module `index.md` lists all leaf module paths | **Script** |
@@ -137,6 +137,9 @@ During the three traversals above, check every module visited:
 | 17 | Leaf size check | Leaf modules only: if `module.md` body line count, workflow count, or `contract.md` interface count (when present) exceeds thresholds, suggest splitting (thresholds in `config.json`) | **Script** |
 | WF1 | Workflow not placeholder | Each `workflow.md` has real content, not a template shell (threshold in `config.json`) | **Script** |
 | WF2 | Workflow required sections | Each `workflow.md` contains required sections (`## Trigger Conditions`, `## Steps`, per `config.json`) | **Script** |
+| 19 | Parent uses leaf-shaped diagram | Parent module body must not contain `classDiagram` — sub-component internals belong in each sub-module's own `.dna/` | **Script** |
+| 20 | Phantom sub-modules in graph | Nodes in a parent's `graph`/`flowchart` that match an immediate sub-directory name must have a corresponding `.dna/`; otherwise promote to sub-module or remove from diagram | **Script** |
+| 21 | Leaf uses parent-shaped diagram (parent in disguise) | Leaf module body must not contain `graph`/`flowchart` mermaid with ≥3 nodes — that's a parent describing sub-components without registering them. Either promote those nodes to real sub-modules with their own `.dna/`, or replace with a real `classDiagram`. Renaming the section header alone is not a fix. | **Script** |
 
 ---
 

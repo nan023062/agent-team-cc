@@ -21,6 +21,32 @@ _CORRECTION_PATTERNS = [
     "incorrect", "wrong", "don't do", "shouldn't", "stop doing",
 ]
 
+# Short user replies that aren't actual task descriptions — we use these to
+# distinguish "the meaningful task in this session" from "user's last ack".
+_ACK_PHRASES = {
+    # English
+    "ok", "okay", "k", "kk", "yes", "yeah", "yep", "yup", "no", "nope",
+    "thanks", "thx", "ty", "thank you", "got it", "sounds good",
+    "go", "go on", "next", "continue", "done", "good", "great", "nice", "sure",
+    # 中文
+    "好", "好的", "嗯", "对", "是", "是的", "对了", "没错", "知道", "明白",
+    "了解", "谢谢", "谢", "继续", "下一步", "搞定", "可以", "行", "完成",
+    "执行", "go", "ok", "嗯嗯", "嗯哼", "好嘞", "收到",
+}
+_ACK_MAX_LEN = 10  # treat a message as an ack only if short AND in the list
+
+
+def _is_substantive(text: str) -> bool:
+    """A user message is substantive if it isn't a short acknowledgment."""
+    s = (text or "").strip()
+    if not s:
+        return False
+    if len(s) > _ACK_MAX_LEN:
+        return True
+    # Normalize: lowercase, strip trailing punctuation
+    norm = s.lower().rstrip(".!?。！？～~ ")
+    return norm not in _ACK_PHRASES
+
 _FORCE_WRITE_KEYWORDS = [
     # 显式记忆请求
     "记住", "记下", "保存", "remember", "save this",
@@ -83,8 +109,8 @@ def write_session(transcript_path: str, store_dir: Path,
         return None
 
     st = cfg["short_term"]
-    sig_cfg = cfg.get("signals", {})
     ls_cfg = cfg.get("last_session", {})
+    distill_cfg = cfg.get("session_distill", {})
     info = _parse_transcript(
         messages,
         max_request_chars=st["max_request_chars"],
@@ -95,6 +121,11 @@ def write_session(transcript_path: str, store_dir: Path,
 
     short_dir = store_dir / SHORT
     short_dir.mkdir(parents=True, exist_ok=True)
+
+    # Always refresh last-session.md so the next session's SessionStart hook
+    # injects the latest state — even if this session is a near-duplicate of
+    # the previous one (which would otherwise be skipped by _should_write).
+    _write_last_session(info, store_dir, ls_cfg)
 
     now = datetime.now()
     ts = now.strftime("%Y-%m-%d-%H%M%S")
@@ -112,14 +143,23 @@ def write_session(transcript_path: str, store_dir: Path,
         ms = now.strftime("%f")[:3]
         entry_path = short_dir / f"{ts}-{ms}-main-{name}.md"
 
-    entry_path.write_text(_build_entry(info), encoding="utf-8")
-    engine.add(entry_path, SHORT)
-    _write_last_session(info, store_dir, ls_cfg)
+    # LLM session distillation (rich structured analysis for the entry body).
+    # Returns None on no-API-key, skipped chat-only sessions, or any error.
+    distill = None
+    if distill_cfg.get("enabled", True) and _should_distill(info, distill_cfg):
+        distill = _llm_session_distill(messages, info, distill_cfg)
 
-    # Auto-fill signals: A (heuristic) → B (LLM supplements A; falls back to A on error)
-    heuristic = _heuristic_signals(info)
-    llm = _llm_signals(info, heuristic, sig_cfg)
-    signals = llm if llm else heuristic
+    entry_path.write_text(_build_entry(info, distill=distill), encoding="utf-8")
+    engine.add(entry_path, SHORT)
+
+    # Fill ## 信号 index: prefer signals regex-extracted from the distillation
+    # (which already capture the four quadrants with full reasoning), falling
+    # back to heuristic signals when distillation is empty/missing.
+    signals: list[str] = []
+    if distill:
+        signals = _extract_signals_from_distill(distill)
+    if not signals:
+        signals = _heuristic_signals(info)
     if signals:
         _fill_signals(entry_path, signals)
 
@@ -157,53 +197,151 @@ def _heuristic_signals(info: dict) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Signal filling — Layer B: LLM
+# Signal filling — Layer B: LLM session distillation
 # ---------------------------------------------------------------------------
+#
+# Replaces the prior _llm_signals: instead of emitting ~10 bare signal lines,
+# the LLM now produces a structured Markdown distillation of decisions,
+# judgments, fact changes, corrections, and open items — used as the body of
+# the short entry. Signal lines are then regex-extracted from this output to
+# populate the ## 信号 index section.
 
 def _get_api_key() -> str | None:
     import os
     return os.environ.get("ANTHROPIC_API_KEY", "").strip() or None
 
 
-def _llm_signals(info: dict, heuristic: list[str], sig_cfg: dict) -> list[str]:
-    """Call Anthropic API (claude-haiku) to extract signals from session summary.
+def _should_distill(info: dict, distill_cfg: dict) -> bool:
+    """Skip LLM distillation when the turn produced no real work (chat only).
 
-    Returns [] on any error — caller falls back to heuristic signals.
+    Avoids LLM cost/latency on pure-conversation turns that have nothing
+    architecturally interesting to distill.
+    """
+    if not distill_cfg.get("skip_if_no_work", True):
+        return True
+    return bool(info.get("agent_calls") or info.get("files_changed"))
+
+
+def _build_distill_context(messages: list, info: dict, max_chars: int) -> str:
+    """Build a compact but information-dense context from the full transcript.
+
+    Includes every user text, assistant text reply, agent dispatch description,
+    file write, and tool result preview — in time order. Long sessions are
+    truncated keeping the head and tail (conclusion).
+    """
+    parts: list[str] = []
+
+    if info.get("modules"):
+        parts.append(f"涉及模块: {', '.join(info['modules'])}")
+    if info.get("files_changed"):
+        flist = "\n".join(f"  - {f}" for f in info["files_changed"][:20])
+        parts.append(f"改动文件:\n{flist}")
+
+    parts.append("\n--- 对话流（按时间顺序）---")
+    for msg in messages:
+        role, blocks = _extract_blocks(msg)
+        for block in blocks:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type", "")
+            if btype == "text":
+                txt = (block.get("text") or "").strip()
+                if not txt:
+                    continue
+                # Cap individual messages so one giant blob doesn't crowd out
+                # the rest of the conversation.
+                txt = txt[:2000]
+                label = "用户" if role == "user" else "助手"
+                parts.append(f"\n[{label}]\n{txt}")
+            elif btype == "tool_use" and block.get("name") == "Agent":
+                inp = block.get("input", {}) or {}
+                desc = inp.get("description", "")
+                subagent = inp.get("subagent_type", "")
+                parts.append(f"\n[调度 → {subagent}] {desc}")
+            elif btype == "tool_use" and block.get("name") in ("Write", "Edit"):
+                inp = block.get("input", {}) or {}
+                p = inp.get("file_path", "")
+                if p:
+                    parts.append(f"\n[写文件] {p}")
+            elif btype == "tool_result":
+                rc = block.get("content", "")
+                if isinstance(rc, list):
+                    rc = " ".join(
+                        c.get("text", "") for c in rc
+                        if isinstance(c, dict) and c.get("type") == "text"
+                    )
+                rc = str(rc).strip()
+                if rc:
+                    parts.append(f"\n[结果] {rc[:400]}")
+
+    full = "\n".join(parts)
+    if len(full) > max_chars:
+        head = int(max_chars * 0.35)
+        tail = max_chars - head - 60
+        full = (
+            full[:head]
+            + "\n\n[...中间内容因长度截断，保留开头和结尾...]\n\n"
+            + full[-tail:]
+        )
+    return full
+
+
+_DISTILL_PROMPT = """你是 CBIM 项目的 session 蒸馏官。下面是一次 Claude Code session 的完整关键内容（用户对话、assistant 回复、agent 调度、文件改动）。
+
+任务：把本次 session 中真正值得长期记下的"决策、判断、事实变更、纠正"提炼出来，作为后续蒸馏到 medium-term memory / .dna / agent soul 的源料。
+
+---
+
+{context}
+
+---
+
+## 输出格式（严格 Markdown，缺哪段就整段省略，不要写"无"）
+
+### 决策与判断
+每条以 `**WANT**` 或 `**HOW**` 开头：
+- `**WANT** <模块或范围>: <选了什么 / 为什么 / 拒绝了什么 / 代价>` —— 项目特定的"为什么选 A 不选 B"
+- `**HOW** <agent-id 或 模块>: <什么场景 / 步骤 / 验证有效在哪>` —— 流程模式
+
+### 事实变更
+每条以 `**IS**` 开头：
+- `**IS** <模块>: <什么 从 A 变成 B>` —— 接口/规则/配置变更
+
+### 纠正与教训
+每条以 `**MUST**` 开头：
+- `**MUST** <agent-id 或 范围>: <用户纠正了什么 / 今后必须如何>`
+
+### 未决与遗留
+不带前缀，直接描述：未回答的问题、阻塞、留给下次的工作。
+
+---
+
+## 严格要求
+- 不要无中生有 —— session 里没观察到就不写
+- 决策必须含"为什么"；事实变更必须有"从...到..."
+- 用用户对话用的语言（中文项目就用中文）
+- 整段控制在 600-1500 字
+- 没有这类信号就整段省略；可以整体输出为空（不要写"无内容"或解释）"""
+
+
+def _llm_session_distill(messages: list, info: dict,
+                         distill_cfg: dict) -> str | None:
+    """Call Anthropic API for structured session distillation.
+
+    Returns the Markdown distillation text, or None if no API key / on error.
+    Caller embeds the result in the entry body and regex-extracts signal lines.
     """
     api_key = _get_api_key()
     if not api_key:
-        return []
+        return None
 
-    model = sig_cfg.get("model", "claude-haiku-4-5-20251001")
-    max_tokens = sig_cfg.get("max_tokens", 300)
-    timeout = sig_cfg.get("timeout", 20)
-    max_files = sig_cfg.get("max_files_in_prompt", 10)
+    model = distill_cfg.get("model", "claude-haiku-4-5-20251001")
+    max_tokens = distill_cfg.get("max_tokens", 2000)
+    timeout = distill_cfg.get("timeout", 30)
+    input_max_chars = distill_cfg.get("input_max_chars", 12000)
 
-    agent_descs = [c["description"] or c["subagent_type"] for c in info["agent_calls"]]
-    heuristic_note = (
-        "已通过启发式检测到：" + "；".join(heuristic)
-        if heuristic else "无启发式结果"
-    )
-
-    prompt = f"""根据以下 session 摘要，提取值得记录的信号。
-
-## Session 摘要
-任务：{info['user_request']}
-调用的 Agent：{', '.join(agent_descs) or '无'}
-改动文件：{'; '.join(info['files_changed'][:max_files]) or '无'}
-涉及模块：{', '.join(info['modules']) or '无'}
-启发式参考（{heuristic_note}）
-
-## 四象限定义
-MUST（跨项目原则）：什么绝对不能违反？如 agent 越位、用户纠正行为、不可逆操作缺少确认
-WANT（项目决策）：为什么选这个方案？如技术选型、架构取舍、接口设计的主动决策
-HOW（执行流程）：哪个方法/顺序显著有效或有问题？
-IS（当前事实）：接口签名、业务规则定义、配置值等有什么变更？
-
-## 输出规则
-- 每行一条，格式严格为：象限: 主体: 描述（主体用 agent-id 或模块名）
-- 只输出有实质内容的信号行，没有就不输出任何内容
-- 不要解释，不要多余文字"""
+    context = _build_distill_context(messages, info, input_max_chars)
+    prompt = _DISTILL_PROMPT.format(context=context)
 
     import urllib.request as _req
     import json as _json
@@ -227,12 +365,36 @@ IS（当前事实）：接口签名、业务规则定义、配置值等有什么
         with _req.urlopen(request, timeout=timeout) as resp:
             data = _json.loads(resp.read())
             text = data["content"][0]["text"].strip()
-            return [
-                line for line in text.splitlines()
-                if re.match(r"^(MUST|WANT|HOW|IS):\s*.+:\s*.+", line)
-            ]
+            return text if text else None
     except Exception:
-        return []
+        return None
+
+
+_SIGNAL_LINE_RE = re.compile(
+    r"\*\*(MUST|WANT|HOW|IS)\*\*\s+([^:：]+?)[:：]\s*(.+)"
+)
+
+
+def _extract_signals_from_distill(distill_text: str) -> list[str]:
+    """Regex-extract quadrant signals from the LLM distillation text.
+
+    The prompt format produces bullets like:
+        - **WANT** combat-module: 选 ECS 而非 OOP，因为 …
+    Returns canonical 'WANT: combat-module: …' strings that _fill_signals
+    knows how to write into the ## 信号 section.
+    """
+    out: list[str] = []
+    for line in distill_text.splitlines():
+        m = _SIGNAL_LINE_RE.search(line)
+        if not m:
+            continue
+        quadrant = m.group(1)
+        subject = m.group(2).strip()
+        body = m.group(3).strip()
+        if len(body) > 120:
+            body = body[:120].rstrip() + "…"
+        out.append(f"{quadrant}: {subject}: {body}")
+    return out
 
 
 def _fill_signals(entry_path: Path, signals: list[str]) -> None:
@@ -283,7 +445,7 @@ def _extract_blocks(msg: dict) -> tuple[str, list]:
 
 def _parse_transcript(messages: list, max_request_chars: int,
                       max_result_chars: int) -> dict:
-    user_request = ""
+    all_user_texts: list = []
     agent_calls: dict = {}
     files_changed: list = []
     modules: set = set()
@@ -296,7 +458,9 @@ def _parse_transcript(messages: list, max_request_chars: int,
             btype = block.get("type", "")
 
             if btype == "text" and role == "user":
-                user_request = block.get("text", "")[:max_request_chars]
+                txt = block.get("text", "")
+                if txt:
+                    all_user_texts.append(txt)
 
             elif btype == "tool_use" and block.get("name") == "Agent":
                 bid = block.get("id", "")
@@ -327,8 +491,29 @@ def _parse_transcript(messages: list, max_request_chars: int,
                         )
                     agent_calls[tid]["result"] = str(rc)[:max_result_chars]
 
+    # The "task" of this session = first substantive (non-ack) user message.
+    # Falls back to the very first user text if everything was an ack.
+    substantive = [t for t in all_user_texts if _is_substantive(t)]
+    if substantive:
+        user_request = substantive[0][:max_request_chars]
+    elif all_user_texts:
+        user_request = all_user_texts[0][:max_request_chars]
+    else:
+        user_request = ""
+
+    # Last raw user message — preserves "how the session ended"
+    # (e.g. "继续" tells you the user wanted to keep going).
+    last_user_message = all_user_texts[-1][:max_request_chars] if all_user_texts else ""
+
+    # All substantive topics (capped) — useful when one session covered
+    # several distinct requests.
+    topics = [t[:max_request_chars] for t in substantive]
+
     return {
         "user_request": user_request,
+        "last_user_message": last_user_message,
+        "topics": topics,
+        "user_turn_count": len(all_user_texts),
         "agent_calls": list(agent_calls.values()),
         "files_changed": list(dict.fromkeys(files_changed)),
         "modules": sorted(modules),
@@ -340,23 +525,54 @@ def _parse_transcript(messages: list, max_request_chars: int,
 # ---------------------------------------------------------------------------
 
 def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None) -> None:
-    """Write last-session.md — a structured recovery note for the next session."""
+    """Write last-session.md — a structured recovery note for the next session.
+
+    The next session's SessionStart hook injects this file's content into the
+    new assistant's context, so it must answer: "what was I working on, what
+    did I do, where did I stop?"
+    """
     ls_cfg = ls_cfg or {}
     preview_chars = ls_cfg.get("result_preview_chars", 120)
     max_files = ls_cfg.get("max_files", 10)
+    max_topics = ls_cfg.get("max_topics", 6)
+    last_msg_chars = ls_cfg.get("last_message_chars", 200)
 
     ended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
+    user_request = info.get("user_request") or "（未能提取）"
+    topics = info.get("topics", [])
+    last_msg = info.get("last_user_message", "")
+    turn_count = info.get("user_turn_count", 0)
+
     lines = [
         "## 上次 Session 恢复点",
         "",
         f"**结束时间**: {ended_at}",
-        f"**最后任务**: {info['user_request'] or '（未能提取）'}",
-        "",
+        f"**用户回合数**: {turn_count}",
+        f"**核心任务**（首次实质性请求）: {user_request}",
     ]
+
+    # Show topic list if more than one substantive request happened in this session
+    if len(topics) > 1:
+        lines.append("")
+        lines.append("**本次涉及话题**（按时间顺序）:")
+        for i, t in enumerate(topics[:max_topics], 1):
+            preview = t.replace("\n", " ").strip()[:80]
+            lines.append(f"{i}. {preview}")
+        if len(topics) > max_topics:
+            lines.append(f"…共 {len(topics)} 个话题")
+
+    # Last raw user message — critical for knowing how the session ended
+    # (ack like "继续/好" vs a real handoff request)
+    if last_msg and last_msg != user_request:
+        last_preview = last_msg.replace("\n", " ").strip()[:last_msg_chars]
+        lines.append("")
+        lines.append(f"**最后一次用户消息**: \"{last_preview}\"")
+
+    lines.append("")
 
     calls = info["agent_calls"]
     if calls:
-        lines.append("**执行记录**:")
+        lines.append("**执行记录**（按调度顺序）:")
         for c in calls:
             label = c["description"] or c["subagent_type"] or "subagent"
             result = c["result"]
@@ -366,7 +582,7 @@ def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None)
 
     files = info["files_changed"]
     if files:
-        lines.append("**改动文件**:")
+        lines.append(f"**改动文件**（共 {len(files)} 个）:")
         for f in files[:max_files]:
             lines.append(f"- {f}")
         if len(files) > max_files:
@@ -378,7 +594,16 @@ def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None)
         lines.append(f"**涉及模块**: {', '.join(modules)}")
         lines.append("")
 
-    lines.append("*如需接续上次工作，告知助手即可。*")
+    # Recovery hint at the bottom — tells the next assistant how to resume
+    if last_msg and not _is_substantive(last_msg):
+        # User ended with an ack — suggests they were ready to continue
+        ack_preview = last_msg.strip()[:30]
+        lines.append(
+            f"*用户最后说的是简短回复（「{ack_preview}」），"
+            f"说明你们正处于上述任务进行中。如用户说「继续」，从上面「执行记录」末尾接力。*"
+        )
+    else:
+        lines.append("*如需接续上次工作，告知助手即可；如开启新话题，可直接说。*")
 
     last = store_dir / "last-session.md"
     store_dir.mkdir(parents=True, exist_ok=True)
@@ -390,10 +615,26 @@ def _slug(text: str, max_input: int, max_output: int) -> str:
     return s.strip("-")[:max_output] or "session"
 
 
-def _build_entry(info: dict) -> str:
+def _build_entry(info: dict, distill: str | None = None) -> str:
+    """Build the short-entry markdown.
+
+    If `distill` (LLM session analysis) is provided, it's embedded as the
+    `## 本次决策与提炼` section — the highest-density part of the entry,
+    intended as primary source for short→medium→knowledge distillation.
+
+    The `## 信号` section at the bottom is the indexable four-quadrant tag
+    list — extracted from `distill` (or from heuristics when LLM is absent).
+    """
     req = info["user_request"] or "（未能提取）"
     modules_line = " ".join(info["modules"])
     frontmatter_extra = f"\nmodules: {modules_line}" if modules_line else ""
+
+    distill_section = ""
+    if distill and distill.strip():
+        distill_section = (
+            "\n## 本次决策与提炼（LLM）\n\n"
+            f"{distill.strip()}\n"
+        )
 
     calls = info["agent_calls"]
     if calls:
@@ -417,7 +658,7 @@ tags: session{frontmatter_extra}
 
 ## 任务概述
 {req}
-
+{distill_section}
 ## Subagent 执行记录
 {agents_section}
 

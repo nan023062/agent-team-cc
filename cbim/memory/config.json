@@ -13,5 +13,13 @@
   },
   "hooks": {
     "timeout_seconds": 30
+  },
+  "session_distill": {
+    "enabled": true,
+    "model": "claude-haiku-4-5-20251001",
+    "max_tokens": 2000,
+    "timeout": 30,
+    "input_max_chars": 12000,
+    "skip_if_no_work": true
   }
 }

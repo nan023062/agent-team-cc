@@ -11,33 +11,49 @@ dependencies:
 
 The VS Code extension host that adapts the portable engine core into an IDE-integrated experience. Responsible for extension lifecycle, command palette registration, sidebar tree views, webview panel hosting, SDK agent runtime setup, and the `canUseTool` path guard enforcement.
 
-## Component Diagram
+## Class Diagram
 
 ```mermaid
-graph TD
-    subgraph extension ["@cbim/vscode-extension"]
-        ACTIVATION["activation<br/><i>Extension entry point: lifecycle,<br/>config loading, SDK bootstrap</i>"]
-        COMMANDS["commands/<br/><i>Command Palette handlers:<br/>module ops, agent actions</i>"]
-        VIEWS["views/<br/><i>Sidebar TreeView providers:<br/>module tree, agent list</i>"]
-        WEBVIEW["webview/<br/><i>Webview panel host:<br/>loads @cbim/ui bundle</i>"]
-    end
+classDiagram
+    class ExtensionActivation {
+        +activate(context: ExtensionContext) void
+        -registerCommands() void
+        -registerViews() void
+        -createWebviewPanel() void
+    }
 
-    ACTIVATION -->|"registers"| COMMANDS
-    ACTIVATION -->|"registers"| VIEWS
-    ACTIVATION -->|"creates"| WEBVIEW
-    COMMANDS -->|"calls"| ENGINE["@cbim/engine"]
-    VIEWS -->|"calls"| ENGINE
-    WEBVIEW -->|"postMessage"| UI["@cbim/ui<br/><i>(browser runtime)</i>"]
+    class CommandHandlers {
+        +moduleCommands: Command[]
+        +agentCommands: Command[]
+    }
 
-    style ACTIVATION fill:#fef3e2,stroke:#e67e22
-    style COMMANDS fill:#fef3e2,stroke:#e67e22
-    style VIEWS fill:#fef3e2,stroke:#e67e22
-    style WEBVIEW fill:#fef3e2,stroke:#e67e22
-    style ENGINE fill:#e8f4fd,stroke:#2980b9
-    style UI fill:#e8f8e8,stroke:#27ae60
+    class SidebarViewProvider {
+        +getTreeItem() TreeItem
+        +getChildren() TreeItem[]
+    }
+
+    class WebviewPanelHost {
+        +createPanel() WebviewPanel
+        +postMessage(msg) void
+        +onMessage(handler) void
+    }
+
+    ExtensionActivation --> CommandHandlers : registers
+    ExtensionActivation --> SidebarViewProvider : registers
+    ExtensionActivation --> WebviewPanelHost : creates
+    CommandHandlers ..> Engine : calls API
+    SidebarViewProvider ..> Engine : calls API
+    WebviewPanelHost ..> UIBundle : loads via webview
+
+    class Engine {
+        <<external>>
+    }
+    class UIBundle {
+        <<external>>
+    }
 ```
 
-**Dependency direction:** All internal components are orchestrated by `activation`. `commands/` and `views/` call engine APIs. `webview/` communicates with `ui` via postMessage bridge, never via direct import.
+**Dependency direction:** All internal components are orchestrated by `ExtensionActivation`. `CommandHandlers` and `SidebarViewProvider` call engine APIs. `WebviewPanelHost` communicates with `@cbim/ui` via the postMessage bridge, never via direct import.
 
 ## Key Decisions
 

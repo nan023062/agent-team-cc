@@ -100,7 +100,7 @@ def _load_new_format(mod_dir: Path, root: Path, aimod: Path, module_md: Path) ->
 
     data = _parse_frontmatter(raw)
     body = _strip_frontmatter(raw)
-    rel = str(mod_dir.relative_to(root))
+    rel = mod_dir.relative_to(root).as_posix()
 
     contract = (aimod / "contract.md").read_text(encoding="utf-8") \
         if (aimod / "contract.md").exists() else ""
@@ -129,7 +129,7 @@ def _load_legacy_format(mod_dir: Path, root: Path, aimod: Path,
     except Exception:
         return None
 
-    rel = str(mod_dir.relative_to(root))
+    rel = mod_dir.relative_to(root).as_posix()
     arch = (aimod / "architecture.md").read_text(encoding="utf-8") \
         if (aimod / "architecture.md").exists() else ""
     contract = (aimod / "contract.md").read_text(encoding="utf-8") \
@@ -152,22 +152,114 @@ def _load_legacy_format(mod_dir: Path, root: Path, aimod: Path,
     }
 
 
-def list_modules(root: Path) -> list[dict]:
+# Directories never scanned for .dna/ — they're vendor/build/framework noise,
+# not user business modules. Notably:
+#   - node_modules (+ .pnpm/...): pnpm copies workspace pkgs in, which duplicates
+#     real .dna/ many times and pollutes the index.
+#   - cbim: the framework itself; user projects host it but shouldn't index it.
+#   - .git / dist / build / __pycache__ / .venv / coverage / .next / .cache:
+#     standard tool output / VCS metadata.
+_SCAN_SKIP_DIRS = {
+    "node_modules", ".git", "dist", "build", "__pycache__",
+    ".venv", "cbim", ".pnpm-store", "coverage", ".next", ".cache",
+}
+
+
+def _is_skipped(mod_dir: Path, root: Path) -> bool:
+    try:
+        parts = mod_dir.relative_to(root).parts
+    except ValueError:
+        return False
+    return any(p in _SCAN_SKIP_DIRS for p in parts)
+
+
+# ---------------------------------------------------------------------------
+# Module registry — cbim/.dna/index.md
+# ---------------------------------------------------------------------------
+#
+# The registry is the canonical, fast-path source of "which modules exist in
+# this project". Full filesystem rglob is expensive on large monorepos, so:
+#   - list_modules() / snapshot.py read the registry first (O(N) where N =
+#     module count, not filesystem size)
+#   - init_module() appends new modules in place
+#   - reindex() / update_index() rebuild from rglob (manual recovery)
+#
+# The registry lives in cbim/.dna/index.md — NOT in the project root. This
+# decouples the framework-managed registry from the optional project-root
+# module document. cbim/.dna/ contains only index.md (no module.md), so cbim/
+# itself is never treated as a module (also enforced by _SCAN_SKIP_DIRS).
+
+
+def _index_path(root: Path) -> Path:
+    """Return the canonical location of the module registry."""
+    return root / "cbim" / ".dna" / "index.md"
+
+
+def ensure_registry(root: Path) -> Path:
+    """Create an empty cbim/.dna/index.md if missing. Idempotent."""
+    p = _index_path(root)
+    if not p.exists():
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("# Module Index\n", encoding="utf-8")
+    return p
+
+
+def read_index(root: Path) -> list[str]:
+    """Return the list of module paths registered in cbim/.dna/index.md.
+
+    Returns [] if the registry doesn't exist or is empty. Each line is parsed
+    as `- <path> [optional annotation]`; only the first whitespace-delimited
+    token is taken (so `- . (root module)` yields `.`).
+    """
+    p = _index_path(root)
+    if not p.exists():
+        return []
+    out = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        s = line.strip().lstrip("- ").strip()
+        if not s or s.startswith("#"):
+            continue
+        first = s.split()[0] if s.split() else ""
+        if first:
+            out.append(first)
+    return out
+
+
+def _write_index(root: Path, paths: list[str]) -> None:
+    """Atomically rewrite cbim/.dna/index.md with the given paths (sorted)."""
+    ensure_registry(root)
+    lines = ["# Module Index", ""]
+    for p_str in sorted(set(paths)):
+        lines.append(f"- {p_str}")
+    _index_path(root).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _append_to_index(root: Path, rel_path: str) -> None:
+    """Add a single module path to the registry, preserving existing entries."""
+    paths = set(read_index(root))
+    paths.add(rel_path)
+    _write_index(root, list(paths))
+
+
+def _scan_modules(root: Path) -> list[dict]:
+    """Slow path: rglob the filesystem for all .dna/module.md (and legacy
+    module.json) files, skipping vendor/build/framework dirs. Used by reindex
+    and as a fallback when the registry is missing."""
     modules = []
     seen_dirs: set[Path] = set()
 
-    # New format: .dna/module.md
     for mm in sorted(root.rglob(".dna/module.md")):
         mod_dir = mm.parent.parent
+        if _is_skipped(mod_dir, root):
+            continue
         seen_dirs.add(mod_dir)
         m = load_module(mod_dir, root)
         if m:
             modules.append(m)
 
-    # Legacy format: .dna/module.json (only if not already loaded via module.md)
     for mj in sorted(root.rglob(".dna/module.json")):
         mod_dir = mj.parent.parent
-        if mod_dir in seen_dirs:
+        if mod_dir in seen_dirs or _is_skipped(mod_dir, root):
             continue
         m = load_module(mod_dir, root)
         if m:
@@ -176,13 +268,110 @@ def list_modules(root: Path) -> list[dict]:
     return modules
 
 
+def list_modules(root: Path, use_registry: bool = True) -> list[dict]:
+    """Return all modules. Reads cbim/.dna/index.md by default for speed; falls
+    back to a full filesystem scan if the registry is missing/empty.
+
+    Pass use_registry=False to force a fresh scan (used by reindex / governance
+    validation that needs to compare on-disk state against the registry).
+    """
+    if use_registry:
+        registered = read_index(root)
+        if registered:
+            modules = []
+            for rel in registered:
+                mod_dir = root if rel == "." else (root / rel)
+                m = load_module(mod_dir, root)
+                if m:
+                    modules.append(m)
+            return modules
+    return _scan_modules(root)
+
+
 # ---------------------------------------------------------------------------
 # Write
 # ---------------------------------------------------------------------------
 
+_VALID_TYPES = ("root", "parent", "leaf")
+
+_LEAF_BODY = """
+## Positioning
+
+<!-- One sentence: what this module is and why it exists. -->
+
+## Class Diagram
+
+```mermaid
+classDiagram
+    %% classes, interfaces, key method signatures, relationships
+```
+
+## Key Decisions
+
+<!-- Design choices whose "why" is invisible from the code itself.
+     Each decision applies to the module as a whole. -->
+"""
+
+_PARENT_BODY = """
+## Positioning
+
+<!-- One sentence: what this module is and why it exists. -->
+
+## Sub-module Relationships
+
+```mermaid
+graph TD
+    %% Nodes = sub-modules (each with one-line positioning).
+    %% Edges = inter-sub-module dependencies.
+```
+
+## Key Decisions
+
+<!-- ONLY cross-sub-module emergent insights:
+     why these sub-modules exist together, how they relate at boundaries.
+     DO NOT write any single sub-module's internal design here —
+     that belongs in the sub-module's own .dna/module.md. -->
+"""
+
+
 def init_module(mod_dir: Path, name: str, owner: str,
                 description: str = "",
-                with_contract: bool = False) -> Path:
+                with_contract: bool = False,
+                type_: str = "leaf",
+                project_root: Path | None = None) -> Path:
+    """Initialize a new module.
+
+    type_: 'root' | 'parent' | 'leaf'
+      - root: must be the project root; auto-creates index.md
+      - parent: requires root .dna/ to exist; uses parent body template
+      - leaf: requires root .dna/ to exist; uses leaf body template
+    """
+    if type_ not in _VALID_TYPES:
+        raise ValueError(
+            f"type_ must be one of {_VALID_TYPES}, got: {type_!r}"
+        )
+
+    target = mod_dir.resolve()
+    root = (project_root or Path.cwd()).resolve()
+
+    # Registry (cbim/.dna/index.md) must exist — proves cbim is installed.
+    # The project-root .dna/ is OPTIONAL; mixed monorepos can skip it.
+    if not _index_path(root).exists():
+        raise FileNotFoundError(
+            f"Registry missing at {_index_path(root)}.\n"
+            f"Run `python cbim/install.py` first to install cbim into this project."
+        )
+
+    if type_ == "root":
+        if target != root:
+            raise ValueError(
+                f"--type root must be the project root (creates ./.dna/module.md).\n"
+                f"  project root : {root}\n"
+                f"  target       : {target}\n"
+                f"For monorepos, a project-root module is optional — consider "
+                f"`--type parent` on your workspace dir (e.g. `packages/`) instead."
+            )
+
     aimod = mod_dir / ".dna"
     if aimod.exists():
         raise FileExistsError(f".dna already exists: {aimod}")
@@ -190,7 +379,6 @@ def init_module(mod_dir: Path, name: str, owner: str,
     aimod.mkdir(parents=True)
     (aimod / "workflows").mkdir()
 
-    # Build module.md with YAML frontmatter + body skeleton
     fm_lines = [
         "---",
         f"name: {name}",
@@ -202,17 +390,24 @@ def init_module(mod_dir: Path, name: str, owner: str,
     fm_lines.append("dependencies: []")
     fm_lines.append("---")
 
-    body = f"\n## Positioning\n\n\n## Class Diagram\n\n\n## Key Decisions\n"
+    body = _LEAF_BODY if type_ == "leaf" else _PARENT_BODY
 
     (aimod / "module.md").write_text(
-        "\n".join(fm_lines) + "\n" + body,
+        "\n".join(fm_lines) + body,
         encoding="utf-8",
     )
+
     if with_contract:
         (aimod / "contract.md").write_text(
             f"# {name} — Contract\n\n## Interfaces\n\n## Events\n",
             encoding="utf-8",
         )
+
+    # Append to the registry so list_modules / snapshot see it immediately.
+    # (Note: index.md no longer lives at <root>/.dna/; it's at cbim/.dna/.)
+    rel = mod_dir.resolve().relative_to(root).as_posix()
+    _append_to_index(root, rel)
+
     return aimod
 
 
@@ -268,11 +463,9 @@ def _build_module_md(meta: dict, body: str) -> str:
 
 
 def update_index(root: Path, paths: list[str] | None = None) -> None:
-    """Rebuild index.md from all discovered modules (or accept explicit list)."""
-    index_path = root / ".dna" / "index.md"
+    """Rebuild cbim/.dna/index.md from a fresh filesystem scan (or accept an
+    explicit path list). Use this for one-shot recovery / migration; the
+    normal CLI flow keeps the registry up to date via init_module."""
     if paths is None:
-        paths = [m["path"] for m in list_modules(root)]
-    lines = ["# 模块索引\n"]
-    for p in sorted(paths):
-        lines.append(f"- {p}")
-    index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        paths = [m["path"] for m in _scan_modules(root)]
+    _write_index(root, paths)

@@ -1,7 +1,7 @@
 ---
 name: cbim-cli
 owner: architect
-description: Standalone CLI for v1-to-v2 migration and engine debugging -- reuses engine directly, not subject to SDK tool guard
+description: Standalone CLI for v1-to-v2 migration and engine debugging
 keywords: [cli, migration, debug, cac, standalone]
 dependencies:
   - packages/engine
@@ -11,7 +11,7 @@ dependencies:
 
 An independent command-line tool that provides v1-to-v2 project migration and engine debugging/inspection utilities. Consumes `@cbim/engine` directly as a TypeScript library, bypassing the SDK tool layer entirely. Ships as a standalone executable via `npx @cbim/cli`.
 
-## Component Diagram
+## Class Diagram
 
 ```mermaid
 graph TD

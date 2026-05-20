@@ -10,31 +10,46 @@ dependencies: []
 
 The browser-sandboxed React application rendered inside a VS Code webview panel. Provides three primary views -- chat interaction, module tree browsing, and memory preview -- communicating with the extension host exclusively via the postMessage protocol.
 
-## Component Diagram
+## Class Diagram
 
 ```mermaid
-graph TD
-    subgraph ui ["@cbim/ui"]
-        MAIN["main entry<br/><i>React root mount,<br/>tab router, message bridge init</i>"]
-        CHAT["chat/<br/><i>Agent conversation panel:<br/>message stream, role display</i>"]
-        MODULES["modules/<br/><i>Module tree browser:<br/>tree view, module detail</i>"]
-        MEMORY["memory/<br/><i>Memory preview:<br/>short/medium/distilled viewer</i>"]
-    end
+classDiagram
+    class App {
+        +render() JSX
+        -activeTab: string
+    }
 
-    MAIN -->|"renders"| CHAT
-    MAIN -->|"renders"| MODULES
-    MAIN -->|"renders"| MEMORY
+    class MessageBridge {
+        +postMessage(msg: OutboundMessage) void
+        +onMessage(handler: InboundHandler) void
+        -vscodeApi: WebviewApi
+    }
 
-    MAIN ---|"postMessage bridge"| EXT["extension host<br/><i>(Node.js runtime)</i>"]
+    class ChatPanel {
+        +messages: ChatMessage[]
+        +sendMessage(text: string) void
+    }
 
-    style MAIN fill:#e8f8e8,stroke:#27ae60
-    style CHAT fill:#e8f8e8,stroke:#27ae60
-    style MODULES fill:#e8f8e8,stroke:#27ae60
-    style MEMORY fill:#e8f8e8,stroke:#27ae60
-    style EXT fill:#fef3e2,stroke:#e67e22
+    class ModuleBrowser {
+        +moduleTree: TreeNode[]
+        +selectedModule: Module
+    }
+
+    class MemoryViewer {
+        +entries: MemoryEntry[]
+        +activeLayer: string
+    }
+
+    App --> ChatPanel : renders
+    App --> ModuleBrowser : renders
+    App --> MemoryViewer : renders
+    App --> MessageBridge : initializes
+    ChatPanel ..> MessageBridge : sends/receives
+    ModuleBrowser ..> MessageBridge : sends/receives
+    MemoryViewer ..> MessageBridge : sends/receives
 ```
 
-**Communication model:** All data flows through a centralized postMessage bridge initialized in the main entry. Individual tab components request data and receive updates through this bridge, never through direct engine imports.
+**Communication model:** All data flows through a centralized `MessageBridge` initialized by the `App` root component. Individual tab components request data and receive updates through this bridge, never through direct engine imports.
 
 ## Key Decisions
 

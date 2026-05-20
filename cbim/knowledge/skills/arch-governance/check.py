@@ -1,7 +1,7 @@
 """
 check.py — Deterministic architecture governance checks.
 
-Scriptable factors: #1 #2 #3 #4 #10 #14 #15 #17 #WF1 #WF2
+Scriptable factors: #1 #2 #3 #4 #10 #14 #15 #17 #19 #20 #21 #WF1 #WF2
 Remaining factors require LLM analysis (see SKILL.md).
 
 Supports dual format:
@@ -21,7 +21,9 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
-from knowledge.engine.modules import list_modules
+from knowledge.engine.modules import (
+    list_modules, read_index, _SCAN_SKIP_DIRS, _scan_modules,
+)
 
 _CONFIG_FILE = Path(__file__).resolve().parent / "config.json"
 _cfg = json.loads(_CONFIG_FILE.read_text(encoding="utf-8"))
@@ -46,6 +48,11 @@ _HISTORY_RE = re.compile(
 )
 
 _KEBAB_RE = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
+
+# Mermaid graph node extraction: NODE_ID["label"] or NODE_ID[label] or NODE_ID(label)
+_GRAPH_NODE_RE = re.compile(
+    r"\b([A-Za-z_][A-Za-z0-9_]*)\s*[\[\(]\s*[\"']?([^\"'\]\)]+)[\"']?\s*[\]\)]"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +154,7 @@ def _detect_cycles(graph: dict[str, list[str]]) -> list[list[str]]:
     """DFS cycle detection. Returns each cycle as a list of node IDs."""
     visited: set[str] = set()
     on_stack: set[str] = set()
-    cycles: list[list[str]] = set_cycles = []
+    cycles: list[list[str]] = []
 
     def _dfs(node: str, path: list[str]) -> None:
         visited.add(node)
@@ -173,12 +180,79 @@ def _is_leaf(path: str, all_paths: set[str]) -> bool:
     return not any(p != path and p.startswith(prefix) for p in all_paths)
 
 
+def _detect_phantom_subnodes(arch: str, parent_path: str, parent_dir: Path,
+                             all_paths: set[str]) -> list[str]:
+    """For a parent module's body, scan mermaid `graph` blocks. For each node
+    whose ID or label matches an actual sub-directory of this module, check
+    whether that sub-directory has a .dna/. Return labels lacking .dna/."""
+
+    # Extract graph blocks
+    blocks = []
+    in_block = False
+    cur: list[str] = []
+    for line in arch.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```mermaid"):
+            in_block = True
+            cur = []
+            continue
+        if in_block and stripped.startswith("```"):
+            in_block = False
+            blocks.append("\n".join(cur))
+            cur = []
+            continue
+        if in_block:
+            cur.append(line)
+
+    # Only inspect blocks that declare a 'graph' (not classDiagram/sequenceDiagram/etc.)
+    graph_blocks = [b for b in blocks if re.search(r"^\s*graph\s+", b, re.MULTILINE)
+                    or re.search(r"^\s*flowchart\s+", b, re.MULTILINE)]
+    if not graph_blocks:
+        return []
+
+    # Collect immediate sub-directories of the parent module, applying the
+    # same skip-list used by module discovery so that framework/vendor dirs
+    # (cbim/, node_modules/, dist/, ...) don't get reported as phantoms when
+    # referenced in the root graph.
+    try:
+        sub_dirs = {
+            d.name for d in parent_dir.iterdir()
+            if d.is_dir()
+            and not d.name.startswith(".")
+            and d.name not in _SCAN_SKIP_DIRS
+        }
+    except (FileNotFoundError, PermissionError):
+        return []
+
+    # Build set of sub-paths that DO have .dna/
+    base_prefix = "" if parent_path == "." else parent_path + "/"
+    have_dna = {p[len(base_prefix):].split("/")[0]
+                for p in all_paths
+                if p != parent_path and p.startswith(base_prefix)}
+
+    phantom = []
+    seen: set[str] = set()
+    for block in graph_blocks:
+        for node_id, label in _GRAPH_NODE_RE.findall(block):
+            for token in (node_id, label):
+                # Match against sub_dirs (case-sensitive; tolerate `name/` and `name<br/>`)
+                clean = token.split("<")[0].split("/")[0].strip().lower()
+                for sub in sub_dirs:
+                    if sub.lower() == clean and sub not in have_dna and sub not in seen:
+                        seen.add(sub)
+                        phantom.append(sub)
+                        break
+    return phantom
+
+
 # ---------------------------------------------------------------------------
 # Main check runner
 # ---------------------------------------------------------------------------
 
 def run_checks(root: Path) -> dict[str, list[str]]:
-    modules = list_modules(root)
+    # Use a fresh filesystem scan for validation so we can detect drift
+    # between what's actually on disk and what the registry claims.
+    modules = _scan_modules(root)
     issues: dict[str, list[str]] = {"MUST": [], "SUGGEST": []}
 
     if not modules:
@@ -188,14 +262,9 @@ def run_checks(root: Path) -> dict[str, list[str]]:
     all_paths = set(mod_map)
     dep_graph = {m["path"]: [d for d in m.get("dependencies", [])] for m in modules}
 
-    # Index file
-    index_file = root / ".dna" / "index.md"
-    index_paths: set[str] = set()
-    if index_file.exists():
-        for line in index_file.read_text(encoding="utf-8").splitlines():
-            entry = line.strip().lstrip("- ").strip()
-            if entry and not entry.startswith("#"):
-                index_paths.add(entry)
+    # Module registry lives at cbim/.dna/index.md (framework-managed). This
+    # replaces the old <project-root>/.dna/index.md location.
+    index_paths: set[str] = set(read_index(root))
 
     # ── Per-module checks ─────────────────────────────────────────────────
     for m in modules:
@@ -243,6 +312,53 @@ def run_checks(root: Path) -> dict[str, list[str]]:
             wf_issues = _check_workflow(wf_file)
             for wi in wf_issues:
                 issues["MUST"].append(f"[#WF] {path}/.dna/workflows/{wf_name}: {wi}")
+
+        # Parent-specific structural smells (#19 #20)
+        if not _is_leaf(path, all_paths):
+            # #19 — parent module body uses leaf-shaped diagram
+            if arch and "classDiagram" in arch:
+                issues["MUST"].append(
+                    f"[#19] {path}: parent module body contains 'classDiagram' — "
+                    f"should use 'graph' showing sub-modules. Sub-module internals "
+                    f"belong in their own .dna/module.md."
+                )
+
+            # #20 — graph nodes reference sub-paths that have no .dna/
+            if arch:
+                phantom = _detect_phantom_subnodes(arch, path, mod_dir, all_paths)
+                for label in phantom:
+                    issues["SUGGEST"].append(
+                        f"[#20] {path}: component diagram references '{label}' "
+                        f"but no .dna/ exists there — promote to sub-module or "
+                        f"remove from diagram."
+                    )
+
+        # Leaf-specific structural smells (#21)
+        if _is_leaf(path, all_paths) and arch:
+            mermaid_blocks = re.findall(
+                r"```mermaid\s*\n(.*?)```", arch, re.DOTALL
+            )
+            has_class = any("classDiagram" in b for b in mermaid_blocks)
+            graph_blocks = [
+                b for b in mermaid_blocks
+                if re.search(r"^\s*(?:graph|flowchart)\s", b, re.MULTILINE)
+            ]
+            if graph_blocks and not has_class:
+                # Count distinct nodes across all graph blocks
+                node_ids: set[str] = set()
+                for gb in graph_blocks:
+                    for node_id, _label in _GRAPH_NODE_RE.findall(gb):
+                        node_ids.add(node_id)
+                if len(node_ids) >= 3:
+                    issues["MUST"].append(
+                        f"[#21] {path}: leaf module body uses graph/flowchart "
+                        f"mermaid with {len(node_ids)} internal nodes — this is "
+                        f"a parent-in-disguise pattern. Either (a) promote those "
+                        f"components to real sub-modules (each with its own .dna/), "
+                        f"or (b) replace with a real 'classDiagram' showing "
+                        f"classes/interfaces only — renaming the section header is "
+                        f"not enough."
+                    )
 
         # Leaf-specific
         if _is_leaf(path, all_paths):

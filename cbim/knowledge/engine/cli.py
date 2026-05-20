@@ -9,7 +9,7 @@ Usage (from project root):
 
   python cbim/knowledge/engine/cli.py modules list [--root <path>]
   python cbim/knowledge/engine/cli.py modules show <module-dir>
-  python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <owner>
+  python cbim/knowledge/engine/cli.py modules init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
   python cbim/knowledge/engine/cli.py modules reindex [--root <path>]
 """
 
@@ -111,15 +111,19 @@ def cmd_modules_show(args: argparse.Namespace) -> int:
 def cmd_modules_init(args: argparse.Namespace) -> int:
     try:
         aimod = init_module(Path(args.dir), args.name, args.owner,
-                            args.description, with_contract=args.with_contract)
-        print(f"Initialized: {aimod}/")
+                            args.description, with_contract=args.with_contract,
+                            type_=args.type)
+        print(f"Initialized [{args.type}]: {aimod}/")
         files = ".dna/module.md"
+        if args.type == "root":
+            files += ", index.md"
         if args.with_contract:
             files += ", contract.md"
         print(f"  Edit {files}")
-        print(f"  Then run: python cbim/knowledge/engine/cli.py modules reindex")
-    except FileExistsError as e:
-        print(str(e), file=sys.stderr)
+        if args.type != "root":
+            print(f"  Then run: python cbim/knowledge/engine/cli.py modules reindex")
+    except (FileExistsError, FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
         return 1
     return 0
 
@@ -169,6 +173,9 @@ def main() -> int:
 
     p_init = modules_sub.add_parser("init")
     p_init.add_argument("dir")
+    p_init.add_argument("--type", required=True, choices=["root", "parent", "leaf"],
+                        help="Module type: root (project root), parent (has sub-modules), "
+                             "leaf (no sub-modules). Determines body template.")
     p_init.add_argument("--name", required=True)
     p_init.add_argument("--owner", required=True)
     p_init.add_argument("--description", default="")
