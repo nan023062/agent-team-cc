@@ -20,9 +20,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from engine.import_log import log_import
-from engine.log_view import cmd_log_show, cmd_log_tail
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(prog="python -m engine")
@@ -84,13 +81,6 @@ def main() -> int:
     slsub.add_parser("list")
     _p = slsub.add_parser("show"); _p.add_argument("name")
 
-    # log ---------------------------------------------------------------------
-    pl = sub.add_parser("log", help="View merged debug logs")
-    lsub = pl.add_subparsers(dest="command")
-    _p = lsub.add_parser("show"); _p.add_argument("--lines", type=int, default=50)
-    _p = lsub.add_parser("tail"); _p.add_argument("--interval", type=float, default=1.0)
-    log_cmds = {"show": cmd_log_show, "tail": cmd_log_tail}
-
     args = parser.parse_args()
     domain = args.domain
 
@@ -113,15 +103,11 @@ def main() -> int:
         return _cmd_skill(args, pk)
     if domain == "soul":
         return _cmd_soul(args, psl)
-    if domain == "log":
-        if not args.command:
-            pl.print_help(); return 1
-        return log_cmds[args.command](args)
     parser.print_help()
     return 1
 
 
-def _load_skills(trigger: str | None = None) -> dict[str, str]:
+def _load_skills() -> dict[str, str]:
     import cbi.agents as agents_pkg
     skills: dict[str, str] = {}
     for agent_info in pkgutil.iter_modules(agents_pkg.__path__):
@@ -130,33 +116,23 @@ def _load_skills(trigger: str | None = None) -> dict[str, str]:
                 f"{agents_pkg.__name__}.{agent_info.name}.skills"
             )
             for skill_info in pkgutil.iter_modules(agent_skills_pkg.__path__):
-                module_path = f"{agent_skills_pkg.__name__}.{skill_info.name}.skill"
-                try:
-                    mod = importlib.import_module(module_path)
-                    if trigger is not None:
-                        log_import(module_path, "ok", trigger)
-                    if hasattr(mod, "SKILL"):
-                        key = f"{agent_info.name}.{skill_info.name}"
-                        skills[key] = mod.SKILL
-                except ModuleNotFoundError:
-                    if trigger is not None:
-                        log_import(module_path, "miss", trigger)
+                mod = importlib.import_module(
+                    f"{agent_skills_pkg.__name__}.{skill_info.name}.skill"
+                )
+                if hasattr(mod, "SKILL"):
+                    key = f"{agent_info.name}.{skill_info.name}"
+                    skills[key] = mod.SKILL
         except ModuleNotFoundError:
             pass
 
     try:
         import cbi.coordinator.skills as coord_skills_pkg
         for skill_info in pkgutil.iter_modules(coord_skills_pkg.__path__):
-            module_path = f"{coord_skills_pkg.__name__}.{skill_info.name}.skill"
-            try:
-                mod = importlib.import_module(module_path)
-                if trigger is not None:
-                    log_import(module_path, "ok", trigger)
-                if hasattr(mod, "SKILL"):
-                    skills[f"coordinator.{skill_info.name}"] = mod.SKILL
-            except ModuleNotFoundError:
-                if trigger is not None:
-                    log_import(module_path, "miss", trigger)
+            mod = importlib.import_module(
+                f"{coord_skills_pkg.__name__}.{skill_info.name}.skill"
+            )
+            if hasattr(mod, "SKILL"):
+                skills[f"coordinator.{skill_info.name}"] = mod.SKILL
     except ModuleNotFoundError:
         pass
 
@@ -166,13 +142,12 @@ def _load_skills(trigger: str | None = None) -> dict[str, str]:
 def _cmd_skill(args, parser):
     if not args.command:
         parser.print_help(); return 1
+    skills = _load_skills()
     if args.command == "list":
-        skills = _load_skills()
         for name in sorted(skills):
             print(name)
         return 0
     if args.command == "show":
-        skills = _load_skills(trigger="skill.show")
         if args.name not in skills:
             print(f"Skill not found: {args.name}", file=sys.stderr)
             return 1
@@ -182,36 +157,27 @@ def _cmd_skill(args, parser):
     return 1
 
 
-def _load_souls(trigger: str | None = None) -> dict[str, str]:
+def _load_souls() -> dict[str, str]:
     import cbi.agents as souls_pkg
     souls: dict[str, str] = {}
     for info in pkgutil.iter_modules(souls_pkg.__path__):
-        module_path = f"{souls_pkg.__name__}.{info.name}.agent"
         try:
-            mod = importlib.import_module(module_path)
-            if trigger is not None:
-                log_import(module_path, "ok", trigger)
+            mod = importlib.import_module(f"{souls_pkg.__name__}.{info.name}.agent")
         except ModuleNotFoundError:
-            if trigger is not None:
-                log_import(module_path, "miss", trigger)
             continue
         for attr in dir(mod):
             if attr.endswith("_MD"):
                 souls[info.name] = getattr(mod, attr)
                 break
 
-    coord_module_path = "cbi.coordinator.agent"
     try:
-        coord_mod = importlib.import_module(coord_module_path)
-        if trigger is not None:
-            log_import(coord_module_path, "ok", trigger)
+        import cbi.coordinator.agent as coord_mod
         for attr in dir(coord_mod):
             if attr.endswith("_MD"):
                 souls["assistant"] = getattr(coord_mod, attr)
                 break
     except ModuleNotFoundError:
-        if trigger is not None:
-            log_import(coord_module_path, "miss", trigger)
+        pass
 
     return souls
 
@@ -219,12 +185,11 @@ def _load_souls(trigger: str | None = None) -> dict[str, str]:
 def _cmd_soul(args, parser):
     if not args.command:
         parser.print_help(); return 1
+    souls = _load_souls()
     if args.command == "list":
-        souls = _load_souls()
         for name in sorted(souls): print(name)
         return 0
     if args.command == "show":
-        souls = _load_souls(trigger="soul.show")
         if args.name not in souls:
             print(f"Soul not found: {args.name}", file=sys.stderr); return 1
         print(souls[args.name]); return 0

@@ -1,3 +1,4 @@
 # CBIM framework files — access via skill Python scripts only, not direct file reads
 cbim-prompt/
 **/.dna/
+.cbim-prompt/

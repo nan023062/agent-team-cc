@@ -4,3 +4,6 @@ __pycache__/
 cbim-prompt/memory/store/
 .claude/
 CLAUDE.md
+.cbim-prompt/memory/store/
+
+cbim-prompt/logs/

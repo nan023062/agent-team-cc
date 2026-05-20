@@ -13,19 +13,6 @@ import re
 import sys
 from pathlib import Path
 
-try:
-    from engine.import_log import log_import as _log_import
-except ImportError:
-    def _log_import(*a, **kw): pass
-
-
-def _rel_for_log(p: Path, root: Path) -> str:
-    """Return path relative to project root for log entries (posix style)."""
-    try:
-        return p.resolve().relative_to(root.resolve()).as_posix()
-    except Exception:
-        return p.as_posix()
-
 
 # ---------------------------------------------------------------------------
 # YAML frontmatter parser (no PyYAML dependency)
@@ -102,28 +89,21 @@ def load_module(mod_dir: Path, root: Path) -> dict | None:
               f"migrate to module.md", file=sys.stderr)
         return _load_legacy_format(mod_dir, root, aimod, legacy_json)
     else:
-        _log_import(f"dna:{_rel_for_log(module_md, root)}", "miss", "dna.load")
         return None
 
 
 def _load_new_format(mod_dir: Path, root: Path, aimod: Path, module_md: Path) -> dict | None:
     try:
         raw = module_md.read_text(encoding="utf-8")
-        _log_import(f"dna:{_rel_for_log(module_md, root)}", "ok", "dna.load")
     except Exception:
-        _log_import(f"dna:{_rel_for_log(module_md, root)}", "miss", "dna.load")
         return None
 
     data = _parse_frontmatter(raw)
     body = _strip_frontmatter(raw)
     rel = mod_dir.relative_to(root).as_posix()
 
-    contract_path = aimod / "contract.md"
-    if contract_path.exists():
-        contract = contract_path.read_text(encoding="utf-8")
-        _log_import(f"dna:{_rel_for_log(contract_path, root)}", "ok", "dna.load")
-    else:
-        contract = ""
+    contract = (aimod / "contract.md").read_text(encoding="utf-8") \
+        if (aimod / "contract.md").exists() else ""
     workflows_dir = aimod / "workflows"
     workflows = sorted(w.parent.name for w in workflows_dir.glob("*/workflow.md")) \
         if workflows_dir.exists() else []
@@ -146,24 +126,14 @@ def _load_legacy_format(mod_dir: Path, root: Path, aimod: Path,
                         legacy_json: Path) -> dict | None:
     try:
         data = json.loads(legacy_json.read_text(encoding="utf-8"))
-        _log_import(f"dna:{_rel_for_log(legacy_json, root)}", "ok", "dna.load")
     except Exception:
-        _log_import(f"dna:{_rel_for_log(legacy_json, root)}", "miss", "dna.load")
         return None
 
     rel = mod_dir.relative_to(root).as_posix()
-    arch_path = aimod / "architecture.md"
-    if arch_path.exists():
-        arch = arch_path.read_text(encoding="utf-8")
-        _log_import(f"dna:{_rel_for_log(arch_path, root)}", "ok", "dna.load")
-    else:
-        arch = ""
-    contract_path = aimod / "contract.md"
-    if contract_path.exists():
-        contract = contract_path.read_text(encoding="utf-8")
-        _log_import(f"dna:{_rel_for_log(contract_path, root)}", "ok", "dna.load")
-    else:
-        contract = ""
+    arch = (aimod / "architecture.md").read_text(encoding="utf-8") \
+        if (aimod / "architecture.md").exists() else ""
+    contract = (aimod / "contract.md").read_text(encoding="utf-8") \
+        if (aimod / "contract.md").exists() else ""
     workflows_dir = aimod / "workflows"
     workflows = sorted(w.parent.name for w in workflows_dir.glob("*/workflow.md")) \
         if workflows_dir.exists() else []
@@ -246,9 +216,7 @@ def read_index(root: Path) -> list[str]:
     """
     p = _index_path(root)
     if not p.exists():
-        _log_import(f"dna:{_rel_for_log(p, root)}", "miss", "dna.load")
         return []
-    _log_import(f"dna:{_rel_for_log(p, root)}", "ok", "dna.load")
     out = []
     for line in p.read_text(encoding="utf-8").splitlines():
         s = line.strip().lstrip("- ").strip()

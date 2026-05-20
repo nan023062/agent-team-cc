@@ -1,0 +1,5 @@
+CONFIG: dict = {   'placeholder_min_real_lines': 3,
+    'leaf_arch_max_lines': 200,
+    'leaf_workflow_max_count': 3,
+    'leaf_contract_max_items': 10,
+    'workflow_required_sections': ['## 触发条件', '## 步骤']}
