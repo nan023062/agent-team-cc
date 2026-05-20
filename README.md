@@ -67,12 +67,14 @@ Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md 
 ### Option 2: Manual installation
 
 ```bash
-# 1. Clone CBIM into the target project's cbim/ directory
-git clone --branch master https://github.com/nan023062/cbim.git cbim
+# 1. Clone CBIM into the target project's cbim-prompt/ directory
+git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
+cp -r _cbim_tmp/cbim-prompt .
+rm -rf _cbim_tmp
 
 # 2. Run the installer
-python3 cbim/install.py        # macOS / Linux
-# or double-click cbim/install.bat  # Windows
+python3 cbim-prompt/install.py        # macOS / Linux
+# or double-click cbim-prompt/install.bat  # Windows
 
 # 3. Restart Claude Code
 claude
@@ -127,7 +129,7 @@ your-project/
 │   ├── workflows/                 ← optional: deterministic process definitions
 │   └── ...                        ← optional: any user-defined files
 │
-└── cbim/                          ← Framework (git cloned here)
+└── cbim-prompt/                          ← Framework (git cloned here)
     ├── install.py                 ← Auto installer
     ├── install.bat                ← Windows entry point
     ├── cc-template/               ← Claude Code installation templates
@@ -142,7 +144,7 @@ your-project/
 
 | Layer | Governed by | Scope | Rule |
 |-------|-------------|-------|------|
-| **Capability layer** | HR | `.claude/agents/` (soul) + `cbim/knowledge/skills/` (capability skills) | soul/skills must contain zero project-specific content |
+| **Capability layer** | HR | `.claude/agents/` (soul) + `cbim-prompt/knowledge/skills/` (capability skills) | soul/skills must contain zero project-specific content |
 | **Business layer** | Architect | Each project's `.dna/` (`module.md` = sole hard constraint; extensions optional) | knowledge files must not reference agent specs |
 
 The `.dna/` convention: **minimal constraint + open extension**. Directory exists = module. `module.md` is the only required file (YAML frontmatter + architecture body). `contract.md`, `workflows/`, and user-defined files are all optional.
@@ -151,7 +153,7 @@ CBIM splits skills by "who owns it" — `.claude/` only contains `agents/`, no s
 
 | Type | Storage | Characteristics |
 |------|---------|----------------|
-| **Capability skill** | `cbim/knowledge/skills/` | Agent private capability; portable; governed by HR |
+| **Capability skill** | `cbim-prompt/knowledge/skills/` | Agent private capability; portable; governed by HR |
 | **Business skill** | `.dna/workflows/` | Module deterministic process; project-bound; governed by architect |
 
 ---
@@ -162,9 +164,9 @@ Memory is a three-stage distillation pipeline, not just context recovery:
 
 | Stage | Path | Purpose |
 |-------|------|---------|
-| Short-term | `cbim/memory/store/short/` | Raw session records; tagged `distilled` after processing, cleaned up after 3 days |
-| Medium-term | `cbim/memory/store/medium/` | Compressed pattern summaries; archived after promotion to knowledge layer |
-| Knowledge (core) | `cbim/knowledge/skills/` + `.dna/` | Crystallized structure: capability → skills/soul, business → workflows |
+| Short-term | `cbim-prompt/memory/store/short/` | Raw session records; tagged `distilled` after processing, cleaned up after 3 days |
+| Medium-term | `cbim-prompt/memory/store/medium/` | Compressed pattern summaries; archived after promotion to knowledge layer |
+| Knowledge (core) | `cbim-prompt/knowledge/skills/` + `.dna/` | Crystallized structure: capability → skills/soul, business → workflows |
 
 Short → Medium is **compression**; Medium → Knowledge is **the critical step** — crystallizing validated patterns into governance structures that serve as the foundation for all future tasks.
 

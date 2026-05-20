@@ -1,6 +1,6 @@
 .venv/
 __pycache__/
 *.pyc
-cbim/memory/store/
+cbim-prompt/memory/store/
 .claude/
 CLAUDE.md

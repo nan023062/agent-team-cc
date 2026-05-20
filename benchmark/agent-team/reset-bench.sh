@@ -6,7 +6,7 @@
 #   BENCH_TARGET_DIR=/path/to/target-project bash /path/to/reset-bench.sh [--save-run]
 #
 # 执行内容：
-#   1. 可选地将当前测试结果保存到 cbim/benchmark/agent-team/results/
+#   1. 可选地将当前测试结果保存到 cbim-prompt/benchmark/agent-team/results/
 #   2. git 恢复 v3 被测文件到原始状态（event-bus.ts / scheduler.ts / types/task.ts）
 #   3. 删除 AgentResourceManager（Task F 产出文件）
 #   4. 部署 v3 测试文件（task-d/e/f → target/__tests__/）

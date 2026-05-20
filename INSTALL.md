@@ -32,21 +32,21 @@ git --version
 
 ## Step 2 — Download CBIM Framework
 
-Clone the repository into a temporary directory, then perform a clean replacement of the `cbim/` directory in the project root. On both first-time installs and upgrades, the old `cbim/` is fully removed before the new one is copied in, so no stale files from previous versions can linger. The one exception is `cbim/memory/store/`, which holds user memory data and is backed up before replacement and restored afterward.
+Clone the repository into a temporary directory, then perform a clean replacement of the `cbim-prompt/` directory in the project root. On both first-time installs and upgrades, the old `cbim-prompt/` is fully removed before the new one is copied in, so no stale files from previous versions can linger. The one exception is `cbim-prompt/memory/store/`, which holds user memory data and is backed up before replacement and restored afterward.
 
 Linux / macOS:
 ```bash
 git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
 # 备份记忆数据
-[ -d cbim/memory/store ] && cp -r cbim/memory/store _cbim_store_bak
+[ -d cbim-prompt/memory/store ] && cp -r cbim-prompt/memory/store _cbim_store_bak
 # 完整替换
-rm -rf cbim
-cp -r _cbim_tmp/cbim .
+rm -rf cbim-prompt
+cp -r _cbim_tmp/cbim-prompt .
 rm -rf _cbim_tmp
 # 还原记忆数据
 if [ -d _cbim_store_bak ]; then
-  rm -rf cbim/memory/store
-  mv _cbim_store_bak cbim/memory/store
+  rm -rf cbim-prompt/memory/store
+  mv _cbim_store_bak cbim-prompt/memory/store
 fi
 ```
 
@@ -54,29 +54,29 @@ Windows (PowerShell):
 ```powershell
 git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
 # 备份记忆数据
-if (Test-Path cbim\memory\store) {
-    Copy-Item -Recurse cbim\memory\store _cbim_store_bak
+if (Test-Path cbim-prompt\memory\store) {
+    Copy-Item -Recurse cbim-prompt\memory\store _cbim_store_bak
 }
 # 完整替换
-Remove-Item -Recurse -Force cbim -ErrorAction SilentlyContinue
-Copy-Item -Recurse _cbim_tmp\cbim .\cbim
+Remove-Item -Recurse -Force cbim-prompt -ErrorAction SilentlyContinue
+Copy-Item -Recurse _cbim_tmp\cbim-prompt .\cbim-prompt
 Remove-Item -Recurse -Force _cbim_tmp
 # 还原记忆数据
 if (Test-Path _cbim_store_bak) {
-    Remove-Item -Recurse -Force cbim\memory\store -ErrorAction SilentlyContinue
-    Move-Item _cbim_store_bak cbim\memory\store
+    Remove-Item -Recurse -Force cbim-prompt\memory\store -ErrorAction SilentlyContinue
+    Move-Item _cbim_store_bak cbim-prompt\memory\store
 }
 ```
 
 ## Step 3 — Run the Installer
 
 ```bash
-python3 cbim/install.py
+python3 cbim-prompt/install.py
 ```
 
 Windows:
 ```powershell
-python cbim\install.py
+python cbim-prompt\install.py
 ```
 
 The script will automatically:
@@ -84,7 +84,7 @@ The script will automatically:
 - Copy agent definitions to `.claude/agents/`
 - Register SessionStart / Stop hooks in `.claude/settings.json`
 - Initialize `CLAUDE.md`
-- Create memory directories `cbim/memory/store/{short,medium}/`
+- Create memory directories `cbim-prompt/memory/store/{short,medium}/`
 - Update `.gitignore`
 
 The script outputs `+` (done) or `-` (skipped/already exists) for each step, and prints `Done. Restart Claude Code to activate hooks.` at the end.
@@ -96,10 +96,10 @@ If the script errors, stop and report the error to the user — do not continue.
 Run the following check and show the result to the user:
 
 ```bash
-ls CLAUDE.md cbim/ .claude/agents/ .venv/
+ls CLAUDE.md cbim-prompt/ .claude/agents/ .venv/
 ```
 
-Installation is successful if CLAUDE.md, cbim/, .claude/agents/, and .venv/ all exist.
+Installation is successful if CLAUDE.md, cbim-prompt/, .claude/agents/, and .venv/ all exist.
 
 ## Step 5 — Final Report
 
