@@ -1,0 +1,43 @@
+{
+  "name": "@cbim/engine",
+  "version": "0.0.0",
+  "description": "CBIM v2 core engine — knowledge, memory, dispatch, migration. No VS Code dependency.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./knowledge": {
+      "import": "./dist/knowledge/index.js",
+      "types": "./dist/knowledge/index.d.ts"
+    },
+    "./memory": {
+      "import": "./dist/memory/index.js",
+      "types": "./dist/memory/index.d.ts"
+    },
+    "./dispatch": {
+      "import": "./dist/dispatch/index.js",
+      "types": "./dist/dispatch/index.d.ts"
+    },
+    "./migration": {
+      "import": "./dist/migration/index.js",
+      "types": "./dist/migration/index.d.ts"
+    },
+    "./tools": {
+      "import": "./dist/tools/index.js",
+      "types": "./dist/tools/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

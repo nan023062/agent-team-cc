@@ -1,0 +1,36 @@
+{
+  "name": "@cbim/vscode-extension",
+  "displayName": "CBIM",
+  "version": "0.0.0",
+  "description": "CBIM v2 VS Code extension",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/activation.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cbim.hello",
+        "title": "CBIM: Hello (placeholder)"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@cbim/engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

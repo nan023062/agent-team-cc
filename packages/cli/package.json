@@ -1,0 +1,25 @@
+{
+  "name": "@cbim/cli",
+  "version": "0.0.0",
+  "description": "CBIM v2 CLI — migration and debug tooling",
+  "type": "module",
+  "bin": {
+    "cbim": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@cbim/engine": "workspace:*",
+    "cac": "^6.7.14"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

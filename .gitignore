@@ -4,3 +4,9 @@ __pycache__/
 cbim/memory/store/
 .claude/
 CLAUDE.md
+
+# v2 monorepo
+node_modules/
+dist/
+.vscode-test/
+*.tsbuildinfo
