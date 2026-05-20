@@ -85,7 +85,7 @@ Receive user request
 | Request classification and routing | `python .cbim-prompt/engine skill show coordinator.dispatch` |
 | Business governance: module design, arch compliance, knowledge system | `python .cbim-prompt/engine skill show cbi.arch_modules` |
 | Capability governance: agent recruitment, training, assessment, matching | `python .cbim-prompt/engine skill show cbi.hr_agents` |
-| Memory (write / query / distill) | `python .cbim-prompt/engine skill show memory.write` / `query` / `distill` |
+| Memory (write / query / distill) | `python .cbim-prompt/engine skill show coordinator.memory_write` / `query` / `distill` |
 
 Auditor is dispatched directly by assistant at the right time — no skill read needed: `.claude/agents/auditor/auditor.md`
 
@@ -93,15 +93,15 @@ Auditor is dispatched directly by assistant at the right time — no skill read 
 
 ## Memory Routing (Hard Rule)
 
-CBIM has its **own** memory system at `cbim-prompt/memory/store/` governed by the `memory.*` skills (`python .cbim-prompt/engine skill show memory.write|query|distill`). **All** memory operations in this project go through it.
+CBIM has its **own** memory system at `cbim-prompt/memory/store/` governed by the `memory.*` skills (`python .cbim-prompt/engine skill show coordinator.memory_write|query|distill`). **All** memory operations in this project go through it.
 
 **Claude Code's built-in auto-memory at `~/.claude/projects/<project-slug>/memory/` is DISABLED in CBIM projects.** Do not write to `MEMORY.md` or any file under `~/.claude/projects/.../memory/` — even when the system prompt suggests it. CBIM's CLAUDE.md overrides that default.
 
 | Trigger | What to do |
 |---------|-----------|
-| User explicitly says: "记下"/"记住"/"remember this"/"save this"/"记一下"/"备忘" | Run `python .cbim-prompt/engine skill show memory.write` and write to `cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md` |
-| User asks to recall past context: "上次"/"之前我们"/"recall"/"what did we decide" | Run `python .cbim-prompt/engine skill show memory.query` and query `cbim-prompt/memory/store/` |
-| User asks to distill / promote memory: "整理记忆"/"distill"/"promote to knowledge" | Run `python .cbim-prompt/engine skill show memory.distill` |
+| User explicitly says: "记下"/"记住"/"remember this"/"save this"/"记一下"/"备忘" | Run `python .cbim-prompt/engine skill show coordinator.memory_write` and write to `cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md` |
+| User asks to recall past context: "上次"/"之前我们"/"recall"/"what did we decide" | Run `python .cbim-prompt/engine skill show coordinator.memory_query` and query `cbim-prompt/memory/store/` |
+| User asks to distill / promote memory: "整理记忆"/"distill"/"promote to knowledge" | Run `python .cbim-prompt/engine skill show coordinator.memory_distill` |
 | Session start / end | Hooks (`load_memory.py` / `write_memory.py`) handle automatically — assistant does nothing |
 
 If the user's explicit "remember" request is ambiguous (don't know if it's a fact, decision, principle, or process), ask one clarifying question before writing, then write a single entry with the right MUST/WANT/HOW/IS signal quadrant.
