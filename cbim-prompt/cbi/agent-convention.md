@@ -1,4 +1,3 @@
-AGENT_CONVENTION: str = """\
 # Agent Capability Layer Convention
 
 > The capability layer is governed by HR, strictly separated from the business layer (`.dna/`).
@@ -120,4 +119,3 @@ python -m engine agent scaffold <name> --description "..."
 # Archive agent
 python -m engine agent archive <name>
 ```
-"""

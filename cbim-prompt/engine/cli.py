@@ -10,7 +10,7 @@ Domains:
   agent       list | show | scaffold | archive
   snapshot    [--root PATH]
   skill       list | show <name>
-  convention  list | show <name>
+  soul       list | show <name>
 """
 import argparse
 import importlib
@@ -75,11 +75,11 @@ def main() -> int:
     ksub.add_parser("list")
     _p = ksub.add_parser("show"); _p.add_argument("name")
 
-    # convention --------------------------------------------------------------
-    pc = sub.add_parser("convention", help="List or show convention content")
-    csub = pc.add_subparsers(dest="command")
-    csub.add_parser("list")
-    _p = csub.add_parser("show"); _p.add_argument("name")
+    # soul
+    psl = sub.add_parser("soul", help="List or show built-in agent soul content")
+    slsub = psl.add_subparsers(dest="command")
+    slsub.add_parser("list")
+    _p = slsub.add_parser("show"); _p.add_argument("name")
 
     args = parser.parse_args()
     domain = args.domain
@@ -101,30 +101,37 @@ def main() -> int:
         return 0
     if domain == "skill":
         return _cmd_skill(args, pk)
-    if domain == "convention":
-        return _cmd_convention(args, pc)
+    if domain == "soul":
+        return _cmd_soul(args, psl)
     parser.print_help()
     return 1
 
 
 def _load_skills() -> dict[str, str]:
+    import cbi.agents as agents_pkg
     skills: dict[str, str] = {}
-    import cbi.skills as cbi_skills_pkg
+    for agent_info in pkgutil.iter_modules(agents_pkg.__path__):
+        try:
+            agent_skills_pkg = importlib.import_module(
+                f"{agents_pkg.__name__}.{agent_info.name}.skills"
+            )
+            for skill_info in pkgutil.iter_modules(agent_skills_pkg.__path__):
+                mod = importlib.import_module(
+                    f"{agent_skills_pkg.__name__}.{skill_info.name}.skill"
+                )
+                if hasattr(mod, "SKILL"):
+                    key = f"{agent_info.name}.{skill_info.name}"
+                    skills[key] = mod.SKILL
+        except ModuleNotFoundError:
+            pass
+
+    # memory skills
     import memory.skills as mem_skills_pkg
-    for pkg, prefix in [(cbi_skills_pkg, "cbi."), (mem_skills_pkg, "memory.")]:
-        for info in pkgutil.iter_modules(pkg.__path__):
-            full = f"{pkg.__name__}.{info.name}"
-            mod = importlib.import_module(full)
-            if hasattr(mod, "SKILL"):
-                skills[prefix + info.name] = mod.SKILL
-            elif info.ispkg:
-                # nested skill package (cbi.skills.<name> with skill submodule)
-                try:
-                    sub = importlib.import_module(f"{full}.skill")
-                    if hasattr(sub, "SKILL"):
-                        skills[prefix + info.name] = sub.SKILL
-                except ModuleNotFoundError:
-                    pass
+    for info in pkgutil.iter_modules(mem_skills_pkg.__path__):
+        mod = importlib.import_module(f"{mem_skills_pkg.__name__}.{info.name}")
+        if hasattr(mod, "SKILL"):
+            skills[f"memory.{info.name}"] = mod.SKILL
+
     return skills
 
 
@@ -146,31 +153,30 @@ def _cmd_skill(args, parser):
     return 1
 
 
-def _load_conventions() -> dict[str, str]:
-    import cbi.conventions as conv_pkg
-    convs: dict[str, str] = {}
-    for info in pkgutil.iter_modules(conv_pkg.__path__):
-        mod = importlib.import_module(f"{conv_pkg.__name__}.{info.name}")
+def _load_souls() -> dict[str, str]:
+    import cbi.agents as souls_pkg
+    souls: dict[str, str] = {}
+    for info in pkgutil.iter_modules(souls_pkg.__path__):
+        try:
+            mod = importlib.import_module(f"{souls_pkg.__name__}.{info.name}.agent")
+        except ModuleNotFoundError:
+            continue
         for attr in dir(mod):
-            if attr.endswith("_CONVENTION"):
-                convs[info.name] = getattr(mod, attr)
+            if attr.endswith("_MD"):
+                souls[info.name] = getattr(mod, attr)
                 break
-    return convs
+    return souls
 
 
-def _cmd_convention(args, parser):
+def _cmd_soul(args, parser):
     if not args.command:
         parser.print_help(); return 1
-    convs = _load_conventions()
+    souls = _load_souls()
     if args.command == "list":
-        for name in sorted(convs):
-            print(name)
+        for name in sorted(souls): print(name)
         return 0
     if args.command == "show":
-        if args.name not in convs:
-            print(f"Convention not found: {args.name}", file=sys.stderr)
-            return 1
-        print(convs[args.name])
-        return 0
-    parser.print_help()
-    return 1
+        if args.name not in souls:
+            print(f"Soul not found: {args.name}", file=sys.stderr); return 1
+        print(souls[args.name]); return 0
+    parser.print_help(); return 1

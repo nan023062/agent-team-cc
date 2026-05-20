@@ -38,6 +38,8 @@ def _run(python: str, args: list[str], cwd: str) -> str:
             [python] + args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             cwd=cwd,
             timeout=60,
             check=False,

@@ -1,4 +1,3 @@
-DNA_CONVENTION: str = """\
 # `.dna/` Business Layer Convention
 
 > The business layer is governed by the architect, strictly separated from the capability layer (`.claude/agents/`).
@@ -268,4 +267,3 @@ python -m engine dna init src/combat --type parent --name combat --owner archite
 # Leaf module (no sub-modules)
 python -m engine dna init src/combat/skill --type leaf --name skill --owner architect
 ```
-"""

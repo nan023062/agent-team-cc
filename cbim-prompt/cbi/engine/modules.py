@@ -156,12 +156,14 @@ def _load_legacy_format(mod_dir: Path, root: Path, aimod: Path,
 # not user business modules. Notably:
 #   - node_modules (+ .pnpm/...): pnpm copies workspace pkgs in, which duplicates
 #     real .dna/ many times and pollutes the index.
-#   - cbim-prompt: the framework itself; user projects host it but shouldn't index it.
+#   - .cbim-prompt / cbim-prompt: the framework itself; user projects host it
+#     but shouldn't index it.
 #   - .git / dist / build / __pycache__ / .venv / coverage / .next / .cache:
 #     standard tool output / VCS metadata.
 _SCAN_SKIP_DIRS = {
     "node_modules", ".git", "dist", "build", "__pycache__",
-    ".venv", "cbim-prompt", ".pnpm-store", "coverage", ".next", ".cache",
+    ".venv", ".cbim-prompt", "cbim-prompt", ".pnpm-store", "coverage",
+    ".next", ".cache",
 }
 
 
@@ -174,7 +176,7 @@ def _is_skipped(mod_dir: Path, root: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Module registry — cbim-prompt/.dna/index.md
+# Module registry — .cbim-prompt/.dna/index.md
 # ---------------------------------------------------------------------------
 #
 # The registry is the canonical, fast-path source of "which modules exist in
@@ -184,19 +186,20 @@ def _is_skipped(mod_dir: Path, root: Path) -> bool:
 #   - init_module() appends new modules in place
 #   - reindex() / update_index() rebuild from rglob (manual recovery)
 #
-# The registry lives in cbim-prompt/.dna/index.md — NOT in the project root. This
-# decouples the framework-managed registry from the optional project-root
-# module document. cbim-prompt/.dna/ contains only index.md (no module.md), so
-# cbim-prompt/ itself is never treated as a module (also enforced by _SCAN_SKIP_DIRS).
+# The registry lives in .cbim-prompt/.dna/index.md — NOT in the project root.
+# This decouples the framework-managed registry from the optional project-root
+# module document. .cbim-prompt/.dna/ contains only index.md (no module.md), so
+# .cbim-prompt/ itself is never treated as a module (also enforced by
+# _SCAN_SKIP_DIRS).
 
 
 def _index_path(root: Path) -> Path:
     """Return the canonical location of the module registry."""
-    return root / "cbim-prompt" / ".dna" / "index.md"
+    return root / ".cbim-prompt" / ".dna" / "index.md"
 
 
 def ensure_registry(root: Path) -> Path:
-    """Create an empty cbim-prompt/.dna/index.md if missing. Idempotent."""
+    """Create an empty .cbim-prompt/.dna/index.md if missing. Idempotent."""
     p = _index_path(root)
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -205,7 +208,7 @@ def ensure_registry(root: Path) -> Path:
 
 
 def read_index(root: Path) -> list[str]:
-    """Return the list of module paths registered in cbim-prompt/.dna/index.md.
+    """Return the list of module paths registered in .cbim-prompt/.dna/index.md.
 
     Returns [] if the registry doesn't exist or is empty. Each line is parsed
     as `- <path> [optional annotation]`; only the first whitespace-delimited
@@ -226,7 +229,7 @@ def read_index(root: Path) -> list[str]:
 
 
 def _write_index(root: Path, paths: list[str]) -> None:
-    """Atomically rewrite cbim-prompt/.dna/index.md with the given paths (sorted)."""
+    """Atomically rewrite .cbim-prompt/.dna/index.md with the given paths (sorted)."""
     ensure_registry(root)
     lines = ["# Module Index", ""]
     for p_str in sorted(set(paths)):
@@ -269,7 +272,7 @@ def _scan_modules(root: Path) -> list[dict]:
 
 
 def list_modules(root: Path, use_registry: bool = True) -> list[dict]:
-    """Return all modules. Reads cbim-prompt/.dna/index.md by default for speed; falls
+    """Return all modules. Reads .cbim-prompt/.dna/index.md by default for speed; falls
     back to a full filesystem scan if the registry is missing/empty.
 
     Pass use_registry=False to force a fresh scan (used by reindex / governance
@@ -354,7 +357,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
     target = mod_dir.resolve()
     root = (project_root or Path.cwd()).resolve()
 
-    # Registry (cbim-prompt/.dna/index.md) must exist — proves cbim is installed.
+    # Registry (.cbim-prompt/.dna/index.md) must exist — proves cbim is installed.
     # The project-root .dna/ is OPTIONAL; mixed monorepos can skip it.
     if not _index_path(root).exists():
         raise FileNotFoundError(
@@ -404,7 +407,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
         )
 
     # Append to the registry so list_modules / snapshot see it immediately.
-    # (Note: index.md no longer lives at <root>/.dna/; it's at cbim-prompt/.dna/.)
+    # (Note: index.md no longer lives at <root>/.dna/; it's at .cbim-prompt/.dna/.)
     rel = mod_dir.resolve().relative_to(root).as_posix()
     _append_to_index(root, rel)
 
@@ -463,7 +466,7 @@ def _build_module_md(meta: dict, body: str) -> str:
 
 
 def update_index(root: Path, paths: list[str] | None = None) -> None:
-    """Rebuild cbim-prompt/.dna/index.md from a fresh filesystem scan (or accept an
+    """Rebuild .cbim-prompt/.dna/index.md from a fresh filesystem scan (or accept an
     explicit path list). Use this for one-shot recovery / migration; the
     normal CLI flow keeps the registry up to date via init_module."""
     if paths is None:

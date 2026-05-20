@@ -1,14 +1,14 @@
 """
 hooks.py — Merge CBIM hooks + permissions into .claude/settings.json.
 
-Settings shape comes from installer/templates/settings.py (SETTINGS dict).
+Settings shape comes from installer/settings.py (SETTINGS dict).
 """
 
 import copy
 import json
 from pathlib import Path
 
-from ..templates.settings import SETTINGS
+from ..settings import SETTINGS
 
 
 def _ok(text: str) -> None:
@@ -46,11 +46,14 @@ def install_settings(root: Path) -> None:
     perms = current.setdefault("permissions", {})
     perms["defaultMode"] = template["permissions"]["defaultMode"]
     deny_list = perms.setdefault("deny", [])
-    # Strip any stale cbim-prompt/** or .dna/** denies from previous installs
-    deny_list[:] = [
-        r for r in deny_list
-        if "cbim-prompt/**" not in r and ".dna/" not in r
-    ]
+    # Strip any *legacy* cbim-prompt/** or .dna/** denies from previous installs
+    # — but keep the new `.cbim-prompt/**` rules (note leading dot).
+    def _is_legacy(r: str) -> bool:
+        # Match `cbim-prompt/**` but NOT `.cbim-prompt/**`.
+        if ".cbim-prompt/**" in r:
+            return False
+        return "cbim-prompt/**" in r or ".dna/" in r
+    deny_list[:] = [r for r in deny_list if not _is_legacy(r)]
     new_rules: list[str] = []
     for rule in template["permissions"]["deny"]:
         if rule not in deny_list:
