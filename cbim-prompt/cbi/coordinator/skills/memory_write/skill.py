@@ -16,7 +16,7 @@ The Stop-hook flow is automatic — no action needed from the assistant. **This 
 
 ---
 
-## Manual User-Request Flow (5 steps)
+## Manual User-Request Flow (4 steps)
 
 When the user explicitly says to remember something:
 
@@ -24,17 +24,28 @@ When the user explicitly says to remember something:
 
 2. **Classify the signal quadrant** — pick one of MUST / WANT / HOW / IS (see "Signal Four Quadrants" below). If ambiguous, ask **one** clarifying question first.
 
-3. **Pick a slug** — short kebab-case, ≤30 chars, describes the topic (not the date). Examples: `v2-phase1-start`, `combat-damage-formula`, `auth-token-policy`. The full filename is `YYYY-MM-DD-manual-<slug>.md`.
+3. **Pick a slug** — short kebab-case, ≤30 chars, describes the topic (not the date). Examples: `v2-phase1-start`, `combat-damage-formula`, `auth-token-policy`.
 
-4. **Write the file** to `cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md` using the entry format below. Include only the relevant signal(s); do not pad with empty Task Overview / Subagent Log sections — those are for the Stop-hook auto-entries.
-
-5. **Update the index**:
+4. **Create the entry** using the kernel command (creates the file and indexes it in one step):
    ```bash
-   python .cbim-prompt/engine memory add cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md --tier short
+   python .cbim-prompt/engine memory create --slug <slug> --tier short --content "..."
    ```
-   On Windows: `.venv\\Scripts\\python.exe -m engine memory add ...`
+   The command prints the file path on stdout. Use that path to confirm to the user.
 
-6. **Confirm to user** — one line: `Saved to cbim-prompt/memory/store/short/<filename>` so the user knows where it landed (not `~/.claude/...`).
+   For multi-line content (e.g. in PowerShell):
+   ```powershell
+   python .cbim-prompt/engine memory create --slug <slug> --tier short --content @'
+   ---
+   tier: short
+   tags: session
+   ---
+
+   ## Signals
+   - [x] IS: project: ...
+   '@
+   ```
+
+5. **Confirm to user** — one line: `Saved to <path printed by command>` so the user knows where it landed.
 
 ---
 
@@ -175,15 +186,4 @@ In order of importance:
 
 ---
 
-## Update Index After Manual Write
-
-After writing the file, notify the engine (already covered in step 5 of the Manual User-Request Flow):
-
-```bash
-# Linux / macOS
-python .cbim-prompt/engine memory add cbim-prompt/memory/store/short/<filename>.md --tier short
-
-# Windows
-.venv\\Scripts\\python.exe -m engine memory add cbim-prompt/memory/store/short/<filename>.md --tier short
-```
 """

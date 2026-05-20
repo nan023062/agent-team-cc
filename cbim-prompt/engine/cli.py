@@ -37,6 +37,7 @@ def main() -> int:
     msub = pm.add_subparsers(dest="command")
     _p = msub.add_parser("write-session"); _p.add_argument("transcript_path"); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("load-context"); _p.add_argument("--store-dir", dest="store_dir", default=None)
+    _p = msub.add_parser("create"); _p.add_argument("--slug", required=True); _p.add_argument("--content", required=True); _p.add_argument("--tier", default="short", choices=["short", "medium"]); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("add"); _p.add_argument("path"); _p.add_argument("--tier", default="short", choices=["short", "medium"]); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("query"); _p.add_argument("text"); _p.add_argument("--tier", choices=["short", "medium"], default=None); _p.add_argument("--top-k", type=int, default=cfg["query"]["default_top_k"], dest="top_k"); _p.add_argument("--verbose", action="store_true"); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("delete"); _p.add_argument("path"); _p.add_argument("--store-dir", dest="store_dir", default=None)
@@ -45,8 +46,9 @@ def main() -> int:
     _p = msub.add_parser("preview"); _p.add_argument("--port", type=int, default=8765); _p.add_argument("--store-dir", dest="store_dir", default=None)
     mem_cmds = {
         "write-session": mcli.cmd_write_session, "load-context": mcli.cmd_load_context,
-        "add": mcli.cmd_add, "query": mcli.cmd_query, "delete": mcli.cmd_delete,
-        "reindex": mcli.cmd_reindex, "cleanup": mcli.cmd_cleanup, "preview": mcli.cmd_preview,
+        "create": mcli.cmd_create, "add": mcli.cmd_add, "query": mcli.cmd_query,
+        "delete": mcli.cmd_delete, "reindex": mcli.cmd_reindex,
+        "cleanup": mcli.cmd_cleanup, "preview": mcli.cmd_preview,
     }
 
     # dna ---------------------------------------------------------------------

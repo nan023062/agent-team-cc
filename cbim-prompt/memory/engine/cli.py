@@ -58,6 +58,26 @@ def cmd_load_context(args: argparse.Namespace) -> int:
 # Agent-facing commands
 # ---------------------------------------------------------------------------
 
+def cmd_create(args: argparse.Namespace) -> int:
+    """Create a new memory entry file and index it."""
+    from datetime import datetime
+
+    cfg = load_config()
+    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    tier = args.tier
+    slug = args.slug.strip().replace(" ", "-")
+    ts = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    filename = f"{ts}-manual-{slug}.md"
+    path = store_dir / tier / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(args.content, encoding="utf-8")
+
+    engine = _build_engine(args)
+    engine.add(path, tier)
+    print(path)
+    return 0
+
+
 def cmd_add(args: argparse.Namespace) -> int:
     engine = _build_engine(args)
     path = Path(args.path)
