@@ -19,6 +19,16 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import base64;exec(base64.b64decode('aW1wb3J0IHN5cyxqc29uLG9zCmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aApmcm9tIGRhdGV0aW1lIGltcG9ydCBkYXRldGltZQp0cnk6CiAgICBkYXRhPWpzb24ubG9hZChzeXMuc3RkaW4pCiAgICBjd2Q9UGF0aChkYXRhLmdldCgiY3dkIikgb3Igb3MuZ2V0Y3dkKCkpCiAgICBjYmltPWN3ZC8iLmNiaW0iCiAgICBpZiBub3QgKGNiaW0vIi5kZWJ1ZyIpLmV4aXN0cygpOiBzeXMuZXhpdCgwKQogICAgdG9vbD1kYXRhLmdldCgidG9vbF9uYW1lIiwiPyIpCiAgICBpbnA9ZGF0YS5nZXQoInRvb2xfaW5wdXQiLHt9KQogICAgaWYgdG9vbCBpbiAoIlJlYWQiLCJXcml0ZSIsIkVkaXQiKToKICAgICAgICBwPWYncGF0aD17aW5wLmdldCgiZmlsZV9wYXRoIiwiPyIpfScKICAgIGVsaWYgdG9vbD09Ikdsb2IiOgogICAgICAgIHA9ZidwYXR0ZXJuPXtpbnAuZ2V0KCJwYXR0ZXJuIiwiPyIpfScKICAgIGVsaWYgdG9vbD09IkdyZXAiOgogICAgICAgIHA9ZidwYXR0ZXJuPXtpbnAuZ2V0KCJwYXR0ZXJuIiwiPyIpfSBwYXRoPXtpbnAuZ2V0KCJwYXRoIiwiIil9JwogICAgZWxpZiB0b29sPT0iQmFzaCI6CiAgICAgICAgcD1mJ2NtZD17c3RyKGlucC5nZXQoImNvbW1hbmQiLCI/IikpWzoyMDBdfScKICAgIGVsc2U6CiAgICAgICAgcD1mJ3BhcmFtcz17bGVuKGlucCl9a2V5cycKICAgIHRhcmdldD1zdHIoaW5wLmdldCgiZmlsZV9wYXRoIixpbnAuZ2V0KCJwYXRoIixpbnAuZ2V0KCJwYXR0ZXJuIiwiIikpKSkKICAgIGJ5cGFzcz10b29sIGluICgiUmVhZCIsIkdsb2IiLCJHcmVwIiwiV3JpdGUiLCJFZGl0IikgYW5kICIuY2JpbSIgaW4gdGFyZ2V0CiAgICB3YXJuPSIgW1dBUk5dIiBpZiBieXBhc3MgZWxzZSAiIgogICAgdHM9ZGF0ZXRpbWUubm93KCkuc3RyZnRpbWUoIiVZLSVtLSVkICVIOiVNOiVTIikKICAgIGxvZ3M9Y2JpbS8ibG9ncyIKICAgIGxvZ3MubWtkaXIocGFyZW50cz1UcnVlLGV4aXN0X29rPVRydWUpCiAgICAobG9ncy8idG9vbHMudHh0Iikub3BlbigiYSIsZW5jb2Rpbmc9InV0Zi04Iikud3JpdGUoZiJbVE9MXXt0c317d2Fybn06IHRvb2w9e3Rvb2x9IHwge3B9XG4iKQpleGNlcHQgRXhjZXB0aW9uOgogICAgcGFzcwpzeXMuZXhpdCgwKQo=').decode())\""
+          }
+        ]
+      }
     ]
   },
   "permissions": {
