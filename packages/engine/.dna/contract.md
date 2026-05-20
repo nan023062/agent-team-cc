@@ -50,6 +50,37 @@ interface ModuleSections {
 }
 
 /**
+ * Frontmatter of a workflow file (workflow.md).
+ * Used for eager loading -- only the metadata is parsed during module discovery.
+ * Full workflow content is loaded separately via loadWorkflow() (lazy load).
+ *
+ * This type is structurally symmetric with SkillFrontmatter (defined in tools contract)
+ * -- same fields, same purpose. This symmetry is the capability-business symmetry
+ * expressed at the type level: skills belong to agents, workflows belong to modules.
+ */
+interface WorkflowFrontmatter {
+  /** kebab-case workflow name. */
+  readonly name: string
+  /** Keywords for matching / triggering. */
+  readonly keywords: readonly string[]
+  /** One-sentence summary of the workflow. */
+  readonly description: string
+  /** Optional trigger conditions. */
+  readonly triggers?: readonly { readonly on: string; readonly value?: string; readonly pattern?: string }[]
+}
+
+/**
+ * A fully loaded workflow (frontmatter + content body).
+ * Returned by loadWorkflow() -- the lazy-load counterpart to WorkflowFrontmatter.
+ */
+interface Workflow {
+  /** Parsed frontmatter metadata. */
+  readonly frontmatter: WorkflowFrontmatter
+  /** The markdown body content (everything after the frontmatter block). */
+  readonly content: string
+}
+
+/**
  * A fully loaded module with parsed frontmatter, body sections, and optional companion files.
  */
 interface Module {
@@ -61,8 +92,12 @@ interface Module {
   readonly sections: ModuleSections
   /** Raw content of contract.md, or undefined if absent. */
   readonly contract?: string
-  /** List of workflow names (subdirectory names under .dna/workflows/ that contain workflow.md). */
-  readonly workflows: readonly string[]
+  /**
+   * Workflow frontmatters (eager load -- name, keywords, description, triggers only).
+   * Full workflow content is loaded separately via loadWorkflow() (lazy load).
+   * This follows the eager frontmatter / lazy content pattern symmetric with skill loading.
+   */
+  readonly workflows: readonly WorkflowFrontmatter[]
 }
 
 /**
@@ -93,6 +128,12 @@ interface ModuleNode {
  *
  * Used to assemble agent context: provides the focus module's full content
  * plus enough surrounding structure to understand its place in the system.
+ *
+ * Every Module in the snapshot (focus, ancestors, descendants, siblings, related)
+ * carries `workflows: WorkflowFrontmatter[]` (eager frontmatter only).
+ * This lets the agent see which workflows are available in the focus scope
+ * without loading all workflow bodies. Use `loadWorkflow()` to lazy-load
+ * specific workflow content when needed.
  */
 interface Snapshot {
   /** The focus module, fully loaded. */
@@ -163,6 +204,15 @@ interface InvalidProjectRootError extends Error {
   readonly name: 'InvalidProjectRootError'
   readonly projectRoot: string
 }
+
+/**
+ * Thrown when a workflow is not found in a module's .dna/workflows/ directory.
+ */
+interface WorkflowNotFoundError extends KnowledgeError {
+  readonly name: 'WorkflowNotFoundError'
+  /** The workflow name that was not found. */
+  readonly workflowName: string
+}
 ```
 
 **Error throw conditions (exhaustive):**
@@ -175,6 +225,9 @@ interface InvalidProjectRootError extends Error {
 | `loadModule` | `InvalidModuleError` | Frontmatter parses but `name` or `owner` is missing/empty |
 | `buildSnapshot` | `ModuleNotFoundError` | `focusModulePath` does not resolve to a module in the tree |
 | `buildSnapshot` | (inherits `loadModule` errors) | Any module in the snapshot fails to load |
+| `loadWorkflow` | `ModuleNotFoundError` | `modulePath` does not exist or has no `.dna/` |
+| `loadWorkflow` | `WorkflowNotFoundError` | Workflow directory or `workflow.md` not found under `.dna/workflows/<workflowName>/` |
+| `loadWorkflow` | `FrontmatterParseError` | `workflow.md` exists but YAML frontmatter is malformed |
 
 ---
 
@@ -238,8 +291,12 @@ function discoverModules(projectRoot: string): Promise<readonly ModuleNode[]>
  *    - Section content = everything between this heading and the next `## ` heading (or EOF), trimmed.
  * 6. Check for optional companion files:
  *    - `<modulePath>/.dna/contract.md` -> read as raw string if exists.
- *    - `<modulePath>/.dna/workflows/` -> list subdirectory names that contain `workflow.md`.
- * 7. Construct and return the Module object.
+ *    - `<modulePath>/.dna/workflows/` -> scan subdirectories that contain `workflow.md`.
+ *      For each workflow found, parse ONLY the YAML frontmatter (name, keywords, description, triggers)
+ *      to produce a WorkflowFrontmatter object. Do NOT parse the markdown body (content is lazy-loaded
+ *      via loadWorkflow()). If a workflow's frontmatter fails to parse, log a warning and skip it
+ *      (best-effort, same as discoverModules behavior for broken modules).
+ * 7. Construct and return the Module object (with workflows: WorkflowFrontmatter[]).
  *
  * Encoding: All files read as UTF-8. Non-UTF-8 content results in replacement characters (no error).
  */
@@ -305,6 +362,34 @@ function parseModuleMd(raw: string): {
   frontmatter: ModuleFrontmatter
   sections: ModuleSections
 }
+
+/**
+ * Load a workflow's full content (frontmatter + markdown body) from a module.
+ *
+ * This is the lazy-load counterpart to the `workflows: WorkflowFrontmatter[]`
+ * field on Module (which provides eager frontmatter only). Together they
+ * implement the eager frontmatter / lazy content pattern -- symmetric with
+ * skill loading in the capability layer.
+ *
+ * @param modulePath - Absolute path to the module directory.
+ * @param workflowName - Workflow name (subdirectory name under .dna/workflows/).
+ * @returns The fully loaded Workflow (frontmatter + content).
+ * @throws ModuleNotFoundError if modulePath does not exist or has no .dna/.
+ * @throws WorkflowNotFoundError if the workflow does not exist in this module.
+ * @throws FrontmatterParseError if workflow.md frontmatter is malformed.
+ *
+ * Behavior:
+ * 1. Verify `<modulePath>/.dna/workflows/<workflowName>/workflow.md` exists.
+ * 2. Read workflow.md (UTF-8).
+ * 3. Parse YAML frontmatter: required fields are `name` (string), `keywords` (string[]),
+ *    `description` (string). Optional: `triggers` (array of trigger objects).
+ * 4. Extract markdown body (everything after the frontmatter block).
+ * 5. Return Workflow { frontmatter, content }.
+ */
+function loadWorkflow(
+  modulePath: string,
+  workflowName: string
+): Promise<Workflow>
 ```
 
 ---
@@ -381,12 +466,14 @@ All types and functions defined in this contract are exported from `@cbim/engine
 
 // Types
 export type { ModuleFrontmatter, ModuleSections, Module, ModuleNode, Snapshot }
+// Capability-business symmetry types
+export type { WorkflowFrontmatter, Workflow }
 
 // Errors
-export { ModuleNotFoundError, FrontmatterParseError, InvalidModuleError, InvalidProjectRootError }
+export { ModuleNotFoundError, FrontmatterParseError, InvalidModuleError, InvalidProjectRootError, WorkflowNotFoundError }
 
 // Functions
-export { discoverModules, loadModule, buildSnapshot, resolveModulePath, parseModuleMd }
+export { discoverModules, loadModule, buildSnapshot, resolveModulePath, parseModuleMd, loadWorkflow }
 ```
 
 Everything not listed above is **internal** to the knowledge sub-module and must not be imported by external consumers.

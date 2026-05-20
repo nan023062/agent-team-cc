@@ -98,6 +98,20 @@ interface ToolDependencies {
     readonly update: (id: string, patch: WorkAgentPatch) => Promise<WorkAgentConfig>
     readonly archive: (id: string, reason: string) => Promise<void>
   }
+  readonly skills: {
+    readonly list: () => Promise<readonly SkillFrontmatter[]>
+    readonly get: (name: string) => Promise<Skill>
+    readonly create: (name: string, frontmatter: Omit<SkillFrontmatter, 'name'>, content: string) => Promise<void>
+    readonly update: (name: string, frontmatterPatch?: Partial<Omit<SkillFrontmatter, 'name'>>, contentPatch?: string) => Promise<Skill>
+    readonly delete: (name: string) => Promise<void>
+  }
+  readonly workflows: {
+    readonly list: (modulePath: string) => Promise<readonly WorkflowFrontmatter[]>
+    readonly get: (modulePath: string, workflowName: string) => Promise<Workflow>
+    readonly create: (modulePath: string, workflowName: string, frontmatter: Omit<WorkflowFrontmatter, 'name'>, content: string) => Promise<void>
+    readonly update: (modulePath: string, workflowName: string, frontmatterPatch?: Partial<Omit<WorkflowFrontmatter, 'name'>>, contentPatch?: string) => Promise<Workflow>
+    readonly delete: (modulePath: string, workflowName: string) => Promise<void>
+  }
   /** Absolute path to the user's project root. */
   readonly projectRoot: string
   /**
@@ -110,7 +124,7 @@ interface ToolDependencies {
 
 ---
 
-## 4. Complete Tool Catalog (~25 tools)
+## 4. Complete Tool Catalog (~38 tools)
 
 ### Domain A: Module (knowledge CRUD)
 
@@ -128,9 +142,9 @@ interface ToolDependencies {
 
 | Field | Value |
 |-------|-------|
-| **Description** | Load a single module by its path (relative to project root). Returns full frontmatter, all markdown sections, contract content, and workflow names. |
+| **Description** | Load a single module by its path (relative to project root). Returns full frontmatter, all markdown sections, contract content, and workflow frontmatters (eager frontmatter / lazy content -- use `cbim_workflow_get` to load full workflow content). |
 | **Input Schema** | `z.object({ path: z.string().describe('Module path relative to project root, e.g. "src/combat" or ".cbim/dna" for root module') })` |
-| **Output** | `{ module: Module }` (full Module object from knowledge contract) |
+| **Output** | `{ module: Module }` (full Module object from knowledge contract; `module.workflows` is `WorkflowFrontmatter[]` -- frontmatter only, content lazy-loaded via `cbim_workflow_get`) |
 | **Side Effects** | None |
 | **Errors** | ModuleNotFoundError, FrontmatterParseError, InvalidModuleError |
 
@@ -172,7 +186,7 @@ interface ToolDependencies {
 
 | Field | Value |
 |-------|-------|
-| **Description** | Build a contextual knowledge snapshot centered on a focus module. Includes the module itself, its ancestors, siblings, children, and dependency-linked modules. Use this to understand a module's place in the system. |
+| **Description** | Build a contextual knowledge snapshot centered on a focus module. Includes the module itself, its ancestors, siblings, children, and dependency-linked modules. Each module in the snapshot carries `workflows: WorkflowFrontmatter[]` (eager frontmatter only -- use `cbim_workflow_get` to lazy-load full content). This lets the agent see which workflows are available in the focus scope without loading all workflow bodies. |
 | **Input Schema** | `z.object({ focusModule: z.string().optional().describe('Module path to center the snapshot on. Defaults to root module (.cbim/dna) if omitted.') })` |
 | **Output** | `{ snapshot: Snapshot }` (from knowledge contract) |
 | **Side Effects** | None (read-only) |
@@ -278,7 +292,121 @@ interface ToolDependencies {
 
 ---
 
-### Domain E: Source (path-restricted file operations)
+### Domain E: Skill (user-defined skill CRUD -- capability-business symmetry)
+
+> **Symmetric with Domain F (Workflow).** Skill tools and workflow tools share the same verb set (list/get/create/update/delete) and the same eager frontmatter / lazy content loading pattern. This symmetry is the tool-level expression of CBIM's capability-business symmetry. Skill belongs to the capability layer (travels with the agent); workflow belongs to the business layer (travels with the module).
+
+> **Scope: user-defined skills only.** Built-in skills are compiled into the extension and are not managed through these tools. User skills are stored at `.cbim/skills/<name>/SKILL.md`.
+
+#### `cbim_skill_list`
+
+| Field | Value |
+|-------|-------|
+| **Description** | List all user-defined skills. Returns the frontmatter (name, keywords, description, triggers) of each skill found in `.cbim/skills/`. Does NOT load content (eager frontmatter / lazy content pattern). |
+| **Input Schema** | `z.object({})` (no input) |
+| **Output** | `{ skills: SkillFrontmatter[] }` where `SkillFrontmatter = { name, keywords, description, triggers? }` |
+| **Side Effects** | None (read-only, filesystem scan) |
+| **Errors** | -- (returns empty array if no skills found) |
+
+#### `cbim_skill_get`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Load a single user-defined skill by name. Returns the full content (frontmatter + markdown body). This is the lazy load counterpart to `cbim_skill_list`. |
+| **Input Schema** | `z.object({ name: z.string().describe('Skill name (directory name under .cbim/skills/)') })` |
+| **Output** | `{ skill: Skill }` where `Skill = { frontmatter: SkillFrontmatter, content: string }` |
+| **Side Effects** | None |
+| **Errors** | SkillNotFoundError |
+
+#### `cbim_skill_create`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Create a new user-defined skill. Writes `SKILL.md` with the provided frontmatter and content to `.cbim/skills/<name>/SKILL.md`. Fails if a skill with the same name already exists. |
+| **Input Schema** | `z.object({ name: z.string().regex(/^[a-z0-9-]+$/).describe('Skill name (kebab-case, unique)'), frontmatter: z.object({ keywords: z.array(z.string()).describe('Keywords for matching'), description: z.string().describe('One-sentence description'), triggers: z.array(z.object({ on: z.string(), value: z.string().optional(), pattern: z.string().optional() })).optional().describe('Optional trigger conditions') }).describe('Skill frontmatter metadata'), content: z.string().describe('Markdown body content of the skill') })` |
+| **Output** | `{ created: true, skillPath: string }` |
+| **Side Effects** | Creates `.cbim/skills/<name>/SKILL.md` on disk |
+| **Errors** | SkillAlreadyExistsError |
+
+#### `cbim_skill_update`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Update an existing user-defined skill's frontmatter and/or content. Supports partial updates -- only provided fields are changed. |
+| **Input Schema** | `z.object({ name: z.string().describe('Skill name'), frontmatterPatch: z.object({ keywords: z.array(z.string()).optional(), description: z.string().optional(), triggers: z.array(z.object({ on: z.string(), value: z.string().optional(), pattern: z.string().optional() })).optional() }).optional().describe('Frontmatter fields to update (partial)'), contentPatch: z.string().optional().describe('New markdown body content (replaces entire body if provided)') })` |
+| **Output** | `{ updated: true, skill: Skill }` |
+| **Side Effects** | Updates `.cbim/skills/<name>/SKILL.md` |
+| **Errors** | SkillNotFoundError |
+
+#### `cbim_skill_delete`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Delete a user-defined skill. Removes the entire `.cbim/skills/<name>/` directory. |
+| **Input Schema** | `z.object({ name: z.string().describe('Skill name to delete') })` |
+| **Output** | `{ deleted: true, skillName: string }` |
+| **Side Effects** | Deletes `.cbim/skills/<name>/` directory from disk |
+| **Errors** | SkillNotFoundError |
+
+---
+
+### Domain F: Workflow (module-scoped workflow CRUD -- capability-business symmetry)
+
+> **Symmetric with Domain E (Skill).** Workflow tools mirror skill tools in verb set and loading pattern, but every operation requires a `modulePath` parameter -- because workflows travel with the module, not the agent. This is the business-layer counterpart of the capability-layer skill tools.
+
+#### `cbim_workflow_list`
+
+| Field | Value |
+|-------|-------|
+| **Description** | List all workflows within a specific module. Returns the frontmatter (name, keywords, description, triggers) of each workflow found under `<module>/.dna/workflows/`. Does NOT load content (eager frontmatter / lazy content pattern). |
+| **Input Schema** | `z.object({ modulePath: z.string().describe('Module path relative to project root, e.g. "src/combat" or ".cbim/dna" for root module') })` |
+| **Output** | `{ workflows: WorkflowFrontmatter[] }` where `WorkflowFrontmatter = { name, keywords, description, triggers? }` |
+| **Side Effects** | None (read-only) |
+| **Errors** | ModuleNotFoundError |
+
+#### `cbim_workflow_get`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Load a single workflow by module path and workflow name. Returns the full content (frontmatter + markdown body). This is the lazy load counterpart to `cbim_workflow_list` and to the `workflows` field in `cbim_module_get`. |
+| **Input Schema** | `z.object({ modulePath: z.string().describe('Module path relative to project root'), workflowName: z.string().describe('Workflow name (directory name under .dna/workflows/)') })` |
+| **Output** | `{ workflow: Workflow }` where `Workflow = { frontmatter: WorkflowFrontmatter, content: string }` |
+| **Side Effects** | None |
+| **Errors** | ModuleNotFoundError, WorkflowNotFoundError |
+
+#### `cbim_workflow_create`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Create a new workflow within a module. Writes `workflow.md` with the provided frontmatter and content to `<module>/.dna/workflows/<workflowName>/workflow.md`. Fails if a workflow with the same name already exists in this module. |
+| **Input Schema** | `z.object({ modulePath: z.string().describe('Module path relative to project root'), workflowName: z.string().regex(/^[a-z0-9-]+$/).describe('Workflow name (kebab-case, unique within module)'), frontmatter: z.object({ keywords: z.array(z.string()).describe('Keywords for matching'), description: z.string().describe('One-sentence description'), triggers: z.array(z.object({ on: z.string(), value: z.string().optional(), pattern: z.string().optional() })).optional().describe('Optional trigger conditions') }).describe('Workflow frontmatter metadata'), content: z.string().describe('Markdown body content of the workflow') })` |
+| **Output** | `{ created: true, workflowPath: string }` |
+| **Side Effects** | Creates `<module>/.dna/workflows/<workflowName>/workflow.md` on disk |
+| **Errors** | ModuleNotFoundError, WorkflowAlreadyExistsError |
+
+#### `cbim_workflow_update`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Update an existing workflow's frontmatter and/or content. Supports partial updates -- only provided fields are changed. |
+| **Input Schema** | `z.object({ modulePath: z.string().describe('Module path relative to project root'), workflowName: z.string().describe('Workflow name'), frontmatterPatch: z.object({ keywords: z.array(z.string()).optional(), description: z.string().optional(), triggers: z.array(z.object({ on: z.string(), value: z.string().optional(), pattern: z.string().optional() })).optional() }).optional().describe('Frontmatter fields to update (partial)'), contentPatch: z.string().optional().describe('New markdown body content (replaces entire body if provided)') })` |
+| **Output** | `{ updated: true, workflow: Workflow }` |
+| **Side Effects** | Updates `<module>/.dna/workflows/<workflowName>/workflow.md` |
+| **Errors** | ModuleNotFoundError, WorkflowNotFoundError |
+
+#### `cbim_workflow_delete`
+
+| Field | Value |
+|-------|-------|
+| **Description** | Delete a workflow from a module. Removes the entire `<module>/.dna/workflows/<workflowName>/` directory. |
+| **Input Schema** | `z.object({ modulePath: z.string().describe('Module path relative to project root'), workflowName: z.string().describe('Workflow name to delete') })` |
+| **Output** | `{ deleted: true, modulePath: string, workflowName: string }` |
+| **Side Effects** | Deletes `<module>/.dna/workflows/<workflowName>/` directory from disk |
+| **Errors** | ModuleNotFoundError, WorkflowNotFoundError |
+
+---
+
+### Domain G: Source (path-restricted file operations)
 
 All source tools enforce path restrictions: they refuse to operate on paths within `.cbim/` or any `.dna/` directory. This is the tool-level enforcement complementing the SDK-level `disallowedTools` config.
 
@@ -334,7 +462,7 @@ function assertSourcePath(path: string): void {
 
 ---
 
-### Domain F: Run (build/test, programmer-only)
+### Domain H: Run (build/test, programmer-only)
 
 #### `cbim_run_test`
 
@@ -358,7 +486,7 @@ function assertSourcePath(path: string): void {
 
 ---
 
-### Domain G: Git
+### Domain I: Git
 
 #### `cbim_git_status`
 
@@ -392,7 +520,7 @@ function assertSourcePath(path: string): void {
 
 ---
 
-### Domain H: Editor (VS Code integration)
+### Domain J: Editor (VS Code integration)
 
 > **Cross-package dependency issue**: These tools require VS Code API (`vscode.window.activeTextEditor`, `vscode.window.showTextDocument`, etc.) which violates engine's "zero VS Code dependency" principle. See Section 8 for the resolution.
 
@@ -428,7 +556,7 @@ function assertSourcePath(path: string): void {
 
 ---
 
-### Domain I: Audit
+### Domain K: Audit
 
 #### `cbim_audit_log`
 
@@ -469,10 +597,10 @@ function getToolConfig(role: AgentRole): {
 | Role | allowedTools | disallowedTools |
 |------|-------------|-----------------|
 | **assistant** | `['Agent', 'mcp__cbim__audit_log', 'mcp__cbim__memory_query', 'mcp__cbim__snapshot_build']` | -- |
-| **architect** | `['Read', 'Glob', 'Grep', 'mcp__cbim__module_*', 'mcp__cbim__snapshot_build']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
-| **programmer** | `['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'mcp__cbim__module_get', 'mcp__cbim__source_*', 'mcp__cbim__run_*', 'mcp__cbim__git_*', 'mcp__cbim__editor_*']` | -- |
-| **hr** | `['Read', 'Glob', 'mcp__cbim__agent_*', 'mcp__cbim__memory_query']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
-| **auditor** | `['Read', 'Glob', 'Grep', 'mcp__cbim__module_get', 'mcp__cbim__memory_query', 'mcp__cbim__snapshot_build']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
+| **architect** | `['Read', 'Glob', 'Grep', 'mcp__cbim__module_*', 'mcp__cbim__workflow_*', 'mcp__cbim__snapshot_build']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
+| **programmer** | `['Read', 'Write', 'Edit', 'Bash', 'Glob', 'Grep', 'mcp__cbim__module_get', 'mcp__cbim__workflow_list', 'mcp__cbim__workflow_get', 'mcp__cbim__source_*', 'mcp__cbim__run_*', 'mcp__cbim__git_*', 'mcp__cbim__editor_*']` | -- |
+| **hr** | `['Read', 'Glob', 'mcp__cbim__agent_*', 'mcp__cbim__skill_*', 'mcp__cbim__memory_query']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
+| **auditor** | `['Read', 'Glob', 'Grep', 'mcp__cbim__module_get', 'mcp__cbim__workflow_list', 'mcp__cbim__workflow_get', 'mcp__cbim__memory_query', 'mcp__cbim__snapshot_build']` | `[/^Write$/, /^Edit$/, /^Bash$/]` |
 
 ### 5.3 Defense in Depth
 
@@ -533,6 +661,47 @@ interface WorkAgentPatch {
   readonly prompt?: string
   readonly tools?: readonly string[]
   readonly description?: string
+}
+
+/**
+ * Frontmatter of a skill or workflow file (SKILL.md / workflow.md).
+ * Used for eager loading -- the content body is loaded separately via lazy load.
+ * Symmetric: SkillFrontmatter and WorkflowFrontmatter share the same shape.
+ */
+interface SkillFrontmatter {
+  readonly name: string
+  readonly keywords: readonly string[]
+  readonly description: string
+  readonly triggers?: readonly { readonly on: string; readonly value?: string; readonly pattern?: string }[]
+}
+
+/**
+ * WorkflowFrontmatter is structurally identical to SkillFrontmatter.
+ * This is the capability-business symmetry: same shape, different ownership.
+ */
+interface WorkflowFrontmatter {
+  readonly name: string
+  readonly keywords: readonly string[]
+  readonly description: string
+  readonly triggers?: readonly { readonly on: string; readonly value?: string; readonly pattern?: string }[]
+}
+
+/**
+ * A fully loaded skill (frontmatter + content body).
+ * Returned by cbim_skill_get (lazy load).
+ */
+interface Skill {
+  readonly frontmatter: SkillFrontmatter
+  readonly content: string
+}
+
+/**
+ * A fully loaded workflow (frontmatter + content body).
+ * Returned by cbim_workflow_get (lazy load).
+ */
+interface Workflow {
+  readonly frontmatter: WorkflowFrontmatter
+  readonly content: string
 }
 
 /**
@@ -628,6 +797,40 @@ interface AgentAlreadyExistsError extends Error {
 interface ModuleAlreadyExistsError extends Error {
   readonly name: 'ModuleAlreadyExistsError'
   readonly modulePath: string
+}
+
+/**
+ * Thrown when a user-defined skill is not found in .cbim/skills/.
+ */
+interface SkillNotFoundError extends Error {
+  readonly name: 'SkillNotFoundError'
+  readonly skillName: string
+}
+
+/**
+ * Thrown when trying to create a skill that already exists.
+ */
+interface SkillAlreadyExistsError extends Error {
+  readonly name: 'SkillAlreadyExistsError'
+  readonly skillName: string
+}
+
+/**
+ * Thrown when a workflow is not found in a module's .dna/workflows/.
+ */
+interface WorkflowNotFoundError extends Error {
+  readonly name: 'WorkflowNotFoundError'
+  readonly modulePath: string
+  readonly workflowName: string
+}
+
+/**
+ * Thrown when trying to create a workflow that already exists in a module.
+ */
+interface WorkflowAlreadyExistsError extends Error {
+  readonly name: 'WorkflowAlreadyExistsError'
+  readonly modulePath: string
+  readonly workflowName: string
 }
 
 /**
@@ -784,6 +987,8 @@ packages/engine/src/tools/
 ├── errors.ts             # All tool-specific error classes
 └── domains/
     ├── module.ts          # cbim_module_* handlers (5 tools)
+    ├── skill.ts           # cbim_skill_* handlers (5 tools) -- capability layer
+    ├── workflow.ts        # cbim_workflow_* handlers (5 tools) -- business layer (symmetric with skill)
     ├── snapshot.ts        # cbim_snapshot_build handler (1 tool)
     ├── memory.ts          # cbim_memory_* handlers (4 tools)
     ├── agent.ts           # cbim_agent_* handlers (5 tools)
@@ -794,7 +999,7 @@ packages/engine/src/tools/
     └── audit.ts           # cbim_audit_log handler (1 tool)
 ```
 
-**Total: 28 tools across 9 domains.**
+**Total: 38 tools across 11 domains.**
 
 ---
 
@@ -820,6 +1025,11 @@ export type {
   ModulePatch,
   MemorySignals,
   AuditEntry,
+  // Capability-business symmetry types
+  SkillFrontmatter,
+  Skill,
+  WorkflowFrontmatter,
+  Workflow,
 }
 
 // Errors
@@ -830,6 +1040,12 @@ export {
   AgentNotFoundError,
   AgentAlreadyExistsError,
   ModuleAlreadyExistsError,
+  // Skill errors
+  SkillNotFoundError,
+  SkillAlreadyExistsError,
+  // Workflow errors
+  WorkflowNotFoundError,
+  WorkflowAlreadyExistsError,
   EditorNotAvailableError,
   TestRunnerNotFoundError,
   BuildScriptNotFoundError,
@@ -871,16 +1087,27 @@ Dependency injection via the `ToolDependencies` interface:
 
 Dynamic `require('vscode')` is fragile (fails silently in non-VS Code environments, bundler issues, type safety loss). The EditorBridge interface gives compile-time type safety and explicit availability checking.
 
+### 12.6 Workflow tools are module tools' extension
+
+Workflow operations always require a `modulePath` parameter because workflows travel with the module. This is not a design quirk -- it is the direct consequence of CBIM's capability-business symmetry: workflows belong to modules, so you must specify which module's workflow you are operating on.
+
+### 12.7 Skill tools and workflow tools are symmetric
+
+`cbim_skill_*` and `cbim_workflow_*` share the same verb set (list/get/create/update/delete), the same eager frontmatter / lazy content loading pattern, and the same frontmatter shape (name, keywords, description, triggers). This symmetry is the tool-level embodiment of CBIM's capability-business symmetry philosophy.
+
 ---
 
 ## 13. Test Strategy (for programmer)
 
 | Test Category | What to verify | Approach |
 |--------------|----------------|----------|
-| Tool registration | All 28 tools registered in MCP server | Unit test; call createCbimMcpServer, inspect tool list |
+| Tool registration | All 38 tools registered in MCP server | Unit test; call createCbimMcpServer, inspect tool list |
 | Path guard | assertSourcePath blocks .cbim/ and .dna/ paths | Unit test; parameterized with edge cases |
 | Role config | getToolConfig returns correct whitelist/blacklist per role | Unit test; assert specific patterns per role |
 | Module tools | CRUD operations produce correct engine function calls | Unit test; mock ToolDependencies.knowledge |
+| Skill tools | CRUD operations on .cbim/skills/ produce correct calls | Unit test; mock ToolDependencies.skills |
+| Workflow tools | CRUD operations scoped to modulePath produce correct calls | Unit test; mock ToolDependencies.workflows |
+| Skill-workflow symmetry | Both tool sets share same verb set and frontmatter shape | Unit test; verify tool name patterns and schema shapes match |
 | Source tools | Path validation + file operations | Integration test; temp directory |
 | Editor fallback | Editor tools return "not available" when bridge is null | Unit test; pass null editor |
 | Error propagation | Thrown errors become is_error tool_result | Integration test; verify SDK wrapping |

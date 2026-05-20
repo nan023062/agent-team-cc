@@ -12,6 +12,50 @@
 
 ---
 
+## CBIM Capability-Business Symmetry
+
+CBIM organizes everything into two parallel layers that mirror each other structurally.
+
+```
+Capability Layer                    Business Layer
+────────────────                    ──────────────
+Agent ─────────────────────────── Module
+  └─ Skill                          └─ Workflow
+     "transferable competence"          "location-specific procedure"
+     (travels with the agent)           (travels with the module)
+```
+
+**Skill** = "I know how to do X" — a transferable competence that belongs to an agent. When the agent moves, its skills move with it. Skills live under the agent's directory (v1: `cbim/knowledge/skills/<name>/SKILL.md`; v2: `.cbim/skills/<name>/SKILL.md` for user-defined skills; built-in skills are compiled into the extension).
+
+**Workflow** = "In this module, do X this way" — a location-specific procedure that belongs to a module. When the module moves (or is deleted), its workflows move (or are deleted) with it. Workflows live under `.dna/workflows/<name>/workflow.md`.
+
+### Loading model (identical for both)
+
+Both skill files and workflow files follow the same **eager frontmatter / lazy content** loading pattern:
+
+| Phase | Trigger | What loads | Why |
+|-------|---------|------------|-----|
+| **Eager** (frontmatter) | Agent enters scope / module enters scope | YAML frontmatter only: `name`, `keywords`, `description`, `triggers` | Cheap; enables keyword matching without reading full content |
+| **Lazy** (content) | Keyword match or explicit trigger | Full markdown body (the procedure / steps / details) | Expensive; loaded only when actually needed |
+
+Implementation-level mapping:
+
+| Layer | Eager load | Lazy load |
+|-------|-----------|-----------|
+| **Skill** | `cbim_skill_list()` returns frontmatter array | `cbim_skill_get(name)` returns full content |
+| **Workflow** | `cbim_module_get(path)` returns `workflows: WorkflowFrontmatter[]` | `cbim_workflow_get(modulePath, workflowName)` returns full content |
+
+### Why this symmetry matters
+
+The symmetry is not cosmetic — it is the structural backbone of CBIM:
+
+1. **Conceptual clarity**: Agents have skills; modules have workflows. One sentence, no ambiguity.
+2. **Uniform loading**: The same eager/lazy pattern applies everywhere. One mental model to learn.
+3. **Clean ownership**: Skills travel with agents, workflows travel with modules. No orphans, no confusion about who owns what.
+4. **Tool parity**: `cbim_skill_*` and `cbim_workflow_*` tool sets are fully symmetric — same verbs, same patterns. Learning one teaches you the other.
+
+---
+
 ## Convention Layers
 
 | Layer | Content |
@@ -231,10 +275,48 @@ One module relative path per line. The architect updates this whenever a module 
 
 ```
 .dna/workflows/<workflow-name>/
-└── workflow.md     # trigger conditions + steps + output format
+└── workflow.md     # YAML frontmatter + trigger conditions + steps + output format
 ```
 
 A workflow describes a **deterministic process within the module** — it contains no agent capability descriptions. Trigger conditions are explicit, steps are self-contained, and execution requires no additional human instructions.
+
+### Frontmatter format
+
+`workflow.md` must include a YAML frontmatter block (same format as `SKILL.md` in the capability layer — this is the capability-business symmetry in action):
+
+```yaml
+---
+name: deploy-staging           # required: kebab-case workflow name
+keywords: [deploy, staging]    # required: keywords for matching
+description: Deploy this module to the staging environment  # required: one-sentence summary
+triggers:                      # optional: explicit trigger conditions
+  - on: command
+    value: deploy staging
+  - on: file-change
+    pattern: "src/**/*.ts"
+---
+```
+
+### Loading behavior
+
+Workflow loading follows the **eager frontmatter / lazy content** pattern (symmetric with skill loading):
+
+| Phase | When | What | Implementation |
+|-------|------|------|----------------|
+| **Eager** | Module enters scope (e.g., `cbim_module_get`) | All workflow frontmatters (name, keywords, description, triggers) | Returned as `workflows: WorkflowFrontmatter[]` in the Module object |
+| **Lazy** | Keyword match / explicit trigger / agent request | Full workflow content (frontmatter + markdown body) | Loaded via `cbim_workflow_get(modulePath, workflowName)` |
+
+### Symmetry with skills
+
+Skills also follow the same frontmatter + lazy content model (see capability layer documentation). The parallel is intentional:
+
+| Aspect | Skill (`SKILL.md`) | Workflow (`workflow.md`) |
+|--------|-------------------|------------------------|
+| Belongs to | Agent | Module |
+| Location | `.cbim/skills/<name>/SKILL.md` (user-defined) | `.dna/workflows/<name>/workflow.md` |
+| Frontmatter fields | name, keywords, description, triggers | name, keywords, description, triggers |
+| Eager load via | `cbim_skill_list()` | `cbim_module_get()` (workflows field) |
+| Lazy load via | `cbim_skill_get(name)` | `cbim_workflow_get(modulePath, name)` |
 
 ---
 
