@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim/hooks/load_memory.py"
+            "command": "python3 .cbim/hooks/load_memory.py"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim/hooks/write_memory.py"
+            "command": "python3 .cbim/hooks/write_memory.py"
           }
         ]
       }
@@ -25,7 +25,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim/hooks/log_user_prompt.py"
+            "command": "python3 .cbim/hooks/log_user_prompt.py"
           }
         ]
       }
@@ -35,7 +35,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim/hooks/log_pre_tool.py"
+            "command": "python3 .cbim/hooks/log_pre_tool.py"
           }
         ]
       }
@@ -45,7 +45,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .cbim/hooks/log_post_tool.py"
+            "command": "python3 .cbim/hooks/log_post_tool.py"
           }
         ]
       }
@@ -62,7 +62,7 @@
   },
   "mcpServers": {
     "cbim": {
-      "command": "python",
+      "command": ".venv/bin/python3",
       "args": [
         ".cbim/mcp_server/server.py"
       ]

@@ -9,9 +9,20 @@ Five hooks are registered unconditionally:
   PostToolUse    .cbim/hooks/log_post_tool.py     appends [RESULT] (reflection point)
 
 All five always log to .cbim/logs/session_<ts>_<id>.log — one file per session.
-The .cbim/.debug flag (toggled via `python .cbim/engine debug on/off`) only
+The .cbim/.debug flag (toggled via `python3 .cbim/engine debug on/off`) only
 controls extra [ENG]/[IMP] engine-internal lines, not the session signals.
+
+Interpreter choice:
+  Hooks    → `python3` (POSIX) / `python` (Windows) — stdlib only, no venv required
+  MCP server → `.venv/bin/python3` (POSIX) / `.venv\\Scripts\\python.exe` (Windows)
+              — needs the `mcp` SDK installed in the venv (see Step 4 of INSTALL.md)
 """
+
+import sys
+
+_IS_WIN = sys.platform == "win32"
+_HOOK_PY = "python" if _IS_WIN else "python3"
+_VENV_PY = ".venv\\Scripts\\python.exe" if _IS_WIN else ".venv/bin/python3"
 
 
 def _hook_cmd(script: str) -> dict:
@@ -19,7 +30,7 @@ def _hook_cmd(script: str) -> dict:
         "hooks": [
             {
                 "type": "command",
-                "command": f"python .cbim/hooks/{script}",
+                "command": f"{_HOOK_PY} .cbim/hooks/{script}",
             }
         ]
     }
@@ -44,7 +55,7 @@ SETTINGS: dict = {
     },
     "mcpServers": {
         "cbim": {
-            "command": "python",
+            "command": _VENV_PY,
             "args": [".cbim/mcp_server/server.py"],
         },
     },
