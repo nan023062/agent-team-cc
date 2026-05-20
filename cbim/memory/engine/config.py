@@ -40,6 +40,20 @@ _DEFAULTS: dict = {
         "how_to_workflow_threshold": 2,
         "must_review_threshold": 2,
     },
+    # Per-session LLM distillation written into each short entry body.
+    # Distinct from the "distill" section above (which governs short→medium
+    # promotion thresholds). This one runs at Stop hook time.
+    "session_distill": {
+        "enabled": True,
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 2000,
+        "timeout": 30,
+        "input_max_chars": 12000,
+        # Skip the LLM call when there was no real work (no agent calls AND
+        # no file changes) — those sessions are chit-chat and not worth the
+        # latency or cost.
+        "skip_if_no_work": True,
+    },
 }
 
 

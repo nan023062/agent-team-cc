@@ -48,7 +48,10 @@ Modularization = recursively decomposing a large system into sub-modules by orga
 3. Origin context: the meta-concept that justifies the child modules' existence
 4. Emergent insights: holistic properties only visible from the cross-child-module perspective
 
-**Parent module must never:** write any child module's internal implementation details into the parent document
+**Parent module must never:**
+- Write any child module's internal implementation details into the parent document
+- Include a Key Decision that applies to only one child module — that decision belongs in the child's own `.dna/module.md`
+- Draw a component diagram whose boxes represent internal components without first creating `.dna/` for each of those components
 
 **Knowledge first** — Knowledge is the blueprint; code is the implementation. Always update the blueprint before building.
 

@@ -1,21 +1,45 @@
 # Skill: Write Short-term Memory (Session Entry)
 
-**Main agent only. Automatically triggered by the Stop hook — manual execution is rarely needed.**
+**Main agent only.** Two first-class triggers — both write to `cbim/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
 
 ---
 
-## Trigger Methods
+## Triggers
 
-| Method | Description |
-|--------|-------------|
-| Automatic (recommended) | Stop hook parses the transcript at session end and writes the entry |
-| Manual | When hook didn't trigger / important information needs to be added, main agent writes manually |
+| Trigger | Slug | When |
+|---------|------|------|
+| **User explicit request** (e.g. "记下"/"记住"/"remember this"/"save this") | `manual-<topic>` | **Mid-session, in response to a user message** — assistant invokes this skill immediately. This is a first-class flow, not an exception. |
+| **Stop hook (auto)** | `main-<auto-slug>` | At session end, `cbim/cc-template/hooks/write-memory.py` parses the transcript and writes a session summary. |
+
+The Stop-hook flow is automatic — no action needed from the assistant. **This document is primarily for the user-explicit-request flow.**
+
+---
+
+## Manual User-Request Flow (5 steps)
+
+When the user explicitly says to remember something:
+
+1. **Detect the trigger** — these words count: `记下` / `记住` / `记一下` / `备忘` / `remember this` / `save this` / `save to memory` / `保存记忆` / `存到记忆里`. If the user just describes a fact without asking to remember, don't write — wait for an explicit ask.
+
+2. **Classify the signal quadrant** — pick one of MUST / WANT / HOW / IS (see "Signal Four Quadrants" below). If ambiguous, ask **one** clarifying question first.
+
+3. **Pick a slug** — short kebab-case, ≤30 chars, describes the topic (not the date). Examples: `v2-phase1-start`, `combat-damage-formula`, `auth-token-policy`. The full filename is `YYYY-MM-DD-manual-<slug>.md`.
+
+4. **Write the file** to `cbim/memory/store/short/YYYY-MM-DD-manual-<slug>.md` using the entry format below. Include only the relevant signal(s); do not pad with empty Task Overview / Subagent Log sections — those are for the Stop-hook auto-entries.
+
+5. **Update the index**:
+   ```bash
+   .venv/bin/python -m memory.engine.cli add cbim/memory/store/short/YYYY-MM-DD-manual-<slug>.md --tier short
+   ```
+   On Windows: `.venv\Scripts\python.exe -m memory.engine.cli add ...`
+
+6. **Confirm to user** — one line: `Saved to cbim/memory/store/short/<filename>` so the user knows where it landed (not `~/.claude/...`).
 
 ---
 
 ## Entry Format
 
-File path: `memory/store/short/YYYY-MM-DD-main-<slug>.md`
+File path: `cbim/memory/store/short/YYYY-MM-DD-{main|manual}-<slug>.md`
 
 ```markdown
 ---
@@ -152,8 +176,12 @@ In order of importance:
 
 ## Update Index After Manual Write
 
-After writing the file, notify the engine:
+After writing the file, notify the engine (already covered in step 5 of the Manual User-Request Flow):
 
 ```bash
-.venv/bin/python -m memory.engine.cli add memory/store/short/<filename>.md --tier short
+# Linux / macOS
+.venv/bin/python -m memory.engine.cli add cbim/memory/store/short/<filename>.md --tier short
+
+# Windows
+.venv\Scripts\python.exe -m memory.engine.cli add cbim/memory/store/short/<filename>.md --tier short
 ```

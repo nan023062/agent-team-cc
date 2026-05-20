@@ -68,7 +68,7 @@ Please fetch https://raw.githubusercontent.com/nan023062/cbim/v1-claude-code/INS
 
 ```bash
 # 1. Clone CBIM into the target project's cbim/ directory
-git clone https://github.com/nan023062/cbim.git cbim
+git clone --branch v1-claude-code https://github.com/nan023062/cbim.git cbim
 
 # 2. Run the installer
 python3 cbim/install.py        # macOS / Linux

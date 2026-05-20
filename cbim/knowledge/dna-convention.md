@@ -6,7 +6,9 @@
 
 **Module**: Any directory containing a `.dna/` subdirectory is a module.
 
-**Root module**: The project root directory itself must contain `.dna/`, making it the root module.
+**Module registry**: `cbim/.dna/index.md` is the canonical, framework-managed list of all modules in the project. It is **required** (auto-created by `install.py`, auto-updated by `init_module`). `list_modules` / `snapshot` read it for speed; full filesystem scans are reserved for `reindex` / governance validation.
+
+**Project-root module**: The project root MAY have its own `.dna/module.md`, making it the top of the tree. This is **optional**. Mixed monorepos / multi-system repos (e.g. v1 framework + v2 packages coexisting) typically skip it — having a project-root module would force a confusing "which system does this describe?" identity.
 
 **Module tree**: Implicitly defined by the filesystem directory hierarchy. Parent module = the nearest ancestor directory that contains `.dna/`. No explicit hierarchy declaration is needed.
 
@@ -16,9 +18,10 @@
 
 | Layer | Content |
 |-------|---------|
-| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/` |
+| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/`; `cbim/.dna/index.md` is the registry (must exist after install) |
 | **Framework recommended** | `contract.md` (protocol boundary), `workflows/` (deterministic processes) |
 | **User freedom** | Any custom files under `.dna/` |
+| **Optional** | Project-root `.dna/module.md` — useful for single-application projects; skip in monorepos |
 
 ---
 
@@ -38,13 +41,16 @@
 
 > **Change logs are not inside the module directory.** Module changelogs are written into session memory (`cbim/memory/store/`); the architect periodically distills and promotes them back to `.dna/`.
 
-**Root-module-only file**:
+**Framework-managed registry** (always at this fixed location, even when the project has no root module):
 
 ```
 <project>/
-└── .dna/
-    └── index.md    # list of relative paths of all modules in the tree (root module only)
+└── cbim/
+    └── .dna/
+        └── index.md    # canonical list of all module paths in the project
 ```
+
+Note: `cbim/.dna/` contains **only** `index.md`. There is no `module.md` inside — `cbim/` is the framework, not a business module, and is excluded from module scans by `_SCAN_SKIP_DIRS`.
 
 ---
 
@@ -137,8 +143,10 @@ classDiagram
 A parent module's `module.md` body contains three sections:
 
 1. **Positioning** — One sentence: what this module is and why it exists.
-2. **Sub-module Relationship Diagram** — Mermaid diagram showing child modules, their positioning, and inter-child relationships (dependency / composition / aggregation). **Never write any child module's internal details.**
-3. **Key Decisions** — Emergent insights visible only from the cross-child-module perspective.
+2. **Sub-module Relationship Diagram** — Mermaid `graph` showing child modules as nodes, inter-child dependencies as edges, and one-sentence positioning per node. **Never write any child module's internal details.**
+3. **Key Decisions** — Emergent insights visible only from the cross-child-module perspective: why these sub-modules exist together, how they interact at their boundaries.
+   - **Decision smell**: if a bullet point is about a single sub-module's internal design ("Why X/ uses Y approach"), it belongs in *that sub-module's own* `.dna/module.md` — move it there.
+   - **Component diagram implies sub-modules**: if you find yourself drawing boxes for internal components, those components must become separate CBIM modules with their own `.dna/` before this `module.md` is written.
 
 ---
 
@@ -195,7 +203,7 @@ Any change that alters the class diagram — new classes, changed interfaces, re
 
 1. **No history** — `module.md` and `contract.md` describe only the current final state. Never write what changed or why it changed. Changes go into session memory (`cbim/memory/store/`); the architect periodically distills and promotes them.
 
-2. **Parent module writes only relationships and positioning** — A parent module's `module.md` body describes only: the relationships between child modules (dependency / composition / aggregation) and each child module's positioning. Never write any child module's internal details. Each child module's internal design is the responsibility of its own `module.md`.
+2. **Parent module writes only relationships and positioning** — A parent module's `module.md` body describes only: the relationships between child modules (dependency / composition / aggregation) and each child module's positioning. Never write any child module's internal details. Each child module's internal design is the responsibility of its own `module.md`. Any key decision that applies to a single child module belongs in that child's own `.dna/`, not in the parent.
 
 3. **Capability and business separated** — The knowledge pack contains only project/module knowledge; it must not reference agent capability specs.
 
@@ -247,6 +255,15 @@ python cbim/knowledge/engine/cli.py modules list
 # View module details
 python cbim/knowledge/engine/cli.py modules show <module-dir>
 
-# Initialize a new module
-python cbim/knowledge/engine/cli.py modules init <dir> --name <name> --owner <owner>
+# Initialize a new module (type is required: root | parent | leaf)
+python cbim/knowledge/engine/cli.py modules init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
+
+# Root module (auto-created at install time by install.py; manual use rare)
+python cbim/knowledge/engine/cli.py modules init . --type root --name <project> --owner architect
+
+# Parent module (has sub-modules with their own .dna/ — create them first)
+python cbim/knowledge/engine/cli.py modules init src/combat --type parent --name combat --owner architect
+
+# Leaf module (no sub-modules)
+python cbim/knowledge/engine/cli.py modules init src/combat/skill --type leaf --name skill --owner architect
 ```
