@@ -42,11 +42,21 @@ except ImportError:
     sys.exit(1)
 
 from mcp_server.scheduler import Scheduler
+from mcp_server._logging import patch_tool_logging
+
+
+def _server_log(msg: str) -> None:
+    try:
+        from engine.session_log import append
+        append("MCP", msg)
+    except Exception:
+        pass
 
 
 @asynccontextmanager
 async def _lifespan(server):
     """Spin up the scheduler at server start; stop it cleanly on exit."""
+    _server_log("server starting")
     scheduler = Scheduler(cbim_root=_CBIM)
     # Inject into the scheduler-tools module so its MCP tools can use it.
     from mcp_server.tools import scheduler as _sched_tool
@@ -56,9 +66,13 @@ async def _lifespan(server):
         yield {"scheduler": scheduler}
     finally:
         await scheduler.stop()
+        _server_log("server stopped")
 
 
 mcp = FastMCP("cbim", lifespan=_lifespan)
+
+# MUST patch BEFORE tool modules are imported — they decorate at import time.
+patch_tool_logging(mcp)
 
 # Import & register tool modules
 from mcp_server.tools import memory as _memory       # noqa: E402

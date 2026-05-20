@@ -11,8 +11,10 @@ Signal tags written to the log:
   [TOOL]      PreToolUse — tool call about to fire
   [RESULT]    PostToolUse — tool call returned (reflection point)
   [TURN]      Stop — assistant turn ended
-  [ENG]       internal: engine CLI invocation
-  [IMP]       internal: skill/soul module import
+  [MCP]       MCP server lifecycle + every MCP tool call (args + result size)
+  [SCHED]     scheduler lifecycle + each task fire (auto + manual)
+  [ENG]       internal: engine CLI invocation (gated by .cbim/.debug)
+  [IMP]       internal: skill/soul module import (gated by .cbim/.debug)
 
 All log writers go through this module to guarantee one-file-per-session output.
 """
