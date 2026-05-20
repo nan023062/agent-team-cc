@@ -39,6 +39,17 @@ def _log_turn_end(stop_reason: str) -> None:
         pass
 
 
+def _mark_idle() -> None:
+    """Tell the scheduler CC is idle now — opt-in tasks may fire."""
+    try:
+        from datetime import datetime
+        (_cbim_root() / ".cc-status").write_text(
+            f"idle {datetime.now().isoformat()}\n", encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
 def main() -> None:
     raw = sys.stdin.read().strip()
     if not raw:
@@ -50,6 +61,7 @@ def main() -> None:
         sys.exit(0)
 
     _log_turn_end(event.get("stop_hook_active", "") or event.get("reason", ""))
+    _mark_idle()
 
     transcript_path = event.get("transcript_path", "")
     if not transcript_path:

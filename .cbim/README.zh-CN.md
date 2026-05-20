@@ -39,6 +39,7 @@
 | `/cbim_help` | 框架总览（工作流 + 命令清单 + 关键路径） |
 | `/cbim_debug on\|off\|status` | 开启/关闭/查看额外的引擎内部日志 |
 | `/cbim_log [N]` | 查看当前会话日志（agent 循环信号） |
+| `/cbim_sched status\|trigger <name>` | 查看/触发调度器任务 |
 
 ## MCP 工具
 
@@ -51,8 +52,33 @@ CBIM 还作为 MCP server 注册在 `.claude/settings.json` 的 `mcpServers.cbim
 | `agent_list` / `agent_show` | Claude Code agent 注册表 |
 | `skill_list` / `skill_show` | CBIM skill 目录 |
 | `project_snapshot` | 完整项目知识快照 |
+| `scheduler_status` / `scheduler_trigger` | 查看 / 触发调度任务 |
 
 Server 用官方 `mcp` Python SDK（FastMCP）实现。源码：`.cbim/mcp_server/server.py`；通过 `pip install -r .cbim/mcp_server/requirements.txt` 在项目 venv 中安装依赖。
+
+## 任务调度器
+
+MCP server 的 lifespan 里嵌入了一个异步任务调度器。每 30 秒 tick 一次，扫描 `.cbim/mcp_server/tasks/*.py` 自动发现任务。
+
+每个任务继承 `mcp_server.scheduler.Task`：
+
+```python
+from mcp_server.scheduler import Task
+
+class MyTask(Task):
+    name = "my-task"
+    description = "轮询某个东西、跑个 benchmark 之类"
+    interval_seconds = 600       # 0 = 仅手动
+    respect_cc_idle = True       # 只在 CC 空闲时触发（依据 .cbim/.cc-status）
+
+    async def run(self, context: dict) -> str:
+        # context: {project_root, cbim_root, cc_idle}
+        return "结果摘要，会写入 session log + state.json"
+```
+
+`UserPromptSubmit` 和 `Stop` 钩子维护 `.cbim/.cc-status`（`busy` / `idle`），让 opt-in 任务只在 CC 不忙时触发。状态保存在 `.cbim/scheduler/state.json`；结果以 `[SCHED]` 标签写入会话日志。
+
+**生命周期**：Claude Code 退出时 MCP server 一起死，调度器也随之停。需要 CC 离线也跑的任务，独立启动 server 即可（`python .cbim/mcp_server/server.py`）——同一份代码，不依赖 CC。
 
 ---
 

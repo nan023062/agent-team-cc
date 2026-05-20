@@ -32,6 +32,16 @@ def main() -> None:
         append("USER", f"prompt_chars={len(prompt)} preview={summary!r}", cbim=_cbim_root())
     except Exception:
         pass
+
+    # Mark CC as busy — scheduler reads this when deciding whether to fire idle-sensitive tasks
+    try:
+        from datetime import datetime
+        (_cbim_root() / ".cc-status").write_text(
+            f"busy {datetime.now().isoformat()}\n", encoding="utf-8"
+        )
+    except Exception:
+        pass
+
     sys.exit(0)
 
 

@@ -39,6 +39,7 @@ Just tell the assistant what you want — no need to specify an agent:
 | `/cbim_help` | Framework overview (workflow + command list + key paths) |
 | `/cbim_debug on\|off\|status` | Toggle/inspect extra engine-internal logging |
 | `/cbim_log [N]` | Show the current session log (agent loop signals) |
+| `/cbim_sched status\|trigger <name>` | Inspect / fire scheduler tasks |
 
 ## MCP Tools
 
@@ -51,8 +52,33 @@ CBIM also ships as an MCP server registered in `.claude/settings.json` under `mc
 | `agent_list` / `agent_show` | Claude Code agent registry |
 | `skill_list` / `skill_show` | CBIM skill catalog |
 | `project_snapshot` | Full project knowledge snapshot |
+| `scheduler_status` / `scheduler_trigger` | Inspect and fire scheduled tasks |
 
 The server is implemented with the official `mcp` Python SDK (FastMCP). Source: `.cbim/mcp_server/server.py`; install via `pip install -r .cbim/mcp_server/requirements.txt` in the project venv.
+
+## Scheduler
+
+An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches tasks discovered under `.cbim/mcp_server/tasks/*.py`.
+
+Each task subclasses `mcp_server.scheduler.Task`:
+
+```python
+from mcp_server.scheduler import Task
+
+class MyTask(Task):
+    name = "my-task"
+    description = "Poll something or run a benchmark"
+    interval_seconds = 600       # 0 = manual only
+    respect_cc_idle = True       # only fire when CC is idle (per .cbim/.cc-status)
+
+    async def run(self, context: dict) -> str:
+        # context: {project_root, cbim_root, cc_idle}
+        return "summary line written to session log + state.json"
+```
+
+`UserPromptSubmit` and `Stop` hooks maintain `.cbim/.cc-status` (`busy` / `idle`) so opt-in tasks only fire between turns. State persists in `.cbim/scheduler/state.json`; results are logged as `[SCHED]` in the session log.
+
+**Lifetime**: the scheduler dies when Claude Code exits the MCP server. For tasks that must run when CC is offline, launch the server standalone (`python .cbim/mcp_server/server.py`) — same code path, no CC required.
 
 ---
 
