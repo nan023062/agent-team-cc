@@ -322,7 +322,7 @@ def _load_skills(trigger: str | None = None) -> dict[str, str]:
                 if trigger is not None:
                     log_import(module_path, "ok", trigger)
                 if hasattr(mod, "SKILL"):
-                    skills[f"coordinator.{skill_info.name}"] = mod.SKILL
+                    skills[skill_info.name] = mod.SKILL
             except ModuleNotFoundError:
                 if trigger is not None:
                     log_import(module_path, "miss", trigger)
@@ -369,7 +369,7 @@ def _load_souls(trigger: str | None = None) -> dict[str, str]:
                 souls[info.name] = getattr(mod, attr)
                 break
 
-    coord_module_path = "cbi.coordinator.agent"
+    coord_module_path = "cbi.coordinator.claude_md"
     try:
         coord_mod = importlib.import_module(coord_module_path)
         if trigger is not None:
