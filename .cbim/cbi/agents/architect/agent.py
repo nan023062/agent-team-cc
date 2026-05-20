@@ -118,9 +118,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Create / update / deprecate / split modules | `python .cbim/engine skill show cbi.arch_modules` |
-| Compliance review (after module changes, dependency changes, periodic inspection) | `python .cbim/engine skill show cbi.arch_governance` |
-| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `python .cbim/engine skill show cbi.arch_upgrade` |
+| Create / update / deprecate / split modules | `python .cbim/engine skill show architect.arch_modules` |
+| Compliance review (after module changes, dependency changes, periodic inspection) | `python .cbim/engine skill show architect.arch_governance` |
+| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `python .cbim/engine skill show architect.arch_upgrade` |
 
 ## Boundaries
 

@@ -101,8 +101,8 @@ Receive user request
 | What you need to do | Run |
 |---------------------|-----|
 | Request classification and routing | `python .cbim/engine skill show dispatch` |
-| Business governance: module design, arch compliance, knowledge system | `python .cbim/engine skill show cbi.arch_modules` |
-| Capability governance: agent recruitment, training, assessment, matching | `python .cbim/engine skill show cbi.hr_agents` |
+| Business governance: module design, arch compliance, knowledge system | `python .cbim/engine skill show architect.arch_modules` |
+| Capability governance: agent recruitment, training, assessment, matching | `python .cbim/engine skill show hr.hr_agents` |
 | Memory (write / query / distill) | `python .cbim/engine skill show memory_write` / `query` / `distill` |
 
 Auditor is dispatched directly by assistant at the right time — no skill read needed: `.claude/agents/auditor/auditor.md`

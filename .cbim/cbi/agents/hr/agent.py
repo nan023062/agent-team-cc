@@ -93,9 +93,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Assistant requests new agent / fission produces sub-agents / archive | `python .cbim/engine skill show cbi.hr_agents` |
-| Agent completes a batch of tasks / assessment concludes "needs training" | `python .cbim/engine skill show cbi.hr_training` |
-| After task batch completes / user flags deficiency / auditor continuously rejects | `python .cbim/engine skill show cbi.hr_assessment` |
+| Assistant requests new agent / fission produces sub-agents / archive | `python .cbim/engine skill show hr.hr_agents` |
+| Agent completes a batch of tasks / assessment concludes "needs training" | `python .cbim/engine skill show hr.hr_training` |
+| After task batch completes / user flags deficiency / auditor continuously rejects | `python .cbim/engine skill show hr.hr_assessment` |
 
 ## Permission Scope
 
