@@ -314,7 +314,7 @@ def _load_skills(trigger: str | None = None) -> dict[str, str]:
             pass
 
     try:
-        import cbi.coordinator.skills as coord_skills_pkg
+        import cbi.skills as coord_skills_pkg
         for skill_info in pkgutil.iter_modules(coord_skills_pkg.__path__):
             module_path = f"{coord_skills_pkg.__name__}.{skill_info.name}.skill"
             try:
@@ -369,7 +369,7 @@ def _load_souls(trigger: str | None = None) -> dict[str, str]:
                 souls[info.name] = getattr(mod, attr)
                 break
 
-    coord_module_path = "cbi.coordinator.claude_md"
+    coord_module_path = "cbi.claude_md"
     try:
         coord_mod = importlib.import_module(coord_module_path)
         if trigger is not None:
