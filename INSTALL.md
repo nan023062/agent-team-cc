@@ -114,7 +114,7 @@ Linux / macOS:
 mkdir -p .cbim/memory/store/short .cbim/memory/store/medium
 mkdir -p .cbim/.dna
 [ -f .cbim/.dna/index.md ] || printf "# Module Index\n" > .cbim/.dna/index.md
-[ -f .cbim/config.json ]   || printf '{\n  "target_project": "",\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim/config.json
+[ -f .cbim/config.json ]   || printf '{\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim/config.json
 ```
 
 Windows (PowerShell):
@@ -125,7 +125,7 @@ if (Test-Path "$TMP\_config_bak") { Copy-Item "$TMP\_config_bak" .cbim\config.js
 
 New-Item -ItemType Directory -Force -Path .cbim\memory\store\short, .cbim\memory\store\medium, .cbim\.dna | Out-Null
 if (-not (Test-Path .cbim\.dna\index.md)) { Set-Content -Path .cbim\.dna\index.md -Value "# Module Index" -NoNewline; Add-Content -Path .cbim\.dna\index.md -Value "" }
-if (-not (Test-Path .cbim\config.json))   { Set-Content -Path .cbim\config.json   -Value '{"target_project":"","memory":{"short_term":{"keep_days":3}}}' }
+if (-not (Test-Path .cbim\config.json))   { Set-Content -Path .cbim\config.json   -Value '{"memory":{"short_term":{"keep_days":3}}}' }
 ```
 
 ### 3d. Merge .claude/settings.json (preserve user keys)

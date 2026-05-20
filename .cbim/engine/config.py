@@ -2,8 +2,10 @@
 engine/config.py — Read/write .cbim/config.json (unified user config).
 
 All user-facing CBIM settings live here:
-  target_project  — path of the project being developed
   memory          — overrides for memory engine defaults (optional)
+
+The project root is always the directory containing .cbim/. There is no
+configurable target-project path.
 
 Usage:
   python .cbim/engine config get <key>

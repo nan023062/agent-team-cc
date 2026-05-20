@@ -118,7 +118,6 @@ def ensure_config(root: Path) -> None:
         return
     config_path.parent.mkdir(parents=True, exist_ok=True)
     default = {
-        "target_project": "",
         "memory": {
             "short_term": {"keep_days": 3}
         }

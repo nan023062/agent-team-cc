@@ -39,14 +39,14 @@ You only talk to the assistant. It decomposes intent, routes to the right agent,
 
 ## Two Delivery Forms
 
-This repo hosts two implementations of the same CBIM model:
+This repo hosts two implementations of the same CBIM model. Only V1 is built on Claude Code — V2 is independent.
 
 | Version | Form | Status | Where |
 |---------|------|--------|-------|
-| **V1 — Prompt edition** | Claude Code prompts, agent definitions, Python hooks | **Available now** | `install/` + `.cbim/` (this is what the quick start below installs) |
-| **V2 — Native runtime** | C# / .NET 8 standalone runtime with Avalonia UI; deterministic state-machine scheduler replacing prompt-driven dispatch | **Coming soon** | [`CBIM/`](CBIM/) — design spec and architecture whitepaper |
+| **V1 — Prompt edition (Claude Code)** | Claude Code prompts, agent definitions, Python hooks. Runs as a Claude Code project. | **Available now** | `install/` + `.cbim/` (this is what the quick start below installs) |
+| **V2 — Native agent engine** | Fully self-developed agent runtime — no Claude Code dependency. C# / .NET 8 standalone runtime with Avalonia UI; deterministic state-machine scheduler with strongly-typed tool protocol. | **Coming soon** | [`CBIM/`](CBIM/) — design spec and architecture whitepaper |
 
-V1 validates the CBIM philosophy (capability-business independence + memory paging) inside Claude Code. V2 lifts the same model into a strongly-typed native runtime so context pruning, dispatch routing, and state changes become deterministic instead of probabilistic.
+V1 validates the CBIM philosophy (capability-business independence + memory paging) within the Claude Code ecosystem. V2 reimplements the same model as a standalone runtime so context pruning, dispatch routing, and state changes become deterministic instead of probabilistic — and so the framework no longer depends on any host.
 
 ---
 
