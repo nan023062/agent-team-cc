@@ -8,17 +8,17 @@ Open Claude Code in the target project and paste the entire **"SOP Body"** secti
 
 # Task: Install CBIM Framework in This Project
 
-Execute the following steps one by one. Stop and ask the user for confirmation if blocked or uncertain — do not skip silently.
+This is a copy-based install — no installer script is run. Clone the source repo to a temp directory, copy four artifacts into the target project, create a venv, done.
+
+Execute the steps below one by one. Stop and ask the user for confirmation if blocked or uncertain — do not skip silently.
 
 ## Step 0 — Confirm Target Directory
-
-Run the following command, show the user the current directory contents, and confirm this is the project root where the framework should be installed:
 
 ```bash
 pwd && ls
 ```
 
-If the user says the directory is wrong, stop and wait for the user to `cd` to the correct location before continuing.
+Show the user the current directory contents and confirm this is the project root. If wrong, stop and wait for the user to `cd` to the correct location.
 
 ## Step 1 — Check Prerequisites
 
@@ -27,81 +27,221 @@ python3 --version
 git --version
 ```
 
-- Python version must be ≥ 3.10; otherwise prompt the user to upgrade Python first.
-- git must be available.
+- Python must be ≥ 3.10.
+- Git must be available.
 
-## Step 2 — Download CBIM Framework
-
-Clone the repository into a temporary directory, then perform a clean replacement of the `cbim-prompt/` directory in the project root. On both first-time installs and upgrades, the old `cbim-prompt/` is fully removed before the new one is copied in, so no stale files from previous versions can linger. The one exception is `cbim-prompt/memory/store/`, which holds user memory data and is backed up before replacement and restored afterward.
+## Step 2 — Clone Source Repo to Temp
 
 Linux / macOS:
 ```bash
-git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
-# 备份记忆数据
-[ -d cbim-prompt/memory/store ] && cp -r cbim-prompt/memory/store _cbim_store_bak
-# 完整替换
-rm -rf cbim-prompt
-cp -r _cbim_tmp/cbim-prompt .
-rm -rf _cbim_tmp
-# 还原记忆数据
-if [ -d _cbim_store_bak ]; then
-  rm -rf cbim-prompt/memory/store
-  mv _cbim_store_bak cbim-prompt/memory/store
-fi
+TMP=$(mktemp -d)
+git clone --depth=1 --branch master https://github.com/nan023062/agent-team-cc.git "$TMP/src"
 ```
 
 Windows (PowerShell):
 ```powershell
-git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
-# 备份记忆数据
-if (Test-Path cbim-prompt\memory\store) {
-    Copy-Item -Recurse cbim-prompt\memory\store _cbim_store_bak
+$TMP = (New-Item -ItemType Directory -Path ([System.IO.Path]::GetTempPath() + [System.Guid]::NewGuid())).FullName
+git clone --depth=1 --branch master https://github.com/nan023062/agent-team-cc.git "$TMP\src"
+```
+
+Verify the four required artifacts exist in the clone:
+```bash
+ls "$TMP/src/.cbim-prompt" "$TMP/src/.claude" "$TMP/src/CLAUDE.md" "$TMP/src/.claudeignore"
+```
+
+If any is missing, stop and report — the upstream repo is incomplete.
+
+## Step 3 — Install the Four Artifacts (merge-aware)
+
+Two artifacts are overwritten cleanly; two are merged to preserve user data.
+
+| Artifact | Strategy | Why |
+|---|---|---|
+| `.cbim-prompt/` | clean replace, **preserve** `memory/store/`, `.dna/`, `config.json` | framework files must match upstream; runtime data must survive |
+| `.claude/agents/` | clean replace | agents are framework-defined |
+| `.claude/settings.json` | **merge** — overwrite only `hooks` and `permissions` keys | preserve user-added MCP servers, env, model, theme, custom permissions |
+| `CLAUDE.md` | overwrite, backup to `CLAUDE.md.bak` if different | template owned by framework |
+| `.claudeignore` | **append-if-missing** per line | preserve user-added ignore patterns |
+
+### 3a. Back up runtime data and CLAUDE.md
+
+Linux / macOS:
+```bash
+[ -d .cbim-prompt/memory/store ] && cp -r .cbim-prompt/memory/store "$TMP/_store_bak"
+[ -d .cbim-prompt/.dna ]         && cp -r .cbim-prompt/.dna         "$TMP/_dna_bak"
+[ -f .cbim-prompt/config.json ]  && cp    .cbim-prompt/config.json  "$TMP/_config_bak"
+[ -f CLAUDE.md ] && cp CLAUDE.md "$TMP/_claude_md_bak"
+```
+
+Windows (PowerShell):
+```powershell
+if (Test-Path .cbim-prompt\memory\store) { Copy-Item -Recurse .cbim-prompt\memory\store "$TMP\_store_bak" }
+if (Test-Path .cbim-prompt\.dna)         { Copy-Item -Recurse .cbim-prompt\.dna         "$TMP\_dna_bak" }
+if (Test-Path .cbim-prompt\config.json)  { Copy-Item          .cbim-prompt\config.json  "$TMP\_config_bak" }
+if (Test-Path CLAUDE.md) { Copy-Item CLAUDE.md "$TMP\_claude_md_bak" }
+```
+
+### 3b. Clean-replace framework + agents
+
+Linux / macOS:
+```bash
+rm -rf .cbim-prompt .claude/agents
+mkdir -p .claude
+cp -R "$TMP/src/.cbim-prompt"   .cbim-prompt
+cp -R "$TMP/src/.claude/agents" .claude/agents
+```
+
+Windows (PowerShell):
+```powershell
+Remove-Item -Recurse -Force .cbim-prompt, .claude\agents -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path .claude | Out-Null
+Copy-Item -Recurse "$TMP\src\.cbim-prompt"   .cbim-prompt
+Copy-Item -Recurse "$TMP\src\.claude\agents" .claude\agents
+```
+
+### 3c. Restore runtime data + ensure required dirs
+
+`.cbim-prompt/memory/store/{short,medium}/` and `.cbim-prompt/.dna/index.md` are gitignored or runtime-managed and won't be in the clone — create them if missing.
+
+Linux / macOS:
+```bash
+# Restore preserved data
+[ -d "$TMP/_store_bak" ]  && { rm -rf .cbim-prompt/memory/store; mkdir -p .cbim-prompt/memory; cp -r "$TMP/_store_bak" .cbim-prompt/memory/store; }
+[ -d "$TMP/_dna_bak" ]    && { rm -rf .cbim-prompt/.dna;          cp -r "$TMP/_dna_bak"   .cbim-prompt/.dna; }
+[ -f "$TMP/_config_bak" ] && cp "$TMP/_config_bak" .cbim-prompt/config.json
+
+# Ensure required runtime dirs/files exist (no-op if already restored)
+mkdir -p .cbim-prompt/memory/store/short .cbim-prompt/memory/store/medium
+mkdir -p .cbim-prompt/.dna
+[ -f .cbim-prompt/.dna/index.md ] || printf "# Module Index\n" > .cbim-prompt/.dna/index.md
+[ -f .cbim-prompt/config.json ]   || printf '{\n  "target_project": "",\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim-prompt/config.json
+```
+
+Windows (PowerShell):
+```powershell
+if (Test-Path "$TMP\_store_bak")  { Remove-Item -Recurse -Force .cbim-prompt\memory\store -ErrorAction SilentlyContinue; New-Item -ItemType Directory -Force -Path .cbim-prompt\memory | Out-Null; Copy-Item -Recurse "$TMP\_store_bak" .cbim-prompt\memory\store }
+if (Test-Path "$TMP\_dna_bak")    { Remove-Item -Recurse -Force .cbim-prompt\.dna -ErrorAction SilentlyContinue; Copy-Item -Recurse "$TMP\_dna_bak" .cbim-prompt\.dna }
+if (Test-Path "$TMP\_config_bak") { Copy-Item "$TMP\_config_bak" .cbim-prompt\config.json }
+
+New-Item -ItemType Directory -Force -Path .cbim-prompt\memory\store\short, .cbim-prompt\memory\store\medium, .cbim-prompt\.dna | Out-Null
+if (-not (Test-Path .cbim-prompt\.dna\index.md)) { Set-Content -Path .cbim-prompt\.dna\index.md -Value "# Module Index" -NoNewline; Add-Content -Path .cbim-prompt\.dna\index.md -Value "" }
+if (-not (Test-Path .cbim-prompt\config.json))   { Set-Content -Path .cbim-prompt\config.json   -Value '{"target_project":"","memory":{"short_term":{"keep_days":3}}}' }
+```
+
+### 3d. Merge .claude/settings.json (preserve user keys)
+
+Replace only `hooks` and `permissions`; leave everything else (MCP servers, env, model, theme, etc.) untouched.
+
+```bash
+python3 - "$TMP/src/.claude/settings.json" .claude/settings.json <<'PY'
+import json, sys
+from pathlib import Path
+src = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+dst_path = Path(sys.argv[2])
+dst = json.loads(dst_path.read_text(encoding="utf-8")) if dst_path.exists() else {}
+dst["hooks"] = src["hooks"]
+dst["permissions"] = src["permissions"]
+dst_path.parent.mkdir(parents=True, exist_ok=True)
+dst_path.write_text(json.dumps(dst, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+print(f"merged hooks + permissions into {dst_path}")
+PY
+```
+
+(Same command works on Windows — just use `python` instead of `python3`.)
+
+### 3e. CLAUDE.md (overwrite with backup)
+
+```bash
+if [ -f "$TMP/_claude_md_bak" ] && ! cmp -s "$TMP/_claude_md_bak" "$TMP/src/CLAUDE.md"; then
+  cp "$TMP/_claude_md_bak" CLAUDE.md.bak
+fi
+cp "$TMP/src/CLAUDE.md" CLAUDE.md
+```
+
+Windows (PowerShell):
+```powershell
+if (Test-Path "$TMP\_claude_md_bak") {
+  $srcHash = (Get-FileHash "$TMP\src\CLAUDE.md").Hash
+  $bakHash = (Get-FileHash "$TMP\_claude_md_bak").Hash
+  if ($srcHash -ne $bakHash) { Copy-Item "$TMP\_claude_md_bak" CLAUDE.md.bak }
 }
-# 完整替换
-Remove-Item -Recurse -Force cbim-prompt -ErrorAction SilentlyContinue
-Copy-Item -Recurse _cbim_tmp\cbim-prompt .\cbim-prompt
-Remove-Item -Recurse -Force _cbim_tmp
-# 还原记忆数据
-if (Test-Path _cbim_store_bak) {
-    Remove-Item -Recurse -Force cbim-prompt\memory\store -ErrorAction SilentlyContinue
-    Move-Item _cbim_store_bak cbim-prompt\memory\store
+Copy-Item "$TMP\src\CLAUDE.md" CLAUDE.md
+```
+
+### 3f. .claudeignore (append-if-missing per line)
+
+```bash
+SRC_IGNORE="$TMP/src/.claudeignore"
+touch .claudeignore
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  grep -qxF -- "$line" .claudeignore || printf "%s\n" "$line" >> .claudeignore
+done < "$SRC_IGNORE"
+```
+
+Windows (PowerShell):
+```powershell
+if (-not (Test-Path .claudeignore)) { New-Item -ItemType File -Path .claudeignore | Out-Null }
+$existing = Get-Content .claudeignore -ErrorAction SilentlyContinue
+Get-Content "$TMP\src\.claudeignore" | ForEach-Object {
+  if ($_ -and ($existing -notcontains $_)) { Add-Content -Path .claudeignore -Value $_ }
 }
 ```
 
-## Step 3 — Run the Installer
+## Step 4 — Create the Virtual Environment
+
+The framework's hooks shell out to `python` — a project-local `.venv` is the convention.
+
+Linux / macOS:
+```bash
+[ -d .venv ] || python3 -m venv .venv
+```
+
+Windows (PowerShell):
+```powershell
+if (-not (Test-Path .venv)) { python -m venv .venv }
+```
+
+(FileBackend uses stdlib only — no `pip install` step required.)
+
+## Step 5 — Update .gitignore
+
+Append these lines if missing:
+```
+.cbim-prompt/memory/store/
+__pycache__/
+*.pyc
+.venv/
+```
+
+Linux / macOS one-liner:
+```bash
+touch .gitignore
+for line in '.cbim-prompt/memory/store/' '__pycache__/' '*.pyc' '.venv/'; do
+  grep -qxF -- "$line" .gitignore || printf "%s\n" "$line" >> .gitignore
+done
+```
+
+## Step 6 — Verify
 
 ```bash
-python3 cbim-prompt/install.py
+ls CLAUDE.md .cbim-prompt/ .claude/agents/ .claude/settings.json .claudeignore .venv/ .cbim-prompt/.dna/index.md .cbim-prompt/memory/store/short .cbim-prompt/memory/store/medium
+```
+
+All paths must exist.
+
+## Step 7 — Cleanup
+
+```bash
+rm -rf "$TMP"
 ```
 
 Windows:
 ```powershell
-python cbim-prompt\install.py
+Remove-Item -Recurse -Force "$TMP"
 ```
 
-The script will automatically:
-- Create a `.venv` virtual environment
-- Copy agent definitions to `.claude/agents/`
-- Register SessionStart / Stop hooks in `.claude/settings.json`
-- Initialize `CLAUDE.md`
-- Create memory directories `cbim-prompt/memory/store/{short,medium}/`
-- Update `.gitignore`
-
-The script outputs `+` (done) or `-` (skipped/already exists) for each step, and prints `Done. Restart Claude Code to activate hooks.` at the end.
-
-If the script errors, stop and report the error to the user — do not continue.
-
-## Step 4 — Verify Installation
-
-Run the following check and show the result to the user:
-
-```bash
-ls CLAUDE.md cbim-prompt/ .claude/agents/ .venv/
-```
-
-Installation is successful if CLAUDE.md, cbim-prompt/, .claude/agents/, and .venv/ all exist.
-
-## Step 5 — Final Report
+## Step 8 — Final Report
 
 Briefly report to the user:
 
@@ -109,9 +249,10 @@ Briefly report to the user:
 2. **Next steps**:
    - Fully exit and restart Claude Code (required to activate hooks)
    - Recommended first message after restart: **"Please initialize the module knowledge system for this project"**
-   - The assistant will dispatch the architect to build the `.dna/` project knowledge system, after which you're ready to use it
+   - The assistant will dispatch the architect to build the `.dna/` project knowledge system
 
 ## Failure Handling Principles
 
 - Any step fails → stop immediately, report the failure reason and completed steps, wait for user decision
 - Do not execute irreversible operations like `git push`, `git commit`, `rm -rf` on user files (unless explicitly requested)
+- If the cloned source repo is missing `.cbim-prompt/`, `.claude/`, `CLAUDE.md`, or `.claudeignore`, abort — the upstream repo must commit these four artifacts for the copy-based install to work
