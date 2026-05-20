@@ -36,7 +36,7 @@ Clone the repository into a temporary directory, then perform a clean replacemen
 
 Linux / macOS:
 ```bash
-git clone --branch v1-claude-code https://github.com/nan023062/cbim.git _cbim_tmp
+git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
 # 备份记忆数据
 [ -d cbim/memory/store ] && cp -r cbim/memory/store _cbim_store_bak
 # 完整替换
@@ -52,7 +52,7 @@ fi
 
 Windows (PowerShell):
 ```powershell
-git clone --branch v1-claude-code https://github.com/nan023062/cbim.git _cbim_tmp
+git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
 # 备份记忆数据
 if (Test-Path cbim\memory\store) {
     Copy-Item -Recurse cbim\memory\store _cbim_store_bak
