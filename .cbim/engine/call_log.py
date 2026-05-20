@@ -1,19 +1,15 @@
-from pathlib import Path
-from datetime import datetime
+"""call_log.py — engine CLI invocation logger (writes [ENG] lines to session log)."""
 
-def _logs_dir() -> Path:
-    d = Path(__file__).resolve().parent.parent / "logs"
-    d.mkdir(parents=True, exist_ok=True)
-    return d
+from pathlib import Path
+
 
 def log_call(argv: list, exit_code: int) -> None:
     from .debug import is_debug
     if not is_debug():
         return
     try:
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        from .session_log import append
         cmd = " ".join(str(a) for a in argv)
-        line = f"[ENG]{ts}: argv={cmd} | cwd={Path.cwd()} | exit={exit_code}\n"
-        (_logs_dir() / "engine.txt").open("a", encoding="utf-8").write(line)
+        append("ENG", f"argv={cmd} | cwd={Path.cwd()} | exit={exit_code}")
     except Exception:
         pass

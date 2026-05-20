@@ -1,12 +1,12 @@
 ---
-description: Toggle/inspect CBIM tool-call logging (on|off|status)
+description: Toggle/inspect the .cbim/.debug flag (extra engine-internal log detail)
 argument-hint: on | off | status
 allowed-tools: Bash
 ---
 
 Dispatch on `$ARGUMENTS`:
 
-- `on` → run `python .cbim/engine debug on`; remind the user that Claude Code must be restarted before the PreToolUse hook starts firing.
-- `off` → run `python .cbim/engine debug off`; the hook stays registered but becomes inert.
-- `status` (or empty) → run `python .cbim/engine debug status`, then show the last 5 lines of `.cbim/logs/tools.txt` if it exists.
+- `on` → run `python .cbim/engine debug on`; enables extra `[ENG]` and `[IMP]` lines (engine CLI invocations + skill/soul import events) in the session log. Base session signals (`[SESSION]`/`[USER]`/`[TOOL]`/`[RESULT]`/`[TURN]`) always log — no flag needed.
+- `off` → run `python .cbim/engine debug off`; turns off the extra detail.
+- `status` (or empty) → run `python .cbim/engine debug status` and report the flag state.
 - Anything else → print usage: `/cbim_debug on | off | status`.

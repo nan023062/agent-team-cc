@@ -2,8 +2,9 @@
 load_memory.py — SessionStart hook.
 
 Receives session-start event from Claude Code and:
-  1. Loads recent memory context  (python .cbim/engine memory load-context)
-  2. Generates project knowledge snapshot  (python .cbim/engine snapshot)
+  1. Opens a new per-session log file under .cbim/logs/session_*.log
+  2. Loads recent memory context  (python .cbim/engine memory load-context)
+  3. Generates project knowledge snapshot  (python .cbim/engine snapshot)
 Merges both into a single additionalContext JSON block.
 """
 
@@ -15,8 +16,8 @@ from pathlib import Path
 
 
 def _cbim_root() -> Path:
-    """installer/hooks/ -> installer/ -> .cbim/ (cbim root)"""
-    return Path(__file__).resolve().parent.parent.parent
+    """hooks/ -> .cbim/ (cbim root)"""
+    return Path(__file__).resolve().parent.parent
 
 
 def _find_python() -> str:
@@ -49,6 +50,16 @@ def _run(python: str, args: list[str], cwd: str) -> str:
         return ""
 
 
+def _start_session_log(session_id: str, cwd: str) -> None:
+    """Open a fresh session log via session_log.start_session()."""
+    try:
+        sys.path.insert(0, str(_cbim_root()))
+        from engine.session_log import start_session
+        start_session(session_id=session_id, cwd=cwd, cbim=_cbim_root())
+    except Exception:
+        pass
+
+
 def main() -> None:
     raw = sys.stdin.read().strip()
     if not raw:
@@ -60,8 +71,11 @@ def main() -> None:
         sys.exit(0)
 
     cwd = Path(event.get("cwd", os.getcwd()))
+    session_id = event.get("session_id", "")
     cbim = _cbim_root()
     python = _find_python()
+
+    _start_session_log(session_id, str(cwd))
 
     # 1. Memory context
     memory_out = _run(

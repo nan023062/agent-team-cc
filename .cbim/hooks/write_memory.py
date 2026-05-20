@@ -1,8 +1,8 @@
 """
-write_memory.py — Stop hook.
+write_memory.py — Stop hook (fires at end of each assistant turn).
 
-Receives session-end event from Claude Code and delegates to the memory engine.
-Contains no memory logic — that lives in memory/engine/writer.py.
+  1. Appends a [TURN] end marker to the per-session log
+  2. Delegates the actual memory write to the memory engine
 """
 
 import json
@@ -13,8 +13,8 @@ from pathlib import Path
 
 
 def _cbim_root() -> Path:
-    """installer/hooks/ -> installer/ -> .cbim/ (cbim root)"""
-    return Path(__file__).resolve().parent.parent.parent
+    """hooks/ -> .cbim/ (cbim root)"""
+    return Path(__file__).resolve().parent.parent
 
 
 def _find_python() -> str:
@@ -30,6 +30,15 @@ def _find_python() -> str:
     return sys.executable
 
 
+def _log_turn_end(stop_reason: str) -> None:
+    try:
+        sys.path.insert(0, str(_cbim_root()))
+        from engine.session_log import append
+        append("TURN", f"end reason={stop_reason or '?'}", cbim=_cbim_root())
+    except Exception:
+        pass
+
+
 def main() -> None:
     raw = sys.stdin.read().strip()
     if not raw:
@@ -39,6 +48,8 @@ def main() -> None:
         event = json.loads(raw)
     except json.JSONDecodeError:
         sys.exit(0)
+
+    _log_turn_end(event.get("stop_hook_active", "") or event.get("reason", ""))
 
     transcript_path = event.get("transcript_path", "")
     if not transcript_path:

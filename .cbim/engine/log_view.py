@@ -1,59 +1,65 @@
-from pathlib import Path
+"""log_view.py — view per-session log files.
+
+`log show [--lines N] [--session SLUG]` — print the last N lines of the current
+(or specified) session log.
+`log tail` — follow the current session log as it grows.
+"""
+
 import time
+from pathlib import Path
+
 
 def _logs_dir() -> Path:
-    # Walk upward from cwd looking for .cbim/
-    p = Path.cwd()
-    for _ in range(6):
-        candidate = p / ".cbim" / "logs"
-        if candidate.parent.exists():
-            candidate.mkdir(parents=True, exist_ok=True)
-            return candidate
-        p = p.parent
-    fallback = Path.cwd() / ".cbim" / "logs"
-    fallback.mkdir(parents=True, exist_ok=True)
-    return fallback
+    from .session_log import logs_dir
+    return logs_dir()
 
-_LOGS = [("ENG", "engine.txt"), ("IMP", "imports.txt"), ("TOL", "tools.txt")]
+
+def _resolve_log(session_slug: str | None) -> Path | None:
+    logs = _logs_dir()
+    if session_slug:
+        exact = logs / session_slug
+        if exact.exists():
+            return exact
+        matches = sorted(logs.glob(f"session_*{session_slug}*.log"))
+        if matches:
+            return matches[-1]
+        return None
+    from .session_log import current_log_path
+    return current_log_path()
+
 
 def cmd_log_show(args) -> int:
     lines = getattr(args, "lines", 50)
-    logs_dir = _logs_dir()
-    all_lines = []
-    for tag, fname in _LOGS:
-        f = logs_dir / fname
-        if not f.exists():
-            continue
-        for line in f.read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.strip():
-                all_lines.append(line)
-    all_lines.sort(key=lambda l: l[5:24])  # sort by timestamp after "[TAG]"
-    for l in all_lines[-lines:]:
-        print(l)
+    slug = getattr(args, "session", None)
+    log = _resolve_log(slug)
+    if log is None or not log.exists():
+        print("(no session log yet)")
+        return 0
+    content = log.read_text(encoding="utf-8", errors="replace").splitlines()
+    print(f"# {log}")
+    for line in content[-lines:]:
+        print(line)
     return 0
+
 
 def cmd_log_tail(args) -> int:
     interval = getattr(args, "interval", 1.0)
-    logs_dir = _logs_dir()
-    handles = []
-    for tag, fname in _LOGS:
-        f = logs_dir / fname
-        f.touch()
-        fh = f.open("r", encoding="utf-8", errors="replace")
-        fh.seek(0, 2)  # seek to end
-        handles.append((tag, fh))
-    print("Tailing logs (Ctrl+C to stop)...")
+    slug = getattr(args, "session", None)
+    log = _resolve_log(slug)
+    if log is None:
+        print("(no session log yet; nothing to tail)")
+        return 0
+    log.touch()
+    print(f"Tailing {log} (Ctrl+C to stop)...")
     try:
-        while True:
-            for tag, fh in handles:
-                for line in fh:
-                    line = line.rstrip()
-                    if line:
-                        print(line, flush=True)
-            time.sleep(interval)
+        with log.open("r", encoding="utf-8", errors="replace") as fh:
+            fh.seek(0, 2)
+            while True:
+                line = fh.readline()
+                if not line:
+                    time.sleep(interval)
+                    continue
+                print(line.rstrip(), flush=True)
     except KeyboardInterrupt:
         pass
-    finally:
-        for _, fh in handles:
-            fh.close()
     return 0

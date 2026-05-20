@@ -29,8 +29,8 @@ Display the following overview to the user verbatim (in Chinese):
 | 命令 | 作用 |
 |---|---|
 | `/cbim_help` | 本帮助 |
-| `/cbim_debug on\|off\|status` | 开启/关闭/查看工具调用日志（控制 `.cbim/.debug`） |
-| `/cbim_log [N]` | 查看最近 N 条工具调用日志（默认 30） |
+| `/cbim_debug on\|off\|status` | 控制 `.cbim/.debug` 标志——开启/关闭额外的 `[ENG]`/`[IMP]` 引擎内部日志（基础信号永远开启） |
+| `/cbim_log [N]` | 查看当前会话日志最近 N 条（默认 50，所有信号类型在同一文件） |
 
 ## CBIM Engine 命令 (`python .cbim/engine <domain> <cmd>`)
 

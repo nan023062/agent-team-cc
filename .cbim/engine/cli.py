@@ -89,10 +89,10 @@ def main() -> int:
     _p = slsub.add_parser("show"); _p.add_argument("name")
 
     # log ---------------------------------------------------------------------
-    pl = sub.add_parser("log", help="View merged debug logs")
+    pl = sub.add_parser("log", help="View per-session logs")
     lsub = pl.add_subparsers(dest="command")
-    _p = lsub.add_parser("show"); _p.add_argument("--lines", type=int, default=50)
-    _p = lsub.add_parser("tail"); _p.add_argument("--interval", type=float, default=1.0)
+    _p = lsub.add_parser("show"); _p.add_argument("--lines", type=int, default=50); _p.add_argument("--session", default=None, help="Session slug substring (default: current)")
+    _p = lsub.add_parser("tail"); _p.add_argument("--interval", type=float, default=1.0); _p.add_argument("--session", default=None, help="Session slug substring (default: current)")
     log_cmds = {"show": cmd_log_show, "tail": cmd_log_tail}
 
     # config ------------------------------------------------------------------
@@ -160,81 +160,10 @@ def _find_settings() -> Path | None:
     return None
 
 
-# PreToolUse log script. Embedded inline in .claude/settings.json as a `python -c`
-# command. The script is base64-encoded so the shell argument contains only safe
-# ASCII (no quotes, no newlines, no backslashes) — this works identically on
-# Windows cmd, PowerShell, and POSIX shells.
-_PRETOOLUSE_SCRIPT = '''import sys,json,os
-from pathlib import Path
-from datetime import datetime
-try:
-    data=json.load(sys.stdin)
-    cwd=Path(data.get("cwd") or os.getcwd())
-    cbim=cwd/".cbim"
-    if not (cbim/".debug").exists(): sys.exit(0)
-    tool=data.get("tool_name","?")
-    inp=data.get("tool_input",{})
-    if tool in ("Read","Write","Edit"):
-        p=f'path={inp.get("file_path","?")}'
-    elif tool=="Glob":
-        p=f'pattern={inp.get("pattern","?")}'
-    elif tool=="Grep":
-        p=f'pattern={inp.get("pattern","?")} path={inp.get("path","")}'
-    elif tool=="Bash":
-        p=f'cmd={str(inp.get("command","?"))[:200]}'
-    else:
-        p=f'params={len(inp)}keys'
-    target=str(inp.get("file_path",inp.get("path",inp.get("pattern",""))))
-    bypass=tool in ("Read","Glob","Grep","Write","Edit") and ".cbim" in target
-    warn=" [WARN]" if bypass else ""
-    ts=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logs=cbim/"logs"
-    logs.mkdir(parents=True,exist_ok=True)
-    (logs/"tools.txt").open("a",encoding="utf-8").write(f"[TOL]{ts}{warn}: tool={tool} | {p}\\n")
-except Exception:
-    pass
-sys.exit(0)
-'''
-
-
-def _pretooluse_inline_command() -> str:
-    import base64
-    b64 = base64.b64encode(_PRETOOLUSE_SCRIPT.encode("utf-8")).decode("ascii")
-    # Single-line command, only safe ASCII inside the outer "..." — portable across
-    # Windows cmd, PowerShell, and POSIX shells.
-    return f'python -c "import base64;exec(base64.b64decode(\'{b64}\').decode())"'
-
-
-def _load_settings(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _write_settings(path: Path, data: dict) -> None:
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
-def _set_pretooluse(settings: dict, entries: list) -> None:
-    hooks = settings.setdefault("hooks", {})
-    hooks["PreToolUse"] = entries
-
-
-def _pretooluse_registered(settings: dict) -> str | None:
-    entries = settings.get("hooks", {}).get("PreToolUse") or []
-    for group in entries:
-        for hook in group.get("hooks", []) if isinstance(group, dict) else []:
-            cmd = hook.get("command") if isinstance(hook, dict) else None
-            if cmd and ("python -c" in cmd or "pre_tool_use" in cmd):
-                return cmd
-    return None
-
-
 def _debug_flag_path() -> Path | None:
-    # The inline hook reads <project>/.cbim/.debug. Locate the project root
-    # by walking up from cwd until we find .claude/settings.json (same logic as
-    # _find_settings), then place the flag at <root>/.cbim/.debug.
+    """The flag lives at <project>/.cbim/.debug, controlling extra [ENG]/[IMP]
+    log entries from call_log/import_log. Session-level signals
+    ([SESSION]/[USER]/[TOOL]/[RESULT]/[TURN]) always log, no flag needed."""
     settings_path = _find_settings()
     if settings_path is None:
         return None
@@ -242,50 +171,25 @@ def _debug_flag_path() -> Path | None:
 
 
 def _cmd_debug(args) -> int:
+    """Toggle the .cbim/.debug flag. Controls extra engine internals only;
+    base session signals are always logged."""
     flag = _debug_flag_path()
+    if flag is None:
+        print("debug: no .claude/settings.json found (cannot locate project root)")
+        return 1
     if args.command == "on":
-        if flag is not None:
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.touch()
-        settings_path = _find_settings()
-        if settings_path is None:
-            print("debug: on (no .claude/settings.json found; hook not registered)")
-            return 0
-        settings = _load_settings(settings_path)
-        command = _pretooluse_inline_command()
-        _set_pretooluse(settings, [
-            {"hooks": [{"type": "command", "command": command}]}
-        ])
-        # Validate JSON round-trip before writing.
-        json.loads(json.dumps(settings))
-        _write_settings(settings_path, settings)
-        print("debug: on (inline PreToolUse hook registered)")
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.touch()
+        print(f"debug: on (flag at {flag})")
         return 0
     if args.command == "off":
-        if flag is not None and flag.exists():
+        if flag.exists():
             flag.unlink()
-        settings_path = _find_settings()
-        if settings_path is None:
-            print("debug: off (no .claude/settings.json found)")
-            return 0
-        settings = _load_settings(settings_path)
-        _set_pretooluse(settings, [])
-        _write_settings(settings_path, settings)
-        print("debug: off (hook removed)")
+        print(f"debug: off (flag removed)")
         return 0
     if args.command == "status":
-        state = "on" if (flag is not None and flag.exists()) else "off"
-        settings_path = _find_settings()
-        if settings_path is None:
-            print(f"debug: {state} (no .claude/settings.json found)")
-            return 0
-        settings = _load_settings(settings_path)
-        registered = _pretooluse_registered(settings)
-        if registered:
-            short = registered if len(registered) <= 80 else registered[:77] + "..."
-            print(f"debug: {state} (PreToolUse hook: {short})")
-        else:
-            print(f"debug: {state} (PreToolUse hook: not registered)")
+        state = "on" if flag.exists() else "off"
+        print(f"debug: {state}")
         return 0
     return 1
 
