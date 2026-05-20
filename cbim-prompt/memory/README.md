@@ -1,4 +1,4 @@
-# Memory — 记忆系统（短期和中期）
+﻿# Memory — 记忆系统（短期和中期）
 
 ## 三层记忆模型
 
@@ -134,17 +134,17 @@ python3 -m venv .venv
 
 ```bash
 # hook 命令（通常由 hook 自动调用）
-.venv/bin/python -m engine memory write-session <transcript_path>
-.venv/bin/python -m engine memory load-context
+python .cbim-prompt/engine memory write-session <transcript_path>
+python .cbim-prompt/engine memory load-context
 
 # agent 命令（手动 / skill 中使用）
-.venv/bin/python -m engine memory query "查询意图" [--tier short|medium] [--top-k N] [--verbose]
-.venv/bin/python -m engine memory add <path> --tier short|medium
-.venv/bin/python -m engine memory cleanup [--keep-days N]
-.venv/bin/python -m engine memory reindex [--tier short|medium]
+python .cbim-prompt/engine memory query "查询意图" [--tier short|medium] [--top-k N] [--verbose]
+python .cbim-prompt/engine memory add <path> --tier short|medium
+python .cbim-prompt/engine memory cleanup [--keep-days N]
+python .cbim-prompt/engine memory reindex [--tier short|medium]
 
 # 预览命令（启动本地 HTTP server，自动打开浏览器）
-.venv/bin/python -m engine memory preview [--port 8765]
+python .cbim-prompt/engine memory preview [--port 8765]
 ```
 
 ---

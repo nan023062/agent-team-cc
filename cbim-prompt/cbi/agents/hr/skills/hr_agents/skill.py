@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Capability Layer CRUD (HR)
 
 > Manage work agent definitions under `.claude/agents/`. The 4 core agents (architect / hr / auditor and the assistant) are read-only and must not be modified.
@@ -6,9 +6,9 @@ SKILL: str = """\
 ## Tools
 
 ```bash
-python -m engine agent list                              # list all agents
-python -m engine agent show <name>                       # view agent details
-python -m engine agent scaffold <name> --description "..." [--model claude-sonnet-4-6]
+python .cbim-prompt/engine agent list                              # list all agents
+python .cbim-prompt/engine agent show <name>                       # view agent details
+python .cbim-prompt/engine agent scaffold <name> --description "..." [--model claude-sonnet-4-6]
 ```
 
 ---

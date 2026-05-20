@@ -1,4 +1,4 @@
-AUDITOR_MD: str = """\
+﻿AUDITOR_MD: str = """\
 ---
 name: auditor
 description: Independent adversarial reviewer with read-only access. Performs adversarial review of architecture designs and code implementations. Use when the assistant directs review of a specific module or implementation quality — not invoked by other agents directly.
@@ -83,7 +83,7 @@ All reviews are dispatched uniformly by the **assistant**; the auditor is not in
 - **Target agent professional standards** — Read the target agent's `.claude/agents/<agent-id>.md` to understand their responsibility definition and execution norms
 - **Module local standards** — The `constraints` field in `<module-dir>/.dna/module.md` frontmatter
 
-Review method: run `python -m engine skill show cbi.audit_review`.
+Review method: run `python .cbim-prompt/engine skill show cbi.audit_review`.
 
 ## Permission Scope
 

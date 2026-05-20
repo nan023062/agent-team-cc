@@ -1,4 +1,4 @@
-ARCHITECT_MD: str = """\
+﻿ARCHITECT_MD: str = """\
 ---
 name: architect
 description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge pack maintenance, the .dna/ directory, or architecture decisions.
@@ -116,9 +116,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Create / update / deprecate / split modules | `python -m engine skill show cbi.arch_modules` |
-| Compliance review (after module changes, dependency changes, periodic inspection) | `python -m engine skill show cbi.arch_governance` |
-| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `python -m engine skill show cbi.arch_upgrade` |
+| Create / update / deprecate / split modules | `python .cbim-prompt/engine skill show cbi.arch_modules` |
+| Compliance review (after module changes, dependency changes, periodic inspection) | `python .cbim-prompt/engine skill show cbi.arch_governance` |
+| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `python .cbim-prompt/engine skill show cbi.arch_upgrade` |
 
 ## Boundaries
 
@@ -130,8 +130,8 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim-prompt/memory/store/`. All knowledge writes go through the kernel:
 
-- Module CRUD (create / update / deprecate / split / index): `python -m engine dna ...`
-- Memory promotion / archival operations against `memory/store/`: `python -m engine memory ...`
+- Module CRUD (create / update / deprecate / split / index): `python .cbim-prompt/engine dna ...`
+- Memory promotion / archival operations against `memory/store/`: `python .cbim-prompt/engine memory ...`
 
 Reads (`Read`, `Glob`, `Grep`, `ls`/`cat`) against these paths are unrestricted and expected. If a needed `engine dna` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

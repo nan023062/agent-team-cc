@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Knowledge Promotion (Architect)
 
 > Extract signals from medium-memory business and decision entries, and distill verified facts, decisions, and processes back into `.dna/` as persistent business knowledge.
@@ -19,7 +19,7 @@ SKILL: str = """\
 List all medium-tier entries:
 
 ```bash
-.venv/bin/python -m engine memory query "" --tier medium --top-k 20
+python .cbim-prompt/engine memory query "" --tier medium --top-k 20
 ```
 
 Find `business-<module>.md` and `decision-<scope>.md` related to the target module; read their full content with the Read tool.

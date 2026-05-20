@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Business Layer Module CRUD (Architect)
 
 > Manage the project's `.dna/` knowledge system. Knowledge first — document before you build.
@@ -6,9 +6,9 @@ SKILL: str = """\
 ## Commands
 
 ```bash
-python -m engine dna list [--root <path>]            # list all modules
-python -m engine dna show <module-dir>               # view module details
-python -m engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner> [--description "..."]
+python .cbim-prompt/engine dna list [--root <path>]            # list all modules
+python .cbim-prompt/engine dna show <module-dir>               # view module details
+python .cbim-prompt/engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner> [--description "..."]
 ```
 
 **`--type` is required and determines the body template:**
@@ -40,8 +40,8 @@ The **registry** (`cbim-prompt/.dna/index.md`) is auto-created by `install.py` �
 1. Confirm the registry exists (`ls cbim-prompt/.dna/index.md`). If missing, the user hasn't run `install.py` — stop and tell them.
 2. Survey the project structure and decide top-level shape (see table above). Confirm with the user if ambiguous.
 3. Create the chosen top-level module(s):
-   - Single-app: `python -m engine dna init . --type root --name <project-name> --owner architect`
-   - Monorepo: `python -m engine dna init packages --type parent --name <workspace> --owner architect` (substitute your workspace dir)
+   - Single-app: `python .cbim-prompt/engine dna init . --type root --name <project-name> --owner architect`
+   - Monorepo: `python .cbim-prompt/engine dna init packages --type parent --name <workspace> --owner architect` (substitute your workspace dir)
    - Mixed: skip this step; go straight to sub-module creation
 4. Fill in each newly created `module.md` (positioning + sub-module/class diagram + key decisions per template).
 5. Scan for sub-modules and run **Create Module** below for each. `init_module` auto-appends to `cbim-prompt/.dna/index.md` — no manual reindex needed.
@@ -51,7 +51,7 @@ The **registry** (`cbim-prompt/.dna/index.md`) is auto-created by `install.py` �
 
 **Recovery**: if the registry drifts (e.g. someone hand-deleted entries, or modules were added without using `init_module`), run:
 ```bash
-python -m engine dna reindex
+python .cbim-prompt/engine dna reindex
 ```
 This rescans the filesystem and rebuilds `cbim-prompt/.dna/index.md`.
 
@@ -73,7 +73,7 @@ This rescans the filesystem and rebuilds `cbim-prompt/.dna/index.md`.
 
 3. Initialize with the chosen type:
    ```bash
-   python -m engine dna init <dir> --type {parent|leaf} --name <name> --owner architect
+   python .cbim-prompt/engine dna init <dir> --type {parent|leaf} --name <name> --owner architect
    ```
    The CLI installs a body template matching the type — leaf gets `classDiagram`, parent gets a `graph` placeholder with a "do not write sub-module internals" comment.
 

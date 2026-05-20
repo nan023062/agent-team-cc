@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Write Short-term Memory (Session Entry)
 
 **Main agent only.** Two first-class triggers — both write to `cbim-prompt/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
@@ -30,7 +30,7 @@ When the user explicitly says to remember something:
 
 5. **Update the index**:
    ```bash
-   .venv/bin/python -m engine memory add cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md --tier short
+   python .cbim-prompt/engine memory add cbim-prompt/memory/store/short/YYYY-MM-DD-manual-<slug>.md --tier short
    ```
    On Windows: `.venv\\Scripts\\python.exe -m engine memory add ...`
 
@@ -181,7 +181,7 @@ After writing the file, notify the engine (already covered in step 5 of the Manu
 
 ```bash
 # Linux / macOS
-.venv/bin/python -m engine memory add cbim-prompt/memory/store/short/<filename>.md --tier short
+python .cbim-prompt/engine memory add cbim-prompt/memory/store/short/<filename>.md --tier short
 
 # Windows
 .venv\\Scripts\\python.exe -m engine memory add cbim-prompt/memory/store/short/<filename>.md --tier short

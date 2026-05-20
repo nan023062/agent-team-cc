@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Memory Distillation (Short → Medium)
 
 **Main agent only. Triggered periodically or on demand.**
@@ -218,7 +218,7 @@ distilled: 2026-05-18     ← add this line
 **Fallback cleanup** (clean entries that are "marked + older than 3 days"):
 
 ```bash
-.venv/bin/python -m engine memory cleanup --keep-days 3
+python .cbim-prompt/engine memory cleanup --keep-days 3
 ```
 
 `last-session.md` is an independent file not subject to this lifecycle.

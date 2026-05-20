@@ -1,4 +1,4 @@
-# `.dna/` Business Layer Convention
+﻿# `.dna/` Business Layer Convention
 
 > The business layer is governed by the architect, strictly separated from the capability layer (`.claude/agents/`).
 
@@ -250,20 +250,20 @@ A workflow describes a **deterministic process within the module** — it contai
 
 ```bash
 # List all modules in the project
-python -m engine dna list
+python .cbim-prompt/engine dna list
 
 # View module details
-python -m engine dna show <module-dir>
+python .cbim-prompt/engine dna show <module-dir>
 
 # Initialize a new module (type is required: root | parent | leaf)
-python -m engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
+python .cbim-prompt/engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
 
 # Root module (auto-created at install time by install.py; manual use rare)
-python -m engine dna init . --type root --name <project> --owner architect
+python .cbim-prompt/engine dna init . --type root --name <project> --owner architect
 
 # Parent module (has sub-modules with their own .dna/ — create them first)
-python -m engine dna init src/combat --type parent --name combat --owner architect
+python .cbim-prompt/engine dna init src/combat --type parent --name combat --owner architect
 
 # Leaf module (no sub-modules)
-python -m engine dna init src/combat/skill --type leaf --name skill --owner architect
+python .cbim-prompt/engine dna init src/combat/skill --type leaf --name skill --owner architect
 ```

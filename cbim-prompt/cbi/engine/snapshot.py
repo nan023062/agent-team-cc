@@ -1,4 +1,4 @@
-"""
+﻿"""
 engine/snapshot.py — Project knowledge snapshot for session context.
 
 Generates a concise markdown summary of:
@@ -6,7 +6,7 @@ Generates a concise markdown summary of:
   - Agent roster (capability layer, from .claude/agents/)
 
 Invoke via unified CLI:
-  python -m engine snapshot --root <project-root>
+  python .cbim-prompt/engine snapshot --root <project-root>
 
 Or import directly:
   from cbi.engine.snapshot import build_snapshot

@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Query Memory
 
 **Main agent only. Use when historical retrieval is needed mid-session.**
@@ -11,17 +11,17 @@ Run from the CBIM root directory (where `memory/` package lives):
 
 ```bash
 # Default: return top-k most recently modified entries (short + medium combined, sorted by time)
-python -m engine memory query "" --top-k 5
+python .cbim-prompt/engine memory query "" --top-k 5
 
 # Single tier only
-python -m engine memory query "" --tier short --top-k 5
-python -m engine memory query "" --tier medium --top-k 3
+python .cbim-prompt/engine memory query "" --tier short --top-k 5
+python .cbim-prompt/engine memory query "" --tier medium --top-k 3
 ```
 
 If CBIM is installed as a subdirectory (e.g. `cbim-prompt/`), prefix with that path:
 
 ```bash
-cd cbim && python -m engine memory query "" --top-k 5
+python .cbim-prompt/engine memory query "" --top-k 5
 ```
 
 The default backend (FileBackend) sorts by modification time; the query text argument is ignored.
@@ -52,6 +52,6 @@ If switched to a semantic backend (ChromaBackend), the query text participates i
 After switching to a semantic backend, reindex existing files:
 
 ```bash
-python -m engine memory reindex
+python .cbim-prompt/engine memory reindex
 ```
 """

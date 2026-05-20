@@ -1,4 +1,4 @@
-# Agent Capability Layer Convention
+﻿# Agent Capability Layer Convention
 
 > The capability layer is governed by HR, strictly separated from the business layer (`.dna/`).
 
@@ -108,14 +108,14 @@ Assessment (periodic HR evaluation)
 
 ```bash
 # List all agents
-python -m engine agent list
+python .cbim-prompt/engine agent list
 
 # View agent details
-python -m engine agent show <name>
+python .cbim-prompt/engine agent show <name>
 
 # Create new agent (generate scaffold file)
-python -m engine agent scaffold <name> --description "..."
+python .cbim-prompt/engine agent scaffold <name> --description "..."
 
 # Archive agent
-python -m engine agent archive <name>
+python .cbim-prompt/engine agent archive <name>
 ```

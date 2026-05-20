@@ -1,9 +1,9 @@
-"""
+﻿"""
 cli.py — Knowledge engine command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI
 (see cbim-prompt/engine/cli.py). This module no longer exposes a `main()`
-or `__main__` block — invoke via `python -m engine <domain> <command>`.
+or `__main__` block — invoke via `python .cbim-prompt/engine <domain> <command>`.
 """
 
 import argparse
@@ -114,7 +114,7 @@ def cmd_modules_init(args: argparse.Namespace) -> int:
             files += ", contract.md"
         print(f"  Edit {files}")
         if args.type != "root":
-            print(f"  Then run: python -m engine dna reindex")
+            print(f"  Then run: python .cbim-prompt/engine dna reindex")
     except (FileExistsError, FileNotFoundError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1

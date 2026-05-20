@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Agent Assessment (HR)
 
 > Simulates a senior leader review: structured inspection of agent definitions across two dimensions:
@@ -24,7 +24,7 @@ Project content (module names, business logic, specific paths) belongs in the bu
 Run basic format checks (factors 1–3) only on agents that participated in this task:
 
 ```bash
-python -m engine agent show <name>
+python .cbim-prompt/engine agent show <name>
 ```
 
 - [ ] Frontmatter fields complete (`name`, `description`, `model`, `tools`)
@@ -45,7 +45,7 @@ The script automatically handles deterministic checks for factors **#1 #3 #7**, 
 **MUST issues must be fixed before the LLM analysis phase.**
 
 ```bash
-python -m engine agent list
+python .cbim-prompt/engine agent list
 ```
 
 Run steps 1–5 for each work agent (single-agent review), then run step 6 (cross-agent horizontal comparison).
@@ -98,8 +98,8 @@ Agent definitions are **portable capability descriptions**, not project document
 Collect recent execution records:
 
 ```bash
-python -m engine memory query "<agent-name>" --top-k 15
-python -m engine memory query "review <agent-name>" --top-k 5
+python .cbim-prompt/engine memory query "<agent-name>" --top-k 15
+python .cbim-prompt/engine memory query "review <agent-name>" --top-k 5
 ```
 
 | # | Factor | Check Method | Check By |

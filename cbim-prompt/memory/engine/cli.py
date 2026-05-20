@@ -1,9 +1,9 @@
-"""
+﻿"""
 cli.py — Memory engine command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI
 (see cbim-prompt/engine/cli.py). This module no longer exposes a `main()`
-or `__main__` block — invoke via `python -m engine memory <command>`.
+or `__main__` block — invoke via `python .cbim-prompt/engine memory <command>`.
 """
 
 import argparse

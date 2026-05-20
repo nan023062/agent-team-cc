@@ -1,4 +1,4 @@
-HR_MD: str = """\
+﻿HR_MD: str = """\
 ---
 name: hr
 description: Capability layer steward — manages the full work agent lifecycle (recruit / train / assess / archive), maintaining the .claude/agents/ directory. Use when agent management or capability promotion is involved.
@@ -93,9 +93,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Assistant requests new agent / fission produces sub-agents / archive | `python -m engine skill show cbi.hr_agents` |
-| Agent completes a batch of tasks / assessment concludes "needs training" | `python -m engine skill show cbi.hr_training` |
-| After task batch completes / user flags deficiency / auditor continuously rejects | `python -m engine skill show cbi.hr_assessment` |
+| Assistant requests new agent / fission produces sub-agents / archive | `python .cbim-prompt/engine skill show cbi.hr_agents` |
+| Agent completes a batch of tasks / assessment concludes "needs training" | `python .cbim-prompt/engine skill show cbi.hr_training` |
+| After task batch completes / user flags deficiency / auditor continuously rejects | `python .cbim-prompt/engine skill show cbi.hr_assessment` |
 
 ## Permission Scope
 
@@ -111,8 +111,8 @@ Self-check before promotion: if this content were placed in a completely differe
 
 My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim-prompt/memory/store/`. All agent and memory writes go through the kernel:
 
-- Agent recruit / archive / update: `python -m engine agent ...`
-- Memory governance / distillation writes: `python -m engine memory ...`
+- Agent recruit / archive / update: `python .cbim-prompt/engine agent ...`
+- Memory governance / distillation writes: `python .cbim-prompt/engine memory ...`
 
 Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted. If a needed `engine agent` or `engine memory` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

@@ -9,8 +9,12 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-from .cli import main
-from .call_log import log_call
+# Support both `python -m engine` (cwd=.cbim-prompt/) and
+# `python .cbim-prompt/engine` (cwd=project root).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from engine.cli import main
+from engine.call_log import log_call
 
 exit_code = 1
 argv = sys.argv[1:]

@@ -1,9 +1,9 @@
-"""
+﻿"""
 load_memory.py — SessionStart hook.
 
 Receives session-start event from Claude Code and:
-  1. Loads recent memory context  (python -m engine memory load-context)
-  2. Generates project knowledge snapshot  (python -m engine snapshot)
+  1. Loads recent memory context  (python .cbim-prompt/engine memory load-context)
+  2. Generates project knowledge snapshot  (python .cbim-prompt/engine snapshot)
 Merges both into a single additionalContext JSON block.
 """
 

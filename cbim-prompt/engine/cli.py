@@ -1,8 +1,8 @@
-"""
+﻿"""
 engine/cli.py — Unified CBIM CLI entry point.
 
 Usage (cwd=cbim-prompt/):
-  python -m engine <domain> <command> [args]
+  python .cbim-prompt/engine <domain> <command> [args]
 
 Domains:
   memory      write-session | load-context | add | query | delete | reindex | cleanup | preview
@@ -26,7 +26,7 @@ from engine.log_view import cmd_log_show, cmd_log_tail
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(prog="python -m engine")
+    parser = argparse.ArgumentParser(prog="python .cbim-prompt/engine")
     sub = parser.add_subparsers(dest="domain")
 
     # memory ------------------------------------------------------------------

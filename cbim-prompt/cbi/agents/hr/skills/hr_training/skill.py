@@ -1,4 +1,4 @@
-SKILL: str = """\
+﻿SKILL: str = """\
 # Skill: Agent Training (HR)
 
 > Extract signals from medium-memory capability entries, and promote validated patterns to Skills or internalize them into the Soul, raising a work agent's capability ceiling.
@@ -19,7 +19,7 @@ SKILL: str = """\
 List the agent's medium-tier entries:
 
 ```bash
-.venv/bin/python -m engine memory query "" --tier medium --top-k 20
+python .cbim-prompt/engine memory query "" --tier medium --top-k 20
 ```
 
 Find `capability-<agent-id>.md`; read its full content with the Read tool.

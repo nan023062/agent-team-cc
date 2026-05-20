@@ -1,4 +1,4 @@
-# Knowledge — Long-Term Memory
+﻿# Knowledge — Long-Term Memory
 
 > CBIM knowledge base: dual-domain management engine for the capability layer (`.claude/agents/`) and the business layer (`.dna/`), embodying the Capability-Business Independence design philosophy.
 
@@ -61,16 +61,16 @@ knowledge/
 
 ```bash
 # Capability layer
-python -m engine agent list
-python -m engine agent show <name>
-python -m engine agent scaffold <name> --description "..."
-python -m engine agent archive <name>
+python .cbim-prompt/engine agent list
+python .cbim-prompt/engine agent show <name>
+python .cbim-prompt/engine agent scaffold <name> --description "..."
+python .cbim-prompt/engine agent archive <name>
 
 # Business layer
-python -m engine dna list
-python -m engine dna show <module-dir>
-python -m engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
-python -m engine dna reindex
+python .cbim-prompt/engine dna list
+python .cbim-prompt/engine dna show <module-dir>
+python .cbim-prompt/engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner>
+python .cbim-prompt/engine dna reindex
 ```
 
 ---
