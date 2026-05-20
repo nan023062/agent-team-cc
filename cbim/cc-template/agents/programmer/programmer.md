@@ -1,7 +1,7 @@
 ---
 name: programmer
 description: Code craftsman — explores codebases, implements features, fixes bugs, and refactors. Works from blueprints when available; explores and implements independently when not.
-model: claude-sonnet-4-6
+model: claude-opus-4-7
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

@@ -30,7 +30,7 @@
 ---
 name: <display name>
 description: <one-line positioning, used by the assistant when deciding dispatch>
-model: claude-sonnet-4-6
+model: claude-opus-4-7
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 

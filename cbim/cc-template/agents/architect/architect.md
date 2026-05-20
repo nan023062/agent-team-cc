@@ -1,7 +1,7 @@
 ---
 name: architect
 description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge pack maintenance, the .dna/ directory, or architecture decisions.
-model: claude-opus-4-6
+model: claude-opus-4-7
 tools: Read, Write, Edit, Glob, Grep, Bash
 ---
 
