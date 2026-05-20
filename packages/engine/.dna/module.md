@@ -17,7 +17,7 @@ graph TD
     subgraph engine ["@cbim/engine"]
         KNOWLEDGE["knowledge/<br/><i>Module CRUD, tree scanning,<br/>snapshot construction</i>"]
         MEMORY["memory/<br/><i>Three-stage distillation:<br/>short - medium - distilled</i>"]
-        DISPATCH["dispatch/<br/><i>Agent scheduling via<br/>Claude Agent SDK interfaces</i>"]
+        DISPATCH["dispatch/<br/><i>Event listener + custom tool<br/>handler routing via Managed Agents</i>"]
         MIGRATION["migration/<br/><i>v1 to v2 project layout<br/>migration planner + executor</i>"]
         TOOLS["tools/<br/><i>SDK Tool thin shell: schema +<br/>call engine fn + format output</i>"]
     end
@@ -53,4 +53,4 @@ graph TD
 
 - **Why migration/ is isolated?** Migration is a one-time operation per project. It has no runtime coupling with knowledge/memory/dispatch and should not add weight to the engine's runtime footprint. It reads v1 file layouts and writes v2 file layouts -- pure file transformation with no engine runtime state.
 
-- **Knowledge access closedness -- where is it enforced?** The engine itself is permissive -- its functions read/write `.cbim/` and `.dna/` paths freely. The closedness principle (Section 7 of v2-plan) is enforced at two levels: (1) SDK `canUseTool` path guard in the extension, blocking agents from using generic file tools on CBIM-managed paths; (2) `cbim_*` tools as the only sanctioned entry points for agents. Engine provides the tools; extension enforces the gate.
+- **Knowledge access closedness -- where is it enforced?** The engine itself is permissive -- its functions read/write `.cbim/` and `.dna/` paths freely. The closedness principle (Section 7 of v2-plan) is a design-time property: each agent is registered via `agents.create()` with only its role-specific `cbim_*` tools -- no generic Read/Write/Edit/Glob/Grep/Bash tools are ever registered. The agent cannot access tools it was never given. Engine provides the tool handlers; `getToolSet(role)` controls what each role receives.
