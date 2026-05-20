@@ -2,7 +2,7 @@
 cli.py — Memory engine command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI
-(see cbim-prompt/engine/cli.py). This module no longer exposes a `main()`
+(see .cbim/engine/cli.py). This module no longer exposes a `main()`
 or `__main__` block — invoke via `python .cbim/engine memory <command>`.
 """
 
@@ -133,7 +133,7 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 def cmd_preview(args: argparse.Namespace) -> int:
     import sys as _sys
 
-    cbim_dir = Path(__file__).parent.parent.parent  # cbim-prompt/
+    cbim_dir = Path(__file__).parent.parent.parent  # .cbim/
     preview_dir = cbim_dir / "preview"
     cbim_str = str(cbim_dir)
     if cbim_str not in _sys.path:

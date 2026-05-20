@@ -20,7 +20,7 @@
     └── <id>.md          # complete agent definition (frontmatter + soul)
 ```
 
-> **Skills are not inside the agent directory.** Operation skill documents are stored uniformly in `cbim-prompt/cbi/skills/`; the agent's Skills table references them by path.
+> **Skills are not inside the agent directory.** Operation skill documents are stored uniformly in `.cbim/cbi/skills/`; the agent's Skills table references them by path.
 
 ---
 
@@ -52,7 +52,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 | Scenario | Skill File |
 |----------|-----------|
-| <scenario description> | `cbim-prompt/cbi/skills/<skill-name>/SKILL.md` |
+| <scenario description> | `.cbim/cbi/skills/<skill-name>/SKILL.md` |
 ```
 
 ---
@@ -74,7 +74,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 Self-check: if this content is placed in a completely different project, does it still make sense?
 - Yes → can be written into the soul
-- No → leave it in `cbim-prompt/memory/store/`, do not promote
+- No → leave it in `.cbim/memory/store/`, do not promote
 
 **What to write**:
 - Personality and communication style (makes the agent recognizable, collaboration more natural)

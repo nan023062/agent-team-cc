@@ -1,8 +1,8 @@
 """
 agents.py — Materialize the 4 core agent .md files into .claude/agents/.
 
-The contents come from cbi/agents/*.py constants; the installer
-no longer copies physical agent files from cc-template/.
+The contents come from cbi/agents/<name>/agent.py constants (one per agent),
+exported as ARCHITECT_MD / AUDITOR_MD / HR_MD / PROGRAMMER_MD.
 """
 
 from pathlib import Path

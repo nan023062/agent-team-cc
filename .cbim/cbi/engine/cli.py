@@ -2,7 +2,7 @@
 cli.py — Knowledge engine command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI
-(see cbim-prompt/engine/cli.py). This module no longer exposes a `main()`
+(see .cbim/engine/cli.py). This module no longer exposes a `main()`
 or `__main__` block — invoke via `python .cbim/engine <domain> <command>`.
 """
 

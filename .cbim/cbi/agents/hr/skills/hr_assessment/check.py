@@ -5,7 +5,7 @@ Scriptable factors: #1 #3 #3b(skill content) #7
 Remaining factors require LLM analysis (see skill.py).
 
 Usage:
-  python cbim-prompt/cbi/skills/hr_assessment/check.py [--root <path>] [--json]
+  python .cbim/cbi/skills/hr_assessment/check.py [--root <path>] [--json]
 Exit code: 0 = all MUST pass, 1 = MUST issues found.
 """
 

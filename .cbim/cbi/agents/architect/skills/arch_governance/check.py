@@ -9,7 +9,7 @@ Supports dual format:
   - Legacy: .dna/module.json + .dna/architecture.md (deprecated)
 
 Usage:
-  python cbim-prompt/cbi/skills/arch_governance/check.py [--root <path>] [--json]
+  python .cbim/cbi/skills/arch_governance/check.py [--root <path>] [--json]
 Exit code: 0 = all MUST pass, 1 = MUST issues found.
 """
 
@@ -211,7 +211,7 @@ def _detect_phantom_subnodes(arch: str, parent_path: str, parent_dir: Path,
 
     # Collect immediate sub-directories of the parent module, applying the
     # same skip-list used by module discovery so that framework/vendor dirs
-    # (cbim-prompt/, node_modules/, dist/, ...) don't get reported as phantoms when
+    # (.cbim/, node_modules/, dist/, ...) don't get reported as phantoms when
     # referenced in the root graph.
     try:
         sub_dirs = {
@@ -261,7 +261,7 @@ def run_checks(root: Path) -> dict[str, list[str]]:
     all_paths = set(mod_map)
     dep_graph = {m["path"]: [d for d in m.get("dependencies", [])] for m in modules}
 
-    # Module registry lives at cbim-prompt/.dna/index.md (framework-managed). This
+    # Module registry lives at .cbim/.dna/index.md (framework-managed). This
     # replaces the old <project-root>/.dna/index.md location.
     index_paths: set[str] = set(read_index(root))
 

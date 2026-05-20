@@ -1,7 +1,7 @@
 """
 engine/cli.py — Unified CBIM CLI entry point.
 
-Usage (cwd=cbim-prompt/):
+Usage (cwd=.cbim/):
   python .cbim/engine <domain> <command> [args]
 
 Domains:

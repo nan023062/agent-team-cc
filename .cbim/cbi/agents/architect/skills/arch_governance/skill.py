@@ -35,7 +35,7 @@ python .cbim/engine dna list
 ### Preparation: Run the Script First
 
 ```bash
-python cbim-prompt/cbi/skills/arch_governance/check.py --root .
+python .cbim/cbi/skills/arch_governance/check.py --root .
 ```
 
 The script automatically handles deterministic checks for factors **#1 #2 #3 #4 #10 #14 #15 #17 #19 #20 #21**, outputting a MUST / SUGGEST list.

@@ -22,7 +22,7 @@ CBIM vs Base（单 Agent）开发效率对比测试。
 ## 目录结构
 
 ```
-cbim-prompt/benchmark/agent-team/        ← 本目录（在 cbim 项目中）
+benchmark/agent-team/        ← 本目录（在 cbim 项目中）
 ├── README.md                     ← 本文件
 ├── reset-bench.sh                ← 重置脚本（操作 agent-team）
 ├── prompts/

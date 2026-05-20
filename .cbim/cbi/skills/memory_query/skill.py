@@ -18,7 +18,7 @@ python .cbim/engine memory query "" --tier short --top-k 5
 python .cbim/engine memory query "" --tier medium --top-k 3
 ```
 
-If CBIM is installed as a subdirectory (e.g. `cbim-prompt/`), prefix with that path:
+If CBIM is installed as a subdirectory (e.g. `.cbim/`), prefix with that path:
 
 ```bash
 python .cbim/engine memory query "" --top-k 5

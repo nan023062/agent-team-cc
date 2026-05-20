@@ -21,7 +21,7 @@ CBIM is designed specifically to solve both:
 
 | Goal | CBIM's Solution |
 |------|----------------|
-| **Can run autonomously** | SessionStart/Stop hooks for zero-cost cross-session context recovery; coordinator dispatch with no human routing needed; knowledge snapshot gives agents full project picture at startup; v2 task queue for autonomous consumption of requirement lists, bug reports, and test runs |
+| **Can run autonomously** | SessionStart/Stop hooks for zero-cost cross-session context recovery; assistant dispatch with no human routing needed; knowledge snapshot gives agents full project picture at startup; v2 task queue for autonomous consumption of requirement lists, bug reports, and test runs |
 | **Runs healthily** | Architect Gate ensures layered, bounded output; `.dna/` knowledge base makes human review extremely low-cost; two-layer governance continuously ensures architecture quality; context minimization reduces hallucinations and rework |
 
 Both conditions met simultaneously — **agents deliver autonomously, humans handle only final review**.
@@ -43,7 +43,7 @@ This philosophy is reflected in every layer of the framework's design:
 
 | Separation Dimension | Capability Side | Business Side |
 |---------------------|-----------------|---------------|
-| Storage | `.claude/agents/` (soul) + `cbim-prompt/cbi/skills/` (capability skills) | `.dna/` directory = module identity; `module.md` = sole hard constraint; everything else optional |
+| Storage | `.claude/agents/` (soul) + `.cbim/cbi/skills/` (capability skills) | `.dna/` directory = module identity; `module.md` = sole hard constraint; everything else optional |
 | Governed by | HR | Architect |
 | Hard rule | soul/skills must contain zero project-specific content | knowledge files must not reference agent specs |
 | Verifiable | still meaningful when moved to another project → compliant | describes only current final working state, never describes agents |
@@ -78,7 +78,7 @@ CBIM solves both simultaneously:
 |---|---|---|
 | Project context | One `CLAUDE.md` (grows unboundedly with project) | Module topology tree `.dna/` (split by module boundary, load subtree on demand) |
 | Business rules | Written into `CLAUDE.md` or `.claude/skills/` | Written into the module's `module.md` (the sole required file); `contract.md` and `workflows/` are optional extensions |
-| Operational steps | `.claude/skills/` fully registered, always in context | `cbim-prompt/cbi/skills/` (capability) + `.dna/workflows/` (business), loaded on demand |
+| Operational steps | `.claude/skills/` fully registered, always in context | `.cbim/cbi/skills/` (capability) + `.dna/workflows/` (business), loaded on demand |
 | Agent | One large catch-all agent + countless skills | Multiple specialized agents, each task loads only the target agent soul |
 | Governance | None | Architect (business layer, three-traversal topology tree) + HR (capability layer) dual-track governance |
 
@@ -104,7 +104,7 @@ Only with both axes can each task simultaneously pinpoint "which agent to use" a
 The `.dna/` convention follows a philosophy of **minimal constraint + open extension**:
 
 - **`.dna/` directory exists = module identity.** No directory, no module. The directory's presence is the sole marker.
-- **`module.md` is the only hard constraint** — one file, YAML frontmatter (metadata) + markdown body (architecture), replacing the former `module.json` + `architecture.md` combination. This mirrors the unified `frontmatter + body` pattern used by `.claude/agents/<name>.md` and `cbim-prompt/cbi/skills/<name>/SKILL.md`.
+- **`module.md` is the only hard constraint** — one file, YAML frontmatter (metadata) + markdown body (architecture), replacing the former `module.json` + `architecture.md` combination. This mirrors the unified `frontmatter + body` pattern used by `.claude/agents/<name>.md` and `.cbim/cbi/skills/<name>/skill.py`.
 - **Everything else is optional** — `contract.md` (protocol boundary), `workflows/` (deterministic processes), or any user-defined files. The framework recommends them but never requires them.
 
 ```
@@ -231,15 +231,15 @@ Traditional Claude Code projects accumulate large numbers of skill files in `.cl
 
 | Type | Owner | Storage | Governed by | Characteristics |
 |------|-------|---------|-------------|----------------|
-| **Capability skill** | Agent private capability | `cbim-prompt/cbi/skills/<name>/SKILL.md` | HR | Describes how an agent does a category of operation; portable, meaningful in any project |
+| **Capability skill** | Agent private capability | `.cbim/cbi/skills/<name>/skill.py` | HR | Describes how an agent does a category of operation; portable, meaningful in any project |
 | **Business skill** | Module deterministic process | `.dna/workflows/<name>/workflow.md` | Architect | Describes specific module business steps; project-bound, evolves with the module |
 
 ```
 .claude/
-└── agents/          ← soul files, referencing capability skills in cbim-prompt/cbi/skills/
+└── agents/          ← soul files, referencing capability skills in .cbim/cbi/skills/
                         (no .claude/skills/, no messy pile-up)
 
-cbim-prompt/cbi/skills/   ← capability skills (HR governance, reusable across projects)
+.cbim/cbi/skills/   ← capability skills (HR governance, reusable across projects)
 .dna/workflows/          ← business skills (architect governance, deterministic module flows)
 ```
 
@@ -268,7 +268,7 @@ A project can have dozens of modules, each with multiple workflows — the press
 
 **Evolution path**:
 - Business process appears ≥ 2 times → architect distills into `.dna/workflows/` (business skill)
-- Agent capability accumulates and validates → HR distills into `cbim-prompt/cbi/skills/` (capability skill) → crystallized into soul
+- Agent capability accumulates and validates → HR distills into `.cbim/cbi/skills/` (capability skill) → crystallized into soul
 
 ---
 
@@ -405,9 +405,9 @@ Memory in CBIM is a **three-stage distillation pipeline**, with different purpos
 
 | Stage | Path | Purpose |
 |-------|------|---------|
-| **Short-term** | `cbim-prompt/memory/store/short/` | Raw session records; mainly for recent context recovery, auto-cleaned |
-| **Medium-term** | `cbim-prompt/memory/store/medium/` | Compressed pattern summaries; de-noised, preserves effective signals, long-term retention |
-| **Knowledge** (core) | `cbim-prompt/cbi/skills/` + `.dna/` | Structured crystallization: capability → skills/soul, business → `.dna/workflows/` |
+| **Short-term** | `.cbim/memory/store/short/` | Raw session records; mainly for recent context recovery, auto-cleaned |
+| **Medium-term** | `.cbim/memory/store/medium/` | Compressed pattern summaries; de-noised, preserves effective signals, long-term retention |
+| **Knowledge** (core) | `.cbim/cbi/skills/` + `.dna/` | Structured crystallization: capability → skills/soul, business → `.dna/workflows/` |
 
 Transformation between stages:
 - **Short → Medium**: Compression — strip execution details, retain patterns and lessons worth recording
@@ -415,8 +415,8 @@ Transformation between stages:
 
 | Layer | Path | Lifecycle |
 |-------|------|-----------|
-| Short-term | `cbim-prompt/memory/store/short/` | Tagged `distilled` after processing, kept at least 3 days then deleted by cleanup; undistilled never auto-deleted |
-| Medium-term | `cbim-prompt/memory/store/medium/` | Long-term retention, manually archived after promotion to knowledge layer |
+| Short-term | `.cbim/memory/store/short/` | Tagged `distilled` after processing, kept at least 3 days then deleted by cleanup; undistilled never auto-deleted |
+| Medium-term | `.cbim/memory/store/medium/` | Long-term retention, manually archived after promotion to knowledge layer |
 
 - **Stop hook** — `write-memory.py` automatically does two things at session end:
   1. Writes this session's dispatch content to short-term memory (`store/short/YYYY-MM-DD-*.md`)
@@ -427,7 +427,7 @@ Transformation between stages:
   2. **Last session recovery point** (`last-session.md`, always injected first)
   3. **Recent memory** (sorted by modification time, top-k entries)
 
-- **On-demand query** — during session, query history via `cbim-prompt/memory/engine/cli.py query`
+- **On-demand query** — during session, query history via `.cbim/memory/engine/cli.py query`
 
 ```
 Session ends
@@ -459,7 +459,7 @@ store/short/          Raw session records (auto-written)
     ↓ compress & distill
 store/medium/         Capability pattern summary (de-noised, signals retained)
     ↓ crystallize (the critical step)
-cbim-prompt/cbi/skills/<name>/SKILL.md   New or updated capability skill
+.cbim/cbi/skills/<name>/skill.py   New or updated capability skill
     ↓ internalized after multiple validations
 .claude/agents/<id>/<id>.md             Updated Soul / Identity
 ```
@@ -482,81 +482,95 @@ Split into multiple sub-modules
 
 ## Directory Structure (After Deployment)
 
+`.dna/` directories are scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The framework-managed registry at `.cbim/.dna/index.md` is the only hard requirement (created by install, updated by `init_module`).
+
 ```
 <project>/
 ├── CLAUDE.md                          ← Assistant identity (main session)
 │
 ├── .claude/
 │   ├── settings.json                  ← Permission config + hook registration
-│   └── agents/                        ← Installed from cbim-prompt/cc-template/agents/
-│       ├── architect/
-│       │   └── architect.md
-│       ├── hr/
-│       │   └── hr.md
-│       ├── auditor/
-│       │   └── auditor.md
-│       └── programmer/
-│           └── programmer.md
+│   ├── commands/                      ← Slash commands (/cbim_*)
+│   └── agents/
+│       ├── architect/architect.md
+│       ├── hr/hr.md
+│       ├── auditor/auditor.md
+│       └── programmer/programmer.md
 │
-├── .dna/                              ← Created by architect, project knowledge root module
-│   ├── index.md                       ← root-module-only: all module paths in the tree
-│   ├── module.md                      ← required: sole hard constraint (frontmatter + architecture)
-│   ├── contract.md                    ← optional: protocol boundary (REST / gRPC / SDK)
-│   ├── workflows/                     ← optional: deterministic process definitions
-│   └── ...                            ← optional: any user-defined files
+├── src/                               ← Your code (any layout)
+│   ├── combat/
+│   │   ├── .dna/                      ← Module (parent): describes children + boundaries
+│   │   │   ├── module.md              ← required: frontmatter + architecture body
+│   │   │   ├── contract.md            ← optional: protocol boundary (REST / gRPC / SDK)
+│   │   │   ├── workflows/             ← optional: deterministic process definitions
+│   │   │   └── ...                    ← optional: any user-defined files
+│   │   ├── skill/.dna/                ← Module (leaf)
+│   │   └── buff/.dna/                 ← Module (leaf)
+│   └── economy/.dna/                  ← Module
 │
-└── cbim-prompt/                              ← Framework
-    ├── install.py / install.bat
+├── .dna/                              ← OPTIONAL project-root module (single-app shape;
+│   └── module.md                      ←   monorepos typically skip this)
+│
+└── .cbim/                              ← Framework
+    ├── .dna/index.md                  ← Module registry (framework-managed; required after install)
+    ├── README.md / README.zh-CN.md
+    ├── config.json                    ← Local framework config
     │
-    ├── cc-template/                   ← Claude Code installation templates
-    │   ├── CLAUDE-template.md
-    │   ├── agents/                    ← Agent templates (single .md file each)
-    │   │   ├── architect/architect.md
-    │   │   ├── hr/hr.md
-    │   │   ├── auditor/auditor.md
-    │   │   └── programmer/programmer.md
-    │   └── hooks/
-    │       ├── load-memory.py         ← SessionStart: snapshot + memory injection
-    │       └── write-memory.py        ← Stop: write short-term memory
-    │
-    ├── knowledge/                     ← Knowledge base (capability + business CRUD)
+    ├── cbi/                           ← Capability + business knowledge base
     │   ├── README.md                  ← Four-quadrant architecture explanation
     │   ├── agent-convention.md        ← Agent definition spec
     │   ├── dna-convention.md          ← .dna/ content spec
-    │   ├── engine/                    ← CRUD primitives + CLI
-    │   │   ├── cli.py                 ← Unified entry (agents / modules dual domain)
+    │   ├── claude_md.py               ← CLAUDE.md template (assistant identity)
+    │   ├── agents/                    ← Agent souls + private skills
+    │   │   ├── architect/             ← agent.py + skills/{arch_governance,arch_modules,arch_upgrade}/
+    │   │   ├── auditor/               ← agent.py + skills/audit_review/
+    │   │   ├── hr/                    ← agent.py + skills/{hr_agents,hr_assessment,hr_training}/
+    │   │   └── programmer/agent.py
+    │   ├── engine/                    ← Knowledge CRUD primitives
+    │   │   ├── cli.py                 ← agents / modules dual-domain commands
     │   │   ├── agents.py
     │   │   ├── modules.py
-    │   │   └── snapshot.py            ← Project knowledge snapshot generation
-    │   └── skills/                    ← Operation skills (SKILL.md + runtime scripts)
-    │       ├── dispatch/              ← Assistant request classification and routing
-    │       ├── arch-modules/          ← Module CRUD
-    │       ├── arch-upgrade/          ← Knowledge promotion (memory → .dna/)
-    │       ├── arch-governance/       ← Architecture review (with check.py + config.json)
-    │       ├── hr-agents/             ← Agent CRUD
-    │       ├── hr-training/           ← Agent training
-    │       ├── hr-assessment/         ← Agent assessment (with check.py + config.json)
-    │       └── audit-review/          ← Auditor adversarial review
+    │   │   └── snapshot.py            ← Project knowledge snapshot
+    │   └── skills/                    ← Global skills (assistant + memory)
+    │       ├── dispatch/skill.py      ← Assistant request classification and routing
+    │       ├── memory_write/skill.py
+    │       ├── memory_query/skill.py
+    │       └── memory_distill/skill.py
+    │
+    ├── engine/                        ← Unified CLI entry (python .cbim/engine ...)
+    │   ├── cli.py                     ← memory / dna / agent / skill / soul / snapshot / config / debug / log
+    │   ├── config.py
+    │   └── log_view.py
+    │
+    ├── hooks/                         ← Runtime hooks (registered via .claude/settings.json)
+    │   ├── load_memory.py             ← SessionStart: snapshot + memory injection
+    │   └── write_memory.py            ← Stop: write short-term memory
     │
     ├── memory/                        ← Memory engine
-    │   ├── engine/                    ← Python package (FileBackend)
-    │   ├── skills/                    ← Memory operation skills (write / query / distill)
+    │   ├── engine/                    ← Python package (FileBackend / ChromaBackend)
     │   └── store/
     │       ├── short/                 ← Short-term memory (gitignored)
-    │       └── medium/               ← Medium-term memory (gitignored)
+    │       └── medium/                ← Medium-term memory (gitignored)
+    │
+    ├── docs/                          ← Architecture documentation
     │
     └── preview/                       ← Local preview server (memory / capability / knowledge)
         ├── server.py
         ├── preview.py / preview.bat
-        ├── index.html / app.js / style.css
-        └── __init__.py
+        └── index.html / app.js / style.css
+
+# Repo-only (not copied to target projects by the INSTALL.md flow):
+install/                                ← Install-time scripts and tools
+├── install.py / install.bat           ← Legacy one-shot installer entry
+├── cli.py / settings.py
+└── steps/{bootstrap,agents,hooks}.py
 ```
 
 ---
 
 ## Appendix: `module.md` Example
 
-`module.md` is the sole required file in `.dna/`. It combines metadata (YAML frontmatter) and architecture (markdown body) in one file — following the same `frontmatter + body` pattern as `.claude/agents/<name>.md` and `cbim-prompt/cbi/skills/<name>/SKILL.md`.
+`module.md` is the sole required file in `.dna/`. It combines metadata (YAML frontmatter) and architecture (markdown body) in one file — following the same `frontmatter + body` pattern as `.claude/agents/<name>.md` and `.cbim/cbi/skills/<name>/skill.py`.
 
 ### Leaf Module Example
 

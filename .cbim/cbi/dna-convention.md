@@ -6,7 +6,7 @@
 
 **Module**: Any directory containing a `.dna/` subdirectory is a module.
 
-**Module registry**: `cbim-prompt/.dna/index.md` is the canonical, framework-managed list of all modules in the project. It is **required** (auto-created by `install.py`, auto-updated by `init_module`). `list_modules` / `snapshot` read it for speed; full filesystem scans are reserved for `reindex` / governance validation.
+**Module registry**: `.cbim/.dna/index.md` is the canonical, framework-managed list of all modules in the project. It is **required** (auto-created by `install.py`, auto-updated by `init_module`). `list_modules` / `snapshot` read it for speed; full filesystem scans are reserved for `reindex` / governance validation.
 
 **Project-root module**: The project root MAY have its own `.dna/module.md`, making it the top of the tree. This is **optional**. Mixed monorepos / multi-system repos (e.g. v1 framework + v2 packages coexisting) typically skip it — having a project-root module would force a confusing "which system does this describe?" identity.
 
@@ -18,7 +18,7 @@
 
 | Layer | Content |
 |-------|---------|
-| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/`; `cbim-prompt/.dna/index.md` is the registry (must exist after install) |
+| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/`; `.cbim/.dna/index.md` is the registry (must exist after install) |
 | **Framework recommended** | `contract.md` (protocol boundary), `workflows/` (deterministic processes) |
 | **User freedom** | Any custom files under `.dna/` |
 | **Optional** | Project-root `.dna/module.md` — useful for single-application projects; skip in monorepos |
@@ -39,18 +39,18 @@
         └── <any user-defined files>  # optional: free extension
 ```
 
-> **Change logs are not inside the module directory.** Module changelogs are written into session memory (`cbim-prompt/memory/store/`); the architect periodically distills and promotes them back to `.dna/`.
+> **Change logs are not inside the module directory.** Module changelogs are written into session memory (`.cbim/memory/store/`); the architect periodically distills and promotes them back to `.dna/`.
 
 **Framework-managed registry** (always at this fixed location, even when the project has no root module):
 
 ```
 <project>/
-└── cbim-prompt/
+└── .cbim/
     └── .dna/
         └── index.md    # canonical list of all module paths in the project
 ```
 
-Note: `cbim-prompt/.dna/` contains **only** `index.md`. There is no `module.md` inside — `cbim-prompt/` is the framework, not a business module, and is excluded from module scans by `_SCAN_SKIP_DIRS`.
+Note: `.cbim/.dna/` contains **only** `index.md`. There is no `module.md` inside — `.cbim/` is the framework, not a business module, and is excluded from module scans by `_SCAN_SKIP_DIRS`.
 
 ---
 
@@ -201,7 +201,7 @@ Any change that alters the class diagram — new classes, changed interfaces, re
 
 ## Business Hard Rules
 
-1. **No history** — `module.md` and `contract.md` describe only the current final state. Never write what changed or why it changed. Changes go into session memory (`cbim-prompt/memory/store/`); the architect periodically distills and promotes them.
+1. **No history** — `module.md` and `contract.md` describe only the current final state. Never write what changed or why it changed. Changes go into session memory (`.cbim/memory/store/`); the architect periodically distills and promotes them.
 
 2. **Parent module writes only relationships and positioning** — A parent module's `module.md` body describes only: the relationships between child modules (dependency / composition / aggregation) and each child module's positioning. Never write any child module's internal details. Each child module's internal design is the responsibility of its own `module.md`. Any key decision that applies to a single child module belongs in that child's own `.dna/`, not in the parent.
 

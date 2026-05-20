@@ -52,7 +52,7 @@ def start() -> None:
     python = _python()
     PID_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    kwargs = dict(cwd=str(CBIM))  # cwd=cbim-prompt/ so `engine` package is importable
+    kwargs = dict(cwd=str(CBIM))  # cwd=.cbim/ so `engine` package is importable
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_CONSOLE
     else:

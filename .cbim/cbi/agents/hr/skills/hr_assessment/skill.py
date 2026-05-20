@@ -38,7 +38,7 @@ python .cbim/engine agent show <name>
 ### Preparation: Run the Script First
 
 ```bash
-python cbim-prompt/cbi/skills/hr_assessment/check.py --root .
+python .cbim/cbi/skills/hr_assessment/check.py --root .
 ```
 
 The script automatically handles deterministic checks for factors **#1 #3 #7**, outputting a MUST / SUGGEST list.
@@ -87,7 +87,7 @@ Agent definitions are **portable capability descriptions**, not project document
 
 | # | Factor | Check Method | Check By |
 |---|--------|-------------|----------|
-| 9 | Soul has no project content | `<id>.md` body does not contain: project names, module names, business logic, current task status, specific file paths (cbim-prompt/ framework paths excepted) | LLM |
+| 9 | Soul has no project content | `<id>.md` body does not contain: project names, module names, business logic, current task status, specific file paths (.cbim/ framework paths excepted) | LLM |
 | 10 | Skills have no project content | Each `SKILL.md` describes only operation methods and judgment principles; does not reference specific project module names or business rules | LLM |
 | 11 | Portability self-check | If this agent definition were placed in a completely different project, would it still make sense? Yes → compliant; No → project coupling exists and must be removed | LLM |
 

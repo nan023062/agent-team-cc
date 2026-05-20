@@ -1,7 +1,7 @@
 SKILL: str = """\
 # Skill: Write Short-term Memory (Session Entry)
 
-**Main agent only.** Two first-class triggers — both write to `cbim-prompt/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
+**Main agent only.** Two first-class triggers — both write to `.cbim/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
 
 ---
 
@@ -10,7 +10,7 @@ SKILL: str = """\
 | Trigger | Slug | When |
 |---------|------|------|
 | **User explicit request** (e.g. "记下"/"记住"/"remember this"/"save this") | `manual-<topic>` | **Mid-session, in response to a user message** — assistant invokes this skill immediately. This is a first-class flow, not an exception. |
-| **Stop hook (auto)** | `main-<auto-slug>` | At session end, `cbim-prompt/cc-template/hooks/write-memory.py` parses the transcript and writes a session summary. |
+| **Stop hook (auto)** | `main-<auto-slug>` | At session end, `.cbim/hooks/write_memory.py` parses the transcript and writes a session summary. |
 
 The Stop-hook flow is automatic — no action needed from the assistant. **This document is primarily for the user-explicit-request flow.**
 
@@ -51,7 +51,7 @@ When the user explicitly says to remember something:
 
 ## Entry Format
 
-File path: `cbim-prompt/memory/store/short/YYYY-MM-DD-{main|manual}-<slug>.md`
+File path: `.cbim/memory/store/short/YYYY-MM-DD-{main|manual}-<slug>.md`
 
 ```markdown
 ---
@@ -86,9 +86,9 @@ Signals are the raw material for distilling medium-term memory and governance de
 
 | Quadrant | Type | Answers What | Cross-Project | Final Destination |
 |----------|------|-------------|---------------|------------------|
-| **MUST** | maxim (principle) | What must never be violated? | **Yes** — holds across projects and languages | Agent soul / `cbim-prompt/cbi/skills/` |
+| **MUST** | maxim (principle) | What must never be violated? | **Yes** — holds across projects and languages | Agent soul / `.cbim/cbi/skills/` |
 | **WANT** | decision | Why choose this approach? | No — an active trade-off in the current project | `.dna/module.md` (ADR format) |
-| **HOW** | pipeline (flow) | How should this flow run? | Depends | Cross-project → `cbim-prompt/cbi/skills/`; project-specific → `.dna/workflows/` |
+| **HOW** | pipeline (flow) | How should this flow run? | Depends | Cross-project → `.cbim/cbi/skills/`; project-specific → `.dna/workflows/` |
 | **IS** | knowledge (fact) | What is the current fact? | No — a verifiable system fact | `.dna/contract.md` (if protocol-boundary) or `module.md` |
 
 ---

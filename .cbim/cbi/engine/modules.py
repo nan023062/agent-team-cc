@@ -186,13 +186,12 @@ def _load_legacy_format(mod_dir: Path, root: Path, aimod: Path,
 # not user business modules. Notably:
 #   - node_modules (+ .pnpm/...): pnpm copies workspace pkgs in, which duplicates
 #     real .dna/ many times and pollutes the index.
-#   - .cbim / cbim-prompt: the framework itself; user projects host it
-#     but shouldn't index it.
+#   - .cbim: the framework itself; user projects host it but shouldn't index it.
 #   - .git / dist / build / __pycache__ / .venv / coverage / .next / .cache:
 #     standard tool output / VCS metadata.
 _SCAN_SKIP_DIRS = {
     "node_modules", ".git", "dist", "build", "__pycache__",
-    ".venv", ".cbim", "cbim-prompt", ".pnpm-store", "coverage",
+    ".venv", ".cbim", ".pnpm-store", "coverage",
     ".next", ".cache",
 }
 
@@ -394,7 +393,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
     if not _index_path(root).exists():
         raise FileNotFoundError(
             f"Registry missing at {_index_path(root)}.\n"
-            f"Run `python cbim-prompt/install.py` first to install cbim into this project."
+            f"Run `python .cbim/install.py` first to install cbim into this project."
         )
 
     if type_ == "root":

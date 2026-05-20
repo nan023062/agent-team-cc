@@ -1,9 +1,9 @@
 """
 server.py — Local HTTP server for CBIM preview.
 
-Serves static files from cbim-prompt/preview/ and provides:
+Serves static files from .cbim/preview/ and provides:
   GET /api/entries    — memory entries (short + medium tier)
-  GET /api/agents     — agent definitions from cbim-prompt/agents/
+  GET /api/agents     — agent definitions from .cbim/agents/
   GET /api/knowledge  — .dna modules scanned from project root
   GET /heartbeat      — keep-alive (client pings every 10s)
 """

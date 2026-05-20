@@ -2,191 +2,94 @@
 
 # CBIM — Capability-Business Independence + Memory
 
-> Claude Code 的上下文管理框架。多 Agent 不是团队模拟，而是按能力维度隔离上下文的机制。
+> Claude Code 的上下文管理框架。多 agent 不是团队模拟——而是沿能力维度隔离上下文的机制。
 
-**CBIM** = **CBI**（Capability-Business Independence，能力-业务独立性）+ **M**（Memory，记忆系统）
-
-## 解决什么问题
-
-最常见的 Claude Code 工作模式：**一个默认 agent + 大量 CLAUDE.md + 大量 skill**。
-
-这个模式有一个随时间恶化的结构性问题：随着对话轮次增加，CLAUDE.md 和 skill 文件逐渐被全量加载进上下文，token 暴增、幻觉概率上升、输出质量下降，纠正错误又进一步污染上下文。
-
-重置 session 能清上下文，却带来另一个问题：记忆丢失，需要重新 grep 项目代码、重新理解结构，没有结构化的项目知识可以恢复。
-
-CBIM 同时解决这两个问题：
-
-| 问题 | 解法 |
-|------|------|
-| 上下文随轮次暴增 | 多 Agent × 模块拓扑树：每次任务只加载目标 agent soul + 任务子树 `.dna/` |
-| 重置后记忆丢失 | SessionStart hook 自动注入模块快照 + 近期记忆，重置 session 零成本恢复 |
+**CBIM** = **CBI**（能力-业务独立）+ **M**（记忆）
 
 ---
 
-## 设计哲学
+## 解决的问题
 
-核心 = **多 Agent（能力轴）× 模块拓扑树（业务轴）**
+最常见的 Claude Code 用法——**一个默认 agent + 一堆 CLAUDE.md 规则 + 一堆 skill**——有一个会越用越糟的结构性缺陷：
 
-- **能力轴**：多个专精 Agent，每次任务只加载目标 agent 的 soul，无多余能力上下文
-- **业务轴**：`.dna/` 目录按模块边界组成拓扑树（`module.md` = 每个模块的唯一硬约束），只加载任务所在子树，无多余业务上下文
-- **记忆**（Memory）：跨会话积累的原始素材 — session 恢复、能力治理（HR 提炼 → skills → soul）、业务治理（架构师提炼 → `.dna/` workflows）的共同来源
+- 轮次累积 → CLAUDE.md 和 skill 文件被全量加载 → token 爆炸、LLM "lost in the middle"、幻觉增加、修正污染上下文。
+- 重置 session → 上下文清空，但项目记忆也丢了。每次都得重新 grep、重新理解结构、重新对 agent 介绍项目。
 
-每次任务上下文 = 专精 agent soul × 任务子树 `.dna/`，与项目总规模无关。  
-少上下文 → 少幻觉 → 少错误 → 少纠正 → 净 token 低于单体大 agent 方案。
+## 解法原理
+
+**上下文 = 目标 agent 灵魂 × 任务子树 `.dna/`**——与项目总大小无关。
+
+| 问题 | CBIM 解法 |
+|---------|---------------|
+| 上下文随轮次膨胀 | **多 agent（能力轴）× 模块拓扑树（业务轴）**。每个任务只加载目标 agent + 相关模块子树。 |
+| 重置 session 后项目记忆丢失 | **SessionStart 钩子**自动注入：模块快照 + 近期记忆。零成本恢复。 |
+| 跨会话知识散落 | **三段式蒸馏管道**：短期记忆 → 中期模式 → 结晶知识（能力 skill / `.dna/` workflow）。 |
+
+```
+用户 → 助手（CLAUDE.md，唯一外部接口）
+         ├── 架构师     业务层治理（.dna/ 知识）
+         ├── HR        能力层治理（agent / skill）
+         ├── 评审       独立批判审查（只读）
+         └── 工作 agent  任务执行（HR 按需创建）
+```
+
+你只跟助手对话。它分解意图、路由到正确 agent、汇总结果。
 
 ---
 
-## 执行角色（上下文隔离机制）
+## 两种交付形态
 
-CBIM 用多个专精 agent 实现能力维度的上下文隔离——每次任务只加载目标 agent 的 soul，无多余能力上下文。这不是团队模拟，是上下文控制机制。
+本仓库同时承载 CBIM 同一套模型的两种实现：
 
-```
-用户
-  ↓
-助手（CLAUDE.md — 唯一对外接口，任务拆解与调度）
-  ├── 架构师   业务层治理：设计并维护项目知识体系（.dna/）
-  ├── HR       能力层治理：work agent 全生命周期管理
-  ├── 评审官   独立批判审查（对抗性视角，只读）
-  └── work agents   执行具体任务（按需由 HR 创建）
-```
+| 版本 | 形态 | 状态 | 位置 |
+|---------|------|--------|-------|
+| **V1 — 提示词版** | Claude Code 提示词、agent 定义、Python 钩子 | **现已可用** | `install/` + `.cbim/`（下方快速开始装的就是它） |
+| **V2 — 原生运行时** | C# / .NET 8 独立运行时 + Avalonia UI；用确定性状态机调度替代提示词驱动派发 | **即将推出** | [`CBIM/`](CBIM/) — 设计规格与架构白皮书 |
 
-你只需要和助手说话。助手负责理解意图、拆解任务、路由给目标 agent、汇总结果。
+V1 在 Claude Code 内验证了 CBIM 的理论（能力-业务独立 + 记忆分页）；V2 把同一套模型上升到强类型原生运行时，让上下文剪裁、派发路由和状态变更从概率性变为确定性。
 
 ---
 
-## 快速开始
+## 快速开始（V1 提示词版）
 
-### 方式一：一句话交给 Claude Code（推荐）
+### 方式一：通过 Claude Code 一键安装（推荐）
 
-在目标项目目录打开 Claude Code，发送这条消息，Agent 会自动完成全部安装步骤：
+在目标项目里打开 Claude Code，粘贴这条消息：
 
 ```
-请访问 https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md 获取 CBIM 安装 SOP，从第一条分隔线之后的内容开始，在当前项目执行所有步骤完成安装
+Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
 ```
 
-### 方式二：手动运行安装脚本
+### 方式二：复制式手动安装
+
+按 [`INSTALL.md`](INSTALL.md) 操作——克隆本仓库到临时目录，把四件套（`.cbim/`、`.claude/`、`CLAUDE.md`、`.claudeignore`）复制到目标项目，创建 venv。合并语义会保留用户自定义的 settings.json 键和 `.claudeignore` 条目。
+
+### 方式三：一键安装脚本（遗留）
 
 ```bash
-# 1. 克隆 CBIM 到目标项目的 cbim-prompt/ 目录
-git clone --branch master https://github.com/nan023062/cbim.git _cbim_tmp
-cp -r _cbim_tmp/cbim-prompt .
-rm -rf _cbim_tmp
-
-# 2. 运行安装脚本
-python3 cbim-prompt/install.py        # macOS / Linux
-# 或双击 cbim-prompt/install.bat      # Windows
-
-# 3. 重启 Claude Code
-claude
+git clone --branch master https://github.com/nan023062/cbim.git
+cd cbim
+python3 install/install.py --root /path/to/your/project
 ```
 
----
-
-## 安装后首次使用
-
-重启 Claude Code 后，发送：
-
-> **"请初始化本项目的模块知识体系"**
-
-助手派发架构师建立 `.dna/` 知识体系，之后即可正常使用。
+安装完成后重启 Claude Code。然后发送：**"请初始化本项目的模块知识体系"**。
 
 ---
 
-## 后续怎么用
+## 安装之后
 
-直接告诉助手要做什么，不用指定 agent：
+安装好的框架自带用户手册：
 
-| 你想做 | 直接说 |
-|--------|--------|
-| 初始化知识体系 | 请初始化本项目的模块知识体系 |
-| 新建功能模块 | 新建一个 combat 模块 |
-| 实现功能 | 按当前蓝图实现登录接口 |
-| 审查设计 | 审一下这次改动 |
-| 查历史决策 | 查一下 combat 模块的历史决策 |
-| 招募新 agent | 帮我招募一个 AI 工程师 |
+- **使用手册**：[`.cbim/README.md`](.cbim/README.md) | [`.cbim/README.zh-CN.md`](.cbim/README.zh-CN.md) — 怎么用、目录布局、slash 命令、治理模型
+- **架构详解**：[`.cbim/docs/ARCHITECTURE.md`](.cbim/docs/ARCHITECTURE.md) | [`.cbim/docs/ARCHITECTURE.zh-CN.md`](.cbim/docs/ARCHITECTURE.zh-CN.md)
 
 ---
 
-## 目录结构（部署后）
-
-```
-your-project/
-├── CLAUDE.md                      ← 助手身份（主 session）
-├── .venv/                         ← Python 虚拟环境（gitignore）
-│
-├── .claude/
-│   ├── settings.json              ← 权限配置 + hook 注册
-│   └── agents/
-│       ├── architect/             ← 架构师
-│       ├── hr/                    ← HR
-│       ├── auditor/               ← 评审官
-│       └── programmer/            ← 程序员（默认 work agent）
-│
-├── .dna/                          ← 项目知识根模块（架构师创建）
-│   ├── index.md                   ← 仅根模块：全树模块路径列表
-│   ├── module.md                  ← 必需：唯一硬约束（frontmatter + 架构）
-│   ├── contract.md                ← 可选：协议边界
-│   ├── workflows/                 ← 可选：确定性流程定义
-│   └── ...                        ← 可选：用户自定义文件
-│
-└── cbim-prompt/                          ← 框架本体（git clone 到此目录）
-    ├── install.py                 ← 自动安装脚本
-    ├── install.bat                ← Windows 安装入口
-    ├── cc-template/               ← Claude Code 安装模板
-    ├── knowledge/                 ← 知识库引擎（能力层 + 业务层 CRUD）
-    ├── memory/                    ← 记忆引擎（FileBackend）
-    └── preview/                   ← 本地可视化服务
-```
-
----
-
-## 两层治理 · 两类 Skill
-
-| 层级 | 治理者 | 管辖 | 铁律 |
-|------|--------|------|------|
-| **能力层** | HR | `.claude/agents/`（soul）+ `cbim-prompt/knowledge/skills/`（能力向 skill） | soul/skills 不含任何项目特定内容 |
-| **业务层** | 架构师 | 项目各级 `.dna/`（`module.md` = 唯一硬约束；扩展全部可选） | 知识文件不引用 agent 规范 |
-
-`.dna/` 约定：**约定最小化 + 扩展开放**。目录存在 = 模块。`module.md` 是唯一必需文件（YAML frontmatter + 架构正文）。`contract.md`、`workflows/`、用户自定义文件全部可选。
-
-CBIM 将 skill 按「谁拥有」一分为二，`.claude/` 下只有 `agents/`，不再堆积 `skills/`：
-
-| 类型 | 存储 | 特征 |
-|------|------|------|
-| **能力向 skill** | `cbim-prompt/knowledge/skills/` | agent 私有能力，可移植，HR 治理 |
-| **业务向 skill** | `.dna/workflows/` | 模块确定性流程，与项目绑定，架构师治理 |
-
----
-
-## 记忆系统
-
-记忆是三阶段蒸馏管道，不只是上下文恢复：
-
-| 阶段 | 路径 | 目的 |
-|------|------|------|
-| 短期 | `cbim-prompt/memory/store/short/` | 原始 session 记录；提炼后标记 `distilled`，至少保留 3 天后清理 |
-| 中期 | `cbim-prompt/memory/store/medium/` | 压缩提炼后的模式摘要；升格至知识层后归档 |
-| 知识（核心） | `cbim-prompt/knowledge/skills/` + `.dna/` | 固化结构：能力进 skills/soul，业务进 workflows |
-
-短期 → 中期 是**压缩**；中期 → 知识 是**最核心的一步**——将验证过的模式固化为治理结构，成为后续所有任务的基础。
-
-SessionStart hook 在每次会话开始时自动注入：项目知识快照（模块树 + agent 列表）+ 上次恢复点 + 近期记忆。
-
----
-
-## 架构详解
-
-见 [docs/ARCHITECTURE.zh-CN.md](docs/ARCHITECTURE.zh-CN.md) | [Architecture (English)](docs/ARCHITECTURE.md)
-
----
-
-## 依赖
+## 环境要求
 
 - Python 3.10+
 - Claude Code CLI
-- 无额外依赖（记忆引擎默认使用 FileBackend，纯标准库）
-
----
+- 无额外依赖（记忆引擎默认用 FileBackend，纯标准库）
 
 ## License
 
