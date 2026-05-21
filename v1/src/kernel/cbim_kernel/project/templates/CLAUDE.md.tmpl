@@ -136,6 +136,18 @@ CBIM governance state lives in three directories. **All writes to these director
 
 ---
 
+## Kernel Upgrade Prompt
+
+If `additionalContext` at session start contains a `[cbim:upgrade-prompt]` block:
+1. Present the upgrade to the user in natural language using the `current`, `target`, `preserves`, and `overwrites` fields from the block
+2. Ask for confirmation before proceeding
+3. On user confirmation, run the `on_confirm` command via Bash tool directly (do not dispatch agents)
+4. Report the result
+
+This is a coordinator-level system task — no agent dispatch needed.
+
+---
+
 ## Hard Rules
 
 - Do not execute business tasks directly — delegate to the appropriate agent

@@ -1,14 +1,12 @@
 """`cbim init` — bootstrap a new CBIM project."""
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-_PKG_DIR = Path(__file__).resolve().parent
-_TEMPLATES = _PKG_DIR / "templates"
-_AGENTS = _PKG_DIR / "agents"
+from cbim_kernel.project import sync as _sync
 
-_AGENT_NAMES = ("architect", "auditor", "hr", "programmer")
+_TEMPLATES = _sync._TEMPLATES
+_AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
 
 
 def _read_template(name: str) -> str:
@@ -34,15 +32,6 @@ def _ensure_dir(path: Path, root: Path) -> None:
     _print("created", path, root)
 
 
-def _write_if_absent(path: Path, content: str, root: Path, force: bool) -> None:
-    if path.exists() and not force:
-        _print("skipped (exists)", path, root)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
-    _print("created" if not path.exists() or not force else "overwrote", path, root)
-
-
 def _install_config(project_root: Path, version: str, force: bool) -> None:
     cfg_path = project_root / ".cbim" / "config.json"
     if cfg_path.exists() and not force:
@@ -56,88 +45,46 @@ def _install_config(project_root: Path, version: str, force: bool) -> None:
 
 def _install_agents(project_root: Path, force: bool) -> None:
     for name in _AGENT_NAMES:
-        src = _AGENTS / f"{name}.md"
         dst = project_root / ".claude" / "agents" / name / f"{name}.md"
         if dst.exists() and not force:
             _print("skipped (exists)", dst, project_root)
             continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-        _print("created", dst, project_root)
+        # Delegate to sync's always-overwrite primitive.
+        action = _sync.sync_agent(project_root, name, dry_run=False)
+        print(f"[cbim] {action}")
 
 
 def _install_settings(project_root: Path, force: bool) -> None:
-    """Merge CBIM-managed keys into .claude/settings.json (preserve user keys)."""
+    # sync_settings already merges idempotently; force has no effect on merge
+    # semantics (the merge is always safe).
     settings_path = project_root / ".claude" / "settings.json"
-    template = json.loads(_read_template("settings.json.tmpl"))
-
-    if settings_path.exists():
-        try:
-            existing = json.loads(settings_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            _print("skipped (invalid JSON, not touching)", settings_path, project_root)
-            return
-        before = json.dumps(existing, sort_keys=True, ensure_ascii=False)
-        existing["hooks"] = template["hooks"]
-        existing.setdefault("permissions", {})
-        existing["permissions"]["deny"] = template["permissions"]["deny"]
-        existing["permissions"].setdefault(
-            "defaultMode", template["permissions"]["defaultMode"]
-        )
-        existing["mcpServers"] = template["mcpServers"]
-        after = json.dumps(existing, sort_keys=True, ensure_ascii=False)
-        if before == after and not force:
-            _print("skipped (already up to date)", settings_path, project_root)
-            return
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(
-            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        _print("merged", settings_path, project_root)
+    pre_existed = settings_path.exists()
+    action = _sync.sync_settings(project_root, dry_run=False)
+    # If the file already existed AND nothing changed AND not forcing, mirror
+    # the historical "skipped (already up to date)" phrasing.
+    if pre_existed and action.startswith("unchanged") and not force:
+        _print("skipped (already up to date)", settings_path, project_root)
         return
-
-    settings_path.parent.mkdir(parents=True, exist_ok=True)
-    settings_path.write_text(
-        json.dumps(template, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    _print("created", settings_path, project_root)
+    print(f"[cbim] {action}")
 
 
 def _install_claude_md(project_root: Path, force: bool) -> None:
     dst = project_root / "CLAUDE.md"
-    content = _read_template("CLAUDE.md.tmpl")
     if dst.exists() and not force:
         _print("skipped (exists)", dst, project_root)
         return
-    dst.write_text(content, encoding="utf-8")
-    _print("created", dst, project_root)
+    action = _sync.sync_claude_md(project_root, dry_run=False)
+    print(f"[cbim] {action}")
 
 
 def _patch_gitignore(project_root: Path) -> None:
     gi_path = project_root / ".gitignore"
-    entries = [
-        line.strip()
-        for line in _read_template("gitignore_entries.txt").splitlines()
-        if line.strip()
-    ]
-
-    if gi_path.exists():
-        existing_text = gi_path.read_text(encoding="utf-8")
-        existing_lines = {line.strip() for line in existing_text.splitlines()}
-        missing = [e for e in entries if e not in existing_lines]
-        if not missing:
-            _print("skipped (already up to date)", gi_path, project_root)
-            return
-        suffix = "" if existing_text.endswith("\n") or not existing_text else "\n"
-        addition = suffix + "\n# CBIM\n" + "\n".join(missing) + "\n"
-        gi_path.write_text(existing_text + addition, encoding="utf-8")
-        _print("patched", gi_path, project_root)
+    pre_existed = gi_path.exists()
+    action = _sync.sync_gitignore(project_root, dry_run=False)
+    if pre_existed and action.startswith("unchanged"):
+        _print("skipped (already up to date)", gi_path, project_root)
         return
-
-    gi_path.write_text("# CBIM\n" + "\n".join(entries) + "\n", encoding="utf-8")
-    _print("created", gi_path, project_root)
+    print(f"[cbim] {action}")
 
 
 def init_project(project_root: Path, version: str, force: bool = False) -> None:

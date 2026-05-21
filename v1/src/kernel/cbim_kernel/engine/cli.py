@@ -172,6 +172,16 @@ def main() -> int:
     pmig.add_argument("--version", default=None,
                       help="Kernel version to pin in config.json (default: kernel __version__)")
 
+    # project -----------------------------------------------------------------
+    pproj = sub.add_parser("project", help="Project-level template & layout maintenance")
+    projsub = pproj.add_subparsers(dest="command")
+    _p = projsub.add_parser(
+        "sync",
+        help="Refresh kernel-managed project files (CLAUDE.md, agents, settings.json, .gitignore)",
+    )
+    _p.add_argument("--dry-run", action="store_true", dest="dry_run",
+                    help="Print what would be synced without writing anything")
+
     # upgrade -----------------------------------------------------------------
     from cbim_kernel.project.upgrade import cli as upgrade_cli
     upgrade_cli.build_parser(sub)
@@ -237,6 +247,10 @@ def main() -> int:
         return _cmd_init(args)
     if domain == "migrate":
         return _cmd_migrate(args)
+    if domain == "project":
+        if not args.command:
+            pproj.print_help(); return 1
+        return _cmd_project(args)
     if domain == "upgrade":
         return _cmd_upgrade(args)
     if domain == "update":
@@ -303,6 +317,39 @@ def _cmd_migrate(args) -> int:
         dry_run=args.dry_run,
         force=args.force,
     )
+
+
+def _cmd_project(args) -> int:
+    """Route `cbim project <subcommand>`.
+
+    Currently only `sync` is wired. Targets the resolved project root (walks up
+    from cwd looking for .cbim/config.json), not bare cwd, because sync is
+    meaningless outside a project.
+    """
+    from cbim_kernel.project.sync import sync_templates
+    from cbim_kernel.project.upgrade.project_state import find_project_root
+
+    if args.command != "sync":
+        return 1
+
+    root = find_project_root(Path.cwd())
+    if root is None:
+        print(
+            "project sync: no CBIM project found (no .cbim/config.json in cwd "
+            "or any ancestor); cd into a project root first",
+            file=sys.stderr,
+        )
+        return 1
+
+    prefix = "[cbim] [dry-run] " if args.dry_run else "[cbim] "
+    print(f"{prefix}Syncing kernel-managed templates in {root}")
+    for action in sync_templates(root, dry_run=args.dry_run):
+        print(f"{prefix}{action}")
+    if args.dry_run:
+        print(f"{prefix}--- DRY RUN complete ---")
+    else:
+        print("[cbim] Sync complete.")
+    return 0
 
 
 def _cmd_upgrade(args) -> int:

@@ -7,17 +7,11 @@ import tarfile
 from datetime import datetime
 from pathlib import Path
 
-_PKG_DIR = Path(__file__).resolve().parent
-_TEMPLATES = _PKG_DIR / "templates"
-_AGENTS = _PKG_DIR / "agents"
+from cbim_kernel.project import sync as _sync
 
-_AGENT_NAMES = ("architect", "auditor", "hr", "programmer")
+_AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
 
 _KERNEL_DIRS = ["engine", "hooks", "mcp_server", "services", "dashboard", "cbi"]
-
-
-def _read_template(name: str) -> str:
-    return (_TEMPLATES / name).read_text(encoding="utf-8")
 
 
 def _is_old_layout(cbim_dir: Path) -> bool:
@@ -84,55 +78,15 @@ def _inject_version(cbim_dir: Path, version: str, dry_run: bool) -> None:
 
 
 def _update_settings(project_root: Path, dry_run: bool) -> None:
-    settings_path = project_root / ".claude" / "settings.json"
-    template = json.loads(_read_template("settings.json.tmpl"))
-
-    if not settings_path.is_file():
-        if dry_run:
-            print(f"[cbim] [dry-run] would create .claude/settings.json from template")
-            return
-        settings_path.parent.mkdir(parents=True, exist_ok=True)
-        settings_path.write_text(
-            json.dumps(template, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
-        print(f"[cbim] created .claude/settings.json")
-        return
-
-    try:
-        existing = json.loads(settings_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        print(f"[cbim] WARNING: .claude/settings.json is not valid JSON; skipping")
-        return
-
-    if dry_run:
-        print(f"[cbim] [dry-run] would update .claude/settings.json (hooks, permissions, mcpServers)")
-        return
-
-    existing["hooks"] = template["hooks"]
-    existing.setdefault("permissions", {})
-    existing["permissions"]["deny"] = template["permissions"]["deny"]
-    existing["permissions"]["defaultMode"] = template["permissions"]["defaultMode"]
-    existing["mcpServers"] = template["mcpServers"]
-
-    settings_path.write_text(
-        json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    print(f"[cbim] updated .claude/settings.json")
+    action = _sync.sync_settings(project_root, dry_run=dry_run)
+    prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
+    print(f"{prefix}{action}")
 
 
 def _update_agents(project_root: Path, dry_run: bool) -> None:
-    for name in _AGENT_NAMES:
-        src = _AGENTS / f"{name}.md"
-        dst = project_root / ".claude" / "agents" / name / f"{name}.md"
-        rel = f".claude/agents/{name}/{name}.md"
-        if dry_run:
-            print(f"[cbim] [dry-run] would update {rel}")
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
-        print(f"[cbim] updated {rel}")
+    prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
+    for action in _sync.sync_agents(project_root, dry_run=dry_run):
+        print(f"{prefix}{action}")
 
 
 def _remove_old_dirs(cbim_dir: Path, dry_run: bool) -> None:

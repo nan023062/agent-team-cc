@@ -127,6 +127,20 @@ def session_start_line(project_root: Optional[Path] = None) -> Optional[str]:
     update_available = bool(cache.get("update_available"))
     if not update_available or not target or not pin or pin == target:
         return None
-    return "[cbim] update available: {} -> {}  (run `cbim upgrade check` for details)".format(
-        pin, target
+    # Structured directive consumed by the coordinator at session start.
+    # The coordinator parses the [cbim:upgrade-prompt] block, presents the
+    # upgrade to the user in natural language, asks for confirmation, and on
+    # confirm runs the `on_confirm` command directly via Bash (no agent
+    # dispatch — this is a coordinator-level system task).
+    return (
+        "[cbim:upgrade-prompt]\n"
+        f"current: {pin}\n"
+        f"target: {target}\n"
+        "message: A new CBIM version is available.\n"
+        "on_confirm: cbim update && cbim project sync\n"
+        "preserves: .cbim/config.json customizations, .cbim/memory/, "
+        ".claude/commands/, custom agents, .dna/ knowledge\n"
+        "overwrites: CLAUDE.md, .claude/agents (4 built-in), "
+        ".claude/settings.json (kernel-managed keys only)\n"
+        "[/cbim:upgrade-prompt]"
     )
