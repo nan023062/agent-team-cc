@@ -55,7 +55,7 @@ CBIM 同时以 MCP server 形式提供，注册在 `.claude/settings.json` 的 `
 | `project_snapshot` | 完整项目知识快照 |
 | `scheduler_status` / `scheduler_trigger` | 查看与触发调度任务 |
 
-Server 基于官方 `mcp` Python SDK（FastMCP）实现。源文件：`.cbim/mcp_server/server.py`；通过 `pip install -r .cbim/mcp_server/requirements.txt` 安装到项目 venv。
+Server 基于官方 `mcp` Python SDK（FastMCP）实现，通过 `cbim mcp` launcher 跑在全局内核 venv 中 —— 无需项目本地 venv，也无需额外 `pip install`。
 
 ## 调度器
 

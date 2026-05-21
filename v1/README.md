@@ -55,7 +55,7 @@ CBIM also ships as an MCP server registered in `.claude/settings.json` under `mc
 | `project_snapshot` | Full project knowledge snapshot |
 | `scheduler_status` / `scheduler_trigger` | Inspect and fire scheduled tasks |
 
-The server is implemented with the official `mcp` Python SDK (FastMCP). Source: `.cbim/mcp_server/server.py`; install via `pip install -r .cbim/mcp_server/requirements.txt` in the project venv.
+The server is implemented with the official `mcp` Python SDK (FastMCP) and runs out of the global kernel venv via the `cbim mcp` launcher — no project-local venv or extra `pip install` required.
 
 ## Scheduler
 
