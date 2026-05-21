@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from cbim_kernel.context import cbim_dir, project_root
+from cbim_kernel.project.upgrade.notify import session_start_line
 
 
 def _find_python() -> str:
@@ -85,7 +86,13 @@ def main(event: dict | None = None) -> int:
         str(project_root()),
     )
 
-    parts = [p for p in [snapshot_out, memory_out] if p]
+    # Upgrade banner
+    try:
+        banner = session_start_line(project_root())
+    except Exception:
+        banner = None
+
+    parts = [p for p in [banner, snapshot_out, memory_out] if p]
     if not parts:
         return 0
 
@@ -96,7 +103,7 @@ def main(event: dict | None = None) -> int:
         try:
             mem_data = json.loads(memory_out)
             mem_text = mem_data.get("additionalContext", memory_out)
-            parts = [p for p in [snapshot_out, mem_text] if p]
+            parts = [p for p in [banner, snapshot_out, mem_text] if p]
             combined = "\n\n---\n\n".join(parts)
         except json.JSONDecodeError:
             pass
