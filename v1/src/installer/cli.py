@@ -79,6 +79,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Remove even if it is the active_default",
     )
 
+    # pin
+    p_pin = sub.add_parser(
+        "pin",
+        help="Pin the current project to a specific kernel version (writes .cbim/config.json)",
+    )
+    p_pin.add_argument("version", help="Version to pin (must be installed)")
+
     # list
     sub.add_parser("list", help="List installed kernel versions")
 
@@ -179,6 +186,59 @@ def _cmd_use(args: argparse.Namespace) -> int:
     return 0
 
 
+def _find_cbim_project_root() -> Optional[Path]:
+    """Walk up from cwd looking for the .cbim/config.json marker."""
+    cur = Path.cwd().resolve()
+    for _ in range(40):
+        if (cur / ".cbim" / "config.json").is_file():
+            return cur
+        if cur.parent == cur:
+            return None
+        cur = cur.parent
+    return None
+
+
+def _cmd_pin(args: argparse.Namespace) -> int:
+    """Pin <project>/.cbim/config.json to a specific kernel version."""
+    import json as _json
+
+    project_root = _find_cbim_project_root()
+    if project_root is None:
+        sys.stderr.write(
+            "[cbim] not a CBIM project (no .cbim/config.json found in cwd or any parent).\n"
+            "       Run 'cbim init' first.\n"
+        )
+        return 1
+
+    installed = registry.list_installed()
+    if args.version not in installed:
+        sys.stderr.write(
+            "[cbim] version '{}' is not installed. "
+            "Run: cbim install {}\n".format(args.version, args.version)
+        )
+        return 1
+
+    cfg_path = project_root / ".cbim" / "config.json"
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = _json.load(f)
+    except (OSError, _json.JSONDecodeError) as exc:
+        sys.stderr.write("[cbim] failed to read {}: {}\n".format(cfg_path, exc))
+        return 1
+
+    old_version = cfg.get("cbim_version", "<unset>")
+    if old_version == args.version:
+        print("[cbim] {} already pinned to {}".format(project_root, args.version))
+        return 0
+
+    cfg["cbim_version"] = args.version
+    payload = _json.dumps(cfg, indent=2, ensure_ascii=False) + "\n"
+    cfg_path.write_text(payload, encoding="utf-8")
+
+    print("[cbim] {} : cbim_version {} -> {}".format(project_root, old_version, args.version))
+    return 0
+
+
 def _cmd_uninstall(args: argparse.Namespace) -> int:
     version = args.version
     installed = registry.list_installed()
@@ -265,6 +325,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return _cmd_upgrade(args)
     if args.command == "use":
         return _cmd_use(args)
+    if args.command == "pin":
+        return _cmd_pin(args)
     if args.command == "uninstall":
         return _cmd_uninstall(args)
     if args.command == "list":

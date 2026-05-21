@@ -19,10 +19,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-LAUNCHER_VERSION = "1.0.0"
+LAUNCHER_VERSION = "1.0.1"
 CBIM_HOME = Path.home() / ".cbim"
 
-INSTALLER_COMMANDS = {"install", "upgrade", "uninstall", "use", "versions"}
+INSTALLER_COMMANDS = {"install", "upgrade", "uninstall", "use", "versions", "pin"}
 VERSION_FLAGS = {"version", "--version", "-V"}
 HELP_FLAGS = {"help", "--help", "-h"}
 
@@ -142,11 +142,17 @@ def cmd_version():
         lines.append("installed kernels: (none -- ~/.cbim/versions.json missing)")
     else:
         installed = versions.get("installed")
-        if isinstance(installed, list) and installed:
+        active = versions.get("active_default")
+        # Schema: installed is a dict {version: {kernel_path, source, ...}}.
+        # Old code treated it as a list which silently printed "(none)" forever.
+        if isinstance(installed, dict) and installed:
+            names = sorted(installed.keys())
+            marked = [(n + " *" if n == active else n) for n in names]
+            lines.append("installed kernels: " + ", ".join(marked))
+        elif isinstance(installed, list) and installed:
             lines.append("installed kernels: " + ", ".join(str(v) for v in installed))
         else:
             lines.append("installed kernels: (none)")
-        active = versions.get("active_default")
         if active:
             lines.append("active_default: {}".format(active))
     sys.stdout.write("\n".join(lines) + "\n")
