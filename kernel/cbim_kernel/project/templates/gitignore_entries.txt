@@ -1,0 +1,4 @@
+.cbim/logs/
+.cbim/memory/store/
+.cbim/dashboard/.run/
+.cbim/.debug
