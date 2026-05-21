@@ -176,6 +176,16 @@ def main() -> int:
     from cbim_kernel.project.upgrade import cli as upgrade_cli
     upgrade_cli.build_parser(sub)
 
+    # update ------------------------------------------------------------------
+    pupd = sub.add_parser(
+        "update",
+        help="Update CBIM to the latest available version (one-liner)",
+    )
+    pupd.add_argument("--dry-run", action="store_true", dest="dry_run",
+                      help="Print the plan; do not mutate anything")
+    pupd.add_argument("-y", "--yes", action="store_true", dest="yes",
+                      help="Skip the interactive confirmation prompt")
+
     args = parser.parse_args()
     domain = args.domain
 
@@ -229,6 +239,8 @@ def main() -> int:
         return _cmd_migrate(args)
     if domain == "upgrade":
         return _cmd_upgrade(args)
+    if domain == "update":
+        return _cmd_update(args)
     parser.print_help()
     return 1
 
@@ -308,6 +320,12 @@ def _cmd_upgrade(args) -> int:
         "  apply   --to <version>  Upgrade the app-side install in place\n"
     )
     return 1
+
+
+def _cmd_update(args) -> int:
+    """Route top-level `cbim update` to the upgrade module."""
+    from cbim_kernel.project.upgrade import cli as upgrade_cli
+    return upgrade_cli.cmd_update(args)
 
 
 def cmd_dashboard(args) -> int:

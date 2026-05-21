@@ -78,6 +78,64 @@ def cmd_apply(args) -> int:
     return run_apply(diagnosis, target_version=args.target, dry_run=bool(args.dry_run))
 
 
+def _version_key(v: str) -> tuple:
+    try:
+        return tuple(int(x) for x in v.strip().lstrip("v").split("."))
+    except ValueError:
+        return (0,)
+
+
+def _current_local_version(app) -> str:
+    """The 'current' app version for update comparison.
+
+    Prefers active_default (what's pinned as default on the install side);
+    falls back to latest_local if no default is set.
+    """
+    return app.active_default or app.latest_local or ""
+
+
+def cmd_update(args) -> int:
+    """One-liner update to remote latest. See ``upgrade/.dna/module.md``."""
+    project = get_project_state(Path.cwd())
+    cfg = project.upgrade_config
+    app = app_state.get_app_state()
+    remote = get_remote_state(cfg, skip_network=False)
+    diagnosis = diagnose(app, project, remote)
+
+    if not remote.reachable:
+        sys.stderr.write("[cbim] remote unreachable; cannot check for updates\n")
+        return 3
+    if remote.latest is None:
+        sys.stderr.write("[cbim] no release found on remote\n")
+        return 3
+
+    current = _current_local_version(app)
+    if current and remote.latest == current:
+        print("Already up to date ({})".format(remote.latest))
+        return 0
+    if current and _version_key(current) > _version_key(remote.latest):
+        print("Local version {} is ahead of remote {}; nothing to do.".format(
+            current, remote.latest))
+        return 0
+
+    from_label = current or "(none)"
+    print("Updating {} -> {}".format(from_label, remote.latest))
+
+    if bool(getattr(args, "dry_run", False)):
+        return run_apply(diagnosis, target_version=remote.latest, dry_run=True)
+
+    if not bool(getattr(args, "yes", False)) and sys.stdin.isatty():
+        try:
+            resp = input("Proceed? [y/N] ").strip().lower()
+        except EOFError:
+            resp = ""
+        if resp not in ("y", "yes"):
+            print("aborted.")
+            return 0
+
+    return run_apply(diagnosis, target_version=remote.latest, dry_run=False)
+
+
 # ---------------------------------------------------------------------------
 # Rendering helpers
 # ---------------------------------------------------------------------------
