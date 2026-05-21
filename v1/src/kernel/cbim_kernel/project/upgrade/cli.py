@@ -10,7 +10,7 @@ from pathlib import Path
 from cbim_kernel.project.upgrade import app_state, notify
 from cbim_kernel.project.upgrade.apply_flow import run_apply
 from cbim_kernel.project.upgrade.diagnose import Command, Diagnosis, diagnose
-from cbim_kernel.project.upgrade.project_state import get_project_state
+from cbim_kernel.project.upgrade.project_state import find_project_root, get_project_state
 from cbim_kernel.project.upgrade.remote import get_remote_state
 
 
@@ -75,7 +75,10 @@ def cmd_apply(args) -> int:
     # Apply always wants live remote — it must confirm the target exists.
     remote = get_remote_state(cfg, skip_network=False)
     diagnosis = diagnose(app, project, remote)
-    return run_apply(diagnosis, target_version=args.target, dry_run=bool(args.dry_run))
+    rc = run_apply(diagnosis, target_version=args.target, dry_run=bool(args.dry_run))
+    if rc == 0 and not bool(getattr(args, "dry_run", False)):
+        _update_project_pin(args.target)
+    return rc
 
 
 def _version_key(v: str) -> tuple:
@@ -133,7 +136,35 @@ def cmd_update(args) -> int:
             print("aborted.")
             return 0
 
-    return run_apply(diagnosis, target_version=remote.latest, dry_run=False)
+    rc = run_apply(diagnosis, target_version=remote.latest, dry_run=False)
+    if rc == 0:
+        _update_project_pin(remote.latest)
+    return rc
+
+
+# ---------------------------------------------------------------------------
+# Project pin update
+# ---------------------------------------------------------------------------
+
+def _update_project_pin(new_version: str) -> None:
+    """Update ``cbim_version`` in ``<project_root>/.cbim/config.json`` if inside a project.
+
+    No-op when not inside a project. Failures are warnings only — they must not
+    change the upgrade exit code, since the install itself already succeeded.
+    """
+    try:
+        project_root = find_project_root(Path.cwd())
+        if project_root is None:
+            return
+        from cbim_kernel.engine.config import load_config, save_config
+        data = load_config(project_root)
+        data["cbim_version"] = new_version
+        save_config(data, project_root)
+        print("[cbim] project pin updated: cbim_version = {}".format(new_version))
+    except Exception as exc:  # noqa: BLE001 — pin update is best-effort
+        sys.stderr.write(
+            "[cbim] warning: failed to update project pin: {}\n".format(exc)
+        )
 
 
 # ---------------------------------------------------------------------------
