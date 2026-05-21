@@ -40,10 +40,11 @@ Just tell the assistant what you want — no need to specify an agent:
 | `/cbim_debug on\|off\|status` | Toggle/inspect extra engine-internal logging |
 | `/cbim_log [N]` | Show the current session log (agent loop signals) |
 | `/cbim_sched status\|trigger <name>` | Inspect / fire scheduler tasks |
+| `/cbim_update` | Upgrade the CBIM kernel to latest (equivalent to `cbim update -y`) |
 
 ## MCP Tools
 
-CBIM also ships as an MCP server registered in `.claude/settings.json` under `mcpServers.cbim`. The assistant can invoke the following tools directly, no `python .cbim/engine ...` Bash needed:
+CBIM also ships as an MCP server registered in `.claude/settings.json` under `mcpServers.cbim`. The assistant can invoke the following tools directly, no `cbim ...` Bash needed:
 
 | Tool | Purpose |
 |---|---|
@@ -113,14 +114,28 @@ your-project/
 │
 └── .cbim/                         ← Framework (this directory)
     ├── .dna/index.md              ← Module registry (framework-managed, required after install)
+    ├── .pin                       ← Project-pinned CBIM schema version (single line)
     ├── cbi/                       ← Capability + business definitions, agents, skills
-    ├── engine/                    ← Unified CLI entry (python .cbim/engine ...)
+    ├── engine/                    ← Unified CLI entry (invoked via `cbim ...`)
     ├── hooks/                     ← SessionStart / Stop / PreToolUse hook scripts
     ├── memory/                    ← Memory engine + store
     ├── dashboard/                 ← Local dashboard server
     ├── docs/                      ← Architecture documentation
     └── config.json                ← Local framework config
 ```
+
+---
+
+## Version Pin & Upgrade
+
+Since 1.3.3, the project-pinned CBIM schema version lives in `.cbim/.pin` (plain text, single-line version number, trailing newline, gitignored). All reads/writes go through the sole accessor `project/pin.py` (`read_pin` / `write_pin`). `.cbim/config.json` no longer carries a `cbim_version` field.
+
+Upgrade and migrate:
+
+| Operation | Command |
+|---|---|
+| Upgrade the CBIM kernel | `cbim update -y` or `/cbim_update` |
+| Migrate the current project to a specific version | `cbim migrate --version <X>` |
 
 ---
 

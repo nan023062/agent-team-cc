@@ -513,8 +513,9 @@ Split into multiple sub-modules
 │
 └── .cbim/                              ← Framework
     ├── .dna/index.md                  ← Module registry (framework-managed; required after install)
+    ├── .pin                           ← Project-pinned CBIM schema version (single-line, gitignored)
     ├── README.md / README.zh-CN.md
-    ├── config.json                    ← Local framework config
+    ├── config.json                    ← Local framework config (does NOT carry the version pin since 1.3.3)
     │
     ├── cbi/                           ← Capability + business knowledge base
     │   ├── README.md                  ← Four-quadrant architecture explanation
@@ -537,7 +538,7 @@ Split into multiple sub-modules
     │       ├── memory_query/skill.py
     │       └── memory_distill/skill.py
     │
-    ├── engine/                        ← Unified CLI entry (python .cbim/engine ...)
+    ├── engine/                        ← Unified CLI entry (invoked via `cbim ...`)
     │   ├── cli.py                     ← memory / dna / agent / skill / soul / snapshot / config / debug / log
     │   ├── config.py
     │   └── log_view.py
@@ -558,13 +559,9 @@ Split into multiple sub-modules
         ├── server.py
         ├── dashboard.py / dashboard.bat
         └── index.html / app.js / style.css
-
-# Repo-only (not copied to target projects by the INSTALL.md flow):
-install/                                ← Install-time scripts and tools
-├── install.py / install.bat           ← Legacy one-shot installer entry
-├── cli.py / settings.py
-└── steps/{bootstrap,agents,hooks}.py
 ```
+
+Installation no longer ships an in-repo installer script. The install flow is the copy-based SOP in `INSTALL.md` (or, with the kernel CLI installed globally, `cbim install`). Upgrades go through `cbim update -y` (or the `/cbim_update` slash command). The project schema pin lives in `.cbim/.pin` and is the only thing migrations touch (`cbim migrate --version <X>`).
 
 ---
 
