@@ -8,4 +8,4 @@ __pycache__/
 .cbim/.debug
 .cbim/.cc-status
 .cbim/scheduler/state.json
-.cbim/preview/.run/
+.cbim/dashboard/.run/

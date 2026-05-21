@@ -1,9 +1,9 @@
 """
 services/agent_service.py — read-only agent roster service.
 
-Wraps cbi.engine.agents with a stable, preview/MCP-facing surface.
+Wraps cbi.engine.agents with a stable, dashboard/MCP-facing surface.
 Filters out the built-in framework agents (architect / hr / auditor /
-programmer) so the preview UI only shows user-defined work agents.
+programmer) so the dashboard UI only shows user-defined work agents.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def list_agents(cwd=None, include_builtin: bool = False) -> list[dict]:
     Args:
         cwd:             Project search base; walks up to find `.cbim/`.
         include_builtin: When True, framework agents are included
-                         (default False — preview wants user agents only).
+                         (default False — dashboard caller decides).
 
     Returns:
         List of dicts shaped like::

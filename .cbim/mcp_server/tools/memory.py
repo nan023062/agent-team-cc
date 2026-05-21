@@ -63,7 +63,7 @@ def register(mcp) -> None:
             cwd: Project directory (default: current working dir).
         """
         # Read via the shared service layer (single source of truth that
-        # preview also uses). The historical wire format here is the
+        # dashboard also uses). The historical wire format here is the
         # backend's doc_id — i.e. the store-relative path string — so
         # rebuild that from the service's structured records.
         from services import list_entries

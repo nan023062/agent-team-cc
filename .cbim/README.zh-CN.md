@@ -117,7 +117,7 @@ your-project/
     ├── engine/                    ← 统一 CLI 入口（python .cbim/engine ...）
     ├── hooks/                     ← SessionStart / Stop / PreToolUse 钩子脚本
     ├── memory/                    ← 记忆引擎 + 存储
-    ├── preview/                   ← 本地可视化服务
+    ├── dashboard/                 ← 本地仪表盘服务
     ├── docs/                      ← 架构文档
     └── config.json                ← 本地框架配置
 ```
@@ -154,14 +154,14 @@ your-project/
 
 ---
 
-## 预览
+## 仪表盘
 
 ```bash
-python -m preview.preview      # macOS / Linux （在 .cbim/ 下运行）
-preview\preview.bat            # Windows
+python -m dashboard.dashboard    # macOS / Linux （在 .cbim/ 下运行）
+dashboard\dashboard.bat          # Windows
 ```
 
-打开 http://127.0.0.1:8765 — Memory / Capability / Knowledge 三个 tab。
+打开 http://127.0.0.1:8765 — Memory / Capability / Knowledge / Log 四个 tab。
 
 ---
 

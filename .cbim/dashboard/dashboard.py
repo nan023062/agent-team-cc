@@ -1,22 +1,23 @@
 """
-preview.py — Double-click to start / stop the CBIM preview server.
+dashboard.py — Double-click to start / stop the CBIM dashboard server.
 
-Reads preview/.run/.preview.pid to decide current state:
+Reads dashboard/.run/.preview.pid to decide current state:
   - PID file exists + process alive  →  stop
   - otherwise                        →  start (new console window on Windows)
 
 The PID file used to live under .cbim/memory/store/ — that directory is
 now governance-only (Kernel-Only Writes), so the PID was moved here.
 """
+import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-CBIM = Path(__file__).resolve().parent.parent  # preview → .cbim
+CBIM = Path(__file__).resolve().parent.parent  # dashboard → .cbim
 ROOT = CBIM.parent                              # project root (where .venv lives)
-PID_FILE = CBIM / "preview" / ".run" / ".preview.pid"
+PID_FILE = CBIM / "dashboard" / ".run" / ".preview.pid"
 
 
 def _python() -> str:
@@ -61,26 +62,30 @@ def start() -> None:
     else:
         kwargs["start_new_session"] = True
 
-    # New top-level command; `memory preview` is a deprecated alias.
+    # `dashboard` is the primary command; `preview` is a deprecated alias.
     proc = subprocess.Popen(
-        [python, "-m", "engine", "preview"],
+        [python, "-m", "engine", "dashboard"],
         **kwargs,
     )
-    PID_FILE.write_text(str(proc.pid))
     print(f"  已启动 (PID {proc.pid})")
-    print("  浏览器将自动打开  http://127.0.0.1:8765")
+    print("  浏览器将自动打开（实际端口见服务窗口输出）")
     print("  再次双击本脚本可停止服务")
 
 
 # ---------------------------------------------------------------------------
 
 print("=" * 42)
-print("   CBIM Preview")
+print("   CBIM Dashboard")
 print("=" * 42)
 
 if PID_FILE.exists():
     try:
-        pid = int(PID_FILE.read_text().strip())
+        raw = PID_FILE.read_text().strip()
+        try:
+            data = json.loads(raw)
+            pid = data["pid"]
+        except (json.JSONDecodeError, KeyError):
+            pid = int(raw)
         if _alive(pid):
             print(f"  服务运行中 (PID {pid})，正在停止…")
             stop(pid)

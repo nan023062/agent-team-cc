@@ -1,5 +1,5 @@
 """
-auto_preview.py — SessionStart hook that launches the preview server
+auto_preview.py - SessionStart hook that launches the dashboard server
 in the background if the user has it enabled.
 
 Idempotent: an existing live PID short-circuits the launch. CI is
@@ -7,8 +7,12 @@ detected via the `CI` env var (set by GitHub Actions / GitLab / etc.)
 and forces --no-browser; the server still starts so the UI is reachable
 over port-forward.
 
-Reads `.cbim/config.json` → `preview.auto_open` (default true) and
-`preview.open_browser` (default true).
+Reads `.cbim/config.json` -> `dashboard.auto_open` (default true) and
+`dashboard.open_browser` (default true).
+
+(Filename kept as `auto_preview.py` for historical reasons - the
+SessionStart hook entry is registered in `.claude/settings.json`.
+The server it launches is now the renamed `dashboard` package.)
 """
 
 from __future__ import annotations
@@ -49,9 +53,9 @@ def _python() -> str:
 
 
 def _pid_file() -> Path:
-    """PID lives under the preview package itself — never under
+    """PID lives under the dashboard package itself - never under
     .cbim/memory/store/ (governed dir; PID is not memory state)."""
-    return _cbim_root() / "preview" / ".run" / ".preview.pid"
+    return _cbim_root() / "dashboard" / ".run" / ".preview.pid"
 
 
 def _pid_alive(pid: int) -> bool:
@@ -73,7 +77,12 @@ def _already_running() -> bool:
     if not pid_path.exists():
         return False
     try:
-        pid = int(pid_path.read_text().strip())
+        raw = pid_path.read_text().strip()
+        try:
+            data = json.loads(raw)
+            pid = data["pid"]
+        except (json.JSONDecodeError, KeyError):
+            pid = int(raw)
     except (ValueError, OSError):
         pid_path.unlink(missing_ok=True)
         return False
@@ -84,9 +93,9 @@ def _already_running() -> bool:
 
 
 def _launch(cbim: Path, no_browser: bool) -> int:
-    """Spawn `python -m engine preview` detached. Returns the child PID."""
+    """Spawn `python -m engine dashboard` detached. Returns the child PID."""
     python = _python()
-    args = [python, "-m", "engine", "preview"]
+    args = [python, "-m", "engine", "dashboard"]
     if no_browser:
         args.append("--no-browser")
 
@@ -105,18 +114,14 @@ def _launch(cbim: Path, no_browser: bool) -> int:
         kwargs["stderr"] = subprocess.DEVNULL
 
     proc = subprocess.Popen(args, **kwargs)
-
-    pid_path = _pid_file()
-    pid_path.parent.mkdir(parents=True, exist_ok=True)
-    pid_path.write_text(str(proc.pid))
     return proc.pid
 
 
 def main() -> None:
     cbim = _cbim_root()
-    cfg = _read_cfg(cbim).get("preview", {})
+    cfg = _read_cfg(cbim).get("dashboard", {})
 
-    # auto_open defaults to True — the user explicitly wants the UI ready
+    # auto_open defaults to True - the user explicitly wants the UI ready
     # on every session start. Set to false in config.json to opt out.
     if not cfg.get("auto_open", True):
         return

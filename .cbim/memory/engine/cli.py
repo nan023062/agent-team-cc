@@ -135,14 +135,14 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
-    """Deprecated. Use `python .cbim/engine preview` instead.
+    """Deprecated. Use `python .cbim/engine dashboard` instead.
 
     Kept as a forwarding shim so existing wrappers / docs that still
     invoke `memory preview` keep working. Emits a single stderr warning
-    and delegates straight to the top-level preview command.
+    and delegates straight to the top-level dashboard command.
     """
     print(
-        "[deprecated] `memory preview` is now `python .cbim/engine preview`",
+        "[deprecated] `memory preview` is now `python .cbim/engine dashboard`",
         file=sys.stderr,
     )
 
@@ -153,12 +153,12 @@ def cmd_preview(args: argparse.Namespace) -> int:
     cbim_str = str(cbim_dir)
     if cbim_str not in _sys.path:
         _sys.path.insert(0, cbim_str)
-    from engine.cli import cmd_preview as _cmd_preview
+    from engine.cli import cmd_dashboard as _cmd_dashboard
 
     class _Forward:
         port = getattr(args, "port", None)
         no_browser = False  # legacy command never had this knob
 
-    return _cmd_preview(_Forward())
+    return _cmd_dashboard(_Forward())
 
 

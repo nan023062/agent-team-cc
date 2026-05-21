@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CBIM Preview</title>
+<title>CBIM Dashboard</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>CBIM Preview</h1>
+  <h1>CBIM Dashboard</h1>
   <nav class="section-nav">
     <button id="nav-memory"    class="nav-btn active" onclick="switchSection('memory', this)">记忆</button>
     <button id="nav-agents"    class="nav-btn" onclick="switchSection('agents', this)">能力</button>
     <button id="nav-knowledge" class="nav-btn" onclick="switchSection('knowledge', this)">知识</button>
+    <button id="nav-log"       class="nav-btn" onclick="switchSection('log', this)">日志</button>
   </nav>
   <div id="header-stats" class="stats"></div>
   <button id="lang-btn" class="lang-btn" onclick="toggleLang()">EN</button>
@@ -30,6 +31,10 @@
 <div id="toolbar-knowledge" class="toolbar hidden">
   <input id="search-knowledge" type="text" placeholder="搜索知识模块..." oninput="onSearch('knowledge', this.value)">
 </div>
+<div id="toolbar-log" class="toolbar hidden">
+  <div id="log-filters" class="log-filters"></div>
+  <button id="log-clear" class="filter-btn" onclick="clearLog()">清空</button>
+</div>
 
 <div class="layout">
   <div id="sidebar"></div>
@@ -40,6 +45,12 @@
     </div>
   </div>
 </div>
+<footer id="info-strip">
+  <span class="info-strip-item"><span class="info-strip-label" data-i18n="info_server"></span><span class="info-strip-value" id="info-server"></span></span>
+  <span class="info-strip-item"><span class="info-strip-label" data-i18n="info_project"></span><span class="info-strip-value" id="info-project"></span></span>
+</footer>
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/purify.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

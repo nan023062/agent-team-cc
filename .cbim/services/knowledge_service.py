@@ -3,7 +3,7 @@ services/knowledge_service.py — read-only .dna module service.
 
 Thin wrapper over cbi.engine.modules.list_modules that also pulls the
 collateral docs (contract.md, workflows/*/workflow.md) into a single
-record shape suitable for the preview UI and MCP tooling.
+record shape suitable for the dashboard UI and MCP tooling.
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def list_modules(cwd=None) -> list[dict]:
     from cbi.engine.modules import list_modules as _list_modules
 
     modules = _list_modules(root)
-    # The engine loader returns workflows as a list of slugs; the preview
+    # The engine loader returns workflows as a list of slugs; the dashboard
     # UI expects full {id, name, body} records. Inflate here.
     inflated = []
     for m in modules:

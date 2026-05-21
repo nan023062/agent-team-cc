@@ -554,9 +554,9 @@ Split into multiple sub-modules
     │
     ├── docs/                          ← Architecture documentation
     │
-    └── preview/                       ← Local preview server (memory / capability / knowledge)
+    └── dashboard/                     ← Local dashboard server (memory / capability / knowledge / log)
         ├── server.py
-        ├── preview.py / preview.bat
+        ├── dashboard.py / dashboard.bat
         └── index.html / app.js / style.css
 
 # Repo-only (not copied to target projects by the INSTALL.md flow):

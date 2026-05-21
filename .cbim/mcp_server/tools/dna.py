@@ -35,7 +35,7 @@ def register(mcp) -> None:
         Returns:
             One module per line as `<path> [<owner>] <description>`.
         """
-        # Route through the shared service layer so preview and MCP read
+        # Route through the shared service layer so dashboard and MCP read
         # an identical module list (and an identical inflated workflow
         # structure, even though dna_list only surfaces a one-liner).
         from services import list_modules as _list_modules

@@ -117,7 +117,7 @@ your-project/
     ├── engine/                    ← Unified CLI entry (python .cbim/engine ...)
     ├── hooks/                     ← SessionStart / Stop / PreToolUse hook scripts
     ├── memory/                    ← Memory engine + store
-    ├── preview/                   ← Local visualization server
+    ├── dashboard/                 ← Local dashboard server
     ├── docs/                      ← Architecture documentation
     └── config.json                ← Local framework config
 ```
@@ -154,14 +154,14 @@ The `.dna/` convention follows **minimal constraint + open extension**: the dire
 
 ---
 
-## Preview
+## Dashboard
 
 ```bash
-python -m preview.preview      # macOS / Linux  (run from .cbim/)
-preview\preview.bat            # Windows
+python -m dashboard.dashboard    # macOS / Linux  (run from .cbim/)
+dashboard\dashboard.bat          # Windows
 ```
 
-Open http://127.0.0.1:8765 — Memory / Capability / Knowledge tabs.
+Open http://127.0.0.1:8765 — Memory / Capability / Knowledge / Log tabs.
 
 ---
 

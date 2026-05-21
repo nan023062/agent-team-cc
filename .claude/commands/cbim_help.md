@@ -36,7 +36,8 @@ Display the following overview to the user verbatim (in Chinese):
 
 | 域 | 命令 | 说明 |
 |---|---|---|
-| `memory` | `write-session` / `load-context` / `create` / `add` / `query` / `delete` / `reindex` / `cleanup` / `preview` | 记忆 CRUD + 查询 + 预览面板 |
+| `memory` | `write-session` / `load-context` / `create` / `add` / `query` / `delete` / `reindex` / `cleanup` | 记忆 CRUD + 查询 |
+| `dashboard` | `--port` / `--no-browser` | 启动本地仪表盘 |
 | `dna` | `list` / `show` / `init` / `reindex` | 业务模块（`.dna/`）管理 |
 | `agent` | `list` / `show` / `scaffold` / `archive` | Agent 注册表 |
 | `skill` | `list` / `show <name>` | 列出/查看 skill 内容 |

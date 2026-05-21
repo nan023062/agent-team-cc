@@ -30,7 +30,7 @@ def register(mcp) -> None:
         Args:
             cwd: Project directory (default: current working dir).
         """
-        # Route through the shared service layer so preview and MCP
+        # Route through the shared service layer so dashboard and MCP
         # see exactly the same roster (including the built-in filter
         # for non-framework agents — opt back in via include_builtin).
         from services import list_agents as _list_agents

@@ -1,11 +1,11 @@
 """
 services/memory_service.py — read-only memory store service.
 
-Exposes pure functions returning structured dicts. The preview HTTP
+Exposes pure functions returning structured dicts. The dashboard HTTP
 adapter and the MCP `memory_*` tools both depend on these.
 
 Why a service layer:
-  - preview/server.py used to glob the store and parse frontmatter inline,
+  - dashboard/server.py used to glob the store and parse frontmatter inline,
     duplicating logic that the engine/MCP layer also needs.
   - Centralising the loader here means a single canonical shape for an
     "entry" record — schema changes happen in one place.
