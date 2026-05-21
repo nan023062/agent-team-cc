@@ -3,5 +3,10 @@
     "short_term": {
       "keep_days": 3
     }
+  },
+  "preview": {
+    "port": 8765,
+    "auto_open": true,
+    "open_browser": true
   }
 }

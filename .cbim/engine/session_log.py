@@ -6,11 +6,12 @@ Layout:
   .cbim/logs/.current                                       pointer to active session log
 
 Signal tags written to the log:
-  [SESSION]   SessionStart / SessionEnd boundaries
+  [SESSION] start session_id=<id> cwd=<path>      — written by SessionStart hook
+  [SESSION] end   session_id=<id> reason=<stop_reason> — written by SessionEnd hook
   [USER]      UserPromptSubmit — user spoke; assistant about to think
   [TOOL]      PreToolUse — tool call about to fire
   [RESULT]    PostToolUse — tool call returned (reflection point)
-  [TURN]      Stop — assistant turn ended
+  [TURN]      Stop — per-turn (assistant turn ended); NOT a per-session boundary
   [MCP]       MCP server lifecycle + every MCP tool call (args + result size)
   [SCHED]     scheduler lifecycle + each task fire (auto + manual)
   [ENG]       internal: engine CLI invocation (gated by .cbim/.debug)
@@ -98,3 +99,22 @@ def append(tag: str, message: str, cbim: Path | None = None, log_path: Path | No
     except Exception:
         # Logging must never break the host
         pass
+
+
+def end_session(session_id: str = "", reason: str = "", cbim: Path | None = None) -> Path | None:
+    """Write the paired [SESSION] end marker, then clear .current.
+
+    Returns the log path that was finalized (or None if no active session).
+    """
+    cbim = cbim or cbim_root_from_cwd() or Path(__file__).resolve().parent.parent
+    path = current_log_path(cbim)
+    if path is None:
+        return None
+    append("SESSION", f"end session_id={session_id or '?'} reason={reason or '?'}", cbim=cbim, log_path=path)
+    pointer = _pointer_path(cbim)
+    try:
+        if pointer.exists():
+            pointer.unlink()
+    except OSError:
+        pass
+    return path

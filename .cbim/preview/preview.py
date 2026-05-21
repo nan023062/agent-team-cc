@@ -1,9 +1,12 @@
 """
-preview.py — Double-click to start / stop the memory preview server.
+preview.py — Double-click to start / stop the CBIM preview server.
 
-Reads store/.preview.pid to decide current state:
+Reads preview/.run/.preview.pid to decide current state:
   - PID file exists + process alive  →  stop
   - otherwise                        →  start (new console window on Windows)
+
+The PID file used to live under .cbim/memory/store/ — that directory is
+now governance-only (Kernel-Only Writes), so the PID was moved here.
 """
 import os
 import subprocess
@@ -11,9 +14,9 @@ import sys
 import time
 from pathlib import Path
 
-CBIM = Path(__file__).resolve().parent.parent  # preview → cbim
-ROOT = CBIM.parent                                           # project root (where .venv lives)
-PID_FILE = CBIM / "memory" / "store" / ".preview.pid"
+CBIM = Path(__file__).resolve().parent.parent  # preview → .cbim
+ROOT = CBIM.parent                              # project root (where .venv lives)
+PID_FILE = CBIM / "preview" / ".run" / ".preview.pid"
 
 
 def _python() -> str:
@@ -58,8 +61,9 @@ def start() -> None:
     else:
         kwargs["start_new_session"] = True
 
+    # New top-level command; `memory preview` is a deprecated alias.
     proc = subprocess.Popen(
-        [python, "-m", "engine", "memory", "preview"],
+        [python, "-m", "engine", "preview"],
         **kwargs,
     )
     PID_FILE.write_text(str(proc.pid))
@@ -71,7 +75,7 @@ def start() -> None:
 # ---------------------------------------------------------------------------
 
 print("=" * 42)
-print("   Memory Preview")
+print("   CBIM Preview")
 print("=" * 42)
 
 if PID_FILE.exists():

@@ -131,18 +131,30 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
 
 def cmd_preview(args: argparse.Namespace) -> int:
-    import sys as _sys
+    """Deprecated. Use `python .cbim/engine preview` instead.
 
+    Kept as a forwarding shim so existing wrappers / docs that still
+    invoke `memory preview` keep working. Emits a single stderr warning
+    and delegates straight to the top-level preview command.
+    """
+    print(
+        "[deprecated] `memory preview` is now `python .cbim/engine preview`",
+        file=sys.stderr,
+    )
+
+    # Forward to the top-level command. We synthesize its argparse Namespace
+    # so we don't re-parse argv — the caller already gave us --port.
+    import sys as _sys
     cbim_dir = Path(__file__).parent.parent.parent  # .cbim/
-    preview_dir = cbim_dir / "preview"
     cbim_str = str(cbim_dir)
     if cbim_str not in _sys.path:
         _sys.path.insert(0, cbim_str)
-    from preview.server import start_server
+    from engine.cli import cmd_preview as _cmd_preview
 
-    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
-    root_dir = cbim_dir.parent
-    start_server(store_dir, preview_dir, cbim_dir, root_dir, port=args.port)
-    return 0
+    class _Forward:
+        port = getattr(args, "port", None)
+        no_browser = False  # legacy command never had this knob
+
+    return _cmd_preview(_Forward())
 
 

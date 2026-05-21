@@ -62,12 +62,20 @@ def register(mcp) -> None:
             tier: Optional "short" or "medium"; empty = both.
             cwd: Project directory (default: current working dir).
         """
-        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
+        # Read via the shared service layer (single source of truth that
+        # preview also uses). The historical wire format here is the
+        # backend's doc_id — i.e. the store-relative path string — so
+        # rebuild that from the service's structured records.
+        from services import list_entries
         tier_arg = tier if tier in ("short", "medium") else None
-        ids = engine.list_ids(tier=tier_arg)
-        if not ids:
+        entries = list_entries(tier=tier_arg, cwd=cwd or None)
+        if not entries:
             return "(empty)"
-        return "\n".join(ids)
+        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
+        store_dir = engine.store_dir
+        return "\n".join(
+            str(store_dir / e["tier"] / e["id"]) for e in entries
+        )
 
     @mcp.tool()
     def memory_create(

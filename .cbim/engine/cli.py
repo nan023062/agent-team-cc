@@ -103,6 +103,13 @@ def main() -> int:
     _p = csub.add_parser("set"); _p.add_argument("key"); _p.add_argument("value")
     csub.add_parser("show")
 
+    # preview -----------------------------------------------------------------
+    pp = sub.add_parser("preview", help="Start the local CBIM preview UI server")
+    pp.add_argument("--port", type=int, default=None,
+                    help="TCP port (default: preview.port in .cbim/config.json, or 8765)")
+    pp.add_argument("--no-browser", dest="no_browser", action="store_true",
+                    help="Do not auto-open a browser window (set automatically when CI env var is present)")
+
     # debug -------------------------------------------------------------------
     pdb = sub.add_parser("debug", help="Toggle debug logging flag")
     dbsub = pdb.add_subparsers(dest="command")
@@ -140,12 +147,37 @@ def main() -> int:
         if not args.command:
             pc.print_help(); return 1
         return {"get": cmd_config_get, "set": cmd_config_set, "show": cmd_config_show}[args.command](args)
+    if domain == "preview":
+        return cmd_preview(args)
     if domain == "debug":
         if not args.command:
             pdb.print_help(); return 1
         return _cmd_debug(args)
     parser.print_help()
     return 1
+
+
+def cmd_preview(args) -> int:
+    """Top-level `preview` command. Launches the HTTP UI server.
+
+    Honours $CI to force --no-browser (server still starts; we just
+    don't try to spawn a browser on a headless box).
+    """
+    import os
+    cbim_dir = Path(__file__).resolve().parent.parent
+    preview_dir = cbim_dir / "preview"
+    root_dir = cbim_dir.parent
+
+    cbim_str = str(cbim_dir)
+    if cbim_str not in sys.path:
+        sys.path.insert(0, cbim_str)
+    from preview.server import start_server, load_port
+
+    open_browser = not args.no_browser and not os.environ.get("CI")
+    port = args.port if args.port is not None else load_port(cbim_dir)
+    start_server(preview_dir, cbim_dir, root_dir,
+                 port=port, open_browser=open_browser)
+    return 0
 
 
 def _find_settings() -> Path | None:

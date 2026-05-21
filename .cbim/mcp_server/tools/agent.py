@@ -30,8 +30,11 @@ def register(mcp) -> None:
         Args:
             cwd: Project directory (default: current working dir).
         """
-        from cbi.engine.agents import list_agents
-        agents = list_agents(_agents_dir(cwd))
+        # Route through the shared service layer so preview and MCP
+        # see exactly the same roster (including the built-in filter
+        # for non-framework agents — opt back in via include_builtin).
+        from services import list_agents as _list_agents
+        agents = _list_agents(cwd=cwd or None, include_builtin=True)
         if not agents:
             return "(no agents found)"
         return "\n".join(

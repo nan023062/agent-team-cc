@@ -35,9 +35,11 @@ def register(mcp) -> None:
         Returns:
             One module per line as `<path> [<owner>] <description>`.
         """
-        from cbi.engine.modules import list_modules
-        root = _project_root(cwd)
-        modules = list_modules(root)
+        # Route through the shared service layer so preview and MCP read
+        # an identical module list (and an identical inflated workflow
+        # structure, even though dna_list only surfaces a one-liner).
+        from services import list_modules as _list_modules
+        modules = _list_modules(cwd=cwd or None)
         if not modules:
             return "(no .dna modules found)"
         return "\n".join(

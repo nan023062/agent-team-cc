@@ -6,6 +6,10 @@
           {
             "type": "command",
             "command": "python3 .cbim/hooks/load_memory.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .cbim/hooks/auto_preview.py"
           }
         ]
       }
@@ -16,6 +20,16 @@
           {
             "type": "command",
             "command": "python3 .cbim/hooks/write_memory.py"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .cbim/hooks/end_session.py"
           }
         ]
       }
