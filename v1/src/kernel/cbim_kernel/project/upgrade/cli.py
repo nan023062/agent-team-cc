@@ -203,7 +203,7 @@ def _diagnosis_to_cache(d: Diagnosis) -> dict:
         d.project.pin
         and target
         and d.project.pin != target
-        and d.scenario in (3, 5, 6)
+        and d.scenario in (3, 4, 5, 6)
     )
     return {
         "timestamp": time.time(),

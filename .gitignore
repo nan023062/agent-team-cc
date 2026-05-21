@@ -13,3 +13,4 @@ cbim-kernel-*.tar.gz
 .cbim/.cc-status
 .cbim/scheduler/state.json
 .cbim/dashboard/.run/
+.cbim/.upgrade_cache.json

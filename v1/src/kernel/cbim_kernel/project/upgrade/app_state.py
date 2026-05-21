@@ -1,17 +1,28 @@
-"""App-side install state, resolved via the installer's JSON read surface.
+"""App-side install state, resolved from the installer's on-disk contract.
 
 Contract: this module MUST NOT ``import installer.paths`` or
-``import installer.registry``. Instead it spawns ``python -m installer
-version --json`` and parses the result. See
-``upgrade/.dna/contract.md`` Key Decision (Option A / subprocess).
+``import installer.registry`` (kernel never imports installer). Instead we:
+
+  1. Mirror ``installer/paths.py:install_root()`` inline (see
+     ``_resolve_install_root``). Any change there must be mirrored in
+     ``v1/src/bin/cbim_launcher.py:_install_root`` as well.
+  2. Read ``<install_root>/versions.json`` directly — it is the installer's
+     stable on-disk contract (same file the launcher reads).
+
+Design rule: ``install_root`` is *pure path resolution* (env + platform).
+It is populated whenever ``_resolve_install_root()`` returns a path,
+*independently* of whether the registry on disk is readable. Only the
+registry-derived fields (``installed``, ``active_default``, ``venv*``) get
+cleared when the registry cannot be read. This lets callers distinguish
+"install root unknown" (no path resolvable at all) from "install root
+exists but registry unreadable" (path known, no installed kernels).
 """
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -23,7 +34,7 @@ class AppState:
     active_default: Optional[str]
     venv_path: Optional[Path] = None
     venv_provisioned: bool = False
-    error: Optional[str] = None  # populated when subprocess fails
+    error: Optional[str] = None  # populated when registry read fails
 
     @property
     def installed_versions(self) -> list:
@@ -44,103 +55,123 @@ def _version_key(v: str) -> tuple:
         return (0,)
 
 
-def _empty_state(error: Optional[str] = None) -> AppState:
-    return AppState(
-        install_root=None,
-        installed={},
-        active_default=None,
-        venv_path=None,
-        venv_provisioned=False,
-        error=error,
-    )
-
-
 def _resolve_install_root() -> Optional[Path]:
     """Resolve the CBIM install root using the same rules as ``installer.paths``.
 
     Mirrors ``installer/paths.py:install_root()`` inline — we cannot import it
-    (contract: kernel never imports installer). Returns ``None`` if the
-    resolved path does not exist on disk.
+    (contract: kernel never imports installer). The launcher
+    (``v1/src/bin/cbim_launcher.py:_install_root``) is the third mirror; keep
+    all three in sync.
 
     Resolution order:
-      1. ``CBIM_INSTALL_ROOT`` env var.
-      2. Windows: ``%LOCALAPPDATA%\\Cbim-CC``.
-      3. macOS:   ``~/Library/Application Support/Cbim-CC``.
-      4. Linux:   ``~/.local/share/Cbim-CC``.
+      1. ``CBIM_INSTALL_ROOT`` env var (absolute or ``~``-expandable).
+      2. Windows: ``%LOCALAPPDATA%\\Cbim-CC``
+         (fallback: ``~/AppData/Local/Cbim-CC`` when LOCALAPPDATA is unset).
+      3. POSIX (Linux, macOS, *BSD):
+         ``$XDG_DATA_HOME/Cbim-CC`` (default: ``~/.local/share/Cbim-CC``).
+
+    Returns ``None`` only if path construction itself fails (e.g. no home
+    directory). The returned path is *not* required to exist on disk —
+    existence/readability is a registry concern, not a path-resolution
+    concern. Callers that need a concrete install must check separately.
     """
-    env = os.environ.get("CBIM_INSTALL_ROOT")
-    if env:
-        root = Path(env).expanduser()
-    elif sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA")
-        root = (Path(base) if base else Path.home() / "AppData" / "Local") / "Cbim-CC"
-    elif sys.platform == "darwin":
-        root = Path.home() / "Library" / "Application Support" / "Cbim-CC"
-    else:
-        root = Path.home() / ".local" / "share" / "Cbim-CC"
-    return root if root.is_dir() else None
+    try:
+        env = os.environ.get("CBIM_INSTALL_ROOT")
+        if env:
+            return Path(env).expanduser()
+
+        if sys.platform == "win32":
+            base = os.environ.get("LOCALAPPDATA")
+            if base:
+                return Path(base) / "Cbim-CC"
+            return Path.home() / "AppData" / "Local" / "Cbim-CC"
+
+        # POSIX (Linux, macOS, *BSD).
+        base = os.environ.get("XDG_DATA_HOME")
+        if base:
+            return Path(base) / "Cbim-CC"
+        return Path.home() / ".local" / "share" / "Cbim-CC"
+    except (RuntimeError, OSError):
+        return None
 
 
-def _query_installer_json() -> Optional[dict]:
-    """Run ``python -m installer version --json`` and parse the result.
+def _read_versions_json(install_root: Path) -> Optional[dict]:
+    """Read ``<install_root>/versions.json`` directly.
 
-    The subprocess runs under the shared venv interpreter at
-    ``<install_root>/venv/`` with ``<install_root>`` on ``PYTHONPATH`` so the
-    installer package resolves. Returns ``None`` on any failure (no install
-    root, missing venv, subprocess error, non-zero exit, bad JSON). Never
-    raises.
+    This file is the installer's stable on-disk contract (the launcher
+    reads it too). Returns ``None`` if the file is missing or unreadable;
+    never raises.
+    """
+    vfile = install_root / "versions.json"
+    if not vfile.is_file():
+        return None
+    try:
+        with vfile.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _parse_registry(install_root: Path, data: dict) -> tuple:
+    """Extract (installed, active_default, venv_path, venv_provisioned) from
+    a versions.json payload. Tolerant of missing/malformed fields."""
+    installed = data.get("installed")
+    if not isinstance(installed, dict):
+        installed = {}
+
+    active = data.get("active_default")
+    if not (isinstance(active, str) and active.strip()):
+        active = None
+
+    # Optional ``venv`` block; otherwise fall back to ``<install_root>/venv``.
+    venv_path: Optional[Path] = None
+    venv_provisioned = False
+    venv_block = data.get("venv")
+    if isinstance(venv_block, dict):
+        vps = venv_block.get("path")
+        if isinstance(vps, str) and vps:
+            venv_path = Path(vps)
+        venv_provisioned = bool(venv_block.get("provisioned"))
+    if venv_path is None:
+        candidate = install_root / "venv"
+        if candidate.is_dir():
+            venv_path = candidate
+            venv_provisioned = True
+
+    return installed, active, venv_path, venv_provisioned
+
+
+def get_app_state() -> AppState:
+    """Return the AppState.
+
+    ``install_root`` is always populated when path resolution succeeds —
+    regardless of whether the registry on disk is readable. Registry fields
+    are cleared (with ``error`` set) only when the registry read fails.
     """
     install_root = _resolve_install_root()
     if install_root is None:
-        return None
-    if not (install_root / "installer").is_dir():
-        return None
-    if sys.platform == "win32":
-        python = install_root / "venv" / "Scripts" / "python.exe"
-    else:
-        python = install_root / "venv" / "bin" / "python"
-    if not python.is_file():
-        # Fall back to current interpreter; PYTHONPATH still points the import.
-        python_str = sys.executable
-    else:
-        python_str = str(python)
-
-    env = os.environ.copy()
-    existing = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = (
-        str(install_root) + (os.pathsep + existing if existing else "")
-    )
-    try:
-        result = subprocess.run(
-            [python_str, "-m", "installer", "version", "--json"],
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=30,
+        return AppState(
+            install_root=None,
+            installed={},
+            active_default=None,
+            venv_path=None,
+            venv_provisioned=False,
+            error="install root cannot be determined",
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    try:
-        return json.loads(result.stdout)
-    except (json.JSONDecodeError, ValueError):
-        return None
 
+    data = _read_versions_json(install_root)
+    if data is None:
+        return AppState(
+            install_root=install_root,
+            installed={},
+            active_default=None,
+            venv_path=None,
+            venv_provisioned=False,
+            error="registry unreadable at {}".format(install_root / "versions.json"),
+        )
 
-def _parse(payload: dict) -> AppState:
-    install_root_s = payload.get("install_root")
-    install_root = Path(install_root_s) if isinstance(install_root_s, str) and install_root_s else None
-    installed = payload.get("installed")
-    if not isinstance(installed, dict):
-        installed = {}
-    active = payload.get("active_default")
-    if not (isinstance(active, str) and active.strip()):
-        active = None
-    venv = payload.get("venv") if isinstance(payload.get("venv"), dict) else {}
-    venv_path_s = venv.get("path") if isinstance(venv, dict) else None
-    venv_path = Path(venv_path_s) if isinstance(venv_path_s, str) and venv_path_s else None
-    venv_provisioned = bool(venv.get("provisioned")) if isinstance(venv, dict) else False
+    installed, active, venv_path, venv_provisioned = _parse_registry(install_root, data)
     return AppState(
         install_root=install_root,
         installed=installed,
@@ -148,14 +179,6 @@ def _parse(payload: dict) -> AppState:
         venv_path=venv_path,
         venv_provisioned=venv_provisioned,
     )
-
-
-def get_app_state() -> AppState:
-    """Return the fully-populated AppState, or an empty state on failure."""
-    payload = _query_installer_json()
-    if payload is None:
-        return _empty_state(error="installer query failed")
-    return _parse(payload)
 
 
 def get_install_root() -> Optional[Path]:

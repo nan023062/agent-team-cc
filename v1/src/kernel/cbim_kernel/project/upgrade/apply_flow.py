@@ -177,9 +177,12 @@ def run_apply(
     """Orchestrate the full apply flow. Returns the exit code per contract."""
     install_root = diagnosis.app.install_root
     if install_root is None:
+        # Path resolution itself failed (no home dir, etc.). Distinct from
+        # "install root exists but registry unreadable" — that case still
+        # populates install_root so we can proceed with the apply.
+        detail = diagnosis.app.error or "path resolution failed"
         sys.stderr.write(
-            "[cbim] no install root resolved (installer state unavailable); "
-            "cannot apply\n"
+            "[cbim] no install root resolved ({}); cannot apply\n".format(detail)
         )
         return 1
 
