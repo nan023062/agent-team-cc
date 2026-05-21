@@ -282,10 +282,10 @@ def _cmd_list(_args: argparse.Namespace) -> int:
 
 
 def _cmd_version(_args: argparse.Namespace) -> int:
-    from installer.venv_mgr import VENV_PATH, is_provisioned
+    from installer.venv_mgr import is_provisioned, venv_path
 
     print("cbim installer (stdlib)")
-    print("CBIM_HOME: {}".format(registry.CBIM_HOME))
+    print("install root: {}".format(registry.cbim_home()))
     default = registry.get_default()
     print("active_default: {}".format(default or "(none)"))
     versions = registry.list_installed()
@@ -308,7 +308,7 @@ def _cmd_version(_args: argparse.Namespace) -> int:
             )
     print(
         "venv: {}  ({})".format(
-            VENV_PATH,
+            venv_path(),
             "provisioned" if is_provisioned() else "not provisioned",
         )
     )

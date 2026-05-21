@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from installer import registry
-from installer.venv_mgr import VENV_PATH, update_venv
+from installer.migrate_install_root import migrate_legacy_install_root
+from installer.venv_mgr import update_venv, venv_path
 
 
 def _read_version(kernel_src: Path) -> str:
@@ -49,10 +50,11 @@ def _extract_tarball(tarball: Path, dest: Path) -> None:
 
 
 def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
-    """Copy ``kernel_src`` to ``~/.cbim/kernel/<version>/``.
+    """Copy ``kernel_src`` to ``<install_root>/kernel/<version>/``.
 
     Idempotent: if destination already exists, returns it unchanged.
     """
+    migrate_legacy_install_root()
     kernel_src = Path(kernel_src).resolve()
     if not kernel_src.is_dir():
         raise FileNotFoundError(
@@ -62,11 +64,11 @@ def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
     if version is None:
         version = _read_version(kernel_src)
 
-    dest = registry.CBIM_HOME / "kernel" / version
+    dest = registry.cbim_home() / "kernel" / version
 
     if dest.exists():
         print("[cbim] kernel {} already installed at {}".format(version, dest))
-        registry.register(version, dest, VENV_PATH, source="local")
+        registry.register(version, dest, venv_path(), source="local")
         if registry.get_default() is None:
             registry.set_default(version)
         return dest
@@ -78,7 +80,7 @@ def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
     )
 
-    registry.register(version, dest, VENV_PATH, source="local")
+    registry.register(version, dest, venv_path(), source="local")
     if registry.get_default() is None:
         registry.set_default(version)
 
@@ -95,10 +97,11 @@ def install_from_github(
 
     If *version* is None, fetches the latest published release.
     If *set_default* is True (or no default is set), marks the version
-    as ``active_default`` in ``~/.cbim/versions.json``.
+    as ``active_default`` in ``<install_root>/versions.json``.
 
     Returns the installed kernel path.
     """
+    migrate_legacy_install_root()
     from installer.github import latest_version as _latest, download_tarball
 
     kwargs = {}
@@ -110,10 +113,10 @@ def install_from_github(
         version = _latest(**kwargs)
         print("[cbim] latest release: {}".format(version))
 
-    dest = registry.CBIM_HOME / "kernel" / version
+    dest = registry.cbim_home() / "kernel" / version
     if dest.exists():
         print("[cbim] kernel {} already installed at {}".format(version, dest))
-        registry.register(version, dest, VENV_PATH, source="github")
+        registry.register(version, dest, venv_path(), source="github")
         if set_default or registry.get_default() is None:
             registry.set_default(version)
         return dest
@@ -123,7 +126,7 @@ def install_from_github(
         print("[cbim] extracting -> {}".format(dest))
         _extract_tarball(tarball, dest)
 
-    registry.register(version, dest, VENV_PATH, source="github")
+    registry.register(version, dest, venv_path(), source="github")
     if set_default or registry.get_default() is None:
         registry.set_default(version)
 

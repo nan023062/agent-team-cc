@@ -1,20 +1,24 @@
-"""Shared Python venv at ``~/.cbim/venv/``."""
+"""Shared Python venv at ``<install_root>/venv/``."""
 from __future__ import annotations
 
 import subprocess
 import sys
 from pathlib import Path
 
-from installer.registry import CBIM_HOME
+from installer.registry import cbim_home
 
-VENV_PATH = CBIM_HOME / "venv"
+
+def venv_path() -> Path:
+    """Return path to the shared venv (lazy: resolves install_root on call)."""
+    return cbim_home() / "venv"
 
 
 def python_executable() -> Path:
     """Return path to Python in the venv (``Scripts/python.exe`` on Windows)."""
+    vp = venv_path()
     if sys.platform == "win32":
-        return VENV_PATH / "Scripts" / "python.exe"
-    return VENV_PATH / "bin" / "python"
+        return vp / "Scripts" / "python.exe"
+    return vp / "bin" / "python"
 
 
 def _has_mcp() -> bool:
@@ -38,9 +42,10 @@ def is_provisioned() -> bool:
 
 
 def _create_venv() -> None:
-    VENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+    vp = venv_path()
+    vp.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        [sys.executable, "-m", "venv", str(VENV_PATH)],
+        [sys.executable, "-m", "venv", str(vp)],
         check=True,
     )
 
@@ -48,7 +53,7 @@ def _create_venv() -> None:
 def ensure_venv(requirements_txt: Path) -> Path:
     """Create venv + install requirements; idempotent fast-path when already provisioned."""
     if is_provisioned():
-        return VENV_PATH
+        return venv_path()
 
     if not python_executable().is_file():
         _create_venv()
@@ -67,7 +72,7 @@ def ensure_venv(requirements_txt: Path) -> Path:
             check=True,
         )
 
-    return VENV_PATH
+    return venv_path()
 
 
 def update_venv(requirements_txt: Path) -> Path:
@@ -93,4 +98,4 @@ def update_venv(requirements_txt: Path) -> Path:
             check=True,
         )
 
-    return VENV_PATH
+    return venv_path()

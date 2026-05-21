@@ -3,15 +3,21 @@
 
 This file is intentionally minimal and extremely stable. It must work across
 kernel upgrades without itself being updated. It depends only on the Python
-stdlib and never imports from cbim_kernel.
+stdlib and never imports from cbim_kernel (or installer — the launcher
+bootstraps PATH before installer is reachable).
 
 Resolution order:
   1. Detect installer-style commands (version/install/help) that bypass project lookup.
   2. Walk up from cwd to find .cbim/config.json (the project root marker).
   3. Read the project's pinned kernel version from config.json.
-  4. Resolve kernel path (CBIM_KERNEL_OVERRIDE wins, else ~/.cbim/kernel/<version>/).
-  5. Resolve Python interpreter (shared venv at ~/.cbim/venv/ if present, else sys.executable).
+  4. Resolve kernel path (CBIM_KERNEL_OVERRIDE wins, else <install_root>/kernel/<version>/).
+  5. Resolve Python interpreter (shared venv at <install_root>/venv/ if present, else sys.executable).
   6. Export CBIM_* env vars and exec the kernel's __main__.
+
+Install-root resolution mirrors installer/paths.py:install_root():
+  1. CBIM_INSTALL_ROOT env var
+  2. Windows: %LOCALAPPDATA%\\Cbim-CC\\  (fallback: ~/AppData/Local/Cbim-CC)
+  3. POSIX: $XDG_DATA_HOME/Cbim-CC/      (default: ~/.local/share/Cbim-CC)
 """
 import json
 import os
@@ -20,7 +26,27 @@ import sys
 from pathlib import Path
 
 LAUNCHER_VERSION = "1.0.1"
-CBIM_HOME = Path.home() / ".cbim"
+
+
+# Mirror of installer/paths.py:install_root(). Keep in sync.
+# Launcher must not import from installer (it bootstraps PATH before the
+# installer package is on sys.path).
+def _install_root() -> Path:
+    env = os.environ.get("CBIM_INSTALL_ROOT")
+    if env:
+        return Path(env).expanduser()
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / "Cbim-CC"
+        return Path.home() / "AppData" / "Local" / "Cbim-CC"
+    base = os.environ.get("XDG_DATA_HOME")
+    if base:
+        return Path(base) / "Cbim-CC"
+    return Path.home() / ".local" / "share" / "Cbim-CC"
+
+
+CBIM_HOME = _install_root()
 
 INSTALLER_COMMANDS = {"install", "upgrade", "uninstall", "use", "versions", "pin"}
 VERSION_FLAGS = {"version", "--version", "-V"}
@@ -39,7 +65,7 @@ Usage:
 Project resolution:
   The launcher walks up from the current directory looking for .cbim/config.json
   and reads the pinned 'cbim_version' field. The matching kernel must be
-  installed at ~/.cbim/kernel/<version>/.
+  installed at <install_root>/kernel/<version>/ (see CBIM_INSTALL_ROOT).
 
 Development overrides:
   CBIM_KERNEL_OVERRIDE   Path to a kernel checkout (bypasses version lookup)
@@ -59,8 +85,25 @@ def die(msg, code=1):
 
 
 def find_project_root(start):
+    """Walk up from `start` looking for `.cbim/config.json`.
+
+    Hard boundary: the user's home directory is never returned as a project
+    root, even if `~/.cbim/config.json` happens to exist. Historically the
+    global kernel install lived under `~/.cbim/`; even though the new install
+    root is `<install_root>/Cbim-CC/` (outside home), we keep this guard to
+    protect users who still have a legacy `~/.cbim/` lying around. If the walk
+    would cross home, bail out and return None so the caller treats this as
+    "not in a project".
+    """
     cur = Path(start).resolve()
+    try:
+        home = Path.home().resolve()
+    except (RuntimeError, OSError):
+        home = None
     while True:
+        if home is not None and cur == home:
+            debug("find_project_root: refusing to treat user home as project root ({})".format(cur))
+            return None
         if (cur / ".cbim" / "config.json").is_file():
             return cur
         if cur.parent == cur:
@@ -139,7 +182,7 @@ def cmd_version():
             lines.append("CBIM_KERNEL_OVERRIDE: {}".format(os.environ["CBIM_KERNEL_OVERRIDE"]))
     versions = read_versions_json()
     if versions is None:
-        lines.append("installed kernels: (none -- ~/.cbim/versions.json missing)")
+        lines.append("installed kernels: (none -- {}/versions.json missing)".format(CBIM_HOME))
     else:
         installed = versions.get("installed")
         active = versions.get("active_default")
@@ -160,7 +203,7 @@ def cmd_version():
 
 
 def cmd_installer(name, args):
-    """Route installer commands through ~/.cbim/installer (installed by install.py)."""
+    """Route installer commands through <install_root>/installer (installed by install.py)."""
     installer_dir = CBIM_HOME / "installer"
     if not installer_dir.is_dir():
         sys.stderr.write(

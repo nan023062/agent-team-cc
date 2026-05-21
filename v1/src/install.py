@@ -6,8 +6,11 @@ Run once per machine::
     python install.py
 
 This is the machine-level installer that places the CBIM kernel into
-``~/.cbim/kernel/<version>/`` and provisions the shared venv at
-``~/.cbim/venv/``.
+``<install_root>/kernel/<version>/`` and provisions the shared venv at
+``<install_root>/venv/``. The install root resolves to
+``%LOCALAPPDATA%\\Cbim-CC\\`` on Windows and
+``$XDG_DATA_HOME/Cbim-CC/`` (default ``~/.local/share/Cbim-CC``) on POSIX,
+and can be overridden via the ``CBIM_INSTALL_ROOT`` env var.
 
 NOTE: The previous project-level installer (``python install/install.py``)
 still lives in the ``install/`` package. It is preserved as the migration

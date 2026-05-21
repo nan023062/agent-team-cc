@@ -1,4 +1,4 @@
-"""Versions registry for ``~/.cbim/versions.json``.
+"""Versions registry for ``<install_root>/versions.json``.
 
 Schema::
 
@@ -7,14 +7,17 @@ Schema::
       "installed": {
         "1.2.0": {
           "installed_at": "2026-05-21T10:30:00Z",
-          "kernel_path": "/home/user/.cbim/kernel/1.2.0",
-          "venv_path": "/home/user/.cbim/venv",
+          "kernel_path": "C:/Users/u/AppData/Local/Cbim-CC/kernel/1.2.0",
+          "venv_path": "C:/Users/u/AppData/Local/Cbim-CC/venv",
           "source": "local"
         }
       }
     }
 
 All writes are atomic (temp file + ``os.replace``).
+
+The install-root location is resolved lazily through ``installer.paths.install_root()``
+(see that module for the resolution order and the CBIM_INSTALL_ROOT env override).
 """
 from __future__ import annotations
 
@@ -25,8 +28,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-CBIM_HOME = Path.home() / ".cbim"
-VERSIONS_FILE = CBIM_HOME / "versions.json"
+from installer.paths import install_root
+
+
+def cbim_home() -> Path:
+    """Return the active install root (lazy: resolved on every call)."""
+    return install_root()
+
+
+def versions_file() -> Path:
+    """Return path to ``<install_root>/versions.json``."""
+    return cbim_home() / "versions.json"
 
 
 def _empty() -> dict:
@@ -35,10 +47,11 @@ def _empty() -> dict:
 
 def load() -> dict:
     """Return versions registry. Returns empty structure if file doesn't exist."""
-    if not VERSIONS_FILE.is_file():
+    vf = versions_file()
+    if not vf.is_file():
         return _empty()
     try:
-        with VERSIONS_FILE.open("r", encoding="utf-8") as f:
+        with vf.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
         return _empty()
@@ -53,16 +66,17 @@ def load() -> dict:
 
 def save(data: dict) -> None:
     """Atomic write to versions.json."""
-    CBIM_HOME.mkdir(parents=True, exist_ok=True)
+    home = cbim_home()
+    home.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
     # Temp file in the same directory so os.replace is atomic on all platforms.
     fd, tmp_path = tempfile.mkstemp(
-        prefix=".versions.", suffix=".json.tmp", dir=str(CBIM_HOME)
+        prefix=".versions.", suffix=".json.tmp", dir=str(home)
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(payload)
-        os.replace(tmp_path, VERSIONS_FILE)
+        os.replace(tmp_path, versions_file())
     except Exception:
         try:
             os.unlink(tmp_path)

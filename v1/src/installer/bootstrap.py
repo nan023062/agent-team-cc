@@ -1,4 +1,4 @@
-"""Launcher bootstrap — writes ``~/.cbim/bin/`` entries."""
+"""Launcher bootstrap — writes ``<install_root>/bin/`` entries."""
 from __future__ import annotations
 
 import os
@@ -7,11 +7,14 @@ import stat
 import sys
 from pathlib import Path
 
-from installer.registry import CBIM_HOME
+from installer.registry import cbim_home
 
 _INSTALLER_IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo")
 
-BIN_DIR = CBIM_HOME / "bin"
+
+def bin_dir() -> Path:
+    """Return path to ``<install_root>/bin/`` (lazy)."""
+    return cbim_home() / "bin"
 
 POSIX_LAUNCHER = '#!/bin/sh\nexec python3 "$(dirname "$0")/cbim_launcher.py" "$@"\n'
 
@@ -36,7 +39,7 @@ def _make_executable(path: Path) -> None:
 
 
 def write_launcher(launcher_src: Path) -> Path:
-    """Install the cbim launcher into ``~/.cbim/bin/``.
+    """Install the cbim launcher into ``<install_root>/bin/``.
 
     Copies ``cbim_launcher.py`` and writes both the POSIX and Windows wrappers
     so the same installation works regardless of which shell is used later.
@@ -47,31 +50,32 @@ def write_launcher(launcher_src: Path) -> Path:
             "launcher source not found: {}".format(launcher_src)
         )
 
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    bd = bin_dir()
+    bd.mkdir(parents=True, exist_ok=True)
 
-    dst_launcher = BIN_DIR / "cbim_launcher.py"
+    dst_launcher = bd / "cbim_launcher.py"
     shutil.copyfile(str(launcher_src), str(dst_launcher))
     _make_executable(dst_launcher)
 
-    posix_cbim = BIN_DIR / "cbim"
+    posix_cbim = bd / "cbim"
     _write_text(posix_cbim, POSIX_LAUNCHER, newline="\n")
     _make_executable(posix_cbim)
 
-    win_cbim = BIN_DIR / "cbim.cmd"
+    win_cbim = bd / "cbim.cmd"
     _write_text(win_cbim, WINDOWS_LAUNCHER, newline="")
 
-    return BIN_DIR
+    return bd
 
 
 def copy_installer(installer_src: Path) -> Path:
-    """Copy the installer package to ``~/.cbim/installer/``.
+    """Copy the installer package to ``<install_root>/installer/``.
 
     Called once during initial installation so the launcher can invoke
     ``python -m installer upgrade/install/use/...`` without requiring the
     original git checkout to be on disk.
     """
     installer_src = Path(installer_src).resolve()
-    dst = CBIM_HOME / "installer"
+    dst = cbim_home() / "installer"
 
     if dst.exists():
         shutil.rmtree(str(dst))
@@ -81,36 +85,36 @@ def copy_installer(installer_src: Path) -> Path:
     return dst
 
 
-def print_path_instructions(bin_dir: Path) -> None:
+def print_path_instructions(bin_path: Path) -> None:
     """Print OS-appropriate instructions for adding the bin dir to PATH."""
-    bin_dir = Path(bin_dir)
-    on_path = _is_on_path(bin_dir)
+    bin_path = Path(bin_path)
+    on_path = _is_on_path(bin_path)
 
     if on_path:
-        print("[cbim] {} is already on PATH.".format(bin_dir))
+        print("[cbim] {} is already on PATH.".format(bin_path))
         return
 
     print("")
     print("[cbim] Add the launcher to your PATH:")
     if sys.platform == "win32":
-        print('  setx PATH "%USERPROFILE%\\.cbim\\bin;%PATH%"')
+        print('  setx PATH "%LOCALAPPDATA%\\Cbim-CC\\bin;%PATH%"')
         print("  (or via System Settings -> Advanced -> Environment Variables)")
         print("  Then open a new terminal so the change takes effect.")
     else:
-        print('  export PATH="$HOME/.cbim/bin:$PATH"')
+        print('  export PATH="$HOME/.local/share/Cbim-CC/bin:$PATH"')
         print("  Add the above line to ~/.bashrc or ~/.zshrc to persist.")
 
 
-def _is_on_path(bin_dir: Path) -> bool:
+def _is_on_path(bin_path: Path) -> bool:
     try:
-        bin_dir = bin_dir.resolve()
+        bin_path = bin_path.resolve()
     except OSError:
         return False
     for entry in os.environ.get("PATH", "").split(os.pathsep):
         if not entry:
             continue
         try:
-            if Path(entry).resolve() == bin_dir:
+            if Path(entry).resolve() == bin_path:
                 return True
         except OSError:
             continue
