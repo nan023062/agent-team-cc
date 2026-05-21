@@ -54,7 +54,7 @@ def preflight(diagnosis: Diagnosis, target_version: str) -> None:
     from cbim_kernel.project.upgrade.diagnose import _newer  # type: ignore
     if _newer(target_version, project.pin):
         raise PreflightRefused(
-            "project at {} is pinned to {}; run `cbim migrate --to {}` first, "
+            "project at {} is pinned to {}; run `cbim migrate --version {}` first, "
             "then `cbim upgrade apply --to {}`".format(
                 project.root, project.pin, target_version, target_version
             )

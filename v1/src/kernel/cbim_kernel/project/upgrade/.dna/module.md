@@ -5,6 +5,7 @@ description: cbim upgrade: holistic version-state inspector (check) + app-side i
 keywords: []
 dependencies: []
 ---
+
 ## Positioning
 
 `cbim upgrade` — a holistic version-state inspector and app-side install repointer. `check` diagnoses the joint state of the global app install and the per-project pin and prints exact next-step commands. `apply` upgrades the app-side install in place. Project-side schema migration is delegated to `cbim migrate`; rollback is internal-only and automatic on failure.
@@ -96,8 +97,8 @@ classDiagram
 | 1 | not installed          | not initialized                             | `cold-start`               | `python install.py` (or download installer), then `cbim init` inside the target project dir |
 | 2 | installed, current     | not initialized                             | `app-ready-project-new`    | `cbim init` (run in project dir)                                                            |
 | 3 | installed, outdated    | not initialized                             | `app-stale-project-new`    | `cbim upgrade apply --to <latest>`, then `cbim init`                                        |
-| 4 | installed, current     | pinned to an older installed version        | `project-stale-vs-app`     | EITHER `cbim migrate --to <app-current>` (recommended) OR explicit `cbim pin <X>`           |
-| 5 | installed, outdated    | pinned older than app, app older than remote| `both-stale`               | `cbim upgrade apply --to <remote-latest>`, then `cbim migrate --to <remote-latest>`         |
+| 4 | installed, current     | pinned to an older installed version        | `project-stale-vs-app`     | EITHER `cbim migrate --version <app-current>` (recommended) OR explicit `cbim pin <X>`      |
+| 5 | installed, outdated    | pinned older than app, app older than remote| `both-stale`               | `cbim upgrade apply --to <remote-latest>`, then `cbim migrate --version <remote-latest>`    |
 | 6 | installed, outdated    | pin equals current app version              | `app-stale-project-aligned`| `cbim upgrade apply --to <remote-latest>`; project pin stays at `<X>` unless the user opts to also migrate |
 | 7 | installed, current     | pin equals app current                      | `all-aligned`              | (nothing to do; print "All aligned at version <X>.")                                        |
 
@@ -114,6 +115,6 @@ Each row, when emitted, includes:
 - **Default `upgrade.remote` is hard-coded in the template** to `https://github.com/nan023062/cbim.git`. (Decision #3.) Users can override per-project in `.cbim/config.json`.
 - **`upgrade.auto_check` is true by default**, with a 24-hour interval. The notifier in `hooks.load_memory` reads `notify.cache_path(project_root)`; if older than the interval, it runs a fresh `diagnose` in a fire-and-forget subprocess and updates the cache. The user-visible cost is at most one stdout line per session start when an update is available.
 - **Network failures are silent on `check` and fatal on `apply`.** `check` degrades gracefully (omits the `app_remote_latest` field; scenarios 5/6 may fall back to 4/7 if remote is unreachable, with a "remote unreachable" note). `apply` refuses to proceed without network confirmation of the target's existence.
-- **Version-incompatibility preflight.** Before `apply`, `apply_flow.preflight` checks whether jumping from current pin to target requires a schema migration in `.cbim/`. If so, it refuses and instructs the user to run `cbim migrate --to <ver>` first. The upgrade module never touches `.cbim/` directly.
+- **Version-incompatibility preflight.** Before `apply`, `apply_flow.preflight` checks whether jumping from current pin to target requires a schema migration in `.cbim/`. If so, it refuses and instructs the user to run `cbim migrate --version <ver>` first. The upgrade module never touches `.cbim/` directly.
 - **Only the app side is upgraded by this module.** Project-side schema migration belongs to `project.migrate`; the user invokes it explicitly. This is a hard split: `upgrade.apply` mutates `<install_root>/`; `migrate` mutates `<cwd>/.cbim/`. No flag combines them — they remain two steps, surfaced as two commands.
 - **Diagnosis is pure and side-effect-free.** `diagnose.diagnose()` returns a `Diagnosis` value; CLI / notifier / future MCP tool all share it. Testability and reuse hinge on this.

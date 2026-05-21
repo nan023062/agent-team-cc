@@ -5,6 +5,7 @@ description: Per-project lifecycle commands: init, migrate, upgrade
 keywords: []
 dependencies: []
 ---
+
 ## Positioning
 
 Owns every operation that mutates a project's `<cwd>/.cbim/` directory. Three lifecycle stages: bootstrap (`init`), schema migration (`migrate`), kernel-version repinning (`upgrade`).
@@ -14,7 +15,7 @@ Owns every operation that mutates a project's `<cwd>/.cbim/` directory. Three li
 ```mermaid
 graph TD
     init["init.py (file)<br/>cbim init: create .cbim/ from templates"]
-    migrate["migrate.py (file)<br/>cbim migrate: legacy → global-kernel layout"]
+    migrate["migrate.py (file)<br/>cbim migrate: legacy → global-kernel layout migration, plus pure pin-bump on already-current layout"]
     upgrade["upgrade/ (sub-package)<br/>cbim upgrade check|apply: repin to a newer kernel"]
     tpl["templates/<br/>config.json.tmpl, settings.json.tmpl, CLAUDE.md.tmpl, gitignore_entries.txt"]
     agt["agents/<br/>architect.md, auditor.md, hr.md, programmer.md"]

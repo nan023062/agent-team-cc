@@ -29,7 +29,7 @@ Scenario 5: both-stale
   App is older than remote; project pin is older than app.
   Run in order:
     1) cbim upgrade apply --to 1.2.5
-    2) cbim migrate --to 1.2.5
+    2) cbim migrate --version 1.2.5
 ```
 
 **Stdout (`--json`)** — see "Diagnosis schema" below.
@@ -89,7 +89,7 @@ cbim upgrade apply --to <version> [--source local|git|github] [--from <path-or-u
   "recommendation": "App is older than remote; project pin is older than app.",
   "commands": [
     {"shell": "cbim upgrade apply --to 1.2.5", "description": "Upgrade app to remote latest"},
-    {"shell": "cbim migrate --to 1.2.5", "description": "Migrate project schema to 1.2.5"}
+    {"shell": "cbim migrate --version 1.2.5", "description": "Migrate project schema to 1.2.5"}
   ],
   "ordered": true
 }

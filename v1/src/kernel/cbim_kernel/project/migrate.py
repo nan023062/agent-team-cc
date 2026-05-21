@@ -123,7 +123,35 @@ def migrate_project(
         return 0
 
     if not _is_old_layout(cbim_dir):
-        print(f"[cbim] already on global-kernel layout")
+        # Layout is already global-kernel; this is a pure pin-bump path.
+        # No backup tarball (no old kernel dirs to preserve) and no
+        # confirmation prompt (config.json + settings + agents only).
+        cfg_path = cbim_dir / "config.json"
+        pin_matches = False
+        if cfg_path.is_file():
+            try:
+                pin_matches = (
+                    json.loads(cfg_path.read_text(encoding="utf-8")).get("cbim_version")
+                    == version
+                )
+            except json.JSONDecodeError:
+                pin_matches = False
+
+        if pin_matches:
+            settings_action = _sync.sync_settings(project_root, dry_run=True)
+            agent_actions = _sync.sync_agents(project_root, dry_run=True)
+            if settings_action.startswith("unchanged ") and all(
+                a.startswith("unchanged ") for a in agent_actions
+            ):
+                print(f"[cbim] already aligned with cbim_version=\"{version}\"; nothing to do")
+                return 0
+
+        _inject_version(cbim_dir, version, dry_run)
+        _update_settings(project_root, dry_run)
+        _update_agents(project_root, dry_run)
+
+        if dry_run:
+            print("[cbim] --- DRY RUN complete ---")
         return 0
 
     if not (dry_run or force):

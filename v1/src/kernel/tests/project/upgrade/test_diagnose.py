@@ -83,7 +83,7 @@ def test_scenario_5_both_stale():
     assert d.scenario_name == "both-stale"
     assert d.ordered is True
     assert "upgrade apply --to 1.2.5" in d.commands[0].cmd
-    assert "migrate --to 1.2.5" in d.commands[1].cmd
+    assert "migrate --version 1.2.5" in d.commands[1].cmd
 
 
 # Scenario 6: app outdated vs remote, but pin == app current.

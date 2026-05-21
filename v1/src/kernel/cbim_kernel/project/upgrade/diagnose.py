@@ -214,7 +214,7 @@ def _build_recommendation(
         app_current = latest_local or "<app-current>"
         cmds: list = [
             Command(
-                cmd=f"cbim migrate --to {app_current}",
+                cmd=f"cbim migrate --version {app_current}",
                 description="Recommended: migrate project schema to the app's current version",
             ),
             Command(
@@ -239,7 +239,7 @@ def _build_recommendation(
                     description="Upgrade app to remote latest",
                 ),
                 Command(
-                    cmd=f"cbim migrate --to {target}",
+                    cmd=f"cbim migrate --version {target}",
                     description=f"Migrate project schema to {target}",
                 ),
             ],
@@ -255,7 +255,7 @@ def _build_recommendation(
                     cmd=f"cbim upgrade apply --to {target}",
                     description=(
                         "Upgrade app to remote latest; project pin stays at "
-                        f"{pin} unless you also run `cbim migrate --to {target}`"
+                        f"{pin} unless you also run `cbim migrate --version {target}`"
                     ),
                 ),
             ],

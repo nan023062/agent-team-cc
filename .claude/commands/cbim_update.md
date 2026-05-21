@@ -15,7 +15,7 @@ Force update the CBIM kernel to the latest available version (local or remote) a
 
 3. Based on the target:
    - **Target already installed locally** (scenario 4: `app_latest_local > project_pin`):
-     - Run `cbim migrate --to <target>` to update the project pin and apply any schema migrations.
+     - Run `cbim migrate --version <target>` to update the project pin and apply any schema migrations.
    - **Target requires download** (scenario 5 or 6: remote newer than local):
      - Run `cbim update -y` to download and install, then update the project pin.
 
@@ -23,5 +23,5 @@ Force update the CBIM kernel to the latest available version (local or remote) a
 
 ## Error handling
 
-- If the network is unreachable and the local version is already up to date with what's installed, say so and offer to run `cbim migrate --to <app_latest_local>` to just advance the project pin.
+- If the network is unreachable and the local version is already up to date with what's installed, say so and offer to run `cbim migrate --version <app_latest_local>` to just advance the project pin.
 - If `cbim migrate` is not available (older kernel), fall back to `cbim upgrade apply --to <target>`.
