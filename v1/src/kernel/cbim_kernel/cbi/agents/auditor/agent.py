@@ -83,7 +83,7 @@ All reviews are dispatched uniformly by the **assistant**; the auditor is not in
 - **Target agent professional standards** — Read the target agent's `.claude/agents/<agent-id>.md` to understand their responsibility definition and execution norms
 - **Module local standards** — The `constraints` field in `<module-dir>/.dna/module.md` frontmatter
 
-Review method: run `python .cbim/engine skill show auditor.audit_review`.
+Review method: run `cbim skill show auditor.audit_review`.
 
 ## Permission Scope
 

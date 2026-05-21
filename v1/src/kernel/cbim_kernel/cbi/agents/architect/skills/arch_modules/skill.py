@@ -6,9 +6,9 @@ SKILL: str = """\
 ## Commands
 
 ```bash
-python .cbim/engine dna list [--root <path>]            # list all modules
-python .cbim/engine dna show <module-dir>               # view module details
-python .cbim/engine dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner> [--description "..."]
+cbim dna list [--root <path>]            # list all modules
+cbim dna show <module-dir>               # view module details
+cbim dna init <dir> --type {root,parent,leaf} --name <name> --owner <owner> [--description "..."]
 ```
 
 **`--type` is required and determines the body template:**
@@ -40,8 +40,8 @@ The **registry** (`.cbim/index.md`) is auto-created by `install.py` — that's t
 1. Confirm the registry exists (`ls .cbim/index.md`). If missing, the user hasn't run `install.py` — stop and tell them.
 2. Survey the project structure and decide top-level shape (see table above). Confirm with the user if ambiguous.
 3. Create the chosen top-level module(s):
-   - Single-app: `python .cbim/engine dna init . --type root --name <project-name> --owner architect`
-   - Monorepo: `python .cbim/engine dna init packages --type parent --name <workspace> --owner architect` (substitute your workspace dir)
+   - Single-app: `cbim dna init . --type root --name <project-name> --owner architect`
+   - Monorepo: `cbim dna init packages --type parent --name <workspace> --owner architect` (substitute your workspace dir)
    - Mixed: skip this step; go straight to sub-module creation
 4. Fill in each newly created `module.md` (positioning + sub-module/class diagram + key decisions per template).
 5. Scan for sub-modules and run **Create Module** below for each. `init_module` auto-appends to `.cbim/index.md` — no manual reindex needed.
@@ -51,7 +51,7 @@ The **registry** (`.cbim/index.md`) is auto-created by `install.py` — that's t
 
 **Recovery**: if the registry drifts (e.g. someone hand-deleted entries, or modules were added without using `init_module`), run:
 ```bash
-python .cbim/engine dna reindex
+cbim dna reindex
 ```
 This rescans the filesystem and rebuilds `.cbim/index.md`.
 
@@ -73,7 +73,7 @@ This rescans the filesystem and rebuilds `.cbim/index.md`.
 
 3. Initialize with the chosen type:
    ```bash
-   python .cbim/engine dna init <dir> --type {parent|leaf} --name <name> --owner architect
+   cbim dna init <dir> --type {parent|leaf} --name <name> --owner architect
    ```
    The CLI installs a body template matching the type — leaf gets `classDiagram`, parent gets a `graph` placeholder with a "do not write sub-module internals" comment.
 

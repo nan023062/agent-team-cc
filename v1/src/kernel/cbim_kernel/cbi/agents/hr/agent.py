@@ -93,9 +93,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Assistant requests new agent / fission produces sub-agents / archive | `python .cbim/engine skill show hr.hr_agents` |
-| Agent completes a batch of tasks / assessment concludes "needs training" | `python .cbim/engine skill show hr.hr_training` |
-| After task batch completes / user flags deficiency / auditor continuously rejects | `python .cbim/engine skill show hr.hr_assessment` |
+| Assistant requests new agent / fission produces sub-agents / archive | `cbim skill show hr.hr_agents` |
+| Agent completes a batch of tasks / assessment concludes "needs training" | `cbim skill show hr.hr_training` |
+| After task batch completes / user flags deficiency / auditor continuously rejects | `cbim skill show hr.hr_assessment` |
 
 ## Permission Scope
 
@@ -113,8 +113,8 @@ Self-check before promotion: if this content were placed in a completely differe
 
 My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. All agent and memory writes go through the kernel:
 
-- Agent recruit / archive / update: `python .cbim/engine agent ...`
-- Memory governance / distillation writes: `python .cbim/engine memory ...`
+- Agent recruit / archive / update: `cbim agent ...`
+- Memory governance / distillation writes: `cbim memory ...`
 
 Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted. If a needed `engine agent` or `engine memory` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

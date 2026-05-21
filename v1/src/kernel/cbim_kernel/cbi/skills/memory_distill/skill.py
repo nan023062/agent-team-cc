@@ -218,7 +218,7 @@ distilled: 2026-05-18     ← add this line
 **Fallback cleanup** (clean entries that are "marked + older than 3 days"):
 
 ```bash
-python .cbim/engine memory cleanup --keep-days 3
+cbim memory cleanup --keep-days 3
 ```
 
 `last-session.md` is an independent file not subject to this lifecycle.

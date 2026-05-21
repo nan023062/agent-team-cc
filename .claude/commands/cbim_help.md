@@ -17,7 +17,7 @@ Display the following overview to the user verbatim (in Chinese):
          │
          ├─ 派发任务 → architect / hr / auditor / programmer (agent，.claude/agents/)
          │              │
-         │              └─ 调用 skill (python .cbim/engine skill show <name>) 执行
+         │              └─ 调用 skill (cbim skill show <name>) 执行
          │
          ├─ 写记忆 → .cbim/memory/short/  (Stop hook 自动)
          ├─ 蒸馏  → .cbim/memory/medium/ (architect 周期)
@@ -32,7 +32,7 @@ Display the following overview to the user verbatim (in Chinese):
 | `/cbim_debug on\|off\|status` | 控制 `.cbim/.debug` 标志——开启/关闭额外的 `[ENG]`/`[IMP]` 引擎内部日志（基础信号永远开启） |
 | `/cbim_log [N]` | 查看当前会话日志最近 N 条（默认 50，所有信号类型在同一文件） |
 
-## CBIM Engine 命令 (`python .cbim/engine <domain> <cmd>`)
+## CBIM Engine 命令 (`cbim <domain> <cmd>`)
 
 | 域 | 命令 | 说明 |
 |---|---|---|
@@ -64,4 +64,4 @@ Display the following overview to the user verbatim (in Chinese):
 - **Stop** — 蒸馏本轮会话写入 `memory/short/`
 - **PreToolUse** — 工具调用日志（受 `.cbim/.debug` 控制）
 
-详见 `python .cbim/engine skill show dispatch`（派发流程）和各 agent 的 `.md`（性格/职责/skill 表）。
+详见 `cbim skill show dispatch`（派发流程）和各 agent 的 `.md`（性格/职责/skill 表）。

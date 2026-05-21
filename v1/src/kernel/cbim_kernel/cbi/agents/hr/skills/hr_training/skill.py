@@ -19,7 +19,7 @@ SKILL: str = """\
 List the agent's medium-tier entries:
 
 ```bash
-python .cbim/engine memory query "" --tier medium --top-k 20
+cbim memory query "" --tier medium --top-k 20
 ```
 
 Find `capability-<agent-id>.md`; read its full content with the Read tool.

@@ -28,13 +28,13 @@ When the user explicitly says to remember something:
 
 4. **Create the entry** using the kernel command (creates the file and indexes it in one step):
    ```bash
-   python .cbim/engine memory create --slug <slug> --tier short --content "..."
+   cbim memory create --slug <slug> --tier short --content "..."
    ```
    The command prints the file path on stdout. Use that path to confirm to the user.
 
    For multi-line content (e.g. in PowerShell):
    ```powershell
-   python .cbim/engine memory create --slug <slug> --tier short --content @'
+   cbim memory create --slug <slug> --tier short --content @'
    ---
    tier: short
    tags: session

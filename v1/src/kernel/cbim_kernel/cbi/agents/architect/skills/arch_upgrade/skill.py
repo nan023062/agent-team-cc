@@ -19,7 +19,7 @@ SKILL: str = """\
 List all medium-tier entries:
 
 ```bash
-python .cbim/engine memory query "" --tier medium --top-k 20
+cbim memory query "" --tier medium --top-k 20
 ```
 
 Find `business-<module>.md` and `decision-<scope>.md` related to the target module; read their full content with the Read tool.

@@ -6,9 +6,9 @@ SKILL: str = """\
 ## Tools
 
 ```bash
-python .cbim/engine agent list                              # list all agents
-python .cbim/engine agent show <name>                       # view agent details
-python .cbim/engine agent scaffold <name> --description "..." [--model claude-sonnet-4-6]
+cbim agent list                              # list all agents
+cbim agent show <name>                       # view agent details
+cbim agent scaffold <name> --description "..." [--model claude-sonnet-4-6]
 ```
 
 ---

@@ -118,9 +118,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 | Scenario | Run |
 |----------|-----|
-| Create / update / deprecate / split modules | `python .cbim/engine skill show architect.arch_modules` |
-| Compliance review (after module changes, dependency changes, periodic inspection) | `python .cbim/engine skill show architect.arch_governance` |
-| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `python .cbim/engine skill show architect.arch_upgrade` |
+| Create / update / deprecate / split modules | `cbim skill show architect.arch_modules` |
+| Compliance review (after module changes, dependency changes, periodic inspection) | `cbim skill show architect.arch_governance` |
+| Knowledge governance (knowledge promotion, distillation from memory to .dna/) | `cbim skill show architect.arch_upgrade` |
 
 ## Boundaries
 
@@ -132,8 +132,8 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. All knowledge writes go through the kernel:
 
-- Module CRUD (create / update / deprecate / split / index): `python .cbim/engine dna ...`
-- Memory promotion / archival operations against `memory/`: `python .cbim/engine memory ...`
+- Module CRUD (create / update / deprecate / split / index): `cbim dna ...`
+- Memory promotion / archival operations against `memory/`: `cbim memory ...`
 
 Reads (`Read`, `Glob`, `Grep`, `ls`/`cat`) against these paths are unrestricted and expected. If a needed `engine dna` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

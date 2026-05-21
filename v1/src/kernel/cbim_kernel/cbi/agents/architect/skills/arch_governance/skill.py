@@ -20,7 +20,7 @@ SKILL: str = """\
 Run basic format checks (factors 1–3) on only the changed modules:
 
 ```bash
-python .cbim/engine dna list
+cbim dna list
 ```
 
 - [ ] `module.md` frontmatter has `name` (kebab-case) and `owner` filled in
@@ -42,7 +42,7 @@ The script automatically handles deterministic checks for factors **#1 #2 #3 #4 
 **MUST issues must be fixed before the LLM analysis phase.**
 
 ```bash
-python .cbim/engine dna list --root .
+cbim dna list --root .
 ```
 
 Obtain all module paths, hierarchy, and dependency lists as input for the three-traversal steps below.

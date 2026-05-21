@@ -22,7 +22,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from installer.bootstrap import copy_installer, print_path_instructions, write_launcher  # noqa: E402
+from installer.bootstrap import copy_installer, ensure_on_path, write_launcher  # noqa: E402
 from installer.install import install_from_local  # noqa: E402
 from installer.venv_mgr import ensure_venv  # noqa: E402
 
@@ -49,7 +49,7 @@ def main() -> int:
 
     print("")
     print("[cbim] Installation complete!")
-    print_path_instructions(bin_dir)
+    ensure_on_path(bin_dir)
     print("")
     print("Next: cd your-project && cbim init")
     return 0

@@ -11,17 +11,17 @@ Run from the CBIM root directory (where `memory/` package lives):
 
 ```bash
 # Default: return top-k most recently modified entries (short + medium combined, sorted by time)
-python .cbim/engine memory query "" --top-k 5
+cbim memory query "" --top-k 5
 
 # Single tier only
-python .cbim/engine memory query "" --tier short --top-k 5
-python .cbim/engine memory query "" --tier medium --top-k 3
+cbim memory query "" --tier short --top-k 5
+cbim memory query "" --tier medium --top-k 3
 ```
 
 If CBIM is installed as a subdirectory (e.g. `.cbim/`), prefix with that path:
 
 ```bash
-python .cbim/engine memory query "" --top-k 5
+cbim memory query "" --top-k 5
 ```
 
 The default backend (FileBackend) sorts by modification time; the query text argument is ignored.
@@ -52,6 +52,6 @@ If switched to a semantic backend (ChromaBackend), the query text participates i
 After switching to a semantic backend, reindex existing files:
 
 ```bash
-python .cbim/engine memory reindex
+cbim memory reindex
 ```
 """
