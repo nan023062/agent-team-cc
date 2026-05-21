@@ -1,14 +1,8 @@
-# CBIM Installation Guide
+# Install CBIM Framework in the Current Project
 
-Open Claude Code in the target project and paste the entire **"SOP Body"** section (from the `---` divider to the end) as a message. Claude Code will complete all installation steps automatically.
+Prerequisites: the current project has a Git repository, Python ≥ 3.10, and network access to GitHub.
 
-> **Prerequisites**: Target project has a Git repository, Python ≥ 3.10, network access to GitHub.
-
----
-
-# Task: Install CBIM Framework in This Project
-
-This is a copy-based install — no installer script is run. Clone the source repo to a temp directory, copy four artifacts into the target project, create a venv, done.
+This is a copy-based install — no installer script is run. Clone the source repo to a temp directory, copy four artifacts into the current project, create a venv, done.
 
 Execute the steps below one by one. Stop and ask the user for confirmation if blocked or uncertain — do not skip silently.
 
