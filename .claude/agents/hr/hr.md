@@ -110,7 +110,7 @@ Self-check before promotion: if this content were placed in a completely differe
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/store/`. All agent and memory writes go through the kernel:
+My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. All agent and memory writes go through the kernel:
 
 - Agent recruit / archive / update: `python .cbim/engine agent ...`
 - Memory governance / distillation writes: `python .cbim/engine memory ...`

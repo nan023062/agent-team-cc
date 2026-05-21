@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .base import MemoryBackend
 
-_DEFAULT_DB_PATH = Path("memory/store/.chroma")
+_DEFAULT_DB_PATH = Path("memory/.chroma")
 
 
 class ChromaBackend(MemoryBackend):

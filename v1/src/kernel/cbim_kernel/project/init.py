@@ -152,8 +152,8 @@ def init_project(project_root: Path, version: str, force: bool = False) -> None:
 
     _install_config(project_root, version, force)
     _ensure_dir(project_root / ".cbim" / "logs", project_root)
-    _ensure_dir(project_root / ".cbim" / "memory" / "store" / "short", project_root)
-    _ensure_dir(project_root / ".cbim" / "memory" / "store" / "medium", project_root)
+    _ensure_dir(project_root / ".cbim" / "memory" / "short", project_root)
+    _ensure_dir(project_root / ".cbim" / "memory" / "medium", project_root)
     _install_agents(project_root, force)
     _install_settings(project_root, force)
     _install_claude_md(project_root, force)

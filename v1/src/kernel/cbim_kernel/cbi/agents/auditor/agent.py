@@ -102,5 +102,5 @@ All files: read-only. Review outputs reports only; does not modify any code or k
 
 ## Kernel-Only Writes (Hard Rule)
 
-Auditor is read-only by design and has no `Write`/`Edit` tools — this rule is reinforced for clarity: under no circumstance may the auditor modify any file, and in particular nothing under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/store/`. Findings are returned to the assistant as report text only. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+Auditor is read-only by design and has no `Write`/`Edit` tools — this rule is reinforced for clarity: under no circumstance may the auditor modify any file, and in particular nothing under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. Findings are returned to the assistant as report text only. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

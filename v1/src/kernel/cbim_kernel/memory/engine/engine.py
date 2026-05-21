@@ -45,7 +45,7 @@ class MemoryEngine:
 
     def __init__(self, backend: MemoryBackend, store_dir: Path | None = None):
         self._backend = backend
-        self._store = store_dir or Path("memory/store")
+        self._store = store_dir or Path("memory")
 
     # ------------------------------------------------------------------
     # Write

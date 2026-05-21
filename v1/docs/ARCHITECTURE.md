@@ -405,8 +405,8 @@ Memory in CBIM is a **three-stage distillation pipeline**, with different purpos
 
 | Stage | Path | Purpose |
 |-------|------|---------|
-| **Short-term** | `.cbim/memory/store/short/` | Raw session records; mainly for recent context recovery, auto-cleaned |
-| **Medium-term** | `.cbim/memory/store/medium/` | Compressed pattern summaries; de-noised, preserves effective signals, long-term retention |
+| **Short-term** | `.cbim/memory/short/` | Raw session records; mainly for recent context recovery, auto-cleaned |
+| **Medium-term** | `.cbim/memory/medium/` | Compressed pattern summaries; de-noised, preserves effective signals, long-term retention |
 | **Knowledge** (core) | `.cbim/cbi/skills/` + `.dna/` | Structured crystallization: capability → skills/soul, business → `.dna/workflows/` |
 
 Transformation between stages:
@@ -415,12 +415,12 @@ Transformation between stages:
 
 | Layer | Path | Lifecycle |
 |-------|------|-----------|
-| Short-term | `.cbim/memory/store/short/` | Tagged `distilled` after processing, kept at least 3 days then deleted by cleanup; undistilled never auto-deleted |
-| Medium-term | `.cbim/memory/store/medium/` | Long-term retention, manually archived after promotion to knowledge layer |
+| Short-term | `.cbim/memory/short/` | Tagged `distilled` after processing, kept at least 3 days then deleted by cleanup; undistilled never auto-deleted |
+| Medium-term | `.cbim/memory/medium/` | Long-term retention, manually archived after promotion to knowledge layer |
 
 - **Stop hook** — `write-memory.py` automatically does two things at session end:
-  1. Writes this session's dispatch content to short-term memory (`store/short/YYYY-MM-DD-*.md`)
-  2. Writes `store/last-session.md` — structured recovery point (task, execution records, changed files, involved modules)
+  1. Writes this session's dispatch content to short-term memory (`short/YYYY-MM-DD-*.md`)
+  2. Writes `last-session.md` — structured recovery point (task, execution records, changed files, involved modules)
 
 - **SessionStart hook** — `load-memory.py` automatically injects three context layers at session start:
   1. **Project knowledge snapshot** (module topology tree + agent list)
@@ -432,8 +432,8 @@ Transformation between stages:
 ```
 Session ends
   └── Stop hook
-        ├── store/short/YYYY-MM-DD-*.md   ← raw records (shared source for governance + recovery)
-        └── store/last-session.md          ← recovery point (injected next time)
+        ├── short/YYYY-MM-DD-*.md   ← raw records (shared source for governance + recovery)
+        └── last-session.md          ← recovery point (injected next time)
 
 New session starts
   └── SessionStart hook injects
@@ -455,9 +455,9 @@ Governance cycle (HR / architect triggered)
 ### Capability Distillation (HR side)
 
 ```
-store/short/          Raw session records (auto-written)
+short/          Raw session records (auto-written)
     ↓ compress & distill
-store/medium/         Capability pattern summary (de-noised, signals retained)
+medium/         Capability pattern summary (de-noised, signals retained)
     ↓ crystallize (the critical step)
 .cbim/cbi/skills/<name>/skill.py   New or updated capability skill
     ↓ internalized after multiple validations
@@ -467,9 +467,9 @@ store/medium/         Capability pattern summary (de-noised, signals retained)
 ### Business Distillation (Architect side)
 
 ```
-store/short/          Raw session records (auto-written)
+short/          Raw session records (auto-written)
     ↓ compress & distill
-store/medium/         Business pattern summary (decisions, interface changes, recurring processes)
+medium/         Business pattern summary (decisions, interface changes, recurring processes)
     ↓ crystallize (the critical step)
 .dna/module.md + contract.md            Updated module blueprint
     ↓ deterministic processes appearing ≥2 times

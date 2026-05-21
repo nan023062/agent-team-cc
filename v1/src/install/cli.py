@@ -11,7 +11,7 @@ Steps:
   2. Copy <repo>/.cbim/  ->  <target>/.cbim/  (framework files at install destination)
   3. Materialize core agent .md files into .claude/agents/
   4. Merge hooks + permissions into .claude/settings.json
-  5. Bootstrap CLAUDE.md, memory store, .dna/index.md, .gitignore, .claudeignore
+  5. Bootstrap CLAUDE.md, memory dirs, .dna/index.md, .gitignore, .claudeignore
 """
 
 import argparse
@@ -136,7 +136,7 @@ def _step_bootstrap(cbim_dst: Path, root: Path) -> None:
         update_gitignore, update_claudeignore,
     )
 
-    _h("[5/5] CLAUDE.md  +  config  +  .gitignore  +  .claudeignore  +  memory store  +  registry")
+    _h("[5/5] CLAUDE.md  +  config  +  .gitignore  +  .claudeignore  +  memory dirs  +  registry")
     write_claude_md(root)
     ensure_store(cbim_dst)
     ensure_config(root)

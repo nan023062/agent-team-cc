@@ -1,12 +1,15 @@
-{
-  "memory": {
-    "short_term": {
-      "keep_days": 3
+  {  
+    "cbim_version": "1.2.3",
+    "dashboard": {
+      "port": 8765,
+      "auto_open": true,
+      "open_browser": true
+    },
+    "memory": {
+      "backend": "file",
+      "max_short": 50,
+      "short_term": {
+        "keep_days": 3
+      }
     }
-  },
-  "dashboard": {
-    "port": 8765,
-    "auto_open": true,
-    "open_browser": true
   }
-}

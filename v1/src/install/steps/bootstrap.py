@@ -1,6 +1,6 @@
 """
 bootstrap.py — Copy <repo>/.cbim/ -> <target>/.cbim/, write CLAUDE.md, create
-memory store + module registry, update .gitignore / .claudeignore.
+memory dirs + module registry, update .gitignore / .claudeignore.
 """
 
 import shutil
@@ -10,10 +10,10 @@ from cbi.claude_md import CLAUDE_MD
 
 
 # Directories never copied into the install destination.
-_COPY_SKIP_DIRS = {"__pycache__", "store", ".chroma"}
+_COPY_SKIP_DIRS = {"__pycache__", "short", "medium", ".chroma"}
 # Top-level paths in .cbim/ that are runtime data and should not be
 # shipped into a fresh install.
-_COPY_SKIP_TOP = {"memory/store"}
+_COPY_SKIP_TOP = {"memory/short", "memory/medium", "memory/last-session.md"}
 
 
 def _ok(text: str) -> None:
@@ -29,14 +29,14 @@ def _copy_tree(src: Path, dst: Path) -> None:
 
     Preserves runtime-managed paths across reinstalls:
       - dst/.dna/            module registry (architect-managed)
-      - dst/memory/store/    short/medium memory tiers (Stop hook-managed)
+      - dst/memory/{short,medium,last-session.md}  (Stop hook-managed)
 
     Everything else under dst is wiped to guarantee framework files match
     the source version after install.
     """
     preserved: dict[str, bytes] = {}
     registry = dst / ".dna" / "index.md"
-    store = dst / "memory" / "store"
+    memory = dst / "memory"
     config = dst / "config.json"
 
     if dst.exists():
@@ -45,34 +45,30 @@ def _copy_tree(src: Path, dst: Path) -> None:
         if config.exists():
             preserved["config"] = config.read_bytes()
         stash: dict[str, bytes] = {}
-        if store.exists():
-            for p in store.rglob("*"):
-                if p.is_file():
-                    stash[str(p.relative_to(store))] = p.read_bytes()
-        preserved["store"] = stash  # type: ignore[assignment]
+        if memory.exists():
+            for p in memory.rglob("*"):
+                if p.is_file() and ".chroma" not in p.parts:
+                    stash[str(p.relative_to(memory))] = p.read_bytes()
+        preserved["memory"] = stash  # type: ignore[assignment]
         shutil.rmtree(str(dst))
 
     shutil.copytree(
         str(src), str(dst),
         ignore=shutil.ignore_patterns(
             "__pycache__", "*.pyc", ".chroma", ".preview.pid",
+            "short", "medium", "last-session.md",
         ),
     )
-
-    # Drop any memory/store contents that snuck in via the source tree.
-    fresh_store = dst / "memory" / "store"
-    if fresh_store.exists():
-        shutil.rmtree(str(fresh_store))
 
     if "registry" in preserved:
         registry.parent.mkdir(parents=True, exist_ok=True)
         registry.write_bytes(preserved["registry"])  # type: ignore[arg-type]
     if "config" in preserved:
         config.write_bytes(preserved["config"])
-    stash = preserved.get("store", {})  # type: ignore[assignment]
+    stash = preserved.get("memory", {})  # type: ignore[assignment]
     if stash:
         for rel, data in stash.items():
-            target = store / rel
+            target = memory / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
 
@@ -106,8 +102,8 @@ def write_claude_md(root: Path) -> None:
 
 def ensure_store(cbim_dst: Path) -> None:
     for d in ("short", "medium"):
-        (cbim_dst / "memory" / "store" / d).mkdir(parents=True, exist_ok=True)
-    _ok(".cbim/memory/store/{short,medium}/ ready")
+        (cbim_dst / "memory" / d).mkdir(parents=True, exist_ok=True)
+    _ok(".cbim/memory/{short,medium}/ ready")
 
 
 def ensure_config(root: Path) -> None:
@@ -170,7 +166,15 @@ def ensure_registry(cbim_dst: Path, root: Path) -> None:
 
 def update_gitignore(root: Path) -> None:
     gitignore = root / ".gitignore"
-    needed = [".cbim/memory/store/", "__pycache__/", "*.pyc", ".venv/"]
+    needed = [
+        ".cbim/memory/short/",
+        ".cbim/memory/medium/",
+        ".cbim/memory/last-session.md",
+        ".cbim/memory/.chroma/",
+        "__pycache__/",
+        "*.pyc",
+        ".venv/",
+    ]
     existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
     missing = [e for e in needed if e not in existing]
     if missing:

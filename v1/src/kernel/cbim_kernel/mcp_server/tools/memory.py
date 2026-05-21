@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 def _engine_for_project(cwd: Path):
-    """Build a MemoryEngine pointed at <project>/.cbim/memory/store/."""
+    """Build a MemoryEngine pointed at <project>/.cbim/memory/."""
     from cbim_kernel.memory.engine.engine import MemoryEngine
     from cbim_kernel.memory.engine.file_backend import FileBackend
 
@@ -22,7 +22,7 @@ def _engine_for_project(cwd: Path):
     p = cwd.resolve()
     for _ in range(6):
         if (p / ".cbim").is_dir():
-            store_dir = p / ".cbim" / "memory" / "store"
+            store_dir = p / ".cbim" / "memory"
             store_dir.mkdir(parents=True, exist_ok=True)
             return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
         if p.parent == p:

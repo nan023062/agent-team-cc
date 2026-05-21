@@ -129,9 +129,9 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/store/`. All knowledge writes go through the kernel:
+My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. All knowledge writes go through the kernel:
 
 - Module CRUD (create / update / deprecate / split / index): `python .cbim/engine dna ...`
-- Memory promotion / archival operations against `memory/store/`: `python .cbim/engine memory ...`
+- Memory promotion / archival operations against `memory/`: `python .cbim/engine memory ...`
 
 Reads (`Read`, `Glob`, `Grep`, `ls`/`cat`) against these paths are unrestricted and expected. If a needed `engine dna` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.

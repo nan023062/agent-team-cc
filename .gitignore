@@ -3,7 +3,10 @@ __pycache__/
 *.pyc
 #.claude/
 #CLAUDE.md
-.cbim/memory/store/
+.cbim/memory/short/
+.cbim/memory/medium/
+.cbim/memory/last-session.md
+.cbim/memory/.chroma/
 .cbim/logs/
 .cbim/.debug
 .cbim/.cc-status

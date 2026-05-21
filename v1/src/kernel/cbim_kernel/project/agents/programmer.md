@@ -91,7 +91,7 @@ Physical workspace (code, art assets, all project content): read/write. `.dna/` 
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, assets, configs, docs) only. They may **never** be used against any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/store/` — these are governance state and belong to the architect / HR via the kernel:
+My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, assets, configs, docs) only. They may **never** be used against any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/` — these are governance state and belong to the architect / HR via the kernel:
 
 - Knowledge changes I need: stop, report to the assistant, request architect dispatch.
 - Agent changes I need: stop, report to the assistant, request HR dispatch.

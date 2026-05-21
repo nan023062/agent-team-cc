@@ -4,8 +4,8 @@
 
 | 层级 | 存储 | 共享方式 | 说明 |
 |------|------|---------|------|
-| **短期** | `store/short/` | 用户本地（gitignore） | session 结束自动写入 |
-| **中期** | `store/medium/` | 用户本地（gitignore） | 按关键字压缩，手动 distill |
+| **短期** | `short/` | 用户本地（gitignore） | session 结束自动写入 |
+| **中期** | `medium/` | 用户本地（gitignore） | 按关键字压缩，手动 distill |
 | **长期** | `.claude/agents/` + `.dna/` | 团队 git-tracked | HR / 架构师治理 |
 
 短期和中期是本地工作记忆。长期知识库（agent 能力文件、模块知识文件）才是团队共享资产。
@@ -25,10 +25,9 @@ memory/
 │   ├── cli.py            ← CLI 统一入口
 │   ├── config.py         ← 配置加载器（含内置默认值）
 │   └── requirements.txt
-├── store/                ← 整体 gitignore
-│   ├── short/            ← 短期 entries（session 级 .md）
-│   ├── medium/           ← 中期 entries（关键字压缩 .md）
-│   └── .chroma/          ← 向量索引（可随时从 store/ 重建）
+├── short/                ← 短期 entries（session 级 .md，gitignore）
+├── medium/               ← 中期 entries（关键字压缩 .md，gitignore）
+├── .chroma/              ← 向量索引（gitignore，可随时从 .md 重建）
 ├── skills/
 │   ├── write.md          ← 手动补写 session entry
 │   ├── query.md          ← 查询记忆
@@ -56,7 +55,7 @@ memory/
          │                  │   │                  │
          │ · 解析 transcript │   │ · 查询向量索引    │
          │ · 格式化 entry    │   │ · 读 .md 原文    │
-         │ · 写 store/short/│   │ · 拼装 context   │
+         │ · 写 short/      │   │ · 拼装 context   │
          │ · 更新向量索引   │   └────────┬─────────┘
          └────────┬─────────┘            │ additionalContext JSON
                   │                      ▼
@@ -67,7 +66,7 @@ memory/
                   │
                   ▼
          ┌──────────────────────────────────────┐
-         │  engine.py  ←→  ChromaDB (store/.chroma/)│
+         │  engine.py  ←→  ChromaDB (.chroma/)      │
          └──────────────────────────────────────┘
                   ↑                    ↑
                   │ cli add            │ cli query / cleanup
@@ -76,9 +75,9 @@ memory/
          │  主 agent     │   │  主 agent     │
          │  (distill)    │   │  (skills/     │
          │               │   │   query.md)   │
-         │ store/short/  │   └───────────────┘
+         │ short/        │   └───────────────┘
          │   → 提炼 →    │
-         │ store/medium/ │
+         │ medium/       │
          └───────────────┘
 ```
 
@@ -87,7 +86,7 @@ memory/
 ```
 transcript.jsonl
     → writer.py 解析（用户请求、subagent 调度、文件变更）
-    → store/short/YYYY-MM-DD-main-<slug>.md
+    → short/YYYY-MM-DD-main-<slug>.md
     → engine.add() → ChromaDB 索引
 ```
 
@@ -103,10 +102,10 @@ loader.py
 ### 提炼流程（主 agent 手动触发）
 
 ```
-store/short/*.md
+short/*.md
     → 按能力关键字（agent-id）/ 业务关键字（模块名）分组
     → LLM 压缩汇总
-    → store/medium/<type>-<keyword>.md
+    → medium/<type>-<keyword>.md
     → engine.add() → ChromaDB 索引
     → cli cleanup --keep-days 3（删除 N 天前短期 entry）
 ```

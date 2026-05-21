@@ -14,9 +14,9 @@ from .config import load_config
 
 
 def _default_store() -> Path:
-    """Project state memory store: <project>/.cbim/memory/store/."""
+    """Project state memory store: <project>/.cbim/memory/."""
     from cbim_kernel.context import cbim_dir
-    return cbim_dir() / "memory" / "store"
+    return cbim_dir() / "memory"
 
 
 def _build_engine(args: argparse.Namespace):

@@ -38,9 +38,8 @@ def load_context(store_dir: Path, engine: MemoryEngine, cfg: dict) -> str | None
             results = engine.query_verbose("最近任务 决策 问题 阻塞", top_k=top_k)
             entries = []
             for r in results:
+                # doc_id is always an absolute path produced by the backend.
                 p = Path(r["doc_id"])
-                if not p.is_absolute():
-                    p = store_dir.parent / r["doc_id"]
                 try:
                     content = p.read_text(encoding="utf-8")
                     entries.append(f"**{p.name}**\n{content[:preview_chars]}")

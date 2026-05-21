@@ -403,8 +403,8 @@ CBIM 将知识作为架构的一等公民，而不是代码的附属注释。`.d
 
 | 阶段 | 路径 | 目的 |
 |------|------|------|
-| **短期** | `.cbim/memory/store/short/` | 原始 session 记录；主要用于近期上下文恢复，自动清理 |
-| **中期** | `.cbim/memory/store/medium/` | 压缩提炼后的模式摘要；去噪、保留有效信号，长期留存 |
+| **短期** | `.cbim/memory/short/` | 原始 session 记录；主要用于近期上下文恢复，自动清理 |
+| **中期** | `.cbim/memory/medium/` | 压缩提炼后的模式摘要；去噪、保留有效信号，长期留存 |
 | **知识**（核心） | `.cbim/cbi/skills/` + `.dna/` | 结构化落地：能力进 skills/soul，业务进 `.dna/workflows/` |
 
 三个阶段的转化关系：
@@ -413,12 +413,12 @@ CBIM 将知识作为架构的一等公民，而不是代码的附属注释。`.d
 
 | 层级 | 路径 | 生命周期 |
 |------|------|---------|
-| 短期 | `.cbim/memory/store/short/` | 提炼后标记 `distilled`，至少保留 3 天后由 cleanup 删除；未提炼的永不自动删除 |
-| 中期 | `.cbim/memory/store/medium/` | 长期保留，升格至知识层后手动归档 |
+| 短期 | `.cbim/memory/short/` | 提炼后标记 `distilled`，至少保留 3 天后由 cleanup 删除；未提炼的永不自动删除 |
+| 中期 | `.cbim/memory/medium/` | 长期保留，升格至知识层后手动归档 |
 
 - **Stop hook** — `write-memory.py` 在 session 结束时自动执行两件事：
-  1. 将本次调度内容写入短期记忆（`store/short/YYYY-MM-DD-*.md`）
-  2. 写入 `store/last-session.md` — 结构化恢复点（任务、执行记录、改动文件、涉及模块）
+  1. 将本次调度内容写入短期记忆（`short/YYYY-MM-DD-*.md`）
+  2. 写入 `last-session.md` — 结构化恢复点（任务、执行记录、改动文件、涉及模块）
 
 - **SessionStart hook** — `load-memory.py` 在 session 开始时自动注入三层上下文：
   1. **项目知识快照**（模块拓扑树 + agent 列表）
@@ -430,8 +430,8 @@ CBIM 将知识作为架构的一等公民，而不是代码的附属注释。`.d
 ```
 session 结束
   └── Stop hook
-        ├── store/short/YYYY-MM-DD-*.md   ← 原始记录（治理 + 恢复的共同来源）
-        └── store/last-session.md          ← 恢复点（下次直接注入）
+        ├── short/YYYY-MM-DD-*.md   ← 原始记录（治理 + 恢复的共同来源）
+        └── last-session.md          ← 恢复点（下次直接注入）
 
 新 session 开始
   └── SessionStart hook 注入
@@ -453,9 +453,9 @@ session 结束
 ### 能力蒸馏（HR 侧）
 
 ```
-store/short/          原始 session 记录（自动写入）
+short/          原始 session 记录（自动写入）
     ↓ 压缩提炼
-store/medium/         能力模式摘要（去噪，保留有效信号）
+medium/         能力模式摘要（去噪，保留有效信号）
     ↓ 固化（最核心的一步）
 .cbim/cbi/skills/<name>/skill.py   新增或更新能力向 Skill
     ↓ 多次验证后内化
@@ -465,9 +465,9 @@ store/medium/         能力模式摘要（去噪，保留有效信号）
 ### 业务蒸馏（架构师侧）
 
 ```
-store/short/          原始 session 记录（自动写入）
+short/          原始 session 记录（自动写入）
     ↓ 压缩提炼
-store/medium/         业务模式摘要（决策、接口变更、反复出现的流程）
+medium/         业务模式摘要（决策、接口变更、反复出现的流程）
     ↓ 固化（最核心的一步）
 .dna/module.md + contract.md            更新模块蓝图
     ↓ 出现 ≥2 次的确定性流程

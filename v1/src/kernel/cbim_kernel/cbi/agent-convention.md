@@ -74,7 +74,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 
 Self-check: if this content is placed in a completely different project, does it still make sense?
 - Yes → can be written into the soul
-- No → leave it in `.cbim/memory/store/`, do not promote
+- No → leave it in `.cbim/memory/`, do not promote
 
 **What to write**:
 - Personality and communication style (makes the agent recognizable, collaboration more natural)

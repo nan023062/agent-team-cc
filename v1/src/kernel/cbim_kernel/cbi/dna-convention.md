@@ -39,7 +39,7 @@
         └── <any user-defined files>  # optional: free extension
 ```
 
-> **Change logs are not inside the module directory.** Module changelogs are written into session memory (`.cbim/memory/store/`); the architect periodically distills and promotes them back to `.dna/`.
+> **Change logs are not inside the module directory.** Module changelogs are written into session memory (`.cbim/memory/`); the architect periodically distills and promotes them back to `.dna/`.
 
 **Framework-managed registry** (always at this fixed location, even when the project has no root module):
 
@@ -201,7 +201,7 @@ Any change that alters the class diagram — new classes, changed interfaces, re
 
 ## Business Hard Rules
 
-1. **No history** — `module.md` and `contract.md` describe only the current final state. Never write what changed or why it changed. Changes go into session memory (`.cbim/memory/store/`); the architect periodically distills and promotes them.
+1. **No history** — `module.md` and `contract.md` describe only the current final state. Never write what changed or why it changed. Changes go into session memory (`.cbim/memory/`); the architect periodically distills and promotes them.
 
 2. **Parent module writes only relationships and positioning** — A parent module's `module.md` body describes only: the relationships between child modules (dependency / composition / aggregation) and each child module's positioning. Never write any child module's internal details. Each child module's internal design is the responsibility of its own `module.md`. Any key decision that applies to a single child module belongs in that child's own `.dna/`, not in the parent.
 

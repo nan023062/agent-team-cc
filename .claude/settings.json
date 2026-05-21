@@ -1,25 +1,30 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(*)",
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "Agent(*)",
+      "Skill(*)"
+    ],
+    "deny": [
+      "Write(.cbim/**)",
+      "Edit(.cbim/**)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .cbim/hooks/load_memory.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 .cbim/hooks/auto_preview.py"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .cbim/hooks/write_memory.py"
+            "command": "cbim hook session-start"
           }
         ]
       }
@@ -29,7 +34,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .cbim/hooks/end_session.py"
+            "command": "cbim hook session-end"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cbim hook stop"
           }
         ]
       }
@@ -39,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .cbim/hooks/log_user_prompt.py"
+            "command": "cbim hook log-prompt"
           }
         ]
       }
@@ -49,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .cbim/hooks/log_pre_tool.py"
+            "command": "cbim hook log-pre-tool"
           }
         ]
       }
@@ -59,26 +74,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .cbim/hooks/log_post_tool.py"
+            "command": "cbim hook log-post-tool"
           }
         ]
       }
     ]
   },
-  "permissions": {
-    "defaultMode": "bypassPermissions",
-    "deny": [
-      "Write(.cbim/memory/**)",
-      "Edit(.cbim/memory/**)",
-      "Glob(.cbim/memory/**)",
-      "Grep(.cbim/memory/**)"
-    ]
-  },
   "mcpServers": {
     "cbim": {
-      "command": ".venv/bin/python3",
+      "command": "cbim",
       "args": [
-        ".cbim/mcp_server/server.py"
+        "mcp"
       ]
     }
   }

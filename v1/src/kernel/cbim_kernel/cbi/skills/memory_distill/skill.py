@@ -13,7 +13,7 @@ Medium-term memory is organized by **four quadrants**, each determining where in
 | Scenario | Description |
 |----------|-------------|
 | User explicitly requests | "Distill memory" / "Summarize recent sessions" |
-| Accumulation threshold | `store/short/` has ≥`distill.suggest_threshold` unprocessed entries — proactively suggest (default 5, see `memory/config.json`) |
+| Accumulation threshold | `short/` has ≥`distill.suggest_threshold` unprocessed entries — proactively suggest (default 5, see `memory/config.json`) |
 | Governance prerequisite | Before HR assessment / architect governance, run this skill first to ensure medium memory is current |
 
 ---
@@ -22,13 +22,13 @@ Medium-term memory is organized by **four quadrants**, each determining where in
 
 Entries written by the Stop hook have empty signal rows by default. **Signals must be filled in before distillation** (see write.md spec); otherwise there is no material to distill.
 
-For each pending `store/short/*.md`, check the `## Signals` section and complete the `- [x]` lines.
+For each pending `short/*.md`, check the `## Signals` section and complete the `- [x]` lines.
 
 ---
 
 ## Step 1 — Scan Short-term Entries, Group by Quadrant
 
-Read all pending entries under `memory/store/short/`; collect checked signals (`- [x]` prefix).
+Read all pending entries under `memory/short/`; collect checked signals (`- [x]` prefix).
 
 Classify by four quadrants:
 
@@ -70,7 +70,7 @@ Classify by four quadrants:
 
 ### Capability Medium Entry (MUST + capability-oriented HOW)
 
-File: `memory/store/medium/capability-<agent-id>.md`
+File: `memory/medium/capability-<agent-id>.md`
 
 ```markdown
 ---
@@ -111,7 +111,7 @@ Has established a dry-run prerequisite habit; zero errors in the past 8 write-op
 
 ### Decision Medium Entry (WANT)
 
-File: `memory/store/medium/decision-<scope>.md`
+File: `memory/medium/decision-<scope>.md`
 
 ```markdown
 ---
@@ -149,7 +149,7 @@ Decision by: linan, date: 2026-05-18
 
 ### Business Medium Entry (business-oriented HOW + IS)
 
-File: `memory/store/medium/business-<module>.md`
+File: `memory/medium/business-<module>.md`
 
 ```markdown
 ---

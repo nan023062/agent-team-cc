@@ -1,4 +1,7 @@
 .cbim/logs/
-.cbim/memory/store/
+.cbim/memory/short/
+.cbim/memory/medium/
+.cbim/memory/last-session.md
+.cbim/memory/.chroma/
 .cbim/dashboard/.run/
 .cbim/.debug

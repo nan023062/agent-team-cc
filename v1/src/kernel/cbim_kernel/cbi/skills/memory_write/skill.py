@@ -1,7 +1,7 @@
 SKILL: str = """\
 # Skill: Write Short-term Memory (Session Entry)
 
-**Main agent only.** Two first-class triggers — both write to `.cbim/memory/store/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
+**Main agent only.** Two first-class triggers — both write to `.cbim/memory/short/`. Never write memory to `~/.claude/projects/<project>/memory/` (Claude Code's built-in auto-memory is disabled in CBIM projects; see CLAUDE.md > Memory Routing).
 
 ---
 
@@ -51,7 +51,7 @@ When the user explicitly says to remember something:
 
 ## Entry Format
 
-File path: `.cbim/memory/store/short/YYYY-MM-DD-{main|manual}-<slug>.md`
+File path: `.cbim/memory/short/YYYY-MM-DD-{main|manual}-<slug>.md`
 
 ```markdown
 ---

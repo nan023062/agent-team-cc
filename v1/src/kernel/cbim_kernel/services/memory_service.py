@@ -28,7 +28,7 @@ def list_entries(tier: str | None = None, cwd=None) -> list[dict]:
         tier:  Optional filter — "short" or "medium". None = both tiers.
         cwd:   Project search base (defaults to current working dir). The
                function walks up to find `.cbim/` and reads
-               `.cbim/memory/store/{tier}/*.md` underneath it.
+               `.cbim/memory/{tier}/*.md` underneath it.
 
     Returns:
         List of dicts shaped like::
@@ -49,7 +49,7 @@ def list_entries(tier: str | None = None, cwd=None) -> list[dict]:
         (newest first by date-prefixed name).
     """
     root = find_project_root(cwd)
-    store_dir = Path(root) / ".cbim" / "memory" / "store"
+    store_dir = Path(root) / ".cbim" / "memory"
 
     if tier is not None and tier not in TIERS:
         raise ValueError(f"tier must be one of {TIERS} or None, got {tier!r}")

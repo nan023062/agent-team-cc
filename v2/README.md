@@ -236,7 +236,7 @@ namespace CBIM.Core.Tools
 
 短、中、长期记忆的跃迁不能阻塞用户的主交互。C# 运行时在后台启动一个独立的 `TaskWorker`，专门监听键盘闲置状态（Idle Time）。
 
-* **Short-term 采集**：静默捕捉 `cbim/memory/store/short/` 下的原始交互日志。
+* **Short-term 采集**：静默捕捉 `cbim/memory/short/` 下的原始交互日志。
 * **异步蒸馏**：当用户停手超过 30 秒，Worker 自动唤醒，调起低成本的小模型或利用本地启发式算法进行特征提取，压缩无用纠错对话，将晶体化结果归档到中阶，甚至直接转化为 `.dna/workflows/`（业务工作流资产）。
 
 ---

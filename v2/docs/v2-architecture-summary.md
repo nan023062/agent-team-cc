@@ -53,6 +53,6 @@ PageStore         Foundation.Llm
 
 ## V1↔V2 衔接
 
-- **沿用**：`.dna/` 物理格式（YAML frontmatter + markdown）、`memory/store/` 格式
+- **沿用**：`.dna/` 物理格式（YAML frontmatter + markdown）、`memory/` 格式
 - **取代**：Claude Code 宿主、CLAUDE.md 调度规约、Python engine、`.claude/agents/*.md` 格式
 - **迁移**：快速切换，不做双写校验过渡
