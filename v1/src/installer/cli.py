@@ -31,10 +31,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Install from local kernel/ directory instead of GitHub",
     )
     p_install.add_argument(
-        "--set-default",
-        action="store_true",
+        "--no-set-default",
+        action="store_false",
         dest="set_default",
-        help="Set the installed version as active_default",
+        default=True,
+        help="Install without activating as active_default "
+        "(default: activate after install)",
     )
 
     # use
@@ -87,7 +89,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def _cmd_install(args: argparse.Namespace) -> int:
     if args.local:
         src = Path(args.local).resolve()
-        install_from_local(src, version=args.version)
+        install_from_local(
+            src, version=args.version, set_default=args.set_default
+        )
         return 0
     try:
         install_from_github(version=args.version, set_default=args.set_default)

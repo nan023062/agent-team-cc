@@ -49,10 +49,17 @@ def _extract_tarball(tarball: Path, dest: Path) -> None:
             tf.extractall(str(dest))
 
 
-def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
+def install_from_local(
+    kernel_src: Path,
+    version: Optional[str] = None,
+    set_default: bool = True,
+) -> Path:
     """Copy ``kernel_src`` to ``<install_root>/kernel/<version>/``.
 
     Idempotent: if destination already exists, returns it unchanged.
+    If *set_default* is True (the default), activates the version as
+    ``active_default``. Pass ``set_default=False`` to install without
+    activating.
     """
     migrate_legacy_install_root()
     kernel_src = Path(kernel_src).resolve()
@@ -69,7 +76,7 @@ def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
     if dest.exists():
         print("[cbim] kernel {} already installed at {}".format(version, dest))
         registry.register(version, dest, venv_path(), source="local")
-        if registry.get_default() is None:
+        if set_default or registry.get_default() is None:
             registry.set_default(version)
         return dest
 
@@ -81,7 +88,7 @@ def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
     )
 
     registry.register(version, dest, venv_path(), source="local")
-    if registry.get_default() is None:
+    if set_default or registry.get_default() is None:
         registry.set_default(version)
 
     print("[cbim] installed kernel {} -> {}".format(version, dest))
@@ -90,14 +97,16 @@ def install_from_local(kernel_src: Path, version: Optional[str] = None) -> Path:
 
 def install_from_github(
     version: Optional[str] = None,
-    set_default: bool = False,
+    set_default: bool = True,
     repo: Optional[str] = None,
 ) -> Path:
     """Download kernel tarball from GitHub Releases and install it.
 
     If *version* is None, fetches the latest published release.
-    If *set_default* is True (or no default is set), marks the version
-    as ``active_default`` in ``<install_root>/versions.json``.
+    If *set_default* is True (the default), marks the version as
+    ``active_default`` in ``<install_root>/versions.json``. Pass
+    ``set_default=False`` to install without activating (e.g. for
+    side-by-side testing).
 
     Returns the installed kernel path.
     """
