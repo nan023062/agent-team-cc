@@ -51,7 +51,7 @@ def _mark_idle() -> None:
 
 
 def main() -> None:
-    raw = sys.stdin.read().strip()
+    raw = sys.stdin.buffer.read().decode("utf-8").strip()
     if not raw:
         sys.exit(0)
 

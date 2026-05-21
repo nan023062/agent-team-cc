@@ -61,7 +61,7 @@ def _start_session_log(session_id: str, cwd: str) -> None:
 
 
 def main() -> None:
-    raw = sys.stdin.read().strip()
+    raw = sys.stdin.buffer.read().decode("utf-8").strip()
     if not raw:
         sys.exit(0)
 
@@ -107,7 +107,7 @@ def main() -> None:
         except json.JSONDecodeError:
             pass
 
-    print(json.dumps({"additionalContext": combined}, ensure_ascii=False))
+    sys.stdout.buffer.write(json.dumps({"additionalContext": combined}, ensure_ascii=False).encode("utf-8") + b"\n")
     sys.exit(0)
 
 

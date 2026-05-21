@@ -12,6 +12,10 @@ from pathlib import Path
 
 from .config import load_config
 
+# Absolute path to .cbim/memory/store/ — resolved from this file's location so
+# it stays correct regardless of the caller's cwd (project root vs .cbim/).
+_DEFAULT_STORE = Path(__file__).resolve().parent.parent.parent / "memory" / "store"
+
 
 def _build_engine(args: argparse.Namespace):
     """Build MemoryEngine with the default FileBackend.
@@ -22,7 +26,7 @@ def _build_engine(args: argparse.Namespace):
     from .engine import MemoryEngine
     from .file_backend import FileBackend
 
-    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    store_dir = Path(getattr(args, "store_dir", None) or _DEFAULT_STORE)
     return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
 
 
@@ -34,7 +38,7 @@ def cmd_write_session(args: argparse.Namespace) -> int:
     from .writer import write_session
 
     cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    store_dir = Path(getattr(args, "store_dir", None) or _DEFAULT_STORE)
     engine = _build_engine(args)
     path = write_session(args.transcript_path, store_dir, engine, cfg)
     if path:
@@ -46,7 +50,7 @@ def cmd_load_context(args: argparse.Namespace) -> int:
     from .loader import load_context
 
     cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    store_dir = Path(getattr(args, "store_dir", None) or _DEFAULT_STORE)
     engine = _build_engine(args)
     output = load_context(store_dir, engine, cfg)
     if output:
@@ -63,7 +67,7 @@ def cmd_create(args: argparse.Namespace) -> int:
     from datetime import datetime
 
     cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or "memory/store")
+    store_dir = Path(getattr(args, "store_dir", None) or _DEFAULT_STORE)
     tier = args.tier
     slug = args.slug.strip().replace(" ", "-")
     ts = datetime.now().strftime("%Y-%m-%d-%H%M%S")

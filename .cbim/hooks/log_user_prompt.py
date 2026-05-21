@@ -15,7 +15,7 @@ def _cbim_root() -> Path:
 
 
 def main() -> None:
-    raw = sys.stdin.read().strip()
+    raw = sys.stdin.buffer.read().decode("utf-8").strip()
     if not raw:
         sys.exit(0)
     try:

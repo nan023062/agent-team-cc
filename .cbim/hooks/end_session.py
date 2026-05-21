@@ -8,7 +8,7 @@ def _cbim_root() -> Path:
 
 
 def main() -> None:
-    raw = sys.stdin.read().strip()
+    raw = sys.stdin.buffer.read().decode("utf-8").strip()
     event = {}
     if raw:
         try:

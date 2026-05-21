@@ -73,5 +73,5 @@ def cmd_config_show(args) -> int:
         print(f"(empty — {path})", file=sys.stderr)
         return 0
     print(f"# {path}")
-    print(json.dumps(data, indent=2, ensure_ascii=False))
+    sys.stdout.buffer.write((json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
     return 0
