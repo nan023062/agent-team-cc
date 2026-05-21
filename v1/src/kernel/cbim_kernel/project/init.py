@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from cbim_kernel.project import sync as _sync
+from cbim_kernel.project.pin import write_pin
 
 _TEMPLATES = _sync._TEMPLATES
 _AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
@@ -37,10 +38,19 @@ def _install_config(project_root: Path, version: str, force: bool) -> None:
     if cfg_path.exists() and not force:
         _print("skipped (exists)", cfg_path, project_root)
         return
-    content = _read_template("config.json.tmpl").replace("{version}", version)
+    content = _read_template("config.json.tmpl")
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     cfg_path.write_text(content, encoding="utf-8")
     _print("created", cfg_path, project_root)
+
+
+def _install_pin(project_root: Path, version: str, force: bool) -> None:
+    pin_path = project_root / ".cbim" / ".pin"
+    if pin_path.exists() and not force:
+        _print("skipped (exists)", pin_path, project_root)
+        return
+    write_pin(project_root, version)
+    _print("created", pin_path, project_root)
 
 
 def _install_agents(project_root: Path, force: bool) -> None:
@@ -101,6 +111,7 @@ def init_project(project_root: Path, version: str, force: bool = False) -> None:
     _ensure_dir(project_root / ".cbim" / "logs", project_root)
     _ensure_dir(project_root / ".cbim" / "memory" / "short", project_root)
     _ensure_dir(project_root / ".cbim" / "memory" / "medium", project_root)
+    _install_pin(project_root, version, force)
     _install_agents(project_root, force)
     _install_settings(project_root, force)
     _install_claude_md(project_root, force)

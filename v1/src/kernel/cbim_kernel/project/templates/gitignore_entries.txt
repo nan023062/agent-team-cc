@@ -5,3 +5,4 @@
 .cbim/memory/.chroma/
 .cbim/dashboard/.run/
 .cbim/.debug
+.cbim/.pin

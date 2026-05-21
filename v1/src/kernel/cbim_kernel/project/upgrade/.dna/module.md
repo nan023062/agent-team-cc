@@ -32,21 +32,26 @@ classDiagram
         +project_root : Path | None
         +recommendation : str
         +commands : list~Command~
-        +ordered : bool  // true when commands MUST run in given order
+        +ordered : bool
     }
     class Command {
         +shell : str
         +description : str
     }
     class app_state {
-        +list_installed() list~str~  // wraps installer.registry.list_installed
+        +list_installed() list~str~
         +active_default() str | None
-        +get_install_root() Path     // wraps installer.paths.install_root
+        +get_install_root() Path
     }
     class project_state {
         +find_project_root(start) Path | None
         +read_pin(project_root) str | None
         +read_upgrade_config(project_root) UpgradeConfig
+    }
+    class project_pin {
+        <<external: project.pin>>
+        +read_pin(project_root) str | None
+        +write_pin(project_root, version) None
     }
     class remote {
         +latest_tag(remote_url, pattern) str | None
@@ -59,19 +64,20 @@ classDiagram
         +invoke_installer(target_version, source) int
         +verify_post_install(target_version) bool
         +rollback_from_snapshot(snapshot_path) None
+        -_update_project_pin(project_root, version) None
     }
     class notify {
-        +session_start_line() str | None  // for hooks.load_memory
+        +session_start_line() str | None
         +cache_path(project_root) Path
         +read_cache(project_root) NotifyCache | None
         +write_cache(project_root, cache) None
     }
     class config {
-        +DEFAULT_REMOTE = "https://github.com/nan023062/cbim.git"
-        +DEFAULT_PATTERN = "v*"
-        +DEFAULT_CHANNEL = "stable"
-        +DEFAULT_AUTO_CHECK = true
-        +DEFAULT_INTERVAL_HOURS = 24
+        +DEFAULT_REMOTE
+        +DEFAULT_PATTERN
+        +DEFAULT_CHANNEL
+        +DEFAULT_AUTO_CHECK
+        +DEFAULT_INTERVAL_HOURS
         +load_from_project(project_root) UpgradeConfig
     }
 
@@ -82,9 +88,13 @@ classDiagram
     diagnose --> remote
     apply_flow --> app_state
     apply_flow --> remote
-    notify --> diagnose
+    apply_flow --> project_pin : write_pin only via accessor
+    project_state --> project_pin : read_pin delegates here
     project_state --> config
+    notify --> diagnose
 ```
+
+`project_state.read_pin` and `apply_flow._update_project_pin` are thin shims — both delegate to the `project.pin` module (see `project/.dna/module.md` "Key Decisions"). Upgrade never reads or writes `.cbim/.pin` directly. Reading `config.json` for `cbim_version` is removed entirely; that key no longer exists.
 
 ## Key Decisions
 
@@ -115,6 +125,7 @@ Each row, when emitted, includes:
 - **Default `upgrade.remote` is hard-coded in the template** to `https://github.com/nan023062/cbim.git`. (Decision #3.) Users can override per-project in `.cbim/config.json`.
 - **`upgrade.auto_check` is true by default**, with a 24-hour interval. The notifier in `hooks.load_memory` reads `notify.cache_path(project_root)`; if older than the interval, it runs a fresh `diagnose` in a fire-and-forget subprocess and updates the cache. The user-visible cost is at most one stdout line per session start when an update is available.
 - **Network failures are silent on `check` and fatal on `apply`.** `check` degrades gracefully (omits the `app_remote_latest` field; scenarios 5/6 may fall back to 4/7 if remote is unreachable, with a "remote unreachable" note). `apply` refuses to proceed without network confirmation of the target's existence.
-- **Version-incompatibility preflight.** Before `apply`, `apply_flow.preflight` checks whether jumping from current pin to target requires a schema migration in `.cbim/`. If so, it refuses and instructs the user to run `cbim migrate --version <ver>` first. The upgrade module never touches `.cbim/` directly.
+- **Version-incompatibility preflight.** Before `apply`, `apply_flow.preflight` checks whether jumping from current pin to target requires a schema migration in `.cbim/`. If so, it refuses and instructs the user to run `cbim migrate --version <ver>` first. The upgrade module never touches `.cbim/` directly — except via the pin accessor when bumping the pin after a successful migrate handoff (see next item).
+- **Pin reads and writes go through `project.pin`, not raw JSON access.** `project_state.read_pin(project_root)` is a thin wrapper that delegates to `project.pin.read_pin()`, which reads `<project_root>/.cbim/.pin` (plain text, single-line version string with trailing newline). Likewise, any project-side pin mutation (e.g. `apply_flow._update_project_pin()` when the user opts to bump the project pin after an app-side upgrade in scenario #4) MUST go through `project.pin.write_pin(project_root, version)`. The upgrade module never reads `cbim_version` from `config.json` and never opens `.cbim/.pin` directly. Rationale: the pin file is owned by `project.pin`; allowing upgrade to touch it inline would create two write paths for one file — the exact split-brain we eliminated by extracting `.pin` in the first place. **Iron rule, non-negotiable.**
 - **Only the app side is upgraded by this module.** Project-side schema migration belongs to `project.migrate`; the user invokes it explicitly. This is a hard split: `upgrade.apply` mutates `<install_root>/`; `migrate` mutates `<cwd>/.cbim/`. No flag combines them — they remain two steps, surfaced as two commands.
 - **Diagnosis is pure and side-effect-free.** `diagnose.diagnose()` returns a `Diagnosis` value; CLI / notifier / future MCP tool all share it. Testability and reuse hinge on this.

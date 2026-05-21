@@ -147,7 +147,7 @@ def cmd_update(args) -> int:
 # ---------------------------------------------------------------------------
 
 def _update_project_pin(new_version: str) -> None:
-    """Update ``cbim_version`` in ``<project_root>/.cbim/config.json`` if inside a project.
+    """Write ``new_version`` into ``<project_root>/.cbim/.pin`` if inside a project.
 
     No-op when not inside a project. Failures are warnings only — they must not
     change the upgrade exit code, since the install itself already succeeded.
@@ -156,11 +156,9 @@ def _update_project_pin(new_version: str) -> None:
         project_root = find_project_root(Path.cwd())
         if project_root is None:
             return
-        from cbim_kernel.engine.config import load_config, save_config
-        data = load_config(project_root)
-        data["cbim_version"] = new_version
-        save_config(data, project_root)
-        print("[cbim] project pin updated: cbim_version = {}".format(new_version))
+        from cbim_kernel.project import pin as project_pin
+        project_pin.write_pin(project_root, new_version)
+        print("[cbim] project pin updated: .cbim/.pin = {}".format(new_version))
     except Exception as exc:  # noqa: BLE001 — pin update is best-effort
         sys.stderr.write(
             "[cbim] warning: failed to update project pin: {}\n".format(exc)

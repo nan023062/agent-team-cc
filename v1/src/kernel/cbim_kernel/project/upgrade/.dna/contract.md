@@ -115,7 +115,6 @@ The hook prints the line to stdout (NOT `additionalContext`), so it appears in t
 
 ```json
 {
-  "cbim_version": "1.2.0",
   "upgrade": {
     "remote": "https://github.com/nan023062/cbim.git",
     "branch_or_tag_pattern": "v*",
@@ -133,6 +132,8 @@ The hook prints the line to stdout (NOT `additionalContext`), so it appears in t
 | `auto_check` | `true` | whether `hooks.load_memory` runs the notifier at all |
 | `check_interval_hours` | `24` | minimum gap between notifier-triggered remote checks |
 | `channel` | `"stable"` | currently informational; reserved for future `beta`/`nightly` channels |
+
+**Project pin lives in `.cbim/.pin`, not in `config.json`.** The pin file is plain text containing a single line — the version string (e.g. `1.2.0`). All pin reads/writes go through the `project.pin` module; `config.json` no longer carries a `cbim_version` key. This separation keeps the user-editable upgrade preferences (`config.json`) decoupled from the machine-managed schema pin (`.cbim/.pin`), which is mutated by `project.init` and `project.migrate` only.
 
 ## Dependencies (incoming entrypoints used)
 

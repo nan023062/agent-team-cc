@@ -7,6 +7,7 @@ import tarfile
 from datetime import datetime
 from pathlib import Path
 
+from cbim_kernel.project import pin as _pin
 from cbim_kernel.project import sync as _sync
 
 _AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
@@ -41,40 +42,94 @@ def _create_backup(project_root: Path, cbim_dir: Path, dry_run: bool) -> Path | 
     return backup_path
 
 
-def _inject_version(cbim_dir: Path, version: str, dry_run: bool) -> None:
+def _has_legacy_pin(cbim_dir: Path) -> bool:
+    """True if ``config.json`` still carries the legacy ``cbim_version`` key."""
     cfg_path = cbim_dir / "config.json"
     if not cfg_path.is_file():
-        if dry_run:
-            print(f"[cbim] [dry-run] would create config.json with cbim_version=\"{version}\"")
-        else:
-            cfg_path.parent.mkdir(parents=True, exist_ok=True)
-            cfg_path.write_text(
-                json.dumps({"cbim_version": version}, indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-            print(f"[cbim] created config.json with cbim_version=\"{version}\"")
-        return
-
+        return False
     try:
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        print(f"[cbim] WARNING: config.json is not valid JSON; skipping version injection")
-        return
+        return False
+    return isinstance(cfg, dict) and "cbim_version" in cfg
 
-    if cfg.get("cbim_version") == version:
-        print(f"[cbim] config.json already pinned to cbim_version=\"{version}\"")
+
+def _inject_version(cbim_dir: Path, version: str, dry_run: bool) -> None:
+    project_root = cbim_dir.parent
+    current = _pin.read_pin(project_root)
+    if current == version:
+        print(f"[cbim] .cbim/.pin already pinned to \"{version}\"")
         return
 
     if dry_run:
-        print(f"[cbim] [dry-run] would inject cbim_version=\"{version}\" into config.json")
+        print(f"[cbim] [dry-run] would write .cbim/.pin = \"{version}\"")
         return
 
-    cfg["cbim_version"] = version
+    _pin.write_pin(project_root, version)
+    print(f"[cbim] wrote .cbim/.pin = \"{version}\"")
+
+
+def _migrate_legacy_pin(cbim_dir: Path, dry_run: bool) -> None:
+    """One-time compat: lift ``cbim_version`` out of ``config.json`` into ``.cbim/.pin``.
+
+    No-op when ``config.json`` is missing, unreadable, or no longer contains the
+    legacy key. Also ensures the project ``.gitignore`` lists ``.cbim/.pin``.
+    """
+    project_root = cbim_dir.parent
+    cfg_path = cbim_dir / "config.json"
+    if not cfg_path.is_file():
+        return
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        print("[cbim] WARNING: config.json is not valid JSON; skipping legacy pin migration")
+        return
+    if not isinstance(cfg, dict) or "cbim_version" not in cfg:
+        return
+
+    legacy = cfg.get("cbim_version")
+    if dry_run:
+        print(
+            f"[cbim] [dry-run] would lift cbim_version=\"{legacy}\" from config.json "
+            "into .cbim/.pin and remove the key"
+        )
+        _ensure_pin_gitignored(project_root, dry_run=True)
+        return
+
+    if isinstance(legacy, str) and legacy.strip():
+        _pin.write_pin(project_root, legacy.strip())
+        print(f"[cbim] lifted legacy cbim_version=\"{legacy.strip()}\" into .cbim/.pin")
+
+    del cfg["cbim_version"]
     cfg_path.write_text(
         json.dumps(cfg, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    print(f"[cbim] injected cbim_version=\"{version}\" into config.json")
+    print("[cbim] removed cbim_version from config.json")
+
+    _ensure_pin_gitignored(project_root, dry_run=False)
+
+
+def _ensure_pin_gitignored(project_root: Path, dry_run: bool) -> None:
+    entry = ".cbim/.pin"
+    gi_path = project_root / ".gitignore"
+    if gi_path.is_file():
+        existing = gi_path.read_text(encoding="utf-8")
+        if any(line.strip() == entry for line in existing.splitlines()):
+            return
+        if dry_run:
+            print(f"[cbim] [dry-run] would append {entry} to .gitignore")
+            return
+        suffix = "" if existing.endswith("\n") or not existing else "\n"
+        gi_path.write_text(existing + suffix + entry + "\n", encoding="utf-8")
+        print(f"[cbim] appended {entry} to .gitignore")
+        return
+
+    if dry_run:
+        print(f"[cbim] [dry-run] would create .gitignore with {entry}")
+        return
+    gi_path.write_text("# CBIM\n" + entry + "\n", encoding="utf-8")
+    print(f"[cbim] created .gitignore with {entry}")
 
 
 def _update_settings(project_root: Path, dry_run: bool) -> None:
@@ -126,16 +181,8 @@ def migrate_project(
         # Layout is already global-kernel; this is a pure pin-bump path.
         # No backup tarball (no old kernel dirs to preserve) and no
         # confirmation prompt (config.json + settings + agents only).
-        cfg_path = cbim_dir / "config.json"
-        pin_matches = False
-        if cfg_path.is_file():
-            try:
-                pin_matches = (
-                    json.loads(cfg_path.read_text(encoding="utf-8")).get("cbim_version")
-                    == version
-                )
-            except json.JSONDecodeError:
-                pin_matches = False
+        legacy_pending = _has_legacy_pin(cbim_dir)
+        pin_matches = _pin.read_pin(project_root) == version and not legacy_pending
 
         if pin_matches:
             settings_action = _sync.sync_settings(project_root, dry_run=True)
@@ -143,9 +190,10 @@ def migrate_project(
             if settings_action.startswith("unchanged ") and all(
                 a.startswith("unchanged ") for a in agent_actions
             ):
-                print(f"[cbim] already aligned with cbim_version=\"{version}\"; nothing to do")
+                print(f"[cbim] already aligned with .cbim/.pin = \"{version}\"; nothing to do")
                 return 0
 
+        _migrate_legacy_pin(cbim_dir, dry_run)
         _inject_version(cbim_dir, version, dry_run)
         _update_settings(project_root, dry_run)
         _update_agents(project_root, dry_run)
@@ -168,6 +216,7 @@ def migrate_project(
 
     backup_path = _create_backup(project_root, cbim_dir, dry_run)
 
+    _migrate_legacy_pin(cbim_dir, dry_run)
     _inject_version(cbim_dir, version, dry_run)
     _update_settings(project_root, dry_run)
     _update_agents(project_root, dry_run)

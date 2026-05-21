@@ -5,11 +5,11 @@ Pure reads — never writes to ``.cbim/``. All writes go through
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from cbim_kernel.project import pin as project_pin
 from cbim_kernel.project.upgrade.config import UpgradeConfig, load_from_project
 
 
@@ -43,21 +43,8 @@ def find_project_root(start: Path) -> Optional[Path]:
 
 
 def read_pin(project_root: Path) -> Optional[str]:
-    """Read ``cbim_version`` from ``.cbim/config.json``; return None on absence."""
-    cfg_path = project_root / ".cbim" / "config.json"
-    if not cfg_path.is_file():
-        return None
-    try:
-        with cfg_path.open("r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    ver = data.get("cbim_version")
-    if isinstance(ver, str) and ver.strip():
-        return ver.strip()
-    return None
+    """Read the pinned kernel version from ``.cbim/.pin``; return None on absence."""
+    return project_pin.read_pin(project_root)
 
 
 def read_upgrade_config(project_root: Path) -> UpgradeConfig:
