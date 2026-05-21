@@ -106,8 +106,11 @@ def invoke_installer(install_root: Path, version: str) -> int:
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = str(install_root) + (os.pathsep + existing if existing else "")
     try:
+        # ``cbim install`` activates the new version as active_default by
+        # default (see installer/cli.py ``--no-set-default``). Do not pass
+        # ``--set-default`` — that flag was removed in commit ba0ac8c.
         result = subprocess.run(
-            [sys.executable, "-m", "installer", "install", version, "--set-default"],
+            [sys.executable, "-m", "installer", "install", version],
             env=env,
         )
         return result.returncode
@@ -200,7 +203,7 @@ def run_apply(
 
     if dry_run:
         print("[cbim] [dry-run] would snapshot {}".format(install_root))
-        print("[cbim] [dry-run] would invoke: python -m installer install {} --set-default".format(target_version))
+        print("[cbim] [dry-run] would invoke: python -m installer install {}".format(target_version))
         print("[cbim] [dry-run] would verify version {} landed".format(target_version))
         return 0
 
