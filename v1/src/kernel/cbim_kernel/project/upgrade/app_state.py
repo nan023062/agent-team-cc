@@ -15,8 +15,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from cbim_kernel.context import kernel_root
-
 
 @dataclass
 class AppState:
@@ -57,72 +55,64 @@ def _empty_state(error: Optional[str] = None) -> AppState:
     )
 
 
-def _resolve_installer_dir() -> Optional[Path]:
-    """Locate the installer package directory.
+def _resolve_install_root() -> Optional[Path]:
+    """Resolve the CBIM install root using the same rules as ``installer.paths``.
+
+    Mirrors ``installer/paths.py:install_root()`` inline — we cannot import it
+    (contract: kernel never imports installer). Returns ``None`` if the
+    resolved path does not exist on disk.
 
     Resolution order:
-      1. ``CBIM_INSTALL_ROOT`` env var + ``/installer``.
-      2. ``<kernel_root>/../installer`` (development checkout layout).
-      3. Standard install locations (Windows LOCALAPPDATA / POSIX XDG).
+      1. ``CBIM_INSTALL_ROOT`` env var.
+      2. Windows: ``%LOCALAPPDATA%\\Cbim-CC``.
+      3. macOS:   ``~/Library/Application Support/Cbim-CC``.
+      4. Linux:   ``~/.local/share/Cbim-CC``.
     """
-    env_root = os.environ.get("CBIM_INSTALL_ROOT")
-    if env_root:
-        cand = Path(env_root).expanduser() / "installer"
-        if cand.is_dir():
-            return cand
-
-    # Dev-checkout layout: v1/src/kernel/cbim_kernel and v1/src/installer
-    try:
-        kroot = kernel_root()
-        # kernel_root() points at the directory containing cbim_kernel/. In a
-        # dev checkout that's v1/src/kernel/. Sibling is v1/src/installer/.
-        cand = kroot.parent / "installer"
-        if cand.is_dir():
-            return cand
-    except Exception:  # noqa: BLE001
-        pass
-
-    if sys.platform == "win32":
+    env = os.environ.get("CBIM_INSTALL_ROOT")
+    if env:
+        root = Path(env).expanduser()
+    elif sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA")
-        if base:
-            cand = Path(base) / "Cbim-CC" / "installer"
-            if cand.is_dir():
-                return cand
-        cand = Path.home() / "AppData" / "Local" / "Cbim-CC" / "installer"
-        if cand.is_dir():
-            return cand
+        root = (Path(base) if base else Path.home() / "AppData" / "Local") / "Cbim-CC"
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support" / "Cbim-CC"
     else:
-        base = os.environ.get("XDG_DATA_HOME")
-        if base:
-            cand = Path(base) / "Cbim-CC" / "installer"
-            if cand.is_dir():
-                return cand
-        cand = Path.home() / ".local" / "share" / "Cbim-CC" / "installer"
-        if cand.is_dir():
-            return cand
-    return None
+        root = Path.home() / ".local" / "share" / "Cbim-CC"
+    return root if root.is_dir() else None
 
 
 def _query_installer_json() -> Optional[dict]:
     """Run ``python -m installer version --json`` and parse the result.
 
-    Returns ``None`` on any failure (subprocess error, non-zero exit, bad JSON).
-    Never raises.
+    The subprocess runs under the shared venv interpreter at
+    ``<install_root>/venv/`` with ``<install_root>`` on ``PYTHONPATH`` so the
+    installer package resolves. Returns ``None`` on any failure (no install
+    root, missing venv, subprocess error, non-zero exit, bad JSON). Never
+    raises.
     """
-    installer_dir = _resolve_installer_dir()
-    if installer_dir is None:
+    install_root = _resolve_install_root()
+    if install_root is None:
         return None
-    # The installer package must be importable as `installer`. Its parent dir
-    # (e.g. <install_root>/ or v1/src/) goes on PYTHONPATH.
-    pkg_parent = installer_dir.parent
+    if not (install_root / "installer").is_dir():
+        return None
+    if sys.platform == "win32":
+        python = install_root / "venv" / "Scripts" / "python.exe"
+    else:
+        python = install_root / "venv" / "bin" / "python"
+    if not python.is_file():
+        # Fall back to current interpreter; PYTHONPATH still points the import.
+        python_str = sys.executable
+    else:
+        python_str = str(python)
+
     env = os.environ.copy()
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
-        str(pkg_parent) + (os.pathsep + existing if existing else "")
+        str(install_root) + (os.pathsep + existing if existing else "")
     )
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "installer", "version", "--json"],
+            [python_str, "-m", "installer", "version", "--json"],
             env=env,
             capture_output=True,
             text=True,
