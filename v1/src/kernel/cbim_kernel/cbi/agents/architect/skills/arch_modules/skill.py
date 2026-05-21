@@ -19,7 +19,7 @@ python .cbim/engine dna init <dir> --type {root,parent,leaf} --name <name> --own
 | `parent` | Module that contains sub-modules (each with their own `.dna/`) | `## Positioning / ## Sub-module Relationships (graph) / ## Key Decisions` |
 | `leaf` | Module with no sub-modules; self-contained | `## Positioning / ## Class Diagram (classDiagram) / ## Key Decisions` |
 
-The CLI **refuses** to init any module before `.cbim/.dna/index.md` exists (proves `install.py` ran), and refuses to init `--type root` anywhere except the project root. Every successful `init_module` auto-appends the new module to the registry.
+The CLI **refuses** to init any module before `.cbim/index.md` exists (proves `install.py` ran), and refuses to init `--type root` anywhere except the project root. Every successful `init_module` auto-appends the new module to the registry.
 
 ---
 
@@ -27,7 +27,7 @@ The CLI **refuses** to init any module before `.cbim/.dna/index.md` exists (prov
 
 **Trigger**: User requests to initialize the module knowledge system (e.g., "initialize module knowledge system", "initialize project knowledge").
 
-The **registry** (`.cbim/.dna/index.md`) is auto-created by `install.py` — that's the single hard requirement. A **project-root module** (`./.dna/module.md`) is OPTIONAL and depends on the project shape:
+The **registry** (`.cbim/index.md`) is auto-created by `install.py` — that's the single hard requirement. A **project-root module** (`./.dna/module.md`) is OPTIONAL and depends on the project shape:
 
 | Project shape | Recommended top-level setup |
 |---------------|------------------------------|
@@ -37,23 +37,23 @@ The **registry** (`.cbim/.dna/index.md`) is auto-created by `install.py` — tha
 
 ### Steps
 
-1. Confirm the registry exists (`ls .cbim/.dna/index.md`). If missing, the user hasn't run `install.py` — stop and tell them.
+1. Confirm the registry exists (`ls .cbim/index.md`). If missing, the user hasn't run `install.py` — stop and tell them.
 2. Survey the project structure and decide top-level shape (see table above). Confirm with the user if ambiguous.
 3. Create the chosen top-level module(s):
    - Single-app: `python .cbim/engine dna init . --type root --name <project-name> --owner architect`
    - Monorepo: `python .cbim/engine dna init packages --type parent --name <workspace> --owner architect` (substitute your workspace dir)
    - Mixed: skip this step; go straight to sub-module creation
 4. Fill in each newly created `module.md` (positioning + sub-module/class diagram + key decisions per template).
-5. Scan for sub-modules and run **Create Module** below for each. `init_module` auto-appends to `.cbim/.dna/index.md` — no manual reindex needed.
+5. Scan for sub-modules and run **Create Module** below for each. `init_module` auto-appends to `.cbim/index.md` — no manual reindex needed.
 6. Run compliance check: execute `arch-governance.md`.
 
-**Registry rule** (CLI-enforced): `init_module` requires `.cbim/.dna/index.md` to exist (proves install ran). It does NOT require a project-root module — sub-modules can be created freely once cbim is installed.
+**Registry rule** (CLI-enforced): `init_module` requires `.cbim/index.md` to exist (proves install ran). It does NOT require a project-root module — sub-modules can be created freely once cbim is installed.
 
 **Recovery**: if the registry drifts (e.g. someone hand-deleted entries, or modules were added without using `init_module`), run:
 ```bash
 python .cbim/engine dna reindex
 ```
-This rescans the filesystem and rebuilds `.cbim/.dna/index.md`.
+This rescans the filesystem and rebuilds `.cbim/index.md`.
 
 ---
 
@@ -124,7 +124,7 @@ This rescans the filesystem and rebuilds `.cbim/.dna/index.md`.
    - Write only the currently valid external interfaces; no change history or deprecated interfaces
    - High-density: interface signatures are the primary content, descriptions are concise
    - **Do NOT create contract.md for ordinary internal modules** — in strongly-typed languages, source code is the contract
-6. The registry `.cbim/.dna/index.md` is updated automatically by `init_module` — no manual step needed
+6. The registry `.cbim/index.md` is updated automatically by `init_module` — no manual step needed
 7. Run compliance check: execute `arch-governance.md`
 
 **Naming convention**: `name` uses kebab-case; `owner` is the responsible agent id.

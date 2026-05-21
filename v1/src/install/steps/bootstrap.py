@@ -126,20 +126,24 @@ def ensure_config(root: Path) -> None:
 
 
 def ensure_registry(cbim_dst: Path, root: Path) -> None:
-    """Create .cbim/.dna/index.md (the module registry).
+    """Create .cbim/index.md (the module registry).
 
     The cbi.engine.modules helpers expect a project layout where the registry
-    lives at <project-root>/.cbim/.dna/index.md (renamed from the legacy
-    .cbim/.dna/index.md location). We seed it with a fresh filesystem
+    lives at <project-root>/.cbim/index.md. We seed it with a fresh filesystem
     scan if nothing exists yet.
     """
     # cbi is already importable from the source .cbim/ (install.py
     # inserts it into sys.path). Don't re-insert cbim_dst — namespace package
     # aggregation would then drop __pycache__ into the user-facing
     # .cbim/ tree.
-    from cbi.engine.modules import ensure_registry as _ensure, update_index, read_index
+    from cbi.engine.modules import (
+        ensure_registry as _ensure,
+        index_path,
+        read_index,
+        update_index,
+    )
 
-    pre_path = root / ".cbim" / ".dna" / "index.md"
+    pre_path = index_path(root)
     existed_before = pre_path.exists()
     before = pre_path.read_text(encoding="utf-8") if existed_before else ""
     idx = _ensure(root)

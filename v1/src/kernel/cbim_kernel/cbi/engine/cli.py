@@ -7,11 +7,12 @@ or `__main__` block — invoke via `python .cbim/engine <domain> <command>`.
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 from cbim_kernel.cbi.engine import list_agents, load_agent, scaffold_agent, archive_agent
 from cbim_kernel.cbi.engine import list_modules, load_module, init_module
-from cbim_kernel.cbi.engine.modules import update_index
+from cbim_kernel.cbi.engine.modules import update_index, write_module_doc
 from cbim_kernel.context import project_root
 
 AGENTS_DIR = project_root() / ".claude" / "agents"
@@ -117,6 +118,37 @@ def cmd_modules_init(args: argparse.Namespace) -> int:
     except (FileExistsError, FileNotFoundError, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+    return 0
+
+
+def cmd_modules_write_doc(args: argparse.Namespace) -> int:
+    """Write body content into <module-path>/.dna/<file>, preserving frontmatter.
+
+    Exactly one of --content / --content-file must be provided.
+    """
+    if args.content is None and args.content_file is None:
+        print("Error: one of --content or --content-file is required", file=sys.stderr)
+        return 1
+    if args.content is not None and args.content_file is not None:
+        print("Error: --content and --content-file are mutually exclusive", file=sys.stderr)
+        return 1
+
+    if args.content is not None:
+        body = args.content
+    else:
+        src = Path(args.content_file)
+        if not src.is_file():
+            print(f"Error: --content-file not found: {src}", file=sys.stderr)
+            return 1
+        body = src.read_text(encoding="utf-8")
+
+    try:
+        written = write_module_doc(Path(args.module_path), args.file, body)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(str(written.resolve()))
     return 0
 
 

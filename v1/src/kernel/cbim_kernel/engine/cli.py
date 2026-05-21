@@ -61,7 +61,12 @@ def main() -> int:
     _p = dsub.add_parser("show"); _p.add_argument("path")
     _p = dsub.add_parser("init"); _p.add_argument("dir"); _p.add_argument("--type", required=True, choices=["root", "parent", "leaf"]); _p.add_argument("--name", required=True); _p.add_argument("--owner", required=True); _p.add_argument("--description", default=""); _p.add_argument("--with-contract", action="store_true", dest="with_contract")
     _p = dsub.add_parser("reindex"); _p.add_argument("--root", default=None)
-    dna_cmds = {"list": kcli.cmd_modules_list, "show": kcli.cmd_modules_show, "init": kcli.cmd_modules_init, "reindex": kcli.cmd_modules_reindex}
+    _p = dsub.add_parser("write-doc", help="Write body content into <module>/.dna/{module.md,contract.md}, preserving frontmatter")
+    _p.add_argument("module_path", help="Path to the module directory (the one containing .dna/)")
+    _p.add_argument("--file", required=True, choices=["module.md", "contract.md"], help="Which file in .dna/ to write")
+    _p.add_argument("--content", default=None, help="Body markdown as an inline string")
+    _p.add_argument("--content-file", dest="content_file", default=None, help="Read body markdown from this path")
+    dna_cmds = {"list": kcli.cmd_modules_list, "show": kcli.cmd_modules_show, "init": kcli.cmd_modules_init, "reindex": kcli.cmd_modules_reindex, "write-doc": kcli.cmd_modules_write_doc}
 
     # agent -------------------------------------------------------------------
     pa = sub.add_parser("agent", help="Agent roster commands")

@@ -85,7 +85,7 @@ def register(mcp) -> None:
 
     @mcp.tool()
     def dna_reindex(cwd: str = "") -> str:
-        """Rescan the filesystem and rebuild `.cbim/.dna/index.md` registry.
+        """Rescan the filesystem and rebuild `.cbim/index.md` registry.
 
         Args:
             cwd: Project directory (default: current working dir).

@@ -6,7 +6,7 @@
 
 **Module**: Any directory containing a `.dna/` subdirectory is a module.
 
-**Module registry**: `.cbim/.dna/index.md` is the canonical, framework-managed list of all modules in the project. It is **required** (auto-created by `install.py`, auto-updated by `init_module`). `list_modules` / `snapshot` read it for speed; full filesystem scans are reserved for `reindex` / governance validation.
+**Module registry**: `.cbim/index.md` is the canonical, framework-managed list of all modules in the project. It is **required** (auto-created by `install.py`, auto-updated by `init_module`). `list_modules` / `snapshot` read it for speed; full filesystem scans are reserved for `reindex` / governance validation.
 
 **Project-root module**: The project root MAY have its own `.dna/module.md`, making it the top of the tree. This is **optional**. Mixed monorepos / multi-system repos (e.g. v1 framework + v2 packages coexisting) typically skip it — having a project-root module would force a confusing "which system does this describe?" identity.
 
@@ -18,7 +18,7 @@
 
 | Layer | Content |
 |-------|---------|
-| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/`; `.cbim/.dna/index.md` is the registry (must exist after install) |
+| **Hard constraint** | `.dna/` exists = module; `module.md` must exist inside `.dna/`; `.cbim/index.md` is the registry (must exist after install) |
 | **Framework recommended** | `contract.md` (protocol boundary), `workflows/` (deterministic processes) |
 | **User freedom** | Any custom files under `.dna/` |
 | **Optional** | Project-root `.dna/module.md` — useful for single-application projects; skip in monorepos |
@@ -46,11 +46,10 @@
 ```
 <project>/
 └── .cbim/
-    └── .dna/
-        └── index.md    # canonical list of all module paths in the project
+    └── index.md    # canonical list of all module paths in the project
 ```
 
-Note: `.cbim/.dna/` contains **only** `index.md`. There is no `module.md` inside — `.cbim/` is the framework, not a business module, and is excluded from module scans by `_SCAN_SKIP_DIRS`.
+Note: `.cbim/` is the framework, not a business module — it has no `.dna/` and no `module.md`, and is excluded from module scans by `_SCAN_SKIP_DIRS`. The registry lives directly at `.cbim/index.md` (no redundant `.dna/` wrapper).
 
 ---
 

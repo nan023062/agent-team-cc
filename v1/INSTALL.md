@@ -57,7 +57,7 @@ Two artifacts are overwritten cleanly; two are merged to preserve user data.
 
 | Artifact | Strategy | Why |
 |---|---|---|
-| `.cbim/` | clean replace, **preserve** `memory/{short,medium,last-session.md}`, `.dna/`, `config.json` | framework files must match upstream; runtime data must survive |
+| `.cbim/` | clean replace, **preserve** `memory/{short,medium,last-session.md}`, `index.md`, `config.json` | framework files must match upstream; runtime data must survive |
 | `.claude/agents/` | clean replace | agents are framework-defined |
 | `.claude/settings.json` | **merge** — overwrite only `hooks` and `permissions` keys | preserve user-added MCP servers, env, model, theme, custom permissions |
 | `CLAUDE.md` | overwrite, backup to `CLAUDE.md.bak` if different | template owned by framework |
@@ -68,7 +68,7 @@ Two artifacts are overwritten cleanly; two are merged to preserve user data.
 Linux / macOS:
 ```bash
 [ -d .cbim/memory ] && cp -r .cbim/memory "$TMP/_memory_bak"
-[ -d .cbim/.dna ]         && cp -r .cbim/.dna         "$TMP/_dna_bak"
+[ -f .cbim/index.md ]     && cp    .cbim/index.md     "$TMP/_index_bak"
 [ -f .cbim/config.json ]  && cp    .cbim/config.json  "$TMP/_config_bak"
 [ -f CLAUDE.md ] && cp CLAUDE.md "$TMP/_claude_md_bak"
 ```
@@ -76,7 +76,7 @@ Linux / macOS:
 Windows (PowerShell):
 ```powershell
 if (Test-Path .cbim\memory) { Copy-Item -Recurse .cbim\memory "$TMP\_memory_bak" }
-if (Test-Path .cbim\.dna)         { Copy-Item -Recurse .cbim\.dna         "$TMP\_dna_bak" }
+if (Test-Path .cbim\index.md)     { Copy-Item          .cbim\index.md     "$TMP\_index_bak" }
 if (Test-Path .cbim\config.json)  { Copy-Item          .cbim\config.json  "$TMP\_config_bak" }
 if (Test-Path CLAUDE.md) { Copy-Item CLAUDE.md "$TMP\_claude_md_bak" }
 ```
@@ -101,31 +101,30 @@ Copy-Item -Recurse "$TMP\src\.claude\agents" .claude\agents
 
 ### 3c. Restore runtime data + ensure required dirs
 
-`.cbim/memory/{short,medium}/` and `.cbim/.dna/index.md` are gitignored or runtime-managed and won't be in the clone — create them if missing.
+`.cbim/memory/{short,medium}/` and `.cbim/index.md` are gitignored or runtime-managed and won't be in the clone — create them if missing.
 
 Linux / macOS:
 ```bash
 # Restore preserved data
 [ -d "$TMP/_memory_bak" ] && { rm -rf .cbim/memory; cp -r "$TMP/_memory_bak" .cbim/memory; }
-[ -d "$TMP/_dna_bak" ]    && { rm -rf .cbim/.dna;          cp -r "$TMP/_dna_bak"   .cbim/.dna; }
+[ -f "$TMP/_index_bak" ]  && cp "$TMP/_index_bak"  .cbim/index.md
 [ -f "$TMP/_config_bak" ] && cp "$TMP/_config_bak" .cbim/config.json
 
 # Ensure required runtime dirs/files exist (no-op if already restored)
 mkdir -p .cbim/memory/short .cbim/memory/medium
-mkdir -p .cbim/.dna
-[ -f .cbim/.dna/index.md ] || printf "# Module Index\n" > .cbim/.dna/index.md
-[ -f .cbim/config.json ]   || printf '{\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim/config.json
+[ -f .cbim/index.md ]    || printf "# Module Index\n" > .cbim/index.md
+[ -f .cbim/config.json ] || printf '{\n  "memory": {\n    "short_term": {"keep_days": 3}\n  }\n}\n' > .cbim/config.json
 ```
 
 Windows (PowerShell):
 ```powershell
 if (Test-Path "$TMP\_memory_bak") { Remove-Item -Recurse -Force .cbim\memory -ErrorAction SilentlyContinue; Copy-Item -Recurse "$TMP\_memory_bak" .cbim\memory }
-if (Test-Path "$TMP\_dna_bak")    { Remove-Item -Recurse -Force .cbim\.dna -ErrorAction SilentlyContinue; Copy-Item -Recurse "$TMP\_dna_bak" .cbim\.dna }
+if (Test-Path "$TMP\_index_bak")  { Copy-Item "$TMP\_index_bak"  .cbim\index.md }
 if (Test-Path "$TMP\_config_bak") { Copy-Item "$TMP\_config_bak" .cbim\config.json }
 
-New-Item -ItemType Directory -Force -Path .cbim\memory\short, .cbim\memory\medium, .cbim\.dna | Out-Null
-if (-not (Test-Path .cbim\.dna\index.md)) { Set-Content -Path .cbim\.dna\index.md -Value "# Module Index" -NoNewline; Add-Content -Path .cbim\.dna\index.md -Value "" }
-if (-not (Test-Path .cbim\config.json))   { Set-Content -Path .cbim\config.json   -Value '{"memory":{"short_term":{"keep_days":3}}}' }
+New-Item -ItemType Directory -Force -Path .cbim\memory\short, .cbim\memory\medium | Out-Null
+if (-not (Test-Path .cbim\index.md))    { Set-Content -Path .cbim\index.md    -Value "# Module Index" -NoNewline; Add-Content -Path .cbim\index.md -Value "" }
+if (-not (Test-Path .cbim\config.json)) { Set-Content -Path .cbim\config.json -Value '{"memory":{"short_term":{"keep_days":3}}}' }
 ```
 
 ### 3d. Merge .claude/settings.json (preserve user keys)
@@ -230,7 +229,7 @@ done
 ## Step 6 — Verify
 
 ```bash
-ls CLAUDE.md .cbim/ .claude/agents/ .claude/settings.json .claudeignore .venv/ .cbim/.dna/index.md .cbim/memory/short .cbim/memory/medium
+ls CLAUDE.md .cbim/ .claude/agents/ .claude/settings.json .claudeignore .venv/ .cbim/index.md .cbim/memory/short .cbim/memory/medium
 ```
 
 All paths must exist.

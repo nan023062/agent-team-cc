@@ -482,7 +482,7 @@ Split into multiple sub-modules
 
 ## Directory Structure (After Deployment)
 
-`.dna/` directories are scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The framework-managed registry at `.cbim/.dna/index.md` is the only hard requirement (created by install, updated by `init_module`).
+`.dna/` directories are scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The framework-managed registry at `.cbim/index.md` is the only hard requirement (created by install, updated by `init_module`).
 
 ```
 <project>/

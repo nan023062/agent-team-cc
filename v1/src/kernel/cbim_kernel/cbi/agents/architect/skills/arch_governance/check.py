@@ -259,7 +259,7 @@ def run_checks(root: Path) -> dict[str, list[str]]:
     all_paths = set(mod_map)
     dep_graph = {m["path"]: [d for d in m.get("dependencies", [])] for m in modules}
 
-    # Module registry lives at .cbim/.dna/index.md (framework-managed). This
+    # Module registry lives at .cbim/index.md (framework-managed). This
     # replaces the old <project-root>/.dna/index.md location.
     index_paths: set[str] = set(read_index(root))
 

@@ -52,7 +52,7 @@ Display the following overview to the user verbatim (in Chinese):
 - `.cbim/` — 框架代码（read-only，由 `.claudeignore` + deny 保护）
 - `.cbim/memory/short/` — 原始会话记录（3 天后清理）
 - `.cbim/memory/medium/` — 蒸馏后的模式
-- `.cbim/.dna/index.md` — 模块注册表（architect 维护）
+- `.cbim/index.md` — 模块注册表（architect 维护）
 - `.claude/agents/` — agent 定义（架构师/审计/HR/程序员 + 自定义）
 - `.claude/commands/` — slash command 定义
 - `.claude/settings.json` — hooks + permissions

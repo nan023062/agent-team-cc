@@ -205,7 +205,7 @@ def _is_skipped(mod_dir: Path, root: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Module registry — .cbim/.dna/index.md
+# Module registry — .cbim/index.md
 # ---------------------------------------------------------------------------
 #
 # The registry is the canonical, fast-path source of "which modules exist in
@@ -215,20 +215,28 @@ def _is_skipped(mod_dir: Path, root: Path) -> bool:
 #   - init_module() appends new modules in place
 #   - reindex() / update_index() rebuild from rglob (manual recovery)
 #
-# The registry lives in .cbim/.dna/index.md — NOT in the project root.
-# This decouples the framework-managed registry from the optional project-root
-# module document. .cbim/.dna/ contains only index.md (no module.md), so
-# .cbim/ itself is never treated as a module (also enforced by
-# _SCAN_SKIP_DIRS).
+# The registry lives in .cbim/index.md — NOT in the project root and NOT
+# wrapped in a redundant .dna/ layer. This decouples the framework-managed
+# registry from the optional project-root module document. .cbim/ is the
+# framework, not a business module, and is excluded from module scans by
+# _SCAN_SKIP_DIRS.
 
 
-def _index_path(root: Path) -> Path:
-    """Return the canonical location of the module registry."""
-    return root / ".cbim" / ".dna" / "index.md"
+def index_path(root: Path) -> Path:
+    """Return the canonical location of the module registry.
+
+    Public helper — install/bootstrap reuses this to stay in sync with the
+    kernel's authoritative path.
+    """
+    return root / ".cbim" / "index.md"
+
+
+# Backwards-compatible private alias used throughout this module.
+_index_path = index_path
 
 
 def ensure_registry(root: Path) -> Path:
-    """Create an empty .cbim/.dna/index.md if missing. Idempotent."""
+    """Create an empty .cbim/index.md if missing. Idempotent."""
     p = _index_path(root)
     if not p.exists():
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -237,7 +245,7 @@ def ensure_registry(root: Path) -> Path:
 
 
 def read_index(root: Path) -> list[str]:
-    """Return the list of module paths registered in .cbim/.dna/index.md.
+    """Return the list of module paths registered in .cbim/index.md.
 
     Returns [] if the registry doesn't exist or is empty. Each line is parsed
     as `- <path> [optional annotation]`; only the first whitespace-delimited
@@ -260,7 +268,7 @@ def read_index(root: Path) -> list[str]:
 
 
 def _write_index(root: Path, paths: list[str]) -> None:
-    """Atomically rewrite .cbim/.dna/index.md with the given paths (sorted)."""
+    """Atomically rewrite .cbim/index.md with the given paths (sorted)."""
     ensure_registry(root)
     lines = ["# Module Index", ""]
     for p_str in sorted(set(paths)):
@@ -303,7 +311,7 @@ def _scan_modules(root: Path) -> list[dict]:
 
 
 def list_modules(root: Path, use_registry: bool = True) -> list[dict]:
-    """Return all modules. Reads .cbim/.dna/index.md by default for speed; falls
+    """Return all modules. Reads .cbim/index.md by default for speed; falls
     back to a full filesystem scan if the registry is missing/empty.
 
     Pass use_registry=False to force a fresh scan (used by reindex / governance
@@ -388,7 +396,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
     target = mod_dir.resolve()
     root = (project_root or Path.cwd()).resolve()
 
-    # Registry (.cbim/.dna/index.md) must exist — proves cbim is installed.
+    # Registry (.cbim/index.md) must exist — proves cbim is installed.
     # The project-root .dna/ is OPTIONAL; mixed monorepos can skip it.
     if not _index_path(root).exists():
         raise FileNotFoundError(
@@ -411,7 +419,6 @@ def init_module(mod_dir: Path, name: str, owner: str,
         raise FileExistsError(f".dna already exists: {aimod}")
 
     aimod.mkdir(parents=True)
-    (aimod / "workflows").mkdir()
 
     fm_lines = [
         "---",
@@ -438,7 +445,7 @@ def init_module(mod_dir: Path, name: str, owner: str,
         )
 
     # Append to the registry so list_modules / snapshot see it immediately.
-    # (Note: index.md no longer lives at <root>/.dna/; it's at .cbim/.dna/.)
+    # (Note: index.md lives at .cbim/index.md, not under any .dna/.)
     rel = mod_dir.resolve().relative_to(root).as_posix()
     _append_to_index(root, rel)
 
@@ -496,8 +503,79 @@ def _build_module_md(meta: dict, body: str) -> str:
     return "\n".join(fm_lines) + "\n\n" + body + "\n"
 
 
+_WRITE_DOC_ALLOWED = ("module.md", "contract.md")
+
+
+def write_module_doc(mod_dir: Path, file_name: str, body: str) -> Path:
+    """Replace the markdown body of <mod_dir>/.dna/<file_name>, preserving any
+    leading YAML frontmatter verbatim.
+
+    Rules:
+      - file_name must be 'module.md' or 'contract.md'; anything else raises ValueError.
+      - <mod_dir>/.dna/ must already exist (i.e. `dna init` has been run); otherwise FileNotFoundError.
+      - If the target file does not yet exist, it is created (body only, no frontmatter).
+      - If the target file exists and starts with `---` frontmatter, the frontmatter is
+        preserved exactly as on disk and only the body is replaced.
+      - Atomic: write to <file>.tmp then os.replace to <file>. Crash mid-write leaves
+        either the old file intact or no .tmp residue visible to readers.
+
+    Returns the absolute path of the written file.
+    """
+    import os
+
+    if file_name not in _WRITE_DOC_ALLOWED:
+        raise ValueError(
+            f"--file must be one of {_WRITE_DOC_ALLOWED}, got: {file_name!r}"
+        )
+
+    aimod = mod_dir.resolve() / ".dna"
+    if not aimod.is_dir():
+        raise FileNotFoundError(
+            f"module not initialized at {mod_dir}; run `dna init` first "
+            f"(missing {aimod})"
+        )
+
+    target = aimod / file_name
+    body_text = body if body.endswith("\n") else body + "\n"
+
+    if target.exists():
+        existing = target.read_text(encoding="utf-8")
+        if existing.startswith("---"):
+            end = existing.find("\n---", 3)
+            if end != -1:
+                # Keep frontmatter block byte-for-byte: from start through "\n---" and its trailing newline.
+                fm_end = end + 4  # past "\n---"
+                # Preserve the single newline that conventionally follows the closing ---
+                if fm_end < len(existing) and existing[fm_end] == "\n":
+                    fm_end += 1
+                frontmatter = existing[:fm_end]
+                new_content = frontmatter + body_text
+            else:
+                # Malformed frontmatter (opens but never closes) — treat whole file as body, overwrite.
+                new_content = body_text
+        else:
+            new_content = body_text
+    else:
+        new_content = body_text
+
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    try:
+        tmp.write_text(new_content, encoding="utf-8")
+        os.replace(tmp, target)
+    except Exception:
+        # Best-effort cleanup of half-written tmp; suppress secondary errors.
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+    return target
+
+
 def update_index(root: Path, paths: list[str] | None = None) -> None:
-    """Rebuild .cbim/.dna/index.md from a fresh filesystem scan (or accept an
+    """Rebuild .cbim/index.md from a fresh filesystem scan (or accept an
     explicit path list). Use this for one-shot recovery / migration; the
     normal CLI flow keeps the registry up to date via init_module."""
     if paths is None:
