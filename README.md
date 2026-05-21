@@ -47,7 +47,7 @@ V1 validates the CBIM philosophy within the Claude Code ecosystem. V2 reimplemen
 In your target project, paste this message to Claude Code:
 
 ```
-Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/v1/docs/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
+Please fetch https://raw.githubusercontent.com/nan023062/cbim/master/v1/INSTALL.md to get the CBIM installation SOP, then execute all steps starting after the first divider line to install in the current project.
 ```
 
 ### Option 2: Machine-level installer (global kernel)
@@ -66,7 +66,7 @@ cbim init       # bootstrap .cbim/ in the current project
 
 ### Option 3: Manual copy
 
-Follow [`v1/docs/INSTALL.md`](v1/docs/INSTALL.md) — copy four runtime artifacts (`.cbim/`, `.claude/`, `CLAUDE.md`, `.claudeignore`) into your project. Merge semantics preserve existing settings.
+Follow [`v1/INSTALL.md`](v1/INSTALL.md) — copy four runtime artifacts (`.cbim/`, `.claude/`, `CLAUDE.md`, `.claudeignore`) into your project. Merge semantics preserve existing settings.
 
 ---
 
