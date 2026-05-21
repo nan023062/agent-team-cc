@@ -203,10 +203,15 @@ def main() -> int:
 
 
 def _cmd_init(args) -> int:
-    """Bootstrap a new CBIM project at the current project_root."""
+    """Bootstrap a new CBIM project at the current working directory.
+
+    `init` MUST target cwd, never `project_root()`. The latter walks up to find
+    an existing `.cbim/`, which is the wrong semantics for bootstrap and has
+    historically caused init to clobber the user-global `~/.cbim/` when run
+    from a non-project subdirectory.
+    """
     import os
     from cbim_kernel import __version__ as _kernel_version
-    from cbim_kernel.context import project_root
     from cbim_kernel.project.init import init_project
 
     # Priority: explicit --version > kernel's own __version__ > env fallbacks.
@@ -219,15 +224,20 @@ def _cmd_init(args) -> int:
         or os.environ.get("CBIM_DEFAULT_VERSION")
         or os.environ.get("CBIM_LAUNCHER_VERSION")
     )
-    init_project(project_root(), version=version, force=args.force)
+    target = Path.cwd().resolve()
+    init_project(target, version=version, force=args.force)
     return 0
 
 
 def _cmd_migrate(args) -> int:
-    """Migrate a kernel-in-project layout to the global-kernel model."""
+    """Migrate a kernel-in-project layout to the global-kernel model.
+
+    Like `init`, this targets cwd explicitly. We additionally require that
+    `cwd/.cbim` exists, because migrate is meaningless without an existing
+    project to upgrade.
+    """
     import os
     from cbim_kernel import __version__ as _kernel_version
-    from cbim_kernel.context import project_root
     from cbim_kernel.project.migrate import migrate_project
 
     version = (
@@ -236,8 +246,16 @@ def _cmd_migrate(args) -> int:
         or os.environ.get("CBIM_DEFAULT_VERSION")
         or os.environ.get("CBIM_LAUNCHER_VERSION")
     )
+    target = Path.cwd().resolve()
+    if not (target / ".cbim").is_dir():
+        print(
+            f"migrate: no CBIM project in current directory ({target}); "
+            "cd into the project root first",
+            file=sys.stderr,
+        )
+        return 1
     return migrate_project(
-        project_root(),
+        target,
         version=version,
         dry_run=args.dry_run,
         force=args.force,
