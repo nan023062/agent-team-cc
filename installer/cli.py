@@ -11,6 +11,14 @@ from installer import registry
 from installer.install import install_from_github, install_from_local
 
 
+def _ver(v: str) -> tuple:
+    """Parse a version string into an int-tuple for comparison."""
+    try:
+        return tuple(int(x) for x in v.strip().lstrip("v").split("."))
+    except ValueError:
+        return (0,)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m installer",
@@ -115,25 +123,32 @@ def _cmd_upgrade(args: argparse.Namespace) -> int:
     current_default = registry.get_default()
     installed = registry.list_installed()
 
-    print("[cbim] latest release : {}".format(latest))
-    print("[cbim] active_default : {}".format(current_default or "(none)"))
+    # Determine the baseline for comparison: active_default, or highest installed
+    baseline = current_default or (max(installed, key=_ver) if installed else None)
 
-    if latest in installed:
-        if args.check or latest == current_default:
-            print("[cbim] already up to date.")
-            return 0
-        # Installed but not default — offer to switch
-        print("[cbim] {} is installed but not the default.".format(latest))
-        if args.set_default:
-            registry.set_default(latest)
-            print("[cbim] active_default -> {}".format(latest))
+    print("[cbim] latest release : {}".format(latest))
+    print("[cbim] installed      : {}".format(baseline or "(none)"))
+
+    # Compare: only proceed if GitHub's version is strictly newer
+    if baseline and _ver(latest) <= _ver(baseline):
+        print("[cbim] already up to date ({}).".format(baseline))
         return 0
 
     if args.check:
-        print("[cbim] upgrade available: {} -> {}".format(current_default or "?", latest))
+        print("[cbim] upgrade available: {} -> {}".format(baseline or "?", latest))
         return 0
 
-    print("[cbim] upgrading {} -> {} ...".format(current_default or "?", latest))
+    if latest in installed:
+        # Already downloaded — just switch default if requested
+        print("[cbim] {} is installed but not the active default.".format(latest))
+        if args.set_default:
+            registry.set_default(latest)
+            print("[cbim] active_default -> {}".format(latest))
+        else:
+            print("[cbim] Run 'cbim use {}' to activate.".format(latest))
+        return 0
+
+    print("[cbim] upgrading {} -> {} ...".format(baseline or "?", latest))
     try:
         install_from_github(
             version=latest,
