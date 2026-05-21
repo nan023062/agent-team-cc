@@ -5,6 +5,7 @@ description: Global Cbim-CC install management: paths, registry, venv, bootstrap
 keywords: []
 dependencies: []
 ---
+
 ## Positioning
 
 Owns the global Cbim-CC install root (`<install_root>/Cbim-CC/`): where it lives, which kernel versions are inside, which is default, the shared venv, and the on-disk versions registry. Also owns getting the launcher reachable on the user's `PATH` (the only writes the installer makes *outside* the install root). Never imports from `cbim_kernel`. Never knows anything about a particular project.
@@ -219,3 +220,18 @@ classDiagram
 - **Running-shell activation (modifying the parent shell's PATH live, rustup-style `source activate.sh`) is explicitly out of scope.** See `bin/.dna/module.md` Key Decision on this.
 
 - **`ensure_on_path` never raises.** All exceptions inside the write primitive are caught and converted to `PathOutcome.FAILED` (or `SYMLINK_CONFLICT` for the regular-file collision). The installer's contract with the user is "the install root is correctly populated"; PATH placement is best-effort on top of that. A failed PATH write must never cause `install_kernel` to fail — kernels can still be invoked via the absolute launcher path. This guarantee now protects the actual call site (`install_kernel` step 5), not an orphaned function.
+
+- **`cbim version --json` is the stable machine-readable read surface for external consumers.** External callers needing installed-kernels / `active_default` / `install_root` (notably the kernel's `project.upgrade` module reading registry state) MUST go through the `cbim version --json` (alias: `cbim versions --json`) subcommand. This is the **only** supported machine-readable interface. Direct Python `import` of `installer.paths` or `installer.registry` by external packages (e.g. `cbim_kernel`) is **prohibited** — this preserves the unidirectional dependency rule "kernel never imports installer" and keeps the registry-read surface honest about its public contract. The JSON schema is **additive**: new fields may appear in future revisions; consumers MUST tolerate unknown keys without failing. Current schema shape:
+
+  ```json
+  {
+    "install_root": "<absolute path>",
+    "active_default": "<version string>",
+    "installed": {
+      "<version>": { "installed_at": "...", "kernel_path": "...", "venv_path": "...", "source": "..." }
+    },
+    "venv": { "path": "<absolute path>", "provisioned": true }
+  }
+  ```
+
+  Field names and meanings already published here are **stable**; removals or rename require a contract version bump.

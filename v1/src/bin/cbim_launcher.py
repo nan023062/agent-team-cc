@@ -48,7 +48,7 @@ def _install_root() -> Path:
 
 CBIM_HOME = _install_root()
 
-INSTALLER_COMMANDS = {"install", "upgrade", "uninstall", "use", "versions", "pin"}
+INSTALLER_COMMANDS = {"install", "uninstall", "use", "versions", "pin"}
 VERSION_FLAGS = {"version", "--version", "-V"}
 HELP_FLAGS = {"help", "--help", "-h"}
 

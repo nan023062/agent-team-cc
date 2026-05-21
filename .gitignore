@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
+cbim-kernel-*.tar.gz
 #.claude/
 #CLAUDE.md
 .cbim/memory/short/

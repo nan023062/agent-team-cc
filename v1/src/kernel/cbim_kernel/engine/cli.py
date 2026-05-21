@@ -66,7 +66,27 @@ def main() -> int:
     _p.add_argument("--file", required=True, choices=["module.md", "contract.md"], help="Which file in .dna/ to write")
     _p.add_argument("--content", default=None, help="Body markdown as an inline string")
     _p.add_argument("--content-file", dest="content_file", default=None, help="Read body markdown from this path")
-    dna_cmds = {"list": kcli.cmd_modules_list, "show": kcli.cmd_modules_show, "init": kcli.cmd_modules_init, "reindex": kcli.cmd_modules_reindex, "write-doc": kcli.cmd_modules_write_doc}
+    _p = dsub.add_parser(
+        "write-section",
+        help=(
+            "Section-level (H2/H3) surgical edit of .dna/{module.md,contract.md}. "
+            "Frontmatter is preserved verbatim. "
+            "Setext-style headings (underline with ===) are not supported."
+        ),
+    )
+    _p.add_argument("module_path", help="Path to the module directory (the one containing .dna/)")
+    _p.add_argument("--file", required=True, choices=["module.md", "contract.md"], help="Which file in .dna/ to edit")
+    _p.add_argument("--heading", required=True, help="Exact heading text (without leading '#'s)")
+    _p.add_argument("--level", type=int, default=2, choices=[2, 3], help="Heading level (default: 2)")
+    _p.add_argument("--mode", required=True, choices=["replace", "append", "insert-after", "delete"], help="Edit mode")
+    _p.add_argument("--content", default=None, help="Inline markdown content")
+    _p.add_argument("--content-file", dest="content_file", default=None, help="Read content from this path")
+    _p.add_argument("--stdin", action="store_true", help="Read content from stdin")
+    _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
+                    help="For replace/append: if heading absent, append a new section at EOF")
+    _p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                    help="Print resulting file to stdout; do not write")
+    dna_cmds = {"list": kcli.cmd_modules_list, "show": kcli.cmd_modules_show, "init": kcli.cmd_modules_init, "reindex": kcli.cmd_modules_reindex, "write-doc": kcli.cmd_modules_write_doc, "write-section": kcli.cmd_modules_write_section}
 
     # agent -------------------------------------------------------------------
     pa = sub.add_parser("agent", help="Agent roster commands")
@@ -152,6 +172,10 @@ def main() -> int:
     pmig.add_argument("--version", default=None,
                       help="Kernel version to pin in config.json (default: kernel __version__)")
 
+    # upgrade -----------------------------------------------------------------
+    from cbim_kernel.project.upgrade import cli as upgrade_cli
+    upgrade_cli.build_parser(sub)
+
     args = parser.parse_args()
     domain = args.domain
 
@@ -203,6 +227,8 @@ def main() -> int:
         return _cmd_init(args)
     if domain == "migrate":
         return _cmd_migrate(args)
+    if domain == "upgrade":
+        return _cmd_upgrade(args)
     parser.print_help()
     return 1
 
@@ -265,6 +291,23 @@ def _cmd_migrate(args) -> int:
         dry_run=args.dry_run,
         force=args.force,
     )
+
+
+def _cmd_upgrade(args) -> int:
+    """Route `cbim upgrade <subcommand>` to the upgrade module."""
+    from cbim_kernel.project.upgrade import cli as upgrade_cli
+
+    sub = getattr(args, "upgrade_command", None)
+    if sub == "check":
+        return upgrade_cli.cmd_check(args)
+    if sub == "apply":
+        return upgrade_cli.cmd_apply(args)
+    sys.stderr.write(
+        "usage: cbim upgrade {check,apply} [...]\n"
+        "  check   Diagnose joint app + project state\n"
+        "  apply   --to <version>  Upgrade the app-side install in place\n"
+    )
+    return 1
 
 
 def cmd_dashboard(args) -> int:

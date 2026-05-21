@@ -11,14 +11,6 @@ from installer import registry
 from installer.install import install_from_github, install_from_local
 
 
-def _ver(v: str) -> tuple:
-    """Parse a version string into an int-tuple for comparison."""
-    try:
-        return tuple(int(x) for x in v.strip().lstrip("v").split("."))
-    except ValueError:
-        return (0,)
-
-
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m installer",
@@ -45,27 +37,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Set the installed version as active_default",
     )
 
-    # upgrade
-    p_upgrade = sub.add_parser(
-        "upgrade", help="Upgrade to the latest GitHub release"
-    )
-    p_upgrade.add_argument(
-        "--check",
-        action="store_true",
-        help="Only report whether an upgrade is available; do not install",
-    )
-    p_upgrade.add_argument(
-        "--set-default",
-        action="store_true",
-        dest="set_default",
-        help="Set the newly installed version as active_default",
-    )
-    p_upgrade.add_argument(
-        "--repo",
-        default=None,
-        help="Override GitHub repo (owner/name)",
-    )
-
     # use
     p_use = sub.add_parser("use", help="Switch the active default kernel version")
     p_use.add_argument("version", help="Version to activate (must be installed)")
@@ -90,9 +61,21 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("list", help="List installed kernel versions")
 
     # version
-    sub.add_parser("version", help="Show installer + installed kernels")
+    p_ver = sub.add_parser("version", help="Show installer + installed kernels")
+    p_ver.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit machine-readable JSON to stdout",
+    )
     # versions is an alias
-    sub.add_parser("versions", help="Alias for 'version'")
+    p_vers = sub.add_parser("versions", help="Alias for 'version'")
+    p_vers.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Emit machine-readable JSON to stdout",
+    )
 
     return parser
 
@@ -111,65 +94,6 @@ def _cmd_install(args: argparse.Namespace) -> int:
     except (RuntimeError, OSError) as exc:
         sys.stderr.write("[cbim] install failed: {}\n".format(exc))
         return 1
-    return 0
-
-
-def _cmd_upgrade(args: argparse.Namespace) -> int:
-    from installer.github import latest_version
-
-    kwargs = {}
-    if args.repo:
-        kwargs["repo"] = args.repo
-
-    try:
-        latest = latest_version(**kwargs)
-    except (RuntimeError, OSError) as exc:
-        sys.stderr.write("[cbim] could not fetch latest version: {}\n".format(exc))
-        return 1
-
-    current_default = registry.get_default()
-    installed = registry.list_installed()
-
-    # Determine the baseline for comparison: active_default, or highest installed
-    baseline = current_default or (max(installed, key=_ver) if installed else None)
-
-    print("[cbim] latest release : {}".format(latest))
-    print("[cbim] installed      : {}".format(baseline or "(none)"))
-
-    # Compare: only proceed if GitHub's version is strictly newer
-    if baseline and _ver(latest) <= _ver(baseline):
-        print("[cbim] already up to date ({}).".format(baseline))
-        return 0
-
-    if args.check:
-        print("[cbim] upgrade available: {} -> {}".format(baseline or "?", latest))
-        return 0
-
-    if latest in installed:
-        # Already downloaded — just switch default if requested
-        print("[cbim] {} is installed but not the active default.".format(latest))
-        if args.set_default:
-            registry.set_default(latest)
-            print("[cbim] active_default -> {}".format(latest))
-        else:
-            print("[cbim] Run 'cbim use {}' to activate.".format(latest))
-        return 0
-
-    print("[cbim] upgrading {} -> {} ...".format(baseline or "?", latest))
-    try:
-        install_from_github(
-            version=latest,
-            set_default=args.set_default,
-            **kwargs,
-        )
-    except (RuntimeError, OSError) as exc:
-        sys.stderr.write("[cbim] upgrade failed: {}\n".format(exc))
-        return 1
-
-    if args.set_default:
-        print("[cbim] active_default -> {}".format(latest))
-    else:
-        print("[cbim] installed {}. Run 'cbim use {}' to activate.".format(latest, latest))
     return 0
 
 
@@ -281,8 +205,12 @@ def _cmd_list(_args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_version(_args: argparse.Namespace) -> int:
+def _cmd_version(args: argparse.Namespace) -> int:
+    from installer.paths import install_root
     from installer.venv_mgr import is_provisioned, venv_path
+
+    if getattr(args, "as_json", False):
+        return _cmd_version_json()
 
     print("cbim installer (stdlib)")
     print("install root: {}".format(registry.cbim_home()))
@@ -315,14 +243,42 @@ def _cmd_version(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_version_json() -> int:
+    """Emit installer state as JSON.
+
+    Stable machine-readable read surface consumed by
+    ``cbim_kernel.project.upgrade.app_state``. Schema is additive — never
+    rename or remove existing keys without coordinating with consumers.
+    """
+    import json as _json
+    from installer.paths import install_root
+    from installer.venv_mgr import is_provisioned, venv_path
+
+    try:
+        data = registry.load()
+    except Exception as exc:  # noqa: BLE001 — top-level CLI boundary
+        sys.stderr.write("[cbim] failed to read versions registry: {}\n".format(exc))
+        return 1
+
+    payload = {
+        "install_root": str(install_root()),
+        "active_default": data.get("active_default"),
+        "installed": data.get("installed", {}),
+        "venv": {
+            "path": str(venv_path()),
+            "provisioned": bool(is_provisioned()),
+        },
+    }
+    sys.stdout.write(_json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
 
     if args.command == "install":
         return _cmd_install(args)
-    if args.command == "upgrade":
-        return _cmd_upgrade(args)
     if args.command == "use":
         return _cmd_use(args)
     if args.command == "pin":

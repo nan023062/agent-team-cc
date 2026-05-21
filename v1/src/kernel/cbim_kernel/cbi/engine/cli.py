@@ -12,7 +12,7 @@ from pathlib import Path
 
 from cbim_kernel.cbi.engine import list_agents, load_agent, scaffold_agent, archive_agent
 from cbim_kernel.cbi.engine import list_modules, load_module, init_module
-from cbim_kernel.cbi.engine.modules import update_index, write_module_doc
+from cbim_kernel.cbi.engine.modules import update_index, write_module_doc, write_module_section
 from cbim_kernel.context import project_root
 
 AGENTS_DIR = project_root() / ".claude" / "agents"
@@ -149,6 +149,80 @@ def cmd_modules_write_doc(args: argparse.Namespace) -> int:
         return 1
 
     print(str(written.resolve()))
+    return 0
+
+
+def cmd_modules_write_section(args: argparse.Namespace) -> int:
+    """Section-level (H2/H3) surgical edit of .dna/{module.md,contract.md}.
+
+    Exactly one of --content / --content-file / --stdin must be provided for
+    modes that need content (replace / append / insert-after). For --mode
+    delete, none of them may be provided.
+    """
+    needs_content = args.mode != "delete"
+    sources = [
+        ("--content", args.content is not None),
+        ("--content-file", args.content_file is not None),
+        ("--stdin", bool(getattr(args, "stdin", False))),
+    ]
+    provided = [name for name, ok in sources if ok]
+
+    if needs_content:
+        if len(provided) == 0:
+            print(
+                "Error: one of --content, --content-file, or --stdin is required",
+                file=sys.stderr,
+            )
+            return 1
+        if len(provided) > 1:
+            print(
+                f"Error: {', '.join(provided)} are mutually exclusive",
+                file=sys.stderr,
+            )
+            return 1
+        if args.content is not None:
+            body = args.content
+        elif args.content_file is not None:
+            src = Path(args.content_file)
+            if not src.is_file():
+                print(f"Error: --content-file not found: {src}", file=sys.stderr)
+                return 1
+            body = src.read_text(encoding="utf-8")
+        else:
+            body = sys.stdin.read()
+    else:
+        if provided:
+            print(
+                f"Error: {', '.join(provided)} forbidden with --mode delete",
+                file=sys.stderr,
+            )
+            return 1
+        body = None
+
+    try:
+        result = write_module_section(
+            Path(args.module_path),
+            args.file,
+            args.heading,
+            args.level,
+            args.mode,
+            body,
+            create_if_missing=bool(getattr(args, "create_if_missing", False)),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+    except (ValueError, FileNotFoundError, LookupError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        # result is the rendered file content (str)
+        sys.stdout.write(result if isinstance(result, str) else str(result))
+        if isinstance(result, str) and not result.endswith("\n"):
+            sys.stdout.write("\n")
+        return 0
+
+    # result is a Path
+    print(str(Path(result).resolve()))
     return 0
 
 

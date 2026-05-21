@@ -136,24 +136,26 @@ The hook prints the line to stdout (NOT `additionalContext`), so it appears in t
 
 ## Dependencies (incoming entrypoints used)
 
-This module consumes the following stable entries from sibling modules. None are imported via Python except `cbim_kernel.context` (kernel-internal, kernel-local).
+This module consumes the following stable entries from sibling modules. **None are imported via Python except `cbim_kernel.context`** (kernel-internal, kernel-local). All access to `installer` state — both reads and writes — goes through subprocess invocation of the installer CLI, preserving the unidirectional rule "kernel never imports installer".
 
 | From | Entry | Used by | How |
 |------|-------|---------|-----|
-| `installer.paths` | `install_root()` | `app_state.get_install_root` | Python import (kernel and installer co-exist on PYTHONPATH only during upgrade flows; the actual installer ops still go via subprocess) — **OPEN POINT, see below** |
-| `installer.registry` | `list_installed()`, `get_default()`, `get_kernel_path(v)`, `versions_file()` | `app_state.*` | Python import (read-only API) |
-| `installer` (CLI) | `python -m installer install <ver>` | `apply_flow.invoke_installer` | subprocess only |
+| `installer` (CLI, read surface) | `python -m installer version --json` | `app_state.get_install_root`, `app_state.list_installed`, `app_state.get_default`, `app_state.get_kernel_path` | subprocess (JSON parse). Stable machine-readable read surface — see `installer/.dna/module.md` Key Decision. |
+| `installer` (CLI, write surface) | `python -m installer install <ver>` | `apply_flow.invoke_installer` | subprocess only |
 | `cbim_kernel.context` | `project_root()`, `cbim_dir()` | `project_state.find_project_root` | Python import (kernel-internal) |
 | `cbim_kernel.project.migrate` | (none — referenced only as a *command to recommend*) | diagnostic text | string only |
 
+**Explicitly forbidden:** Python `import installer.paths` or `import installer.registry` from anywhere inside this module. Both modules are installer-internal implementation details; the contract is the `version --json` JSON surface, not the Python API.
+
 ### OPEN POINT (for assistant): kernel-side import of `installer.paths` / `installer.registry`
 
-The root-level architecture rule says "kernel never imports installer." This was preserved on the *write* side (subprocess for mutations). On the *read* side, `upgrade` needs to know what is installed and where. Two compliant options:
+**RESOLVED: Option A (subprocess).** `app_state.py` reads installer state by spawning `python -m installer version --json` and parsing the resulting JSON. The kernel **does not import** `installer.paths` or `installer.registry` at the Python level — preserving the "kernel never imports installer" unidirectional dependency rule end-to-end (both read and write sides).
 
-1. **Read via subprocess too.** `python -m installer versions --json` returns the registry. Slower; subprocess overhead on every `check` and every notifier wake-up. Simpler dependency graph.
-2. **Promote the registry-read surface to a tiny shared module** (e.g. a new top-level `cbim_install_api/` that both `installer` and the kernel may import) — i.e. extract `installer.paths` and the read-only half of `installer.registry`. Cleaner conceptually; adds one module to the repo.
+The `cbim version --json` subcommand is the **stable machine-readable read surface** for all external consumers (see `installer/.dna/module.md` Key Decision "`cbim version --json` is the stable machine-readable read surface"). Schema is additive; consumers must tolerate unknown keys.
 
-Current design above leans toward option 1 (subprocess) for purity — the contract row marked "Python import" should in fact be subprocess. I am calling this out because the answer affects implementation, not architecture: the contract surface (`Diagnosis` value, CLI commands, JSON schema) stays identical either way. **Recommend the assistant defer this to the programmer at implementation time** — both options preserve unidirectional dependency.
+Implementation note: subprocess overhead is paid on each `cbim upgrade check` and each notifier wake-up. This is acceptable because (a) `check` is interactive/diagnostic, not hot-path, and (b) the notifier already gates remote checks behind `check_interval_hours` (24h default), so subprocess cost is bounded. If profiling later shows the overhead matters, the answer is to add a short-lived in-process JSON cache inside `app_state` — **not** to bypass the contract via direct import.
+
+Option 2 (extracting a shared `cbim_install_api/` module) is rejected for this revision: it adds a new top-level module to the repo for a single consumer, and the subprocess path is already clean. Revisit only if a second external consumer emerges with hard latency requirements.
 
 ## Forbidden
 
