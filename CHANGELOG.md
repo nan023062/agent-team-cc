@@ -6,6 +6,18 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [2.2.0] - 2026-05-22
+
+### Added
+- `cbim release-notes <version>` command — prints GitHub release notes for any installed kernel version; fails soft on network errors (prints fallback URL, exits 0).
+- `cbim_update` skill now auto-prints release notes at the end of a successful update (Step 5); skipped when no version change occurred (scenario 7).
+
+### Changed
+- Session log refactored as a dedicated logger module.
+
+### Fixed
+- `cbim release-notes` output was garbled on Windows consoles using GBK codepage; stdout is now explicitly reconfigured to UTF-8.
+
 ## [2.1.0] - 2026-05-22
 
 ### Built-in Slash Commands — OWNED Kernel Assets

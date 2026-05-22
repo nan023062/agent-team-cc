@@ -6,6 +6,18 @@
 
 ---
 
+## [2.2.0] - 2026-05-22
+
+### 新增
+- `cbim release-notes <version>` 命令 — 打印任意已安装 kernel 版本的 GitHub 发布说明；网络不通时优雅降级（打印 fallback URL，exit 0）。
+- `cbim_update` skill 在成功更新后自动输出发布说明（Step 5）；无版本变更时（scenario 7）跳过。
+
+### 变更
+- Session log 重构为独立 logger 模块。
+
+### 修复
+- `cbim release-notes` 在 Windows GBK 控制台下输出乱码；现已显式将 stdout 重新配置为 UTF-8。
+
 ## [2.1.0] - 2026-05-22
 
 ### 内建 Slash 命令 — OWNED Kernel 资产
