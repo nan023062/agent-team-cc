@@ -22,7 +22,7 @@ Windows / 无 bash 环境：
 curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
 ```
 
-固定版本：`CBIM_VERSION=1.0.1 curl ... | bash`
+固定版本：`CBIM_VERSION=1.0.2 curl ... | bash`
 
 随后，在任何想启用 CBIM 的项目里：
 
@@ -81,7 +81,7 @@ cbim init
 | | [V1 — CC Kernel](v1/) | [V2 — Native Agent](v2/) |
 |---|---|---|
 | **是什么** | 跑在 Claude Code 之上的 CBIM —— prompt、agent 定义、Python hook | 独立的 C# / .NET 8 运行时，确定性调度器 |
-| **状态** | 已可用，当前发布 `v1.0.1` | 设计阶段，见 [`v2/`](v2/) |
+| **状态** | 已可用，当前发布 `v1.0.2` | 设计阶段，见 [`v2/`](v2/) |
 | **安装** | 上方一行 bootstrap | — |
 
 ---

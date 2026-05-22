@@ -14,9 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from cbim_kernel.project import sync as project_sync
+from updater import registry as _registry
+from updater import sync as _sync
 
-_AGENT_NAMES = project_sync.KERNEL_AGENT_NAMES
+_AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
 
 _KERNEL_DIRS = ["engine", "hooks", "mcp_server", "services", "dashboard", "cbi"]
 
@@ -162,21 +163,21 @@ def _ensure_pin_gitignored(project_root: Path, dry_run: bool) -> None:
     print(f"[cbim] created .gitignore with {entry}")
 
 
-def _update_settings(project_root: Path, dry_run: bool) -> None:
-    action = project_sync.sync_settings(project_root, dry_run=dry_run)
+def _update_settings(project_root: Path, kernel_root: Path, dry_run: bool) -> None:
+    action = _sync.sync_settings(project_root, kernel_root=kernel_root, dry_run=dry_run)
     prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
     print(f"{prefix}{action}")
 
 
-def _update_agents(project_root: Path, dry_run: bool) -> None:
+def _update_agents(project_root: Path, kernel_root: Path, dry_run: bool) -> None:
     prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
-    for action in project_sync.sync_agents(project_root, dry_run=dry_run):
+    for action in _sync.sync_agents(project_root, kernel_root=kernel_root, dry_run=dry_run):
         print(f"{prefix}{action}")
 
 
-def _update_commands(project_root: Path, dry_run: bool) -> None:
+def _update_commands(project_root: Path, kernel_root: Path, dry_run: bool) -> None:
     prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
-    for action in project_sync.sync_commands(project_root, dry_run=dry_run):
+    for action in _sync.sync_commands(project_root, kernel_root=kernel_root, dry_run=dry_run):
         print(f"{prefix}{action}")
 
 
@@ -207,12 +208,27 @@ def migrate_project(
     cbim_dir = project_root / ".cbim"
 
     if version is None:
-        # Fall back to the kernel's __version__ so callers can omit --version.
-        try:
-            from cbim_kernel import __version__ as _kernel_version
-            version = _kernel_version
-        except Exception:  # noqa: BLE001
-            version = ""
+        # Fall back to versions.json active_default so callers can omit --version.
+        # No reverse-import into cbim_kernel: updater is the cross-version source
+        # of truth, kernel may not even be importable.
+        version = _registry.get_default()
+        if not version:
+            print(
+                "[cbim] --version not given and no active_default in versions.json; "
+                "specify --version <ver> explicitly or run `cbim install <ver>` first"
+            )
+            return 1
+
+    # Resolve the kernel snapshot directory for `version`. All template/agent/
+    # command assets are read from disk under this path — never via Python
+    # import. If the version is not installed, fail clean before any mutation.
+    kernel_root = _registry.get_kernel_path(version)
+    if kernel_root is None or not kernel_root.is_dir():
+        print(
+            f"[cbim] kernel {version} not installed; "
+            f"run `cbim install {version}` first"
+        )
+        return 1
 
     print(f"[cbim] Migrating project at {project_root}")
     print(f"[cbim] Target kernel version: {version}")
@@ -229,9 +245,9 @@ def migrate_project(
         pin_matches = _read_pin(project_root) == version and not legacy_pending
 
         if pin_matches:
-            settings_action = project_sync.sync_settings(project_root, dry_run=True)
-            agent_actions = project_sync.sync_agents(project_root, dry_run=True)
-            command_actions = project_sync.sync_commands(project_root, dry_run=True)
+            settings_action = _sync.sync_settings(project_root, kernel_root=kernel_root, dry_run=True)
+            agent_actions = _sync.sync_agents(project_root, kernel_root=kernel_root, dry_run=True)
+            command_actions = _sync.sync_commands(project_root, kernel_root=kernel_root, dry_run=True)
             if (
                 settings_action.startswith("unchanged ")
                 and all(a.startswith("unchanged ") for a in agent_actions)
@@ -242,9 +258,9 @@ def migrate_project(
 
         _migrate_legacy_pin(cbim_dir, dry_run)
         _inject_version(cbim_dir, version, dry_run)
-        _update_settings(project_root, dry_run)
-        _update_agents(project_root, dry_run)
-        _update_commands(project_root, dry_run)
+        _update_settings(project_root, kernel_root, dry_run)
+        _update_agents(project_root, kernel_root, dry_run)
+        _update_commands(project_root, kernel_root, dry_run)
 
         if dry_run:
             print("[cbim] --- DRY RUN complete ---")
@@ -269,9 +285,9 @@ def migrate_project(
 
     _migrate_legacy_pin(cbim_dir, dry_run)
     _inject_version(cbim_dir, version, dry_run)
-    _update_settings(project_root, dry_run)
-    _update_agents(project_root, dry_run)
-    _update_commands(project_root, dry_run)
+    _update_settings(project_root, kernel_root, dry_run)
+    _update_agents(project_root, kernel_root, dry_run)
+    _update_commands(project_root, kernel_root, dry_run)
     _remove_old_dirs(cbim_dir, dry_run)
 
     if dry_run:

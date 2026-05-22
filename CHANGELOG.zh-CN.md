@@ -17,6 +17,31 @@ CBIM 早期阶段修复频率高。为降低用户的迁移摩擦：
 
 ---
 
+## [1.0.2] - 2026-05-22 —— 修复 `cbim migrate` PYTHONPATH bug + 收紧 updater 同级切分铁律
+
+纯补丁版本。无对外接口变化，无 schema 变化。修复 `cbim migrate` 的一处回归，并消除长期存在的、违反 updater↔kernel 同级铁律的反向 import。
+
+### Bug
+
+- `cbim migrate --version <v>` 在调用方未手动设置 `PYTHONPATH` 指向内核快照路径时，会以 `ModuleNotFoundError: No module named 'cbim_kernel'` 直接崩溃。端到端 migrate 在无该未文档化 workaround 时实际上不可用。
+
+### Root cause
+
+- `v1/src/updater/migrate.py` 写了 `from cbim_kernel.project import sync as project_sync` —— 一处 updater → kernel 的反向 import。这违反 `.dna` 中**不容谈判**的铁律：updater 与 kernel 是 launcher 之下的同级模块，唯一耦合面是磁盘契约（`versions.json` / `kernel/<ver>/` / `.cbim/.pin`），跨边界的 Python import **任一方向**都被禁止。
+
+### Fix
+
+- 新增私有模块 `v1/src/updater/sync.py`，承载 `KERNEL_AGENT_NAMES` / `KERNEL_COMMAND_NAMES` 两个常量与 `sync_settings` / `sync_agents` / `sync_commands` 三个函数。三者均以显式 `kernel_root: Path` 参数注入，通过 `updater.registry` 解析路径，不再 import kernel 包。
+- `v1/src/updater/migrate.py` 重构为只依赖 `updater.sync`。默认版本回退（原先 `from cbim_kernel import __version__`）改为 `updater.registry.get_default()`。
+- 验收：`grep -r "cbim_kernel" v1/src/updater/` 返回 **0 行 import**；剩余命中均为磁盘路径字符串或 `python -m cbim_kernel` 子进程调用（合法的磁盘契约方向）。
+
+### Notes
+
+- `v1/src/kernel/cbim_kernel/project/sync.py` 暂留 —— kernel 内部仍有 2 处消费者（`project/init.py`、`engine/cli.py` 经 `sync_templates` / `read_template`），**不是**死代码。两个 sync 表面的去重留作后续 PR。
+- 本补丁不覆盖：launcher 注入 PYTHONPATH（属于错误方向的修复）；`a49b62b` 引入的 kernel 门面 `_fwd`（无关，方向本就正确）。
+
+---
+
 ## [1.0.1] - 2026-05-22 —— 执行循环机制层
 
 本次发布把执行循环从"协调者临场发挥"提升为"显式的、由 soul prompt 驱动的机制"。不新增 CLI、不新增 hook —— 纪律完全落在 skill 文本与 `cbim init` 铺设的项目级 `CLAUDE.md` 模板里。已存在的项目通过 `cbim update --reinstall` + 重新 `init` 模板拉取。

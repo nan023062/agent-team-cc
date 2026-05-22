@@ -17,6 +17,31 @@ This keeps the version line meaningful (each tag is a real surface change) and a
 
 ---
 
+## [1.0.2] - 2026-05-22 — fix: `cbim migrate` PYTHONPATH bug + enforce updater sibling-split invariant
+
+A pure patch release. No surface change; no schema change. Fixes a regression in `cbim migrate` and removes a long-standing reverse-import that violated the updater↔kernel sibling-split iron rule.
+
+### Bug
+
+- `cbim migrate --version <v>` crashed with `ModuleNotFoundError: No module named 'cbim_kernel'` unless the caller had manually set `PYTHONPATH` to the kernel snapshot path. End-to-end migration was effectively unusable without an undocumented workaround.
+
+### Root cause
+
+- `v1/src/updater/migrate.py` imported `from cbim_kernel.project import sync as project_sync` — a reverse import from updater into kernel. This violates the `.dna` non-negotiable rule that updater and kernel are siblings under launcher, coupled **only** via on-disk contracts (`versions.json`, `kernel/<ver>/`, `.cbim/.pin`); Python imports across the boundary are forbidden in either direction.
+
+### Fix
+
+- New private module `v1/src/updater/sync.py` carries the `KERNEL_AGENT_NAMES` / `KERNEL_COMMAND_NAMES` constants and the `sync_settings` / `sync_agents` / `sync_commands` functions. All three are parameterized by an explicit `kernel_root: Path` argument, resolved via `updater.registry` rather than by importing the kernel package.
+- `v1/src/updater/migrate.py` refactored to use `updater.sync` exclusively. The default-version fallback (formerly `from cbim_kernel import __version__`) is replaced with `updater.registry.get_default()`.
+- Acceptance: `grep -r "cbim_kernel" v1/src/updater/` returns **0 import lines**; remaining mentions are on-disk path strings or `python -m cbim_kernel` subprocess invocations (legitimate disk-contract direction).
+
+### Notes
+
+- `v1/src/kernel/cbim_kernel/project/sync.py` is left in place — still has 2 internal consumers inside the kernel (`project/init.py`, `engine/cli.py` via `sync_templates` / `read_template`); it is **not** dead code. Deduping the two sync surfaces is deferred to a follow-up PR.
+- Out of scope for this patch: launcher PYTHONPATH injection (would have been a fix in the wrong direction); the kernel facade `_fwd` introduced in `a49b62b` (unrelated, already on the correct dependency direction).
+
+---
+
 ## [1.0.1] - 2026-05-22 — Execution-loop mechanism layer
 
 This release lifts the execution loop from coordinator improvisation into an explicit, soul-prompt-driven mechanism. No new CLI, no new hook — the discipline lives in the skill texts and the project `CLAUDE.md` template that `cbim init` lays down. Existing projects pick it up via `cbim update --reinstall` + a re-`init` of `CLAUDE.md`.
