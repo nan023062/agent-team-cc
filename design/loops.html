@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBIM — Four Governance Loops</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./i18n.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="header-left">
+      <div class="header-logo">⬡</div>
+      <div>
+        <h1>CBIM</h1>
+        <p class="subtitle">
+          <span class="zh">四个核心治理循环 &nbsp;·&nbsp; 自治 · 沉淀 · 裂变</span>
+          <span class="en">Four Core Governance Loops &nbsp;·&nbsp; Autonomous · Distilled · Fissile</span>
+        </p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="page-links">
+        <a href="./index.html">
+          <span class="zh">总览</span><span class="en">Overview</span>
+        </a>
+        <a href="./loops.html" class="active">
+          <span class="zh">四循环</span><span class="en">Four Loops</span>
+        </a>
+      </div>
+      <button onclick="toggleLang()" class="lang-btn">
+        <span class="zh">EN</span><span class="en">中文</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <button class="active" data-tab="exec" onclick="show('exec', this)">
+    <span class="zh">⚡ 执行任务循环</span><span class="en">⚡ Execution Loop</span>
+  </button>
+  <button data-tab="memory" onclick="show('memory', this)">
+    <span class="zh">🧠 记忆治理循环</span><span class="en">🧠 Memory Governance</span>
+  </button>
+  <button data-tab="hr" onclick="show('hr', this)">
+    <span class="zh">👥 能力知识治理循环</span><span class="en">👥 Capability Governance</span>
+  </button>
+  <button data-tab="arch" onclick="show('arch', this)">
+    <span class="zh">🏛 业务知识治理循环</span><span class="en">🏛 Business Governance</span>
+  </button>
+  <button data-tab="rel" onclick="show('rel', this)">
+    <span class="zh">🔗 四循环关系</span><span class="en">🔗 Loop Relationships</span>
+  </button>
+</nav>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1 · 执行任务循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-exec" class="diagram-section active">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-exec"><span class="zh">执行</span><span class="en">EXECUTION</span></span>
+      <span class="zh">执行任务循环</span>
+      <span class="en">Execution Loop</span>
+    </h2>
+    <p>
+      <span class="zh">对 Claude Code 执行机制的优化。用户说一次需求，Coordinator 自治驱动到完成。Architect 是所有执行任务的必经门。</span>
+      <span class="en">An optimization layer over Claude Code's execution. The user states a need once; the Coordinator drives it autonomously to completion. Architect is the mandatory gate for every execution task.</span>
+    </p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    User(["👤 用户\n说一次需求"])
+    Respond(["👤 用户\n收到最终结果"])
+
+    User --> Understand
+
+    subgraph Loop["🔄 Coordinator 自治调度循环"]
+        Understand["1️⃣ 理解意图\n从对话提取需求\n不清晰 → 只问一个聚焦问题"]
+        Route["2️⃣ 分类路由\ncbim skill show dispatch"]
+        Decompose["3️⃣ 拆解子任务\n并行 / 串行"]
+        ArchGate["4️⃣ Architect 必经门\nDNA 状态分析-思考-执行\n返回模块路径 + 设计约束"]
+        WorkAgent["5️⃣ Work Agent 执行\n携带 Architect 上下文"]
+        Collect["6️⃣ 收集分析结果"]
+
+        Understand --> Route
+        Route -->|"执行任务"| Decompose
+        Route -->|"业务层 CRUD"| ArchGate
+        Route -->|"能力层 CRUD"| HR["👥 HR 能力治理"]
+        Decompose --> ArchGate
+        ArchGate --> WorkAgent
+        WorkAgent -->|"设计决策无法独立完成"| ArchGate
+        WorkAgent --> Collect
+    end
+
+    Collect -->|"✅ 完成且一致"| Respond
+    Collect -->|"🔁 有后续子任务"| Decompose
+    Collect -->|"⚠️ 冲突 / 阻塞"| User
+
+    style Loop fill:#0d1a2e,stroke:#2196F3,stroke-width:2px,color:#e2e8f0
+    style ArchGate fill:#2a1a00,stroke:#FF9800,color:#e2e8f0
+    style WorkAgent fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Collect fill:#1a0d2e,stroke:#9C27B0,color:#e2e8f0
+    style HR fill:#1a0d1a,stroke:#E91E63,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <p class="zh">
+      <strong>调度原则：</strong>每次迭代必须有实质进展，无进展即停止上报。<br>
+      <strong>打断用户的唯一条件：</strong>意图真正模糊 · 结果冲突 · 破坏性/不可逆操作。
+    </p>
+    <p class="en">
+      <strong>Dispatch principle:</strong> every iteration must produce real progress; if not, stop and escalate.<br>
+      <strong>The only reasons to interrupt the user:</strong> truly ambiguous intent · conflicting results · destructive / irreversible operations.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2 · 记忆治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-memory" class="diagram-section">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-mem"><span class="zh">记忆</span><span class="en">MEMORY</span></span>
+      <span class="zh">记忆治理循环</span>
+      <span class="en">Memory Governance Loop</span>
+    </h2>
+    <p>
+      <span class="zh">执行经验自动沉淀为知识。全程由 Hook 驱动，对用户完全透明。</span>
+      <span class="en">Execution experience automatically sediments into knowledge. Fully driven by hooks, completely transparent to the user.</span>
+    </p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    SessionStart(["⚡ SessionStart Hook"])
+    Load["load_memory.py\n读取 memory/short/ + memory/medium/\n注入当前会话上下文"]
+    Session["🗣 会话进行中\nCoordinator + Agents 执行任务"]
+    PrePost["⚡ PreToolUse / PostToolUse Hook\nlogger.py\n记录 CALL · RET · USER · ASSIST · agent:name"]
+    Log[("📄 session_YYYY-MM-DD.log\n结构化会话日志")]
+    StopHook["⚡ Stop Hook\nwrite_memory.py\n提炼本轮对话要点"]
+    Short[("📁 memory/short/\n原始会话提炼")]
+    Threshold{"short/ 积累\n达到阈值?"}
+    Distill["🏛 Architect 蒸馏\n识别跨会话重复模式"]
+    Medium[("📁 memory/medium/\n跨会话规律\n用户偏好 · 常见决策")]
+    Promote{"发现稳定原则?"}
+    DNA[("📁 .dna/\n架构约束 · 设计原则\n模块契约")]
+    NextSession(["⚡ 下次 SessionStart"])
+
+    SessionStart --> Load
+    Load --> Session
+    Session --> PrePost
+    PrePost --> Log
+    Log --> Session
+    Session -->|"每轮回复结束"| StopHook
+    StopHook --> Short
+    Short --> Threshold
+    Threshold -->|"否"| NextSession
+    Threshold -->|"是"| Distill
+    Distill --> Medium
+    Medium --> Promote
+    Promote -->|"否"| NextSession
+    Promote -->|"是"| DNA
+    DNA --> NextSession
+    NextSession --> Load
+
+    style Short fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style Medium fill:#2a1800,stroke:#FF9800,color:#e2e8f0
+    style DNA fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Distill fill:#1a0d2e,stroke:#9C27B0,color:#e2e8f0
+    style Log fill:#0d1520,stroke:#546E7A,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <p class="zh">
+      <strong>三层沉淀：</strong>short/（原始）→ medium/（模式）→ .dna/（原则）<br>
+      <strong>蒸馏时机：</strong>由 Architect 在 short/ 积累到阈值后触发，不阻塞任何任务执行。
+    </p>
+    <p class="en">
+      <strong>Three-tier distillation:</strong> short/ (raw) → medium/ (patterns) → .dna/ (principles)<br>
+      <strong>When distillation runs:</strong> triggered by Architect once short/ reaches its threshold; never blocks task execution.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 3 · 能力知识治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-hr" class="diagram-section">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-hr"><span class="zh">能力</span><span class="en">CAPABILITY</span></span>
+      <span class="zh">能力知识治理循环</span>
+      <span class="en">Capability Knowledge Governance Loop</span>
+    </h2>
+    <p>
+      <span class="zh">能力轴 · <code>.claude/agents/</code> · 能力系统的更新与裂变。与业务知识治理循环对偶，共同构成双轴治理体系。</span>
+      <span class="en">Capability axis · <code>.claude/agents/</code> · the update-and-fission lifecycle of the capability system. Dual to the business loop; together they form the dual-axis governance.</span>
+    </p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    Trigger(["触发条件\n· 执行任务发现能力缺口\n· 用户显式请求招募/训练/评估/归档\n· HR 定期评估能力覆盖度"])
+
+    Scan["🔍 扫描 .claude/agents/\n盘点现有 agent 能力清单"]
+    Match{"匹配结果"}
+
+    HasFit["✅ 有且胜任"]
+    HasWeak["⚠️ 有但能力不足"]
+    NoAgent["❌ 无匹配 agent"]
+
+    ReturnPath["返回 agent 路径\n给 Coordinator"]
+    TrainOrRecruit{"训练 or 招募?"}
+    Train["📚 训练\ncbim agent update\n更新技能 / 性格 / 行为规范"]
+    WorthNew{"复杂度足够\n值得专属 agent?"}
+    Scaffold["🌱 招募新 agent\ncbim agent scaffold\n定义角色 / 技能 / 性格 / 工具权限"]
+    Temporary["使用现有通用\nagent 临时处理"]
+
+    Execute(["⚙️ 任务执行"])
+    Assess["📊 评估表现"]
+    AssessResult{"表现如何?"}
+    Improve["更新 agent.md\n记录最佳实践\n提升能力描述"]
+    Retrain["🔧 再训练\n调整性格 / 技能 / 边界约束"]
+    Archive["📦 归档\ncbim agent archive"]
+
+    Fission(["✨ 裂变\n专用 agent 孵化 → 能力图谱扩展\n通用 agent 分化 → 专项独立\n老 agent 归档 → 能力沉淀 memory"])
+
+    Trigger --> Scan
+    Scan --> Match
+    Match --> HasFit
+    Match --> HasWeak
+    Match --> NoAgent
+
+    HasFit --> ReturnPath
+    HasWeak --> TrainOrRecruit
+    TrainOrRecruit -->|"训练"| Train
+    TrainOrRecruit -->|"招募"| NoAgent
+    Train --> ReturnPath
+
+    NoAgent --> WorthNew
+    WorthNew -->|"是"| Scaffold
+    WorthNew -->|"否"| Temporary
+    Scaffold --> ReturnPath
+    Temporary --> ReturnPath
+
+    ReturnPath --> Execute
+    Execute --> Assess
+    Assess --> AssessResult
+    AssessResult -->|"优秀"| Improve
+    AssessResult -->|"需改进"| Retrain
+    AssessResult -->|"不再需要"| Archive
+
+    Improve --> Fission
+    Retrain --> ReturnPath
+    Archive --> Fission
+
+    style Scaffold fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Archive fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    style Fission fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style HasFit fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style HasWeak fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style NoAgent fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <p class="zh">
+      <strong>裂变路径：</strong>专用 agent 孵化 → 能力图谱扩展；通用 agent 分化 → 专项 agent 独立；老 agent 归档 → 能力沉淀到 memory。
+    </p>
+    <p class="en">
+      <strong>Fission paths:</strong> specialized agent incubation → capability graph expands; generic agents split → dedicated agents emerge; old agents archived → capability sediments into memory.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 4 · 业务知识治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-arch" class="diagram-section">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-arch"><span class="zh">业务</span><span class="en">BUSINESS</span></span>
+      <span class="zh">业务知识治理循环</span>
+      <span class="en">Business Knowledge Governance Loop</span>
+    </h2>
+    <p>
+      <span class="zh">业务轴 · <code>.dna/</code> · 知识系统的更新与裂变。执行任务的必经门，懒式 DNA 管理。与能力知识治理循环对偶，共同构成双轴治理体系。</span>
+      <span class="en">Business axis · <code>.dna/</code> · update-and-fission of the knowledge system. The mandatory gate for execution tasks with lazy DNA management. Dual to the capability loop; together they form dual-axis governance.</span>
+    </p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    Trigger(["触发条件\n· 执行任务循环派入（必经门）\n· 用户显式请求模块设计 / 合规审查\n· Work Agent 上报设计决策"])
+
+    Scan["🔍 读取相关模块 .dna/ 文件\n扫描工作区代码结构"]
+    StateCheck{"DNA 状态判断"}
+
+    S0["状态 0\nDNA 不存在"]
+    S1["状态 1\nDNA 同步 ✅"]
+    S2["状态 2\n代码超前\nDNA 未跟上"]
+    S3["状态 3\nDNA 超前\n设计意图未实现"]
+
+    Worth0{"值得建 DNA?\n复杂度高 / 多处引用\n有明确设计意图"}
+    Init["cbim dna init\n生成 module.md + contract.md\n边界 · 接口契约 · 依赖规则"]
+    Skip0["跳过\n一次性脚本 / 临时代码"]
+
+    Extract["直接提取\n模块路径与约束"]
+
+    Think2["分析变更点\n哪些接口/边界/依赖改变?"]
+    Update["cbim dna update\n补齐变更内容"]
+
+    Validate3["验证设计可行性\n上下游依赖是否就绪?"]
+    MarkSpec["标记「待实现 spec」\nDNA 即任务书"]
+
+    ContextPack["📦 返回任务上下文包\n模块路径 + 设计约束\n依赖规则 + DNA 状态标记"]
+
+    WorkAgent(["⚙️ Work Agent 执行"])
+
+    Review["📋 架构合规复查\n实现是否破坏约束?"]
+    Compliant{"合规?"}
+    UpdateDNA["更新 DNA\n记录实现细节\n知识闭环"]
+    Escalate["上报 Coordinator\n要求修正后再复查"]
+
+    Fission(["✨ 裂变\n新模块 DNA → 知识图谱扩展\n旧模块拆分 → 子模块 DNA\n跨模块契约更新 → 依赖图重构"])
+
+    Trigger --> Scan
+    Scan --> StateCheck
+    StateCheck -->|"无 DNA"| S0
+    StateCheck -->|"同步"| S1
+    StateCheck -->|"代码超前"| S2
+    StateCheck -->|"DNA 超前"| S3
+
+    S0 --> Worth0
+    Worth0 -->|"值得"| Init
+    Worth0 -->|"不值得"| Skip0
+    Init --> ContextPack
+    Skip0 --> ContextPack
+
+    S1 --> Extract
+    Extract --> ContextPack
+
+    S2 --> Think2
+    Think2 --> Update
+    Update --> ContextPack
+
+    S3 --> Validate3
+    Validate3 --> MarkSpec
+    MarkSpec --> ContextPack
+
+    ContextPack --> WorkAgent
+    WorkAgent --> Review
+    Review --> Compliant
+    Compliant -->|"✅ 合规"| UpdateDNA
+    Compliant -->|"❌ 违规"| Escalate
+    Escalate -->|"修正后"| Review
+    UpdateDNA --> Fission
+
+    style S0 fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    style S1 fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style S2 fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style S3 fill:#0d1a2e,stroke:#2196F3,color:#e2e8f0
+    style ContextPack fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style Fission fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style Init fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Update fill:#2a1800,stroke:#FF9800,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <p class="zh">
+      <strong>DNA 四状态：</strong>
+      <span style="color:#f472b6">▌状态0 无</span> →
+      <span style="color:#4ade80">▌状态1 同步</span> →
+      <span style="color:#facc15">▌状态2 代码超前</span> →
+      <span style="color:#60a5fa">▌状态3 DNA超前（设计意图）</span><br>
+      <strong>懒式生成：</strong>Architect 判断「值不值得建」，不强制为每个模块创建 DNA。
+    </p>
+    <p class="en">
+      <strong>Four DNA states:</strong>
+      <span style="color:#f472b6">▌State 0 — absent</span> →
+      <span style="color:#4ade80">▌State 1 — synced</span> →
+      <span style="color:#facc15">▌State 2 — code ahead</span> →
+      <span style="color:#60a5fa">▌State 3 — DNA ahead (design intent)</span><br>
+      <strong>Lazy generation:</strong> Architect decides whether a module is worth building DNA for; it is never forced on every module.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 5 · 四循环关系
+══════════════════════════════════════════════════════════ -->
+<section id="tab-rel" class="diagram-section">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-rel"><span class="zh">关系</span><span class="en">RELATIONSHIPS</span></span>
+      <span class="zh">四循环关系</span>
+      <span class="en">Four-Loop Relationships</span>
+    </h2>
+    <p>
+      <span class="zh">执行驱动治理，治理回流增强执行；双轴协同裂变，记忆贯穿始终。</span>
+      <span class="en">Execution drives governance; governance flows back to strengthen execution. Dual axes co-evolve; memory pervades everything.</span>
+    </p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+graph LR
+    User(["👤 用户"]) --> Exec["⚡ 执行任务循环"]
+    Exec -->|"必经门"| Biz["🏛 业务知识治理循环\nArchitect · .dna/"]
+    Exec -->|"能力缺口"| Cap["👥 能力知识治理循环\nHR · .claude/agents/"]
+    Exec -->|"执行经验"| Mem["🧠 记忆治理循环\nHook · short→medium→.dna/"]
+    Mem -->|"知识回流"| Biz
+    Biz <-->|"协同裂变"| Cap
+    Biz -->|"增强"| Exec
+    Cap -->|"增强"| Exec
+
+    style Exec fill:#0d1a2e,stroke:#2196F3,stroke-width:2px,color:#e2e8f0
+    style Biz fill:#2a1a00,stroke:#FF9800,stroke-width:2px,color:#e2e8f0
+    style Cap fill:#1a0d1a,stroke:#E91E63,stroke-width:2px,color:#e2e8f0
+    style Mem fill:#0d2010,stroke:#4CAF50,stroke-width:2px,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <p class="zh">
+      <strong>执行任务循环</strong>是入口，所有需求由此进入；<strong>业务/能力治理循环</strong>是双轴，对称演化；<strong>记忆治理循环</strong>是底座，贯穿全程并把执行经验持续提炼为治理素材。<br>
+      <strong>复利效应：</strong>每一次任务执行都同时增厚四个循环的资产——这就是 CBIM 越用越强的根本机制。
+    </p>
+    <p class="en">
+      The <strong>execution loop</strong> is the entry point — all needs enter here. The <strong>business and capability loops</strong> are the dual axes, evolving symmetrically. The <strong>memory loop</strong> is the substrate, pervasive and continuously distilling execution experience into governance fuel.<br>
+      <strong>Compounding effect:</strong> every execution thickens the assets of all four loops simultaneously — this is the root mechanism of CBIM getting stronger with use.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#161b27',
+      primaryColor: '#1e2a3a',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#7c3aed',
+      lineColor: '#4a5568',
+      secondaryColor: '#1a1040',
+      tertiaryColor: '#0d1520',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '14px'
+    }
+  });
+
+  function show(id, btn) {
+    document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    if (btn) {
+      btn.classList.add('active');
+    } else {
+      var fallback = document.querySelector('nav button[data-tab="' + id + '"]');
+      if (fallback) fallback.classList.add('active');
+    }
+    if (history && history.replaceState) {
+      history.replaceState(null, '', '#' + id);
+    }
+  }
+
+  // Deep-link support: #exec / #memory / #hr / #arch / #rel
+  (function () {
+    var hash = (location.hash || '').replace('#', '');
+    if (hash && document.getElementById('tab-' + hash)) {
+      show(hash, null);
+    }
+  })();
+</script>
+
+</body>
+</html>

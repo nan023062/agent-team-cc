@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBIM 工作流总览</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #161b27;
+      --surface2: #1a2133;
+      --border: #1e2a3a;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --accent: #7c3aed;
+      --accent-light: #a78bfa;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 36px 56px 28px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, #0f1117 0%, #130d2a 100%);
+    }
+    .header-top { display: flex; align-items: center; gap: 14px; }
+    .header-logo {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, #7c3aed, #3b82f6);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+    }
+    header h1 {
+      font-size: 1.5rem; font-weight: 700;
+      letter-spacing: -.02em; color: #f8fafc;
+    }
+    header .subtitle {
+      margin-top: 8px; font-size: .82rem; color: var(--muted);
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+
+    /* ── Nav ── */
+    nav {
+      display: flex; gap: 2px;
+      padding: 0 56px;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto; background: #0d1020;
+    }
+    nav button {
+      padding: 12px 20px;
+      border: none; border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: .83rem; font-weight: 500;
+      cursor: pointer; white-space: nowrap;
+      transition: color .15s, background .15s;
+      border-bottom: 2px solid transparent;
+      position: relative;
+    }
+    nav button:hover { color: #cbd5e1; background: #131825; }
+    nav button.active { color: var(--accent-light); border-bottom-color: var(--accent); }
+
+    /* ── Main ── */
+    main { padding: 44px 56px; max-width: 1400px; }
+    .diagram-section { display: none; }
+    .diagram-section.active { display: block; }
+
+    /* ── Section header ── */
+    .section-header { margin-bottom: 32px; }
+    .section-header h2 {
+      font-size: 1.3rem; font-weight: 700; color: #f1f5f9;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-header p { margin-top: 8px; font-size: .875rem; color: var(--muted); max-width: 720px; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 12px; border-radius: 999px;
+      font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    }
+    .badge-philo  { background: #1a0d2e; color: #c4b5fd; border: 1px solid #4c1d95; }
+    .badge-exec   { background: #0d1e3a; color: #60a5fa; border: 1px solid #1e3a5f; }
+    .badge-mem    { background: #0a1f14; color: #4ade80; border: 1px solid #14532d; }
+    .badge-hr     { background: #220d35; color: #e879f9; border: 1px solid #4a1942; }
+    .badge-arch   { background: #1f0d00; color: #fb923c; border: 1px solid #431407; }
+    .badge-global { background: #0d0f2a; color: #818cf8; border: 1px solid #1e1b4b; }
+
+    /* ── Mermaid wrap ── */
+    .mermaid-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 24px;
+      overflow-x: auto;
+      display: flex; justify-content: center;
+    }
+
+    /* ── Notes ── */
+    .notes {
+      margin-top: 18px; padding: 14px 20px;
+      background: #0a0f1a;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      font-size: .82rem; color: #94a3b8; line-height: 1.75;
+    }
+    .notes strong { color: var(--accent-light); }
+
+    /* ── Overview cards ── */
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px; margin-bottom: 32px;
+    }
+    .overview-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 20px;
+      cursor: pointer; transition: border-color .2s, transform .15s, box-shadow .2s;
+    }
+    .overview-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(124,58,237,.15);
+    }
+    .overview-card .icon { font-size: 1.6rem; margin-bottom: 10px; }
+    .overview-card h3 { font-size: .9rem; font-weight: 600; color: #e2e8f0; }
+    .overview-card p { font-size: .78rem; color: var(--muted); margin-top: 5px; line-height: 1.5; }
+
+    /* ══ PHILOSOPHY TAB ══ */
+
+    /* Manifesto */
+    .manifesto {
+      background: linear-gradient(135deg, #130d2a 0%, #0d1a30 100%);
+      border: 1px solid #2a1a4a;
+      border-radius: 16px; padding: 40px 48px;
+      margin-bottom: 40px; position: relative; overflow: hidden;
+    }
+    .manifesto::before {
+      content: 'CBIM';
+      position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
+      font-size: 8rem; font-weight: 900; color: rgba(124,58,237,.06);
+      letter-spacing: -.04em; user-select: none;
+    }
+    .manifesto h3 {
+      font-size: 1rem; font-weight: 700; color: var(--accent-light);
+      letter-spacing: .1em; text-transform: uppercase; margin-bottom: 16px;
+    }
+    .manifesto p { font-size: 1.05rem; color: #c4b5fd; line-height: 1.9; max-width: 680px; }
+    .manifesto .name {
+      margin-top: 20px; font-size: .8rem; color: var(--muted);
+      letter-spacing: .08em; text-transform: uppercase;
+    }
+
+    /* Principles grid */
+    .principles-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px; margin-bottom: 40px;
+    }
+    .principle-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+    }
+    .principle-card .p-icon {
+      font-size: 1.4rem; margin-bottom: 12px;
+    }
+    .principle-card h4 {
+      font-size: .95rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px;
+    }
+    .principle-card p { font-size: .82rem; color: var(--muted); line-height: 1.7; }
+    .principle-card .p-tag {
+      display: inline-block; margin-top: 12px;
+      padding: 2px 10px; border-radius: 999px;
+      font-size: .7rem; font-weight: 600; background: #1a0d2e; color: var(--accent-light);
+    }
+
+    /* Comparison table */
+    .compare-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden; margin-bottom: 40px;
+    }
+    .compare-wrap table { width: 100%; border-collapse: collapse; }
+    .compare-wrap thead tr { background: #0d1020; }
+    .compare-wrap thead th {
+      padding: 14px 20px; text-align: left;
+      font-size: .8rem; font-weight: 700; letter-spacing: .06em;
+      color: var(--muted); text-transform: uppercase;
+    }
+    .compare-wrap thead th:nth-child(2) { color: #60a5fa; }
+    .compare-wrap thead th:nth-child(3) { color: var(--accent-light); }
+    .compare-wrap tbody tr { border-top: 1px solid var(--border); }
+    .compare-wrap tbody tr:hover { background: #131825; }
+    .compare-wrap tbody td {
+      padding: 13px 20px; font-size: .84rem; vertical-align: top;
+    }
+    .compare-wrap tbody td:first-child { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    .compare-wrap tbody td:nth-child(2) { color: #94a3b8; }
+    .compare-wrap tbody td:nth-child(3) { color: #c4b5fd; }
+    .tag-bad  { color: #f87171; }
+    .tag-good { color: #4ade80; }
+
+    /* Fit section */
+    .fit-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+      margin-bottom: 40px;
+    }
+    @media (max-width: 700px) { .fit-grid { grid-template-columns: 1fr; } }
+    .fit-card {
+      border-radius: 14px; padding: 28px;
+      border: 1px solid;
+    }
+    .fit-card.good {
+      background: #061a0e; border-color: #166534;
+    }
+    .fit-card.bad {
+      background: #1a0606; border-color: #7f1d1d;
+    }
+    .fit-card h4 {
+      font-size: .95rem; font-weight: 700; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .fit-card.good h4 { color: #4ade80; }
+    .fit-card.bad  h4 { color: #f87171; }
+    .fit-card ul { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .fit-card li {
+      font-size: .84rem; line-height: 1.6; padding-left: 20px; position: relative;
+    }
+    .fit-card.good li::before { content: '✓'; position: absolute; left: 0; color: #4ade80; font-weight: 700; }
+    .fit-card.bad  li::before { content: '✗'; position: absolute; left: 0; color: #f87171; font-weight: 700; }
+    .fit-card li strong { color: #e2e8f0; }
+    .fit-card li span { color: var(--muted); }
+
+    .game-highlight {
+      background: linear-gradient(135deg, #0d1a30, #1a0d2e);
+      border: 1px solid #2a1a4a; border-radius: 14px;
+      padding: 28px 32px; margin-bottom: 16px;
+    }
+    .game-highlight h4 {
+      font-size: .95rem; font-weight: 700; color: var(--accent-light);
+      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    }
+    .game-tags {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .game-tag {
+      padding: 4px 12px; border-radius: 999px;
+      font-size: .76rem; font-weight: 600;
+      background: #1a1040; color: #c4b5fd; border: 1px solid #3b2070;
+    }
+    .game-caption {
+      margin-top: 14px; font-size: .8rem; color: var(--muted); line-height: 1.7;
+    }
+
+    /* divider */
+    .section-divider {
+      height: 1px; background: var(--border);
+      margin: 36px 0;
+    }
+    .section-label {
+      font-size: .75rem; font-weight: 700; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--muted);
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="header-logo">⬡</div>
+    <h1>CBIM 工作流总览</h1>
+  </div>
+  <p class="subtitle">Capability · Business · Independence · Memory &nbsp;·&nbsp; 双轴治理 &nbsp;·&nbsp; 四个核心循环</p>
+</header>
+
+<nav>
+  <button class="active" onclick="show('philo', this)">💡 架构哲学与定位</button>
+  <button onclick="show('global', this)">🌐 全局结构</button>
+  <button onclick="show('exec', this)">⚡ 执行任务循环</button>
+  <button onclick="show('memory', this)">🧠 记忆治理循环</button>
+  <button onclick="show('hr', this)">👥 能力知识治理循环</button>
+  <button onclick="show('arch', this)">🏛 业务知识治理循环</button>
+</nav>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 0 · 架构哲学与定位
+══════════════════════════════════════════════════════════ -->
+<section id="tab-philo" class="diagram-section active">
+  <div class="section-header">
+    <h2><span class="badge badge-philo">哲学</span>CBIM 架构哲学与定位</h2>
+    <p>为什么 CBIM 存在，它解决了什么问题，适合什么规模的项目。</p>
+  </div>
+
+  <!-- Manifesto -->
+  <div class="manifesto">
+    <h3>设计宣言</h3>
+    <p>
+      AI 协作系统最大的浪费，不是算力，而是<strong style="color:#e2e8f0">遗忘</strong>。<br>
+      每次对话重新解释上下文、每次任务重新定位模块、每次变更重新梳理约束——<br>
+      这些摩擦的根源是：能力与业务没有被分开治理，经验没有被系统性沉淀。<br><br>
+      CBIM 的核心主张是：<strong style="color:#e2e8f0">让系统在执行中自我成长</strong>。<br>
+      能力轴管 agent 的生命周期，业务轴管知识的生命周期，记忆把执行经验持续提炼为两轴的养料。<br>
+      项目越复杂、时间越长，CBIM 的复利效应越显著。
+    </p>
+    <p class="name">Capability · Business · Independence · Memory</p>
+  </div>
+
+  <!-- Core principles -->
+  <p class="section-label">六大核心原则</p>
+  <div class="principles-grid">
+    <div class="principle-card">
+      <div class="p-icon">⚔️</div>
+      <h4>能力与业务解耦</h4>
+      <p>Agent（谁来做）与 DNA 模块（做什么、怎么约束）彻底分离。能力层可以招募新 agent 而不破坏业务知识；业务层可以演化架构而不重写 agent 定义。</p>
+      <span class="p-tag">Capability-Business Independence</span>
+    </div>
+    <div class="principle-card">
+      <div class="p-icon">🧠</div>
+      <h4>记忆是一等公民</h4>
+      <p>执行经验不随会话消失。三层沉淀（short → medium → .dna/）将偶发经验提炼为稳定原则，让每次对话站在所有历史积累的肩膀上。</p>
+      <span class="p-tag">Memory-First</span>
+    </div>
+    <div class="principle-card">
+      <div class="p-icon">🌱</div>
+      <h4>知识懒式生成</h4>
+      <p>DNA 文档不是前置必做项，而是在真正需要时由 Architect 按需创建。避免过度文档化，聚焦在实际触碰到的模块边界和约束上。</p>
+      <span class="p-tag">Lazy Knowledge Generation</span>
+    </div>
+    <div class="principle-card">
+      <div class="p-icon">🔄</div>
+      <h4>自治调度循环</h4>
+      <p>用户心智负担最低化。Coordinator 自治完成「理解→分解→派发→收结果→分析→再派发」的循环，只在真正需要决策时打断用户。</p>
+      <span class="p-tag">Vibe Working</span>
+    </div>
+    <div class="principle-card">
+      <div class="p-icon">📐</div>
+      <h4>双轴对偶治理</h4>
+      <p>能力轴（.claude/agents/）与业务轴（.dna/）对称治理、协同裂变。新业务需求催生新 agent，新 agent 承载新业务知识，两轴互相驱动边界扩展。</p>
+      <span class="p-tag">Dual-Axis Governance</span>
+    </div>
+    <div class="principle-card">
+      <div class="p-icon">📈</div>
+      <h4>复利飞轮效应</h4>
+      <p>每次任务执行都在让系统变得更好——DNA 状态从「无」到「同步」，agent 从「通用」到「专精」，记忆从「碎片」到「原则」。项目规模越大、运行时间越长，优势越显著。</p>
+      <span class="p-tag">Compounding Returns</span>
+    </div>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- vs Traditional -->
+  <p class="section-label">与传统 Agent 执行循环的区别</p>
+  <div class="compare-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>维度</th>
+          <th>传统 Agent 循环</th>
+          <th>CBIM</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>知识持久化</td>
+          <td><span class="tag-bad">✗</span> 每次对话从零开始，上下文靠用户重新提供</td>
+          <td><span class="tag-good">✓</span> DNA + 三层记忆自动积累，会话间无缝继承</td>
+        </tr>
+        <tr>
+          <td>Agent 管理</td>
+          <td><span class="tag-bad">✗</span> 单一 agent 或临时拼凑，无生命周期管理</td>
+          <td><span class="tag-good">✓</span> 能力轴完整管理 招募→训练→评估→归档</td>
+        </tr>
+        <tr>
+          <td>架构约束</td>
+          <td><span class="tag-bad">✗</span> 无模块边界概念，每次实现各自发挥</td>
+          <td><span class="tag-good">✓</span> DNA 契约定义边界与依赖，Architect 合规复查</td>
+        </tr>
+        <tr>
+          <td>用户负担</td>
+          <td><span class="tag-bad">✗</span> 用户手动管理上下文、分配任务、确认每步</td>
+          <td><span class="tag-good">✓</span> Coordinator 自治调度，用户只说需求等结果</td>
+        </tr>
+        <tr>
+          <td>多工种协作</td>
+          <td><span class="tag-bad">✗</span> 单 agent 或无结构多 agent，容易越界干扰</td>
+          <td><span class="tag-good">✓</span> 专属 agent 各司其职，能力边界由 HR 维护</td>
+        </tr>
+        <tr>
+          <td>经验复用</td>
+          <td><span class="tag-bad">✗</span> 成功经验随会话消失，下次重新摸索</td>
+          <td><span class="tag-good">✓</span> 记忆蒸馏持续提炼，失败经验变为约束规则</td>
+        </tr>
+        <tr>
+          <td>设计意图追踪</td>
+          <td><span class="tag-bad">✗</span> 只有代码，没有设计意图的显式记录</td>
+          <td><span class="tag-good">✓</span> DNA 状态 3 明确标记「设计意图未实现」</td>
+        </tr>
+        <tr>
+          <td>规模适应性</td>
+          <td>小项目够用，大项目混乱</td>
+          <td>小项目有成本，大项目复利显著</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Fit section -->
+  <p class="section-label">适用规模与场景</p>
+
+  <div class="game-highlight">
+    <h4>🎮 典型适配场景：游戏开发</h4>
+    <div class="game-tags">
+      <span class="game-tag">战斗系统</span>
+      <span class="game-tag">背包 & 装备</span>
+      <span class="game-tag">任务系统</span>
+      <span class="game-tag">对话 & 剧情</span>
+      <span class="game-tag">AI 行为树</span>
+      <span class="game-tag">寻路 & 导航</span>
+      <span class="game-tag">技能 & 效果</span>
+      <span class="game-tag">经济系统</span>
+      <span class="game-tag">成就 & 统计</span>
+      <span class="game-tag">地图 & 关卡</span>
+      <span class="game-tag">物理 & 碰撞</span>
+      <span class="game-tag">渲染 & 特效</span>
+      <span class="game-tag">音频系统</span>
+      <span class="game-tag">UI & HUD</span>
+      <span class="game-tag">网络 & 同步</span>
+      <span class="game-tag">存档 & 回档</span>
+      <span class="game-tag">策划配置</span>
+      <span class="game-tag">本地化</span>
+    </div>
+    <p class="game-caption">
+      游戏开发拥有大量细分工种（程序、策划、美术、音频、QA、DevOps）和高度解耦的业务模块。
+      每个系统都有独立的架构约束和接口契约，工种之间频繁协作又需要严格边界。
+      这正是 CBIM 双轴治理复利最大化的场景：<strong style="color:#c4b5fd">能力轴管人，业务轴管模块，两轴协同裂变，项目越大越不乱。</strong>
+    </p>
+  </div>
+
+  <div class="fit-grid">
+    <div class="fit-card good">
+      <h4>✅ CBIM 价值显著的场景</h4>
+      <ul>
+        <li><strong>大体量项目</strong><span>：模块数量多、业务复杂度高、需要长期维护</span></li>
+        <li><strong>多子工种协作</strong><span>：不同角色（策划/程序/美术/QA）需要各自专属 agent</span></li>
+        <li><strong>高频跨模块变更</strong><span>：改动频繁触及模块边界，需要约束守护</span></li>
+        <li><strong>长期运营项目</strong><span>：积累的记忆和 DNA 随时间形成复利</span></li>
+        <li><strong>大型游戏开发</strong><span>：战斗/背包/剧情/AI/渲染等系统并行演化</span></li>
+        <li><strong>中台/平台型系统</strong><span>：多业务线共用底层模块，契约稳定性关键</span></li>
+      </ul>
+    </div>
+    <div class="fit-card bad">
+      <h4>✗ CBIM 作用有限的场景</h4>
+      <ul>
+        <li><strong>小型一次性项目</strong><span>：建立 DNA + agent 体系的成本高于收益</span></li>
+        <li><strong>单人快速原型</strong><span>：没有多工种协作需求，能力轴空转</span></li>
+        <li><strong>短生命周期脚本</strong><span>：写完即弃，无需知识沉淀</span></li>
+        <li><strong>业务逻辑极简</strong><span>：模块少、边界清晰，DNA 治理过重</span></li>
+        <li><strong>纯探索性 Spike</strong><span>：目的是验证可行性而非构建可维护系统</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="notes">
+    <strong>判断标准：</strong>如果你能一眼数清楚项目的所有模块（少于 10 个），且只有 1-2 个开发角色，CBIM 的治理成本可能超过收益。
+    当模块数超过 20、工种超过 3 种、或者项目预计持续超过半年，CBIM 的复利效应开始显现。<br>
+    <strong>游戏开发是 CBIM 最自然的宿主</strong>——它天然拥有大量细分领域、长期演化需求和多工种协作，完美匹配双轴治理的设计哲学。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1 · 全局结构
+══════════════════════════════════════════════════════════ -->
+<section id="tab-global" class="diagram-section">
+  <div class="section-header">
+    <h2><span class="badge badge-global">全局</span>CBIM 系统结构</h2>
+    <p>三个层次 · 四个循环 · 双轴迭代裂变。用户只感知首尾，其余全部自治。</p>
+  </div>
+
+  <div class="overview-grid">
+    <div class="overview-card" onclick="show('exec', document.querySelectorAll('nav button')[2])">
+      <div class="icon">⚡</div>
+      <h3>执行任务循环</h3>
+      <p>Claude Code 执行优化层。自治调度，DNA 驱动，最小化用户感知。</p>
+    </div>
+    <div class="overview-card" onclick="show('arch', document.querySelectorAll('nav button')[5])">
+      <div class="icon">🏛</div>
+      <h3>业务知识治理</h3>
+      <p>业务轴。DNA 四状态分析，懒式生成，合规复查，知识裂变。</p>
+    </div>
+    <div class="overview-card" onclick="show('hr', document.querySelectorAll('nav button')[4])">
+      <div class="icon">👥</div>
+      <h3>能力知识治理</h3>
+      <p>能力轴。招募→训练→评估→归档，能力图谱持续裂变扩展。</p>
+    </div>
+    <div class="overview-card" onclick="show('memory', document.querySelectorAll('nav button')[3])">
+      <div class="icon">🧠</div>
+      <h3>记忆治理循环</h3>
+      <p>Hook 自动驱动。执行经验 → short → medium → .dna/ 知识提升。</p>
+    </div>
+  </div>
+
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+graph TB
+    User(["👤 用户\n说一次需求，等最终结果"])
+
+    subgraph ExecLayer["  执行层 — Claude Code 优化  "]
+        Coord["🎯 Coordinator\n自治调度中心"]
+        WorkAgent["🔧 Work Agent\n执行实现"]
+    end
+
+    subgraph GovLayer["  治理层 — 双轴迭代裂变  "]
+        subgraph BizAxis["业务轴"]
+            Arch["🏛 Architect\n业务知识治理循环\n.dna/ 知识系统"]
+        end
+        subgraph CapAxis["能力轴"]
+            HR["👥 HR\n能力知识治理循环\n.claude/agents/"]
+        end
+    end
+
+    subgraph MemLayer["  记忆层 — Hook 自动驱动  "]
+        Mem["🧠 记忆治理循环\nshort/ → medium/ → .dna/"]
+    end
+
+    User -->|"提出需求"| Coord
+    Coord -->|"必经门\nDNA 状态确认"| Arch
+    Arch -->|"模块路径 + 设计约束"| Coord
+    Coord -->|"携带上下文派发"| WorkAgent
+    WorkAgent -->|"设计决策上报"| Coord
+    Coord -->|"整合结果"| User
+
+    Coord -->|"能力缺口"| HR
+    HR -->|"agent 路径"| Coord
+
+    WorkAgent -->|"执行经验"| Mem
+    Mem -->|"知识回流"| Arch
+    Arch <-->|"协同裂变"| HR
+
+    style ExecLayer fill:#1a2540,stroke:#2196F3,color:#e2e8f0
+    style GovLayer fill:#1a1040,stroke:#9C27B0,color:#e2e8f0
+    style MemLayer fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style BizAxis fill:#1e1035,stroke:#CE93D8,color:#e2e8f0
+    style CapAxis fill:#15152a,stroke:#9FA8DA,color:#e2e8f0
+    </div>
+  </div>
+
+  <div class="notes">
+    <strong>核心闭环：</strong>每次任务执行都在让系统变得更好——经验沉淀为记忆，记忆提升为知识，知识增强下一次执行。<br>
+    <strong>裂变机制：</strong>新模块 DNA 建立 → 知识图谱扩展；新 agent 孵化 → 能力图谱扩展；两轴协同，边界持续生长。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2 · 执行任务循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-exec" class="diagram-section">
+  <div class="section-header">
+    <h2><span class="badge badge-exec">执行</span>执行任务循环</h2>
+    <p>对 Claude Code 执行机制的优化。用户说一次需求，Coordinator 自治驱动到完成。Architect 是所有执行任务的必经门。</p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    User(["👤 用户\n说一次需求"])
+    Respond(["👤 用户\n收到最终结果"])
+
+    User --> Understand
+
+    subgraph Loop["🔄 Coordinator 自治调度循环"]
+        Understand["1️⃣ 理解意图\n从对话提取需求\n不清晰 → 只问一个聚焦问题"]
+        Route["2️⃣ 分类路由\ncbim skill show dispatch"]
+        Decompose["3️⃣ 拆解子任务\n并行 / 串行"]
+        ArchGate["4️⃣ Architect 必经门\nDNA 状态分析-思考-执行\n返回模块路径 + 设计约束"]
+        WorkAgent["5️⃣ Work Agent 执行\n携带 Architect 上下文"]
+        Collect["6️⃣ 收集分析结果"]
+
+        Understand --> Route
+        Route -->|"执行任务"| Decompose
+        Route -->|"业务层 CRUD"| ArchGate
+        Route -->|"能力层 CRUD"| HR["👥 HR 能力治理"]
+        Decompose --> ArchGate
+        ArchGate --> WorkAgent
+        WorkAgent -->|"设计决策无法独立完成"| ArchGate
+        WorkAgent --> Collect
+    end
+
+    Collect -->|"✅ 完成且一致"| Respond
+    Collect -->|"🔁 有后续子任务"| Decompose
+    Collect -->|"⚠️ 冲突 / 阻塞"| User
+
+    style Loop fill:#0d1a2e,stroke:#2196F3,stroke-width:2px,color:#e2e8f0
+    style ArchGate fill:#2a1a00,stroke:#FF9800,color:#e2e8f0
+    style WorkAgent fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Collect fill:#1a0d2e,stroke:#9C27B0,color:#e2e8f0
+    style HR fill:#1a0d1a,stroke:#E91E63,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <strong>调度原则：</strong>每次迭代必须有实质进展，无进展即停止上报。<br>
+    <strong>打断用户的唯一条件：</strong>意图真正模糊 · 结果冲突 · 破坏性/不可逆操作。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 3 · 记忆治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-memory" class="diagram-section">
+  <div class="section-header">
+    <h2><span class="badge badge-mem">记忆</span>记忆治理循环</h2>
+    <p>执行经验自动沉淀为知识。全程由 Hook 驱动，对用户完全透明。</p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    SessionStart(["⚡ SessionStart Hook"])
+    Load["load_memory.py\n读取 memory/short/ + memory/medium/\n注入当前会话上下文"]
+    Session["🗣 会话进行中\nCoordinator + Agents 执行任务"]
+    PrePost["⚡ PreToolUse / PostToolUse Hook\nlogger.py\n记录 CALL · RET · USER · ASSIST · agent:name"]
+    Log[("📄 session_YYYY-MM-DD.log\n结构化会话日志")]
+    StopHook["⚡ Stop Hook\nwrite_memory.py\n提炼本轮对话要点"]
+    Short[("📁 memory/short/\n原始会话提炼")]
+    Threshold{"short/ 积累\n达到阈值?"}
+    Distill["🏛 Architect 蒸馏\n识别跨会话重复模式"]
+    Medium[("📁 memory/medium/\n跨会话规律\n用户偏好 · 常见决策")]
+    Promote{"发现稳定原则?"}
+    DNA[("📁 .dna/\n架构约束 · 设计原则\n模块契约")]
+    NextSession(["⚡ 下次 SessionStart"])
+
+    SessionStart --> Load
+    Load --> Session
+    Session --> PrePost
+    PrePost --> Log
+    Log --> Session
+    Session -->|"每轮回复结束"| StopHook
+    StopHook --> Short
+    Short --> Threshold
+    Threshold -->|"否"| NextSession
+    Threshold -->|"是"| Distill
+    Distill --> Medium
+    Medium --> Promote
+    Promote -->|"否"| NextSession
+    Promote -->|"是"| DNA
+    DNA --> NextSession
+    NextSession --> Load
+
+    style Short fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style Medium fill:#2a1800,stroke:#FF9800,color:#e2e8f0
+    style DNA fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Distill fill:#1a0d2e,stroke:#9C27B0,color:#e2e8f0
+    style Log fill:#0d1520,stroke:#546E7A,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <strong>三层沉淀：</strong>short/（原始）→ medium/（模式）→ .dna/（原则）<br>
+    <strong>蒸馏时机：</strong>由 Architect 在 short/ 积累到阈值后触发，不阻塞任何任务执行。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 4 · 能力知识治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-hr" class="diagram-section">
+  <div class="section-header">
+    <h2><span class="badge badge-hr">能力</span>能力知识治理循环</h2>
+    <p>能力轴 · <code>.claude/agents/</code> · 能力系统的更新与裂变。与业务知识治理循环对偶，共同构成双轴治理体系。</p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    Trigger(["触发条件\n· 执行任务发现能力缺口\n· 用户显式请求招募/训练/评估/归档\n· HR 定期评估能力覆盖度"])
+
+    Scan["🔍 扫描 .claude/agents/\n盘点现有 agent 能力清单"]
+    Match{"匹配结果"}
+
+    HasFit["✅ 有且胜任"]
+    HasWeak["⚠️ 有但能力不足"]
+    NoAgent["❌ 无匹配 agent"]
+
+    ReturnPath["返回 agent 路径\n给 Coordinator"]
+    TrainOrRecruit{"训练 or 招募?"}
+    Train["📚 训练\ncbim agent update\n更新技能 / 性格 / 行为规范"]
+    WorthNew{"复杂度足够\n值得专属 agent?"}
+    Scaffold["🌱 招募新 agent\ncbim agent scaffold\n定义角色 / 技能 / 性格 / 工具权限"]
+    Temporary["使用现有通用\nagent 临时处理"]
+
+    Execute(["⚙️ 任务执行"])
+    Assess["📊 评估表现"]
+    AssessResult{"表现如何?"}
+    Improve["更新 agent.md\n记录最佳实践\n提升能力描述"]
+    Retrain["🔧 再训练\n调整性格 / 技能 / 边界约束"]
+    Archive["📦 归档\ncbim agent archive"]
+
+    Fission(["✨ 裂变\n专用 agent 孵化 → 能力图谱扩展\n通用 agent 分化 → 专项独立\n老 agent 归档 → 能力沉淀 memory"])
+
+    Trigger --> Scan
+    Scan --> Match
+    Match --> HasFit
+    Match --> HasWeak
+    Match --> NoAgent
+
+    HasFit --> ReturnPath
+    HasWeak --> TrainOrRecruit
+    TrainOrRecruit -->|"训练"| Train
+    TrainOrRecruit -->|"招募"| NoAgent
+    Train --> ReturnPath
+
+    NoAgent --> WorthNew
+    WorthNew -->|"是"| Scaffold
+    WorthNew -->|"否"| Temporary
+    Scaffold --> ReturnPath
+    Temporary --> ReturnPath
+
+    ReturnPath --> Execute
+    Execute --> Assess
+    Assess --> AssessResult
+    AssessResult -->|"优秀"| Improve
+    AssessResult -->|"需改进"| Retrain
+    AssessResult -->|"不再需要"| Archive
+
+    Improve --> Fission
+    Retrain --> ReturnPath
+    Archive --> Fission
+
+    style Scaffold fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Archive fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    style Fission fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style HasFit fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style HasWeak fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style NoAgent fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <strong>裂变路径：</strong>专用 agent 孵化 → 能力图谱扩展；通用 agent 分化 → 专项 agent 独立；老 agent 归档 → 能力沉淀到 memory。
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 5 · 业务知识治理循环
+══════════════════════════════════════════════════════════ -->
+<section id="tab-arch" class="diagram-section">
+  <div class="section-header">
+    <h2><span class="badge badge-arch">业务</span>业务知识治理循环</h2>
+    <p>业务轴 · <code>.dna/</code> · 知识系统的更新与裂变。执行任务的必经门，懒式 DNA 管理。与能力知识治理循环对偶，共同构成双轴治理体系。</p>
+  </div>
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+flowchart TD
+    Trigger(["触发条件\n· 执行任务循环派入（必经门）\n· 用户显式请求模块设计 / 合规审查\n· Work Agent 上报设计决策"])
+
+    Scan["🔍 读取相关模块 .dna/ 文件\n扫描工作区代码结构"]
+    StateCheck{"DNA 状态判断"}
+
+    S0["状态 0\nDNA 不存在"]
+    S1["状态 1\nDNA 同步 ✅"]
+    S2["状态 2\n代码超前\nDNA 未跟上"]
+    S3["状态 3\nDNA 超前\n设计意图未实现"]
+
+    Worth0{"值得建 DNA?\n复杂度高 / 多处引用\n有明确设计意图"}
+    Init["cbim dna init\n生成 module.md + contract.md\n边界 · 接口契约 · 依赖规则"]
+    Skip0["跳过\n一次性脚本 / 临时代码"]
+
+    Extract["直接提取\n模块路径与约束"]
+
+    Think2["分析变更点\n哪些接口/边界/依赖改变?"]
+    Update["cbim dna update\n补齐变更内容"]
+
+    Validate3["验证设计可行性\n上下游依赖是否就绪?"]
+    MarkSpec["标记「待实现 spec」\nDNA 即任务书"]
+
+    ContextPack["📦 返回任务上下文包\n模块路径 + 设计约束\n依赖规则 + DNA 状态标记"]
+
+    WorkAgent(["⚙️ Work Agent 执行"])
+
+    Review["📋 架构合规复查\n实现是否破坏约束?"]
+    Compliant{"合规?"}
+    UpdateDNA["更新 DNA\n记录实现细节\n知识闭环"]
+    Escalate["上报 Coordinator\n要求修正后再复查"]
+
+    Fission(["✨ 裂变\n新模块 DNA → 知识图谱扩展\n旧模块拆分 → 子模块 DNA\n跨模块契约更新 → 依赖图重构"])
+
+    Trigger --> Scan
+    Scan --> StateCheck
+    StateCheck -->|"无 DNA"| S0
+    StateCheck -->|"同步"| S1
+    StateCheck -->|"代码超前"| S2
+    StateCheck -->|"DNA 超前"| S3
+
+    S0 --> Worth0
+    Worth0 -->|"值得"| Init
+    Worth0 -->|"不值得"| Skip0
+    Init --> ContextPack
+    Skip0 --> ContextPack
+
+    S1 --> Extract
+    Extract --> ContextPack
+
+    S2 --> Think2
+    Think2 --> Update
+    Update --> ContextPack
+
+    S3 --> Validate3
+    Validate3 --> MarkSpec
+    MarkSpec --> ContextPack
+
+    ContextPack --> WorkAgent
+    WorkAgent --> Review
+    Review --> Compliant
+    Compliant -->|"✅ 合规"| UpdateDNA
+    Compliant -->|"❌ 违规"| Escalate
+    Escalate -->|"修正后"| Review
+    UpdateDNA --> Fission
+
+    style S0 fill:#2a0010,stroke:#E91E63,color:#e2e8f0
+    style S1 fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style S2 fill:#2a2000,stroke:#FFC107,color:#e2e8f0
+    style S3 fill:#0d1a2e,stroke:#2196F3,color:#e2e8f0
+    style ContextPack fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style Fission fill:#1a0d2e,stroke:#9C27B0,stroke-width:2px,color:#e2e8f0
+    style Init fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style Update fill:#2a1800,stroke:#FF9800,color:#e2e8f0
+    </div>
+  </div>
+  <div class="notes">
+    <strong>DNA 四状态：</strong>
+    <span style="color:#f472b6">▌状态0 无</span> →
+    <span style="color:#4ade80">▌状态1 同步</span> →
+    <span style="color:#facc15">▌状态2 代码超前</span> →
+    <span style="color:#60a5fa">▌状态3 DNA超前（设计意图）</span><br>
+    <strong>懒式生成：</strong>Architect 判断「值不值得建」，不强制为每个模块创建 DNA。
+  </div>
+</section>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#161b27',
+      primaryColor: '#1e2a3a',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#7c3aed',
+      lineColor: '#4a5568',
+      secondaryColor: '#1a1040',
+      tertiaryColor: '#0d1520',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '14px',
+    }
+  });
+
+  function show(id, btn) {
+    document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>

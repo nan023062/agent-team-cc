@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CBIM — Capability · Business · Independence · Memory</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./i18n.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <div class="header-left">
+      <div class="header-logo">⬡</div>
+      <div>
+        <h1>CBIM</h1>
+        <p class="subtitle">
+          <span class="zh">Capability · Business · Independence · Memory &nbsp;·&nbsp; 双轴治理 &nbsp;·&nbsp; 复利飞轮</span>
+          <span class="en">Capability · Business · Independence · Memory &nbsp;·&nbsp; Dual-Axis Governance &nbsp;·&nbsp; Compounding Flywheel</span>
+        </p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="page-links">
+        <a href="./index.html" class="active">
+          <span class="zh">总览</span><span class="en">Overview</span>
+        </a>
+        <a href="./loops.html">
+          <span class="zh">四循环</span><span class="en">Four Loops</span>
+        </a>
+      </div>
+      <button onclick="toggleLang()" class="lang-btn">
+        <span class="zh">EN</span><span class="en">中文</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<nav>
+  <button class="active" onclick="show('philo', this)">
+    <span class="zh">💡 架构哲学与定位</span><span class="en">💡 Philosophy & Positioning</span>
+  </button>
+  <button onclick="show('global', this)">
+    <span class="zh">🌐 全局结构</span><span class="en">🌐 Global Structure</span>
+  </button>
+</nav>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 1 · 架构哲学与定位
+══════════════════════════════════════════════════════════ -->
+<section id="tab-philo" class="diagram-section active">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-philo">
+        <span class="zh">哲学</span><span class="en">PHILOSOPHY</span>
+      </span>
+      <span class="zh">CBIM 架构哲学与定位</span>
+      <span class="en">CBIM Philosophy & Positioning</span>
+    </h2>
+    <p>
+      <span class="zh">为什么 CBIM 存在，它解决了什么问题，适合什么规模的项目。</span>
+      <span class="en">Why CBIM exists, what problems it solves, and which project scales it fits.</span>
+    </p>
+  </div>
+
+  <!-- Manifesto -->
+  <div class="manifesto">
+    <h3>
+      <span class="zh">设计宣言</span><span class="en">Design Manifesto</span>
+    </h3>
+    <p class="zh">
+      AI 协作系统最大的浪费，不是算力，而是<strong>遗忘</strong>。<br>
+      每次对话重新解释上下文、每次任务重新定位模块、每次变更重新梳理约束——<br>
+      这些摩擦的根源是：能力与业务没有被分开治理，经验没有被系统性沉淀。<br><br>
+      CBIM 的核心主张是：<strong>让系统在执行中自我成长</strong>。<br>
+      能力轴管 agent 的生命周期，业务轴管知识的生命周期，记忆把执行经验持续提炼为两轴的养料。<br>
+      项目越复杂、时间越长，CBIM 的复利效应越显著。
+    </p>
+    <p class="en">
+      The greatest waste in AI collaboration is not compute — it's <strong>forgetting</strong>.<br>
+      Re-explaining context every session, re-locating modules every task, re-tracing constraints every change —<br>
+      the root cause is that capability and business are not governed separately,<br>
+      and experience is not systematically distilled.<br><br>
+      CBIM's core premise: <strong>let the system grow while it executes</strong>.<br>
+      The capability axis governs agent lifecycles, the business axis governs knowledge lifecycles,<br>
+      and memory continuously refines execution experience into nutrients for both.<br>
+      The more complex the project and the longer it runs, the more significant CBIM's compounding returns.
+    </p>
+    <p class="name">Capability · Business · Independence · Memory</p>
+  </div>
+
+  <!-- Core principles -->
+  <p class="section-label">
+    <span class="zh">六大核心原则</span><span class="en">Six Core Principles</span>
+  </p>
+  <div class="principles-grid">
+
+    <div class="principle-card">
+      <div class="p-icon">⚔️</div>
+      <h4>
+        <span class="zh">能力与业务解耦</span>
+        <span class="en">Capability-Business Decoupling</span>
+      </h4>
+      <p class="zh">Agent（谁来做）与 DNA 模块（做什么、怎么约束）彻底分离。能力层可以招募新 agent 而不破坏业务知识；业务层可以演化架构而不重写 agent 定义。</p>
+      <p class="en">Agent (who does it) and DNA modules (what to do, how to constrain) are fully decoupled. The capability layer can recruit new agents without disrupting business knowledge; the business layer can evolve architecture without rewriting agent definitions.</p>
+      <span class="p-tag">Capability-Business Independence</span>
+    </div>
+
+    <div class="principle-card">
+      <div class="p-icon">🧠</div>
+      <h4>
+        <span class="zh">记忆是一等公民</span>
+        <span class="en">Memory as First-Class Citizen</span>
+      </h4>
+      <p class="zh">执行经验不随会话消失。三层沉淀（short → medium → .dna/）将偶发经验提炼为稳定原则，让每次对话站在所有历史积累的肩膀上。</p>
+      <p class="en">Execution experience doesn't vanish with the session. Three-tier distillation (short → medium → .dna/) refines ad-hoc experience into stable principles, so every conversation stands on the shoulders of all prior accumulation.</p>
+      <span class="p-tag">Memory-First</span>
+    </div>
+
+    <div class="principle-card">
+      <div class="p-icon">🌱</div>
+      <h4>
+        <span class="zh">知识懒式生成</span>
+        <span class="en">Lazy Knowledge Generation</span>
+      </h4>
+      <p class="zh">DNA 文档不是前置必做项，而是在真正需要时由 Architect 按需创建。避免过度文档化，聚焦在实际触碰到的模块边界和约束上。</p>
+      <p class="en">DNA documents are not prerequisites — Architect creates them on demand when they are actually needed. Avoids over-documentation; focuses on module boundaries and constraints that are truly touched.</p>
+      <span class="p-tag">Lazy Knowledge Generation</span>
+    </div>
+
+    <div class="principle-card">
+      <div class="p-icon">🔄</div>
+      <h4>
+        <span class="zh">自治调度循环</span>
+        <span class="en">Autonomous Dispatch Loop</span>
+      </h4>
+      <p class="zh">用户心智负担最低化。Coordinator 自治完成「理解→分解→派发→收结果→分析→再派发」的循环，只在真正需要决策时打断用户。</p>
+      <p class="en">Minimal cognitive load on the user. The Coordinator autonomously completes "understand → decompose → dispatch → collect → analyze → re-dispatch" and only interrupts when a real decision is required.</p>
+      <span class="p-tag">Vibe Working</span>
+    </div>
+
+    <div class="principle-card">
+      <div class="p-icon">📐</div>
+      <h4>
+        <span class="zh">双轴对偶治理</span>
+        <span class="en">Dual-Axis Symmetric Governance</span>
+      </h4>
+      <p class="zh">能力轴（.claude/agents/）与业务轴（.dna/）对称治理、协同裂变。新业务需求催生新 agent，新 agent 承载新业务知识，两轴互相驱动边界扩展。</p>
+      <p class="en">The capability axis (.claude/agents/) and the business axis (.dna/) govern symmetrically and undergo coupled fission. New business needs spawn new agents, new agents carry new business knowledge, and both axes drive each other's boundary expansion.</p>
+      <span class="p-tag">Dual-Axis Governance</span>
+    </div>
+
+    <div class="principle-card">
+      <div class="p-icon">📈</div>
+      <h4>
+        <span class="zh">复利飞轮效应</span>
+        <span class="en">Compounding Flywheel</span>
+      </h4>
+      <p class="zh">每次任务执行都在让系统变得更好——DNA 状态从「无」到「同步」，agent 从「通用」到「专精」，记忆从「碎片」到「原则」。项目规模越大、运行时间越长，优势越显著。</p>
+      <p class="en">Every execution makes the system better — DNA states evolve from "absent" to "synced," agents from "generic" to "specialized," memory from "fragments" to "principles." Advantages compound with project scale and duration.</p>
+      <span class="p-tag">Compounding Returns</span>
+    </div>
+
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- vs Traditional -->
+  <p class="section-label">
+    <span class="zh">与传统 Agent 执行循环的区别</span>
+    <span class="en">Differences from Traditional Agent Loops</span>
+  </p>
+  <div class="compare-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th><span class="zh">维度</span><span class="en">Dimension</span></th>
+          <th><span class="zh">传统 Agent 循环</span><span class="en">Traditional Agent Loop</span></th>
+          <th>CBIM</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="zh">知识持久化</span><span class="en">Knowledge Persistence</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 每次对话从零开始，上下文靠用户重新提供</span>
+            <span class="en"><span class="tag-bad">✗</span> Every session starts from scratch; context must be re-provided by the user</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> DNA + 三层记忆自动积累，会话间无缝继承</span>
+            <span class="en"><span class="tag-good">✓</span> DNA + three-tier memory accumulate automatically; seamless cross-session inheritance</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">Agent 管理</span><span class="en">Agent Management</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 单一 agent 或临时拼凑，无生命周期管理</span>
+            <span class="en"><span class="tag-bad">✗</span> Single agent or ad-hoc composition; no lifecycle management</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> 能力轴完整管理 招募→训练→评估→归档</span>
+            <span class="en"><span class="tag-good">✓</span> Full lifecycle on the capability axis: recruit → train → assess → archive</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">架构约束</span><span class="en">Architectural Constraints</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 无模块边界概念，每次实现各自发挥</span>
+            <span class="en"><span class="tag-bad">✗</span> No module boundaries; each implementation is improvised</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> DNA 契约定义边界与依赖，Architect 合规复查</span>
+            <span class="en"><span class="tag-good">✓</span> DNA contracts define boundaries and dependencies; Architect performs compliance review</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">用户负担</span><span class="en">User Burden</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 用户手动管理上下文、分配任务、确认每步</span>
+            <span class="en"><span class="tag-bad">✗</span> User manually manages context, assigns tasks, and confirms each step</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> Coordinator 自治调度，用户只说需求等结果</span>
+            <span class="en"><span class="tag-good">✓</span> Coordinator dispatches autonomously; user just states the need and awaits the result</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">多工种协作</span><span class="en">Multi-Role Collaboration</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 单 agent 或无结构多 agent，容易越界干扰</span>
+            <span class="en"><span class="tag-bad">✗</span> Single agent or unstructured multi-agent; easy to overreach and interfere</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> 专属 agent 各司其职，能力边界由 HR 维护</span>
+            <span class="en"><span class="tag-good">✓</span> Dedicated agents each play their role; capability boundaries maintained by HR</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">经验复用</span><span class="en">Experience Reuse</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 成功经验随会话消失，下次重新摸索</span>
+            <span class="en"><span class="tag-bad">✗</span> Successful experience disappears with the session; next time, start over</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> 记忆蒸馏持续提炼，失败经验变为约束规则</span>
+            <span class="en"><span class="tag-good">✓</span> Memory distillation refines continuously; failure experience becomes constraint rules</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">设计意图追踪</span><span class="en">Design-Intent Tracking</span></td>
+          <td>
+            <span class="zh"><span class="tag-bad">✗</span> 只有代码，没有设计意图的显式记录</span>
+            <span class="en"><span class="tag-bad">✗</span> Code only; no explicit record of design intent</span>
+          </td>
+          <td>
+            <span class="zh"><span class="tag-good">✓</span> DNA 状态 3 明确标记「设计意图未实现」</span>
+            <span class="en"><span class="tag-good">✓</span> DNA state 3 explicitly marks "design intent not yet implemented"</span>
+          </td>
+        </tr>
+        <tr>
+          <td><span class="zh">规模适应性</span><span class="en">Scale Adaptability</span></td>
+          <td>
+            <span class="zh">小项目够用，大项目混乱</span>
+            <span class="en">Adequate for small projects; chaotic for large ones</span>
+          </td>
+          <td>
+            <span class="zh">小项目有成本，大项目复利显著</span>
+            <span class="en">Costly for small projects; compounding advantages for large ones</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section-divider"></div>
+
+  <!-- Fit section -->
+  <p class="section-label">
+    <span class="zh">适用规模与场景</span>
+    <span class="en">Suitable Scales & Scenarios</span>
+  </p>
+
+  <div class="game-highlight">
+    <h4>
+      <span class="zh">🎮 典型适配场景：游戏开发</span>
+      <span class="en">🎮 Typical Fit: Game Development</span>
+    </h4>
+    <div class="game-tags">
+      <span class="game-tag"><span class="zh">战斗系统</span><span class="en">Combat</span></span>
+      <span class="game-tag"><span class="zh">背包 & 装备</span><span class="en">Inventory & Gear</span></span>
+      <span class="game-tag"><span class="zh">任务系统</span><span class="en">Quests</span></span>
+      <span class="game-tag"><span class="zh">对话 & 剧情</span><span class="en">Dialogue & Story</span></span>
+      <span class="game-tag"><span class="zh">AI 行为树</span><span class="en">AI Behavior Tree</span></span>
+      <span class="game-tag"><span class="zh">寻路 & 导航</span><span class="en">Pathfinding</span></span>
+      <span class="game-tag"><span class="zh">技能 & 效果</span><span class="en">Skills & Effects</span></span>
+      <span class="game-tag"><span class="zh">经济系统</span><span class="en">Economy</span></span>
+      <span class="game-tag"><span class="zh">成就 & 统计</span><span class="en">Achievements</span></span>
+      <span class="game-tag"><span class="zh">地图 & 关卡</span><span class="en">Maps & Levels</span></span>
+      <span class="game-tag"><span class="zh">物理 & 碰撞</span><span class="en">Physics & Collision</span></span>
+      <span class="game-tag"><span class="zh">渲染 & 特效</span><span class="en">Rendering & VFX</span></span>
+      <span class="game-tag"><span class="zh">音频系统</span><span class="en">Audio</span></span>
+      <span class="game-tag"><span class="zh">UI & HUD</span><span class="en">UI & HUD</span></span>
+      <span class="game-tag"><span class="zh">网络 & 同步</span><span class="en">Networking & Sync</span></span>
+      <span class="game-tag"><span class="zh">存档 & 回档</span><span class="en">Save & Rollback</span></span>
+      <span class="game-tag"><span class="zh">策划配置</span><span class="en">Designer Configs</span></span>
+      <span class="game-tag"><span class="zh">本地化</span><span class="en">Localization</span></span>
+    </div>
+    <p class="game-caption zh">
+      游戏开发拥有大量细分工种（程序、策划、美术、音频、QA、DevOps）和高度解耦的业务模块。
+      每个系统都有独立的架构约束和接口契约，工种之间频繁协作又需要严格边界。
+      这正是 CBIM 双轴治理复利最大化的场景：<strong>能力轴管人，业务轴管模块，两轴协同裂变，项目越大越不乱。</strong>
+    </p>
+    <p class="game-caption en">
+      Game development has many specialized roles (programming, design, art, audio, QA, DevOps) and highly decoupled business modules.
+      Each system carries its own architectural constraints and interface contracts; roles collaborate frequently yet need strict boundaries.
+      This is exactly where CBIM's dual-axis governance compounds most:
+      <strong>the capability axis governs people, the business axis governs modules, the two co-evolve, and the bigger the project, the more it stays in order.</strong>
+    </p>
+  </div>
+
+  <div class="fit-grid">
+    <div class="fit-card good">
+      <h4>
+        <span class="zh">✅ CBIM 价值显著的场景</span>
+        <span class="en">✅ Where CBIM Shines</span>
+      </h4>
+      <ul>
+        <li>
+          <span class="zh"><strong>大体量项目</strong>：模块数量多、业务复杂度高、需要长期维护</span>
+          <span class="en"><strong>Large projects</strong> with many modules, high complexity, long-term maintenance</span>
+        </li>
+        <li>
+          <span class="zh"><strong>多子工种协作</strong>：不同角色（策划/程序/美术/QA）需要各自专属 agent</span>
+          <span class="en"><strong>Multi-role collaboration</strong> — design/programming/art/QA each need dedicated agents</span>
+        </li>
+        <li>
+          <span class="zh"><strong>高频跨模块变更</strong>：改动频繁触及模块边界，需要约束守护</span>
+          <span class="en"><strong>Frequent cross-module changes</strong> that constantly touch module boundaries and need guardrails</span>
+        </li>
+        <li>
+          <span class="zh"><strong>长期运营项目</strong>：积累的记忆和 DNA 随时间形成复利</span>
+          <span class="en"><strong>Long-running products</strong> where accumulated memory and DNA compound over time</span>
+        </li>
+        <li>
+          <span class="zh"><strong>大型游戏开发</strong>：战斗/背包/剧情/AI/渲染等系统并行演化</span>
+          <span class="en"><strong>Large-scale game development</strong> — combat / inventory / story / AI / rendering evolve in parallel</span>
+        </li>
+        <li>
+          <span class="zh"><strong>中台/平台型系统</strong>：多业务线共用底层模块，契约稳定性关键</span>
+          <span class="en"><strong>Platform / middle-office systems</strong> — multiple business lines share core modules; contract stability is critical</span>
+        </li>
+      </ul>
+    </div>
+    <div class="fit-card bad">
+      <h4>
+        <span class="zh">✗ CBIM 作用有限的场景</span>
+        <span class="en">✗ Where CBIM Adds Little</span>
+      </h4>
+      <ul>
+        <li>
+          <span class="zh"><strong>小型一次性项目</strong>：建立 DNA + agent 体系的成本高于收益</span>
+          <span class="en"><strong>Small one-off projects</strong> — setting up DNA + agents costs more than it saves</span>
+        </li>
+        <li>
+          <span class="zh"><strong>单人快速原型</strong>：没有多工种协作需求，能力轴空转</span>
+          <span class="en"><strong>Solo rapid prototypes</strong> — no multi-role need; the capability axis idles</span>
+        </li>
+        <li>
+          <span class="zh"><strong>短生命周期脚本</strong>：写完即弃，无需知识沉淀</span>
+          <span class="en"><strong>Short-lived scripts</strong> — write-and-discard; no knowledge to sediment</span>
+        </li>
+        <li>
+          <span class="zh"><strong>业务逻辑极简</strong>：模块少、边界清晰，DNA 治理过重</span>
+          <span class="en"><strong>Minimal business logic</strong> — few modules, clear boundaries; DNA governance is overkill</span>
+        </li>
+        <li>
+          <span class="zh"><strong>纯探索性 Spike</strong>：目的是验证可行性而非构建可维护系统</span>
+          <span class="en"><strong>Pure exploratory spikes</strong> — the goal is feasibility, not a maintainable system</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="notes">
+    <p class="zh">
+      <strong>判断标准：</strong>如果你能一眼数清楚项目的所有模块（少于 10 个），且只有 1-2 个开发角色，CBIM 的治理成本可能超过收益。
+      当模块数超过 20、工种超过 3 种、或者项目预计持续超过半年，CBIM 的复利效应开始显现。<br>
+      <strong>游戏开发是 CBIM 最自然的宿主</strong>——它天然拥有大量细分领域、长期演化需求和多工种协作，完美匹配双轴治理的设计哲学。
+    </p>
+    <p class="en">
+      <strong>Rule of thumb:</strong> if you can count every module at a glance (fewer than 10) and have only 1–2 dev roles, CBIM's governance cost may exceed its benefit.
+      Once modules exceed 20, roles exceed 3, or the project is expected to run beyond six months, CBIM's compounding effect starts showing.<br>
+      <strong>Game development is CBIM's most natural host</strong> — it inherently brings many specialized domains, long-running evolution, and multi-role collaboration, perfectly matched to dual-axis governance.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════
+     TAB 2 · 全局结构
+══════════════════════════════════════════════════════════ -->
+<section id="tab-global" class="diagram-section">
+  <div class="section-header">
+    <h2>
+      <span class="badge badge-global">
+        <span class="zh">全局</span><span class="en">GLOBAL</span>
+      </span>
+      <span class="zh">CBIM 系统结构</span>
+      <span class="en">CBIM System Structure</span>
+    </h2>
+    <p>
+      <span class="zh">三个层次 · 四个循环 · 双轴迭代裂变。用户只感知首尾，其余全部自治。</span>
+      <span class="en">Three layers · four loops · dual-axis fission. The user only sees start and end — everything in between is autonomous.</span>
+    </p>
+  </div>
+
+  <div class="overview-grid">
+    <a class="overview-card" href="./loops.html#exec">
+      <div class="icon">⚡</div>
+      <h3><span class="zh">执行任务循环</span><span class="en">Execution Loop</span></h3>
+      <p class="zh">Claude Code 执行优化层。自治调度，DNA 驱动，最小化用户感知。</p>
+      <p class="en">Claude Code execution layer. Autonomous dispatch, DNA-driven, minimal user awareness.</p>
+    </a>
+    <a class="overview-card" href="./loops.html#arch">
+      <div class="icon">🏛</div>
+      <h3><span class="zh">业务知识治理</span><span class="en">Business Knowledge</span></h3>
+      <p class="zh">业务轴。DNA 四状态分析，懒式生成，合规复查，知识裂变。</p>
+      <p class="en">Business axis. Four-state DNA analysis, lazy generation, compliance review, knowledge fission.</p>
+    </a>
+    <a class="overview-card" href="./loops.html#hr">
+      <div class="icon">👥</div>
+      <h3><span class="zh">能力知识治理</span><span class="en">Capability Knowledge</span></h3>
+      <p class="zh">能力轴。招募→训练→评估→归档，能力图谱持续裂变扩展。</p>
+      <p class="en">Capability axis. Recruit → train → assess → archive; capability graph keeps expanding.</p>
+    </a>
+    <a class="overview-card" href="./loops.html#memory">
+      <div class="icon">🧠</div>
+      <h3><span class="zh">记忆治理循环</span><span class="en">Memory Governance</span></h3>
+      <p class="zh">Hook 自动驱动。执行经验 → short → medium → .dna/ 知识提升。</p>
+      <p class="en">Hook-driven. Execution experience → short → medium → .dna/, distilled into knowledge.</p>
+    </a>
+  </div>
+
+  <div class="mermaid-wrap">
+    <div class="mermaid">
+graph TB
+    User(["👤 用户\n说一次需求，等最终结果"])
+
+    subgraph ExecLayer["  执行层 — Claude Code 优化  "]
+        Coord["🎯 Coordinator\n自治调度中心"]
+        WorkAgent["🔧 Work Agent\n执行实现"]
+    end
+
+    subgraph GovLayer["  治理层 — 双轴迭代裂变  "]
+        subgraph BizAxis["业务轴"]
+            Arch["🏛 Architect\n业务知识治理循环\n.dna/ 知识系统"]
+        end
+        subgraph CapAxis["能力轴"]
+            HR["👥 HR\n能力知识治理循环\n.claude/agents/"]
+        end
+    end
+
+    subgraph MemLayer["  记忆层 — Hook 自动驱动  "]
+        Mem["🧠 记忆治理循环\nshort/ → medium/ → .dna/"]
+    end
+
+    User -->|"提出需求"| Coord
+    Coord -->|"必经门\nDNA 状态确认"| Arch
+    Arch -->|"模块路径 + 设计约束"| Coord
+    Coord -->|"携带上下文派发"| WorkAgent
+    WorkAgent -->|"设计决策上报"| Coord
+    Coord -->|"整合结果"| User
+
+    Coord -->|"能力缺口"| HR
+    HR -->|"agent 路径"| Coord
+
+    WorkAgent -->|"执行经验"| Mem
+    Mem -->|"知识回流"| Arch
+    Arch <-->|"协同裂变"| HR
+
+    style ExecLayer fill:#1a2540,stroke:#2196F3,color:#e2e8f0
+    style GovLayer fill:#1a1040,stroke:#9C27B0,color:#e2e8f0
+    style MemLayer fill:#0d2010,stroke:#4CAF50,color:#e2e8f0
+    style BizAxis fill:#1e1035,stroke:#CE93D8,color:#e2e8f0
+    style CapAxis fill:#15152a,stroke:#9FA8DA,color:#e2e8f0
+    </div>
+  </div>
+
+  <div class="notes">
+    <p class="zh">
+      <strong>核心闭环：</strong>每次任务执行都在让系统变得更好——经验沉淀为记忆，记忆提升为知识，知识增强下一次执行。<br>
+      <strong>裂变机制：</strong>新模块 DNA 建立 → 知识图谱扩展；新 agent 孵化 → 能力图谱扩展；两轴协同，边界持续生长。
+    </p>
+    <p class="en">
+      <strong>Core loop:</strong> every task execution makes the system better — experience sediments into memory, memory is promoted to knowledge, knowledge strengthens the next execution.<br>
+      <strong>Fission:</strong> new module DNA → expanded knowledge graph; new agents incubated → expanded capability graph; the two axes co-evolve and boundaries keep growing.
+    </p>
+  </div>
+</section>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      darkMode: true,
+      background: '#161b27',
+      primaryColor: '#1e2a3a',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#7c3aed',
+      lineColor: '#4a5568',
+      secondaryColor: '#1a1040',
+      tertiaryColor: '#0d1520',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontSize: '14px'
+    }
+  });
+
+  function show(id, btn) {
+    document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+</script>
+
+</body>
+</html>
