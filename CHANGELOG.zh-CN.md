@@ -6,6 +6,43 @@
 
 ---
 
+## [2.3.0] - 2026-05-22
+
+### 架构 — 统一资源对象模型
+
+收口长期遗留的 `.dna/` 与 `.claude/agents/` Kernel-Only Writes 缺口。新增 `cbi/resources/` 包，暴露五类资源对象 façade —— `Agent`、`DNAModule`、`Skill`、`Workflow`、`Memory`，每个对象都有一致的 `.load() / .save() / .delete()` 生命周期，以及 `.frontmatter` / `.body` / 子集合访问器。CLI 变为这些对象之上的薄层（约 120 行）；资源行为只在一个地方实现。
+
+依赖方向严格单向：`cli → resources → _primitives → services/_fm`。
+
+### 新增
+
+- `cbi/resources/` 包 —— 10 个模块：`Resource` 基类、`Frontmatter`、`Body`、`atomic_write_text`，以及 `Agent` / `DNAModule` / `Skill` / `Workflow` / `Memory` 五类 façade。
+- `cbim dna edit --target {frontmatter|body|section|contract|contract-section|workflow}` —— DNA 统一编辑入口；支持 `--dry-run`、`--content` / `--content-file` / `--stdin`、`--create-if-missing`。
+- `--value-list` 参数处理 list 类型 frontmatter 字段（`keywords`、`dependencies`、`includeDirs`），写出块式 YAML 列表。对 list 字段误用 scalar `--value` 现在会显式报错。
+- `cbim update --reinstall`（`--force` 别名）—— 跳过版本号比对，强制重装当前 pin 版本的快照。支持 `--reinstall --local <path>` 用于开发期本地热刷新。
+- `Skill.list_builtin()` / `Skill.load_builtin(key)` —— 内置 skill 发现统一为资源类方法。
+
+### 变更
+
+- `cbi/engine/` 重命名为 `cbi/_primitives/`，明示"内部原语，外部不要直接 import"。外部调用方应改用 `cbi.resources`。
+- `cbi/_primitives/cli.py` 从约 350 行 `cmd_*` 包装精简为 17 行 stub；dispatch 上移到 `engine/cli.py` 的 `_handle_*` 私有函数，直接调用 `cbi.resources`。
+- `services/_fm.py` 新增 `render_frontmatter`，成为唯一的 frontmatter 解析/渲染实现；`agents.py` / `modules.py` 内部重复的 `_parse_frontmatter` / `_strip_frontmatter` / `_parse_yaml_block` 全部删除。
+- hooks（`write_memory`、`load_memory`）从 subprocess 改为 in-process import `memory.engine.{writer,loader}` 和 `cbi._primitives.snapshot`，消除每次事件的 Python 启动开销。
+- MCP tools（`agent.py`、`dna.py`、`memory.py`、`skill.py`、`snapshot.py`）改走 `cbi.resources`，不再直接 import `MemoryEngine` 与 engine 原语。
+
+### 弃用
+
+- `cbim dna write-doc` / `write-section` —— 保留为 deprecated 别名，调用时向 stderr 输出警告并转发到旧路径。请改用 `cbim dna edit --target body|section`。
+
+### 移除
+
+- `cbim memory write-session` / `load-context` / `preview` —— 由 hook 的 in-process 调用替代；`preview` 由 `cbim dashboard` 替代。这些原本属于 hook 实现细节，普通用户工作流不受影响。
+
+### 修复
+
+- `cbim dna edit` argparse 注册完整列出所有 `--target` 选项并对 list 字段做严格校验。
+- Architect agent 定义（`architect.md`）不再错误地把 `index.md` 列为 `.dna/` 核心文件（注册表实际在 `.cbim/index.md`，由内核自动维护）。
+
 ## [2.2.3] - 2026-05-22
 
 ### 新增

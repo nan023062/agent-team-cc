@@ -6,6 +6,43 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [2.3.0] - 2026-05-22
+
+### Architecture — Unified Resource Object Model
+
+Closes the long-standing Kernel-Only Writes gap for `.dna/` and `.claude/agents/`. A new `cbi/resources/` package exposes five resource façades — `Agent`, `DNAModule`, `Skill`, `Workflow`, `Memory` — each with consistent `.load() / .save() / .delete()` lifecycle and `.frontmatter` / `.body` / sub-collection accessors. The CLI is now a thin (~120 LOC) dispatch layer over these objects; resource logic lives in exactly one place.
+
+Dependency direction is strictly unidirectional: `cli → resources → _primitives → services/_fm`.
+
+### Added
+
+- `cbi/resources/` package — 10 modules: `Resource` base, `Frontmatter`, `Body`, `atomic_write_text`, plus `Agent` / `DNAModule` / `Skill` / `Workflow` / `Memory` façades.
+- `cbim dna edit --target {frontmatter|body|section|contract|contract-section|workflow}` — unified DNA edit entry; supports `--dry-run`, `--content` / `--content-file` / `--stdin`, and `--create-if-missing`.
+- `--value-list` flag for list-typed frontmatter fields (`keywords`, `dependencies`, `includeDirs`); writes block-style YAML lists. Scalar `--value` on a list-typed field is now rejected explicitly.
+- `cbim update --reinstall` (with `--force` alias) — forces snapshot redeploy of the current pin even when the version number is unchanged. Supports `--reinstall --local <path>` for developer hot-path refresh.
+- `Skill.list_builtin()` / `Skill.load_builtin(key)` — built-in skill discovery exposed as resource methods.
+
+### Changed
+
+- `cbi/engine/` renamed to `cbi/_primitives/` to signal "internal primitives, do not import directly". External callers should use `cbi.resources` instead.
+- `cbi/_primitives/cli.py` collapsed from ~350 LOC of `cmd_*` wrappers to a 17-line stub; dispatch moved into `engine/cli.py` as private `_handle_*` handlers calling `cbi.resources` directly.
+- `services/_fm.py` gains `render_frontmatter` and becomes the sole frontmatter parser/renderer; duplicate `_parse_frontmatter` / `_strip_frontmatter` / `_parse_yaml_block` removed from `agents.py` and `modules.py`.
+- Hooks (`write_memory`, `load_memory`) switch from subprocess to in-process imports of `memory.engine.{writer,loader}` and `cbi._primitives.snapshot`, eliminating per-event Python startup cost.
+- MCP tools (`agent.py`, `dna.py`, `memory.py`, `skill.py`, `snapshot.py`) switch to `cbi.resources`, eliminating direct `MemoryEngine` / engine-primitive imports.
+
+### Deprecated
+
+- `cbim dna write-doc` / `write-section` — kept as deprecated aliases that print a stderr warning and forward to the legacy path. Migrate to `cbim dna edit --target body|section`.
+
+### Removed
+
+- `cbim memory write-session` / `load-context` / `preview` — replaced by in-process hook calls; `preview` superseded by `cbim dashboard`. These were hook-implementation surfaces; typical user workflows are unaffected.
+
+### Fixed
+
+- `cbim dna edit` argparse registration now correctly enumerates all `--target` choices and validates list-typed fields.
+- Architect agent definition (`architect.md`) no longer falsely lists `index.md` as a `.dna/` core file (the registry lives at `.cbim/index.md` and is auto-maintained).
+
 ## [2.2.3] - 2026-05-22
 
 ### Added
