@@ -49,8 +49,7 @@ def _install_root() -> Path:
 CBIM_HOME = _install_root()
 
 UPDATER_COMMANDS = {"install", "uninstall", "use", "versions", "pin",
-                    "update", "upgrade", "migrate", "check", "apply", "self-update",
-                    "release-notes"}
+                    "update", "upgrade", "migrate", "check", "apply", "self-update"}
 INSTALLER_COMMANDS = UPDATER_COMMANDS  # back-compat alias
 VERSION_FLAGS = {"version", "--version", "-V"}
 HELP_FLAGS = {"help", "--help", "-h"}

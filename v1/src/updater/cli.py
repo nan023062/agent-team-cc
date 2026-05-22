@@ -303,6 +303,8 @@ def _cmd_release_notes(args: argparse.Namespace) -> int:
     (notably the `cbim_update` slash command) are never broken by
     release-notes unavailability.
     """
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     raw = str(args.version).strip()
     bare = raw[1:] if raw.startswith("v") else raw
     fallback = (

@@ -196,6 +196,13 @@ def main() -> int:
     pupd.add_argument("-y", "--yes", action="store_true", dest="yes",
                       help="Skip the interactive confirmation prompt")
 
+    # release-notes -----------------------------------------------------------
+    pnotes = sub.add_parser(
+        "release-notes",
+        help="Print GitHub release notes for a kernel version",
+    )
+    pnotes.add_argument("version", help="Version tag (e.g. v2.1.0 or 2.1.0)")
+
     args = parser.parse_args()
     domain = args.domain
 
@@ -255,6 +262,8 @@ def main() -> int:
         return _cmd_upgrade(args)
     if domain == "update":
         return _cmd_update(args)
+    if domain == "release-notes":
+        return _cmd_release_notes(args)
     parser.print_help()
     return 1
 
@@ -358,6 +367,17 @@ def _cmd_update(args) -> int:
     """Route top-level `cbim update` to the upgrade module."""
     from cbim_kernel.project.upgrade import cli as upgrade_cli
     return upgrade_cli.cmd_update(args)
+
+
+def _cmd_release_notes(args) -> int:
+    """Route `cbim release-notes <version>` to ``python -m updater release-notes``.
+
+    Subprocess facade — the release-notes implementation lives in the updater
+    (it does network I/O against GitHub), matching the migrate fan-out pattern.
+    """
+    import subprocess
+    cmd = [sys.executable, "-m", "updater", "release-notes", args.version]
+    return subprocess.run(cmd).returncode
 
 
 def cmd_dashboard(args) -> int:
