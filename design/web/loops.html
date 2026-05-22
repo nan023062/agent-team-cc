@@ -85,29 +85,35 @@ flowchart TD
     Respond(["👤 用户<br/>收到最终结果"])
     HR["👥 HR 能力治理"]
 
-    User --> Understand
+    Understand["1. 理解意图<br/>从对话提取需求<br/>不清晰 → 只问一个聚焦问题"]
+    Route["2. 分类路由<br/>cbim skill show dispatch"]
+    Decompose["3. 拆解子任务<br/>并行 / 串行"]
+    ArchGate["4. Architect 必经门<br/>DNA 状态分析-思考-执行<br/>返回模块路径 + 设计约束"]
+    WorkAgent["5. Work Agent 执行<br/>携带 Architect 上下文"]
+    Collect["6. 收集分析结果"]
 
-    subgraph Loop["🔄 Coordinator 自治调度循环"]
-        Understand["1️⃣ 理解意图<br/>从对话提取需求<br/>不清晰 → 只问一个聚焦问题"]
-        Route["2️⃣ 分类路由<br/>cbim skill show dispatch"]
-        Decompose["3️⃣ 拆解子任务<br/>并行 / 串行"]
-        ArchGate["4️⃣ Architect 必经门<br/>DNA 状态分析-思考-执行<br/>返回模块路径 + 设计约束"]
-        WorkAgent["5️⃣ Work Agent 执行<br/>携带 Architect 上下文"]
-        Collect["6️⃣ 收集分析结果"]
-
-        Understand --> Route
-        Route -->|"执行任务"| Decompose
-        Route -->|"业务层 CRUD"| ArchGate
-        Route -->|"能力层 CRUD"| HR
-        Decompose --> ArchGate
-        ArchGate --> WorkAgent
-        WorkAgent -->|"设计决策无法独立完成"| ArchGate
-        WorkAgent --> Collect
+    subgraph Loop["Coordinator 自治调度循环"]
+        Understand
+        Route
+        Decompose
+        ArchGate
+        WorkAgent
+        Collect
     end
 
-    Collect -->|"✅ 完成且一致"| Respond
-    Collect -->|"🔁 有后续子任务"| Decompose
-    Collect -->|"⚠️ 冲突 / 阻塞"| User
+    User --> Understand
+    Understand --> Route
+    Route -->|"执行任务"| Decompose
+    Route -->|"业务层 CRUD"| ArchGate
+    Route -->|"能力层 CRUD"| HR
+    Decompose --> ArchGate
+    ArchGate --> WorkAgent
+    WorkAgent -->|"设计决策无法独立完成"| ArchGate
+    WorkAgent --> Collect
+
+    Collect -->|"完成且一致"| Respond
+    Collect -->|"有后续子任务"| Decompose
+    Collect -->|"冲突 / 阻塞"| User
 
     style Loop fill:#0d1a2e,stroke:#2196F3,stroke-width:2px,color:#e2e8f0
     style ArchGate fill:#2a1a00,stroke:#FF9800,color:#e2e8f0
@@ -447,11 +453,17 @@ graph LR
 </main>
 
 <script>
-  // ── Mermaid: save sources, render with current theme, re-render on theme change ──
+  // ── Mermaid: explicit-source render so <br/> survives DOM parsing,
+  //    re-render on theme change so colors track light/dark mode. ──
   (function () {
     var sources = [];
+    function decodeEntities(html) {
+      var ta = document.createElement('textarea');
+      ta.innerHTML = html;
+      return ta.value;
+    }
     document.querySelectorAll('.mermaid').forEach(function (el, i) {
-      sources[i] = el.textContent;
+      sources[i] = decodeEntities(el.innerHTML);
     });
 
     function isDark() {
@@ -473,18 +485,38 @@ graph LR
       };
     }
 
+    function showError(el, err) {
+      var msg = (err && err.message) ? err.message : String(err);
+      el.innerHTML =
+        '<pre style="color:#f87171;background:#1a0606;padding:12px 16px;' +
+        'border:1px solid #7f1d1d;border-radius:8px;font-size:12px;' +
+        'white-space:pre-wrap;text-align:left;max-width:100%;overflow:auto;">' +
+        '⚠ Mermaid render error:\n' + msg.replace(/</g, '&lt;') + '</pre>';
+    }
+
     function renderAll() {
       var dark = isDark();
-      document.querySelectorAll('.mermaid').forEach(function (el, i) {
-        el.removeAttribute('data-processed');
-        el.innerHTML = sources[i];
-      });
       mermaid.initialize({
         startOnLoad: false,
         theme: dark ? 'dark' : 'default',
         themeVariables: themeVars(dark)
       });
-      mermaid.run({ querySelector: '.mermaid' });
+      var elements = document.querySelectorAll('.mermaid');
+      Array.prototype.forEach.call(elements, function (el, i) {
+        var id = 'mermaid-' + i + '-' + Date.now();
+        try {
+          var p = mermaid.render(id, sources[i]);
+          if (p && typeof p.then === 'function') {
+            p.then(function (r) {
+              el.innerHTML = r.svg;
+              if (r.bindFunctions) r.bindFunctions(el);
+            }).catch(function (err) { showError(el, err); });
+          } else if (p && typeof p === 'object' && p.svg) {
+            el.innerHTML = p.svg;
+            if (p.bindFunctions) p.bindFunctions(el);
+          }
+        } catch (err) { showError(el, err); }
+      });
     }
 
     renderAll();
