@@ -58,9 +58,9 @@ def _install_run_shim(project_root: Path, force: bool) -> None:
     cbim_dir.mkdir(parents=True, exist_ok=True)
 
     # The shim invokes whatever kernel sits next to it under
-    # <project_root>/cbim-cc/. The path is computed at install time; if the
-    # kernel is moved, re-run /cbim_install to refresh.
-    install_root_posix = project_root / "cbim-cc"
+    # <project_root>/.cbim/kernel/. The path is computed at install time; if
+    # the kernel is moved, re-run /cbim_install to refresh.
+    install_root_posix = project_root / ".cbim" / "kernel"
     install_root_win = str(install_root_posix).replace("/", "\\")
 
     # Probe the Python interpreter at install time. Modern macOS / Debian /
