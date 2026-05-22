@@ -3,12 +3,14 @@
  * Markup expected:
  *   <div class="mermaid-wrap">
  *     <div class="mermaid-target" data-source="src-XYZ"></div>
- *     <div class="mermaid-toolbar"> ... buttons that call diagramZoom / diagramFullscreen ... </div>
+ *     <div class="mermaid-toolbar"> ...buttons... </div>
  *   </div>
  *   <script type="text/x-mermaid" id="src-XYZ"> ...diagram source... </script>
  *
- * The script-tag source approach means the browser never parses the diagram
- * as HTML — <br/>, special chars and indentation are all preserved verbatim.
+ * Visibility rule: svg-pan-zoom cannot initialize on a hidden container
+ * (its computed width/height would be zero), so for hidden diagrams we
+ * only inject the SVG and defer pan-zoom setup until the tab becomes
+ * visible (loops.html's show() calls window.cbimRefitDiagram).
  */
 (function () {
   function isDark() {
@@ -39,15 +41,26 @@
       'Mermaid: ' + msg.replace(/</g, '&lt;') + '</pre>';
   }
 
-  function attachPanZoom(el) {
+  function isVisible(el) {
+    return !!(el && (el.offsetWidth > 0 || el.offsetHeight > 0));
+  }
+
+  function setupPanZoom(el) {
     if (typeof svgPanZoom === 'undefined') return;
     var svg = el.querySelector('svg');
     if (!svg) return;
-    // Strip Mermaid's max-width / fixed dims so it fills container
+    if (!isVisible(el)) {
+      // Defer — will retry when tab becomes visible
+      el._needsPanZoom = true;
+      return;
+    }
+    // Container is visible; safe to size SVG + attach pan-zoom
+    svg.removeAttribute('height');
+    svg.removeAttribute('width');
     svg.style.maxWidth = '100%';
     svg.style.width = '100%';
     svg.style.height = '100%';
-    // Destroy previous instance (theme re-render)
+
     if (el._panZoom) {
       try { el._panZoom.destroy(); } catch (e) {}
       el._panZoom = null;
@@ -61,30 +74,42 @@
         center: true,
         minZoom: 0.2,
         maxZoom: 10,
-        zoomScaleSensitivity: 0.3
+        zoomScaleSensitivity: 0.3,
+        contain: false
       });
-    } catch (e) { /* swallow — diagram still readable without pan-zoom */ }
+      el._needsPanZoom = false;
+    } catch (e) {
+      el._needsPanZoom = true;
+    }
   }
 
-  function renderOne(el, srcId, source) {
-    var id = 'm-' + srcId + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e6);
-    try {
-      var p = mermaid.render(id, source);
-      if (p && typeof p.then === 'function') {
-        p.then(function (r) {
-          el.innerHTML = r.svg;
-          if (r.bindFunctions) r.bindFunctions(el);
-          attachPanZoom(el);
-        }).catch(function (err) { showError(el, err); });
-      } else if (p && p.svg) {
-        el.innerHTML = p.svg;
-        if (p.bindFunctions) p.bindFunctions(el);
-        attachPanZoom(el);
-      }
-    } catch (err) { showError(el, err); }
+  function refit(el) {
+    if (!el || !el._panZoom) return;
+    setTimeout(function () {
+      try {
+        el._panZoom.resize();
+        el._panZoom.fit();
+        el._panZoom.center();
+      } catch (e) {}
+    }, 50);
   }
 
-  function renderAll() {
+  /* Exposed: called from tab switch — first-time setup or refit. */
+  window.cbimRefitDiagram = function (el) {
+    if (!el) return;
+    if (el._needsPanZoom && !el._panZoom) {
+      setupPanZoom(el);
+    } else if (el._panZoom) {
+      refit(el);
+    } else if (el.querySelector('svg')) {
+      // SVG present but pan-zoom not yet attached — try now
+      setupPanZoom(el);
+    }
+  };
+
+  /* Render diagrams sequentially (avoid races in mermaid internal state). */
+  async function renderAll() {
+    if (typeof mermaid === 'undefined') return;
     var dark = isDark();
     mermaid.initialize({
       startOnLoad: false,
@@ -92,12 +117,30 @@
       themeVariables: themeVars(dark),
       flowchart: { htmlLabels: true, useMaxWidth: true, curve: 'basis' }
     });
-    document.querySelectorAll('.mermaid-target[data-source]').forEach(function (el) {
+    var targets = document.querySelectorAll('.mermaid-target[data-source]');
+    for (var i = 0; i < targets.length; i++) {
+      var el = targets[i];
       var srcId = el.getAttribute('data-source');
       var srcEl = document.getElementById(srcId);
-      if (!srcEl) return;
-      renderOne(el, srcId, srcEl.textContent.trim());
-    });
+      if (!srcEl) continue;
+      var source = srcEl.textContent.trim();
+      var id = 'm-' + srcId + '-' + Date.now() + '-' + i;
+      try {
+        // Reset any previous render state on theme switch
+        if (el._panZoom) {
+          try { el._panZoom.destroy(); } catch (e) {}
+          el._panZoom = null;
+        }
+        el._needsPanZoom = false;
+
+        var result = await mermaid.render(id, source);
+        el.innerHTML = result.svg;
+        if (result.bindFunctions) result.bindFunctions(el);
+        setupPanZoom(el);
+      } catch (err) {
+        showError(el, err);
+      }
+    }
   }
 
   /* ── Toolbar handlers (exposed on window) ── */
@@ -108,7 +151,10 @@
 
   window.diagramZoom = function (btn, action) {
     var el = getTargetFrom(btn);
-    if (!el || !el._panZoom) return;
+    if (!el) return;
+    // Lazy-init if needed
+    if (!el._panZoom) setupPanZoom(el);
+    if (!el._panZoom) return;
     if (action === 'in')        el._panZoom.zoomBy(1.25);
     else if (action === 'out')  el._panZoom.zoomBy(0.8);
     else if (action === 'reset') {
@@ -119,43 +165,39 @@
     }
   };
 
-  function refit(el) {
-    if (!el || !el._panZoom) return;
-    setTimeout(function () {
-      try {
-        el._panZoom.resize();
-        el._panZoom.fit();
-        el._panZoom.center();
-      } catch (e) {}
-    }, 100);
-  }
-
   window.diagramFullscreen = function (btn) {
     var wrap = btn.closest('.mermaid-wrap');
     if (!wrap) return;
     wrap.classList.toggle('fullscreen');
-    refit(wrap.querySelector('.mermaid-target'));
+    var target = wrap.querySelector('.mermaid-target');
+    setTimeout(function () {
+      window.cbimRefitDiagram(target);
+    }, 100);
   };
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       document.querySelectorAll('.mermaid-wrap.fullscreen').forEach(function (w) {
         w.classList.remove('fullscreen');
-        refit(w.querySelector('.mermaid-target'));
+        var t = w.querySelector('.mermaid-target');
+        setTimeout(function () { window.cbimRefitDiagram(t); }, 100);
       });
     }
   });
 
-  /* ── Boot ── */
+  /* Boot */
   renderAll();
   document.addEventListener('cbim-theme-changed', renderAll);
 
-  // Re-fit on window resize (e.g. orientation change)
+  /* Refit on viewport resize */
   var resizeTimer;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-      document.querySelectorAll('.mermaid-target').forEach(refit);
+      document.querySelectorAll('.mermaid-target').forEach(function (el) {
+        if (el._panZoom) refit(el);
+        else if (isVisible(el) && el.querySelector('svg')) setupPanZoom(el);
+      });
     }, 200);
   });
 })();

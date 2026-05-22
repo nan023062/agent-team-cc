@@ -305,13 +305,12 @@ graph LR
       if (fb) fb.classList.add('active');
     }
     if (history && history.replaceState) history.replaceState(null, '', '#' + id);
-    // Re-fit pan/zoom on the now-visible diagram
+    // Diagrams in previously-hidden tabs deferred their pan/zoom init
+    // (container was 0×0); first reveal sets it up, subsequent reveals refit.
     if (sec) {
       var target = sec.querySelector('.mermaid-target');
-      if (target && target._panZoom) {
-        setTimeout(function () {
-          try { target._panZoom.resize(); target._panZoom.fit(); target._panZoom.center(); } catch (e) {}
-        }, 50);
+      if (target && window.cbimRefitDiagram) {
+        setTimeout(function () { window.cbimRefitDiagram(target); }, 50);
       }
     }
   }

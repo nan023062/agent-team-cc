@@ -286,7 +286,7 @@ main {
   background: var(--mermaid-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  height: 640px;
+  height: 960px;
   overflow: hidden;
 }
 .mermaid-target {
@@ -372,11 +372,11 @@ main {
   header { position: static; }
   .header-top { flex-direction: column; align-items: flex-start; gap: 12px; }
   .key-grid { grid-template-columns: 1fr 1fr; }
-  .mermaid-wrap { height: 480px; }
+  .mermaid-wrap { height: 720px; }
 }
 
 @media (max-width: 480px) {
   .key-grid { grid-template-columns: 1fr; }
   header h1 { font-size: 1rem; }
-  .mermaid-wrap { height: 400px; }
+  .mermaid-wrap { height: 600px; }
 }
