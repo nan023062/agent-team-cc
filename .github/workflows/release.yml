@@ -1,0 +1,50 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          # Extract block between ## [TAG] and the next ## [
+          NOTES=$(awk "/^## \[$TAG\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          ZH_NOTES=$(awk "/^## \[$TAG\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.zh-CN.md)
+
+          # Combine bilingual notes
+          COMBINED="## English
+
+          $NOTES
+
+          ---
+
+          ## 中文
+
+          $ZH_NOTES"
+
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMBINED" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          TITLE=$(git log -1 --pretty=%s "$TAG" | sed 's/^release: //')
+          gh release create "$TAG" \
+            --title "$TITLE" \
+            --notes "${{ steps.notes.outputs.notes }}"
