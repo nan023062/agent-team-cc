@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
@@ -27,6 +28,20 @@ from cbim_kernel.services._fm import parse_frontmatter, strip_frontmatter
 
 
 # ---------------------------------------------------------------------------
+# Split result
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SplitResult:
+    """Returned by DNAModule.split(). Mirrors the primitive's report dict
+    but exposes the in-memory DNAModule objects for fluent follow-up edits.
+    """
+    created_modules: list["DNAModule"] = field(default_factory=list)
+    dependency_refs_report: list[dict] = field(default_factory=list)
+    source_module: "DNAModule | None" = None
+
+
+# ---------------------------------------------------------------------------
 # Frontmatter
 # ---------------------------------------------------------------------------
 
@@ -34,6 +49,7 @@ class ModuleFrontmatter(Frontmatter):
     _SCHEMA = (
         "name", "owner", "description",
         "keywords", "dependencies", "includeDirs",
+        "status",
     )
 
 
@@ -232,6 +248,7 @@ class DNAModule(Resource):
         description: str = "",
         type: str = "leaf",
         with_contract: bool = False,
+        status: str | None = None,
         root: Path | None = None,
     ) -> "DNAModule":
         mod_path = Path(mod_dir)
@@ -243,6 +260,7 @@ class DNAModule(Resource):
             description=description,
             with_contract=with_contract,
             type_=type,
+            status=status,
             project_root=actual_root,
         )
         return cls.load(mod_path, root=actual_root)
@@ -292,6 +310,54 @@ class DNAModule(Resource):
     def reindex(cls, *, root: Path | None = None) -> None:
         actual_root = cls._resolve_root(root)
         _mod_eng.update_index(actual_root)
+
+    @classmethod
+    def split(
+        cls,
+        source: Path | str,
+        splits: list[dict],
+        *,
+        root: Path | None = None,
+        dry_run: bool = False,
+        keep_source: bool = True,
+    ) -> SplitResult:
+        """Decompose one source module into one source + N new modules.
+
+        Delegates to `_mod_eng.split_module`. See that function for the full
+        atomicity contract and parameter semantics.
+
+        The `dependency_refs_report` field on the returned SplitResult is a
+        SCAN-ONLY report — this command does NOT mutate any other module's
+        frontmatter. Architect is expected to follow up via
+        `cbim dna edit --target frontmatter --field dependencies ...` for
+        each affected module.
+        """
+        actual_root = cls._resolve_root(root)
+        report = _mod_eng.split_module(
+            Path(source),
+            splits,
+            actual_root,
+            dry_run=dry_run,
+            keep_source=keep_source,
+        )
+
+        result = SplitResult(dependency_refs_report=report["dependency_refs"])
+
+        if dry_run:
+            return result
+
+        # Hydrate DNAModule objects for the freshly-created splits + reload source.
+        for module_md in report["created"]:
+            mod_dir = module_md.parent.parent  # <mod>/.dna/module.md → <mod>
+            try:
+                result.created_modules.append(cls.load(mod_dir, root=actual_root))
+            except FileNotFoundError:
+                continue
+        try:
+            result.source_module = cls.load(Path(source), root=actual_root)
+        except FileNotFoundError:
+            result.source_module = None
+        return result
 
     # ------------------------------------------------------------------
     # Save

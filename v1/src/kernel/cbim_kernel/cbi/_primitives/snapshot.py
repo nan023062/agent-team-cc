@@ -32,9 +32,15 @@ def build_snapshot(root: Path) -> str:
             name = m["name"]
             desc = m["description"]
             owner = m["owner"]
+            # status surfaces the architect's declared intent at the moment
+            # the architect triages a task — without this, "spec" modules are
+            # invisible in the snapshot. Default "implemented" is set by
+            # load_module() for back-compat with pre-status module.md files.
+            status = m.get("status", "implemented")
             suffix = f" — {desc}" if desc else ""
             owner_tag = f" (owner: {owner})" if owner else ""
-            lines.append(f"- `{path}` **{name}**{suffix}{owner_tag}")
+            status_tag = f" [status: {status}]"
+            lines.append(f"- `{path}` **{name}**{status_tag}{suffix}{owner_tag}")
     else:
         lines.append("- （暂无模块）")
 

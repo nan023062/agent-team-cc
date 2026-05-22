@@ -14,7 +14,7 @@ Strict dependency direction:
 
 from .agent import Agent, AgentFrontmatter, SkillCollection
 from .dna_module import (
-    DNAModule, ModuleFrontmatter, Contract, WorkflowCollection,
+    DNAModule, ModuleFrontmatter, Contract, WorkflowCollection, SplitResult,
 )
 from .memory import Memory
 from .skill import ReadOnlyError, Skill
@@ -28,6 +28,7 @@ __all__ = [
     "ModuleFrontmatter",
     "Contract",
     "WorkflowCollection",
+    "SplitResult",
     "Memory",
     "ReadOnlyError",
     "Skill",

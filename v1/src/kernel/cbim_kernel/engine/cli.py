@@ -54,7 +54,7 @@ def main() -> int:
     dsub = pd.add_subparsers(dest="command")
     _p = dsub.add_parser("list"); _p.add_argument("--root", default=None)
     _p = dsub.add_parser("show"); _p.add_argument("path")
-    _p = dsub.add_parser("init"); _p.add_argument("dir"); _p.add_argument("--type", required=True, choices=["root", "parent", "leaf"]); _p.add_argument("--name", required=True); _p.add_argument("--owner", required=True); _p.add_argument("--description", default=""); _p.add_argument("--with-contract", action="store_true", dest="with_contract")
+    _p = dsub.add_parser("init"); _p.add_argument("dir"); _p.add_argument("--type", required=True, choices=["root", "parent", "leaf"]); _p.add_argument("--name", required=True); _p.add_argument("--owner", required=True); _p.add_argument("--description", default=""); _p.add_argument("--with-contract", action="store_true", dest="with_contract"); _p.add_argument("--status", default=None, choices=["spec", "planned", "implemented"], help="Declared intent (default: spec for parent/leaf, implemented for root)")
     _p = dsub.add_parser("reindex"); _p.add_argument("--root", default=None)
     _p = dsub.add_parser(
         "edit",
@@ -109,12 +109,37 @@ def main() -> int:
                     help="For replace/append: if heading absent, append a new section at EOF")
     _p.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="Print resulting file to stdout; do not write")
+    _p = dsub.add_parser(
+        "split",
+        help=(
+            "Atomically decompose one source module into one source + N new "
+            "modules by extracting named H2 sections. Reports (does NOT "
+            "rewrite) other modules whose dependencies reference the source."
+        ),
+    )
+    _p.add_argument("source", help="Source module directory (the one containing .dna/)")
+    _p.add_argument("--into", action="append", default=[], dest="into",
+                    metavar="PATH:NAME:HEADINGS",
+                    help="Repeatable. PATH:NAME:H1|H2|... — H is a literal H2 heading "
+                         "text (no leading '##'); multiple headings separated by '|'. "
+                         "Example: --into packages/foo:Foo:Positioning|Key Decisions")
+    _p.add_argument("--owner-override", dest="owner_override", default=None,
+                    help="Override owner for every new split (default: inherit source owner)")
+    _p.add_argument("--keep-source", dest="keep_source", action="store_true", default=True,
+                    help="(default) Leave split sections in source body with a "
+                         "'<!-- split: moved ... -->' comment beneath each heading")
+    _p.add_argument("--no-keep-source", dest="keep_source", action="store_false",
+                    help="Remove the migrated sections from source entirely")
+    _p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                    help="Print the plan + dependency_refs report; touch zero files")
+
     dna_cmds = {
         "list": _handle_dna_list,
         "show": _handle_dna_show,
         "init": _handle_dna_init,
         "reindex": _handle_dna_reindex,
         "edit": _handle_dna_edit,
+        "split": _handle_dna_split,
         "write-doc": _handle_dna_write_doc,
         "write-section": _handle_dna_write_section,
     }
@@ -887,7 +912,10 @@ def _handle_dna_list(args: argparse.Namespace) -> int:
         kw = f"  [{', '.join(keywords)}]" if keywords else ""
         owner = m.frontmatter.get("owner", "") or ""
         desc = m.frontmatter.get("description", "") or ""
-        print(f"  {m.id:32s}  [{owner:12s}]  {desc[:40]}{kw}")
+        # Status default = "implemented" matches load_module()'s back-compat
+        # default; here we render straight from frontmatter for the same effect.
+        status = m.frontmatter.get("status", "implemented") or "implemented"
+        print(f"  {m.id:32s}  [{owner:12s}]  <{status:11s}>  {desc[:40]}{kw}")
     return 0
 
 
@@ -906,12 +934,14 @@ def _handle_dna_show(args: argparse.Namespace) -> int:
     description = m.frontmatter.get("description", "") or ""
     keywords = m.frontmatter.get("keywords") or []
     dependencies = m.frontmatter.get("dependencies") or []
+    status = m.frontmatter.get("status", "implemented") or "implemented"
     workflows = m.workflows.list()
     architecture = m.body.read()
     contract = m.contract.body.read() if m.contract.exists() else ""
 
     print(f"Name        : {name}")
     print(f"Owner       : {owner}")
+    print(f"Status      : {status}")
     print(f"Description : {description}")
     if keywords:     print(f"Keywords    : {', '.join(keywords)}")
     if dependencies: print(f"Dependencies: {', '.join(dependencies)}")
@@ -931,6 +961,7 @@ def _handle_dna_init(args: argparse.Namespace) -> int:
             description=args.description,
             with_contract=args.with_contract,
             type=args.type,
+            status=args.status,
         )
         aimod = m.path.parent  # <mod_dir>/.dna
         print(f"Initialized [{args.type}]: {aimod}/")
@@ -1087,7 +1118,10 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
 
     try:
         if target == "frontmatter":
-            from cbim_kernel.cbi._primitives.modules import _MODULE_FM_LIST_FIELDS
+            from cbim_kernel.cbi._primitives.modules import (
+                _MODULE_FM_LIST_FIELDS,
+                _MODULE_FM_STATUS_VALUES,
+            )
 
             if args.field is None:
                 raise ValueError("--field is required for --target frontmatter")
@@ -1107,6 +1141,19 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
                     f"--value-list item_a item_b"
                 )
             new_value = args.value_list if list_given else args.value
+            # Enum-typed scalar fields: validate the value set lives in the
+            # primitive layer (single source of truth). Reject unknown values
+            # before they hit disk.
+            if args.field == "status":
+                if list_given:
+                    raise ValueError(
+                        "field 'status' is a scalar enum; use --value, not --value-list"
+                    )
+                if new_value not in _MODULE_FM_STATUS_VALUES:
+                    raise ValueError(
+                        f"status must be one of {_MODULE_FM_STATUS_VALUES}, "
+                        f"got: {new_value!r}"
+                    )
             m.frontmatter.set(args.field, new_value)
 
         elif target == "body":
@@ -1192,4 +1239,92 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
         print(str(m.contract.path.resolve()))
     else:
         print(str(m.path.resolve()))
+    return 0
+
+
+def _parse_into_spec(spec: str) -> dict:
+    """Parse one --into PATH:NAME:H1|H2|... value into a split dict.
+
+    Format: <path>:<name>:<heading>[|<heading>...]
+    Headings are literal H2 text (no leading '##'); pipe-separated.
+    """
+    parts = spec.split(":")
+    if len(parts) < 3:
+        raise ValueError(
+            f"--into value must be PATH:NAME:HEADINGS, got: {spec!r}"
+        )
+    # Path may itself contain a drive letter on Windows (e.g. C:\foo). To stay
+    # cross-platform we accept the FIRST colon as the path/name delimiter and
+    # the LAST as the name/headings delimiter; everything between is the name.
+    # For simplicity in this v1 surface, we require POSIX-style paths in --into
+    # (the typical usage is project-relative). Document this in --help if it
+    # ever causes friction.
+    path = parts[0]
+    name = parts[1]
+    headings_raw = ":".join(parts[2:])
+    headings = [h.strip() for h in headings_raw.split("|") if h.strip()]
+    if not headings:
+        raise ValueError(f"--into has no headings after the second colon: {spec!r}")
+    return {
+        "path": path,
+        "name": name,
+        "headings": headings,
+    }
+
+
+def _handle_dna_split(args: argparse.Namespace) -> int:
+    """Atomic cross-module split. See `cbim dna split --help`.
+
+    Prints the report (created paths + dependency_refs warnings) to stdout.
+    Returns 0 on success, 1 on validation / atomicity failure.
+    """
+    from cbim_kernel.cbi.resources import DNAModule
+
+    if not args.into:
+        print(
+            "Error: at least one --into PATH:NAME:HEADINGS is required",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        splits = [_parse_into_spec(s) for s in args.into]
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.owner_override:
+        for s in splits:
+            s["owner"] = args.owner_override
+
+    try:
+        result = DNAModule.split(
+            Path(args.source),
+            splits,
+            dry_run=bool(args.dry_run),
+            keep_source=bool(args.keep_source),
+        )
+    except (ValueError, LookupError, FileNotFoundError, FileExistsError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        print("[dry-run] Would create:")
+        for s in splits:
+            print(f"  - {s['path']}/.dna/module.md  (name={s['name']}, "
+                  f"sections={s['headings']})")
+    else:
+        print("Created:")
+        for m in result.created_modules:
+            print(f"  - {m.path.resolve()}")
+
+    refs = result.dependency_refs_report
+    if refs:
+        print(
+            f"\nWARNING: {len(refs)} module(s) have `dependencies:` entries "
+            f"pointing at the source. These are NOT rewritten automatically "
+            f"(out of scope for `dna split`):"
+        )
+        for r in refs:
+            print(f"  - {r['module']}: {r['action_required']}")
     return 0

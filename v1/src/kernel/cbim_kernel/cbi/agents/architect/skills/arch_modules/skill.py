@@ -53,7 +53,14 @@ For each candidate module, classify into exactly one state. Terminology copied v
 | **0 — 无** | DNA 文件不存在 | No `.dna/module.md` at the candidate path |
 | **1 — 同步** | DNA 与代码一致 ✅ | `.dna/module.md` exists and matches what the code actually does today |
 | **2 — 代码超前** | 代码已变更，DNA 未跟上 | `.dna/module.md` exists but the code has diverged (new interfaces / removed classes / changed dependencies not reflected) |
-| **3 — DNA 超前** | 有设计意图尚未实现 | `.dna/module.md` describes interfaces / behaviours that do not yet exist in code (DNA written as spec ahead of implementation) |
+| **3 — DNA 超前** | 有设计意图尚未实现 | `.dna/module.md` describes interfaces / behaviours that do not yet exist in code (DNA written as spec ahead of implementation). Such a module is normally flagged in its own frontmatter as `status: spec`. |
+
+> **State vs. declared intent — orthogonal axes.** `dna_state` (0/1/2/3) is what the *Architect observes* by comparing DNA to code. `status` (`spec` / `planned` / `implemented`) is what the *Architect declared* in the module's own frontmatter. They are not synonyms:
+>
+> - `status: spec` + `dna_state: 3` → designed-but-not-built, expected (architect-ahead mode).
+> - `status: spec` + `dna_state: 1` → contradiction: the spec field is stale; the programmer who shipped the code forgot to flip it. Update via `cbim dna edit ... --field status --value implemented`.
+> - `status: implemented` + `dna_state: 2` → normal drift; DNA refresh needed.
+> - `status: planned` → reserved for future; architect has named the module but neither designed nor built it yet. Rare.
 
 ### Step 3 — Act: state → action matrix
 
@@ -64,7 +71,7 @@ Each state has exactly one default action path. **Do not improvise.**
 | **0** | Apply the **Worth0 decision** (below). 「值得建?」 | If **worth** → `cbim dna init …` to create module.md (+ contract.md if protocol-boundary). If **not worth** → **skip**, record reason in ContextPack. |
 | **1** | No DNA change needed | Directly extract module path + design constraints into ContextPack. |
 | **2** | DNA must catch up before work proceeds | Analyse the divergence (which interfaces / boundaries / dependencies changed?), update `.dna/module.md` via `cbim dna edit --target body` (or `--target section` for targeted edits) to reflect current code, **then** build ContextPack. |
-| **3** | Validate feasibility | Verify upstream / downstream dependencies are ready. Mark the module in the ContextPack as **「待实现 spec」**, i.e. DNA = task brief. Work Agent must implement to the spec, not modify it. |
+| **3** | Validate feasibility | Verify upstream / downstream dependencies are ready. Mark the module's frontmatter as a spec — concrete, machine-readable, via: `cbim dna edit <mod> --target frontmatter --field status --value spec`. Then carry `action_taken: mark_spec` in the ContextPack entry. DNA = task brief; Work Agent must implement to the spec, not modify it. After successful implementation the Work Agent flips it: `cbim dna edit <mod> --target frontmatter --field status --value implemented`. |
 
 #### Worth0 decision (state-0 only)
 
@@ -107,9 +114,9 @@ The packet is a single Markdown block with the following structure. Fields marke
 |-------|----------|-------------|
 | `path` | yes | **Absolute path** to `.dna/module.md` (or the directory if state = 0 and skipped). |
 | `dna_state` | yes | One of `0`, `1`, `2`, `3` (as defined in the Triage section above). |
-| `action_taken` | yes | What the Architect did: `init` / `skip` / `none` / `update` / `mark_spec`. |
+| `action_taken` | yes | What the Architect did: `init` / `skip` / `none` / `update` / `mark_spec`. `mark_spec` means the architect ran `cbim dna edit ... --field status --value spec` on this module — the frontmatter `status` field is now the machine-readable record; the ContextPack carries the human-readable echo. |
 | `design_constraints` | yes | Plain-text summary of constraints extracted from `module.md` / `contract.md` (positioning, key decisions, public interface signatures). Quote verbatim where possible. |
-| `notes` | optional | Module-specific hint for the Work Agent (e.g. "S1 — implement freely within existing contract", "S3 — DNA is the spec, do not deviate", "S0 skipped — one-shot script, no DNA needed"). |
+| `notes` | optional | Module-specific hint for the Work Agent (e.g. "S1 — implement freely within existing contract", "S3 — DNA is the spec (status=spec), do not deviate; flip to implemented when done", "S0 skipped — one-shot script, no DNA needed"). |
 
 ### Example (Markdown form)
 
@@ -156,7 +163,7 @@ A Work Agent receiving this packet must:
 
 1. Read every listed `path` before writing code.
 2. Treat `dependency_rules` as hard constraints; any deviation requires escalating back through the Coordinator.
-3. Treat `dna_state: 3` modules as **specs** — implement, do not redesign.
+3. Treat `dna_state: 3` modules (and any module whose frontmatter carries `status: spec`) as **specs** — implement, do not redesign. After successful implementation, flip the frontmatter via `cbim dna edit <mod> --target frontmatter --field status --value implemented` so the declared intent matches the new code reality.
 4. Honour every `notes` line scoped to a module it is about to touch.
 
 ---
@@ -286,10 +293,10 @@ Run compliance check after changes.
 
 **Trigger**: Module merged, feature retired, responsibility eliminated after refactoring.
 
-1. Mark in `module.md` frontmatter: add `status: deprecated`
-2. Add deprecation reason and replacement module at the top of `module.md` body
-3. Update the root module's `index.md` — remove or annotate the module path
-4. Check if other modules' `dependencies` reference this module; update each one
+1. Annotate deprecation at the top of `module.md` body: reason + replacement module path.
+2. Update the root module's `index.md` — remove or annotate the module path.
+3. Check if other modules' `dependencies` reference this module; update each one.
+4. (Optional) Leave the frontmatter `status` untouched — it records build-state, not lifecycle. A formal `lifecycle: deprecated` frontmatter field is reserved for a future kernel release; do not hand-write it.
 
 ---
 

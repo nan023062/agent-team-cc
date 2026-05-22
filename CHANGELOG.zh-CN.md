@@ -17,6 +17,27 @@ CBIM 早期阶段修复频率高。为降低用户的迁移摩擦：
 
 ---
 
+## [1.0.5] - 2026-05-22 —— DNA：spec 状态字段 + 原子化 split 命令
+
+`.dna/module.md` 新增 `status` frontmatter 字段（与 `dna_state` 正交）：
+
+- 三个取值：`spec`（已设计、未实现 —— S3 状态）、`planned`（仅命名、设计待补）、`implemented`（代码与 DNA 一致）。
+- `status` 是声明的意图（架构师设定、程序员翻转）；`dna_state`（0/1/2/3）是观测到的漂移。两者都会在 `cbim dna show` / `dna list` / `cbim snapshot` 中露出，让架构师能发现陈旧的 spec 标记（例如 `status:spec + dna_state:1` = 程序员实现完忘记翻转）。
+- `cbim dna init` 支持 `--status`（叶子/父模块默认 `spec`，根模块默认 `implemented`）；`cbim dna edit --target frontmatter --field status --value <v>` 强校验枚举。
+- 向后兼容：本仓库已有 17 个 module.md 文件（以及任何其他仓库的 module.md）保持字节稳定；`load_module()` 返回 dict 时缺失的 status 默认为 `implemented`。
+- `arch_modules` skill 已同步：Worth0 决策 / S3 动作 / 正交矩阵都教学了新词汇。Deprecate Module 段按架构师裁定重写 —— 弃用是生命周期轴，**不是** status 枚举的扩展；生命周期 frontmatter schema 留给未来版本（已挂账跟踪）。
+
+新增 `cbim dna split <source> --into <path>:<name>:<H1|H2|...>` 原子命令：
+
+- 一条命令把源模块拆成 N 个新模块，全成功或全回滚。新模块默认 `status: spec`（消费上面的新字段）。
+- 原子性：先把所有写入暂存到 `.tmp` 文件，校验完整 plan，再按依赖顺序 `os.replace` 一把 sweep；任何环节失败则 unlink 所有 `.tmp` 文件、磁盘保持原状（mid-sweep 测试用故意注入失败验证过）。
+- 源侧默认：保留原 sections 并加 `<!-- split: moved <heading> → <new-path> -->` 弃用注释（可追溯）；`--no-keep-source` 用于干净切走。
+- 跨模块引用重写**不在范围内** —— 命令只输出一份 SCAN-ONLY 的 `dependency_refs` 报告，列出 frontmatter `dependencies:` 提到源路径的同级模块，架构师再用 `cbim dna edit --field dependencies --value-list ...` 手动跟进。把原子性约束在单源分解（C2：单一职责）。
+- 测试覆盖：7 个用例，含 happy path、target 已存在、heading 缺失、仅出报告、dry-run、`status='spec'` 继承、mid-sweep 回滚。
+- CLI 限制：`--into PATH:NAME:HEADINGS` 冒号分隔形式对 Windows 绝对路径不友好；推荐仅使用 POSIX 相对路径（已在 `dna split --help` 标注）。
+
+---
+
 ## [1.0.4] - 2026-05-22 —— 治理打磨：writer 注入信号模板 + skill 与 CLI 对齐
 
 - Memory 写入闭环：`memory/engine/writer.py` 现在会在每个 `## 信号` 标题下输出 4 行 `_SIGNAL_TEMPLATE`（MUST / WANT / HOW / IS 未勾选条目，附 placeholder 提示），让"空信号"条目落盘时自带可填写模板，而不是留一个空槽。`_fill_signals` 语义不变 —— 模板只在未自动抽出信号时作为回退；LLM / 启发式信号仍然会替换 `\n## 信号\n` byte-exact marker 之后的全部内容。

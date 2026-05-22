@@ -17,6 +17,27 @@ This keeps the version line meaningful (each tag is a real surface change) and a
 
 ---
 
+## [1.0.5] - 2026-05-22 — DNA: spec status field + atomic split command
+
+New `status` frontmatter field on `.dna/module.md` (orthogonal to `dna_state`):
+
+- Three values: `spec` (designed, not built — S3 state), `planned` (named only, design pending), `implemented` (code matches DNA).
+- `status` is declared intent (architect-set, programmer-flipped); `dna_state` (0/1/2/3) is observed drift. Both are surfaced in `cbim dna show` / `dna list` / `cbim snapshot` so architect can spot stale spec flags (e.g. `status:spec + dna_state:1` = programmer forgot to flip after implementing).
+- `cbim dna init` accepts `--status` (default `spec` for leaf/parent, `implemented` for root); `cbim dna edit --target frontmatter --field status --value <v>` enforces the enum.
+- Backward compat: existing 17 module.md files in this repo (and any others elsewhere) remain byte-stable; missing-status defaults to `implemented` in `load_module()` return dict.
+- `arch_modules` skill updated: Worth0 decision / S3 action / orthogonality matrix all teach the new vocabulary. Deprecate Module section rewritten per architect ruling — deprecation is a lifecycle axis, NOT a status enum extension; lifecycle frontmatter schema reserved for a future release (follow-up tracked).
+
+New `cbim dna split <source> --into <path>:<name>:<H1|H2|...>` atomic command:
+
+- Splits a source module into N new modules in one all-or-nothing command. New modules default to `status: spec` (consumes the new field).
+- Atomicity: stages all writes to `.tmp` files first, validates the full plan, then sweeps `os.replace` in dependency order; on any failure, unlinks all `.tmp` files and leaves disk untouched (verified with deliberate failure injection in mid-sweep test).
+- Source-side default: keeps the original sections with `<!-- split: moved <heading> → <new-path> -->` deprecation comments (traceability); `--no-keep-source` for a clean cut.
+- Cross-module reference rewrite is OUT OF SCOPE — the command emits a SCAN-ONLY `dependency_refs` report naming sibling modules whose frontmatter `dependencies:` mention the source path, so architect can follow up with `cbim dna edit --field dependencies --value-list ...` manually. Keeping atomicity bounded to one source's decomposition (C2: single responsibility).
+- Test coverage: 7 cases including happy path, target-pre-exists, missing-heading, dependency-report-only, dry-run, `status='spec'` inheritance, mid-sweep rollback.
+- CLI limitation: `--into PATH:NAME:HEADINGS` colon-delimited form is awkward for Windows absolute paths; recommend POSIX-relative paths only (documented in `dna split --help`).
+
+---
+
 ## [1.0.4] - 2026-05-22 — governance polish: signals template in writer + skill CLI alignment
 
 - Memory write closure: `memory/engine/writer.py` now emits a 4-line `_SIGNAL_TEMPLATE` (MUST / WANT / HOW / IS unchecked rows with placeholder hints) under every `## 信号` heading, so empty-signals entries ship with a fill-in stub instead of a blank slot. `_fill_signals` semantics unchanged — the template is the fallback when no signals are auto-extracted; LLM/heuristic signals still replace everything after the byte-exact `\n## 信号\n` marker.
