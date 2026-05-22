@@ -27,3 +27,15 @@ Force update the CBIM kernel to the latest available version (local or remote) a
 
 - If the network is unreachable and the local version is already up to date with what's installed, say so and offer to run `cbim migrate --version <app_latest_local>` to just advance the project pin.
 - If `cbim migrate` is not available (older kernel), fall back to `cbim upgrade apply --to <target>`.
+
+## Developer escape hatch
+
+If the source has changed but the version was not bumped (so version comparison
+short-circuits with "Already up to date") the installed snapshot will be stale.
+In that case force a refresh of the current pinned version:
+
+- `cbim update -y --reinstall` — re-download the current version from GitHub and overwrite the snapshot.
+- `cbim update -y --reinstall --local <path>` — refresh the snapshot from a local kernel source directory (typical dev workflow).
+- `--force` is an alias for `--reinstall`.
+
+This is a dev-only escape hatch; it does not run project schema migration.

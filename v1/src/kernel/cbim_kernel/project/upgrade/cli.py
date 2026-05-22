@@ -40,4 +40,7 @@ def cmd_update(args) -> int:
     extra: list = []
     if getattr(args, "dry_run", False): extra.append("--dry-run")
     if getattr(args, "yes", False): extra.append("--yes")
+    if getattr(args, "reinstall", False): extra.append("--reinstall")
+    local = getattr(args, "local", None)
+    if local: extra += ["--local", str(local)]
     return _fwd("update", extra)

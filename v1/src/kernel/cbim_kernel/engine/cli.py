@@ -231,6 +231,15 @@ def main() -> int:
                       help="Print the plan; do not mutate anything")
     pupd.add_argument("-y", "--yes", action="store_true", dest="yes",
                       help="Skip the interactive confirmation prompt")
+    pupd.add_argument("--reinstall", action="store_true", dest="reinstall",
+                      help="Reinstall the current pinned version even if no version "
+                           "change (force-refresh the installed snapshot)")
+    pupd.add_argument("--force", action="store_true", dest="reinstall",
+                      help="Alias for --reinstall")
+    pupd.add_argument("--local", default=None, dest="local",
+                      metavar="PATH",
+                      help="With --reinstall: refresh from a local kernel source "
+                           "directory instead of GitHub (developer workflow)")
 
     # release-notes -----------------------------------------------------------
     pnotes = sub.add_parser(

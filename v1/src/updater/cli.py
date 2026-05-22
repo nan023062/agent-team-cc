@@ -101,6 +101,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_update = sub.add_parser("update", help="Update CBIM to the latest available version")
     p_update.add_argument("--dry-run", action="store_true", dest="dry_run")
     p_update.add_argument("-y", "--yes", action="store_true", dest="yes")
+    p_update.add_argument("--reinstall", action="store_true", dest="reinstall",
+                          help="Reinstall current pinned version even if no version change "
+                               "(force-refresh the installed snapshot)")
+    p_update.add_argument("--force", action="store_true", dest="reinstall",
+                          help="Alias for --reinstall")
+    p_update.add_argument("--local", default=None, dest="local", metavar="PATH",
+                          help="With --reinstall: refresh from a local kernel source directory")
 
     p_migrate = sub.add_parser("migrate", help="Migrate project schema to a kernel version")
     p_migrate.add_argument("--version", default=None)

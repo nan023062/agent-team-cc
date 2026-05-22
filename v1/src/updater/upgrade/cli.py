@@ -113,12 +113,81 @@ def _current_local_version(app) -> str:
 
 
 def cmd_update(args) -> int:
-    """One-liner update to remote latest. See ``upgrade/.dna/module.md``."""
+    """One-liner update to remote latest. See ``upgrade/.dna/module.md``.
+
+    With ``--reinstall`` (alias ``--force``), refreshes the installed snapshot
+    of the *current* pinned version instead of upgrading. This is the developer
+    escape hatch for "source code changed but version was not bumped, snapshot
+    is stale". When combined with ``--local PATH``, the refresh source is a
+    local kernel directory rather than GitHub.
+    """
     project = get_project_state(Path.cwd())
     cfg = project.upgrade_config
     app = app_state.get_app_state()
-    remote = get_remote_state(cfg, skip_network=False)
+
+    reinstall = bool(getattr(args, "reinstall", False))
+    local_src = getattr(args, "local", None)
+
+    if local_src and not reinstall:
+        sys.stderr.write("[cbim] --local requires --reinstall (or --force)\n")
+        return 2
+
+    # Network is required for normal update (target = remote latest) and for
+    # --reinstall without --local (source = github). It is optional for
+    # --reinstall --local (source = filesystem).
+    skip_network = bool(local_src)
+    remote = get_remote_state(cfg, skip_network=skip_network)
     diagnosis = diagnose(app, project, remote)
+
+    current = _current_local_version(app)
+
+    if reinstall:
+        # Forced refresh of the currently installed version. No version
+        # comparison; no remote-latest lookup required when --local is given.
+        if not current:
+            sys.stderr.write(
+                "[cbim] --reinstall: no kernel currently installed; "
+                "run `cbim install <version>` first\n"
+            )
+            return 1
+        target_version = current
+
+        if not local_src:
+            # Going through the github path still needs a reachable remote so
+            # invoke_updater() can download the tarball.
+            if not remote.reachable:
+                sys.stderr.write(
+                    "[cbim] --reinstall: remote unreachable; "
+                    "pass --local <path> to refresh from a local source\n"
+                )
+                return 3
+
+        print("Reinstalling {} (forced)...".format(target_version))
+
+        if bool(getattr(args, "dry_run", False)):
+            return _run_reinstall(
+                diagnosis, target_version,
+                local_src=local_src, dry_run=True,
+            )
+
+        if not bool(getattr(args, "yes", False)) and sys.stdin.isatty():
+            try:
+                resp = input("Proceed? [y/N] ").strip().lower()
+            except EOFError:
+                resp = ""
+            if resp not in ("y", "yes"):
+                print("aborted.")
+                return 0
+
+        rc = _run_reinstall(
+            diagnosis, target_version,
+            local_src=local_src, dry_run=False,
+        )
+        if rc == 0:
+            print("Installed kernel {}".format(target_version))
+        return rc
+
+    # ---- normal (non-reinstall) update path ----
 
     if not remote.reachable:
         sys.stderr.write("[cbim] remote unreachable; cannot check for updates\n")
@@ -127,7 +196,6 @@ def cmd_update(args) -> int:
         sys.stderr.write("[cbim] no release found on remote\n")
         return 3
 
-    current = _current_local_version(app)
     if current and remote.latest == current:
         print("Already up to date ({})".format(remote.latest))
         return 0
@@ -181,6 +249,65 @@ def cmd_update(args) -> int:
 # ---------------------------------------------------------------------------
 # Project pin write (atomic)
 # ---------------------------------------------------------------------------
+
+def _run_reinstall(diagnosis, target_version: str,
+                   local_src: "str | None", dry_run: bool) -> int:
+    """Force-refresh the snapshot for *target_version*.
+
+    Bypasses the standard apply flow (preflight, snapshot/rollback, remote
+    confirmation) because the user has explicitly asked to overwrite the
+    current install. Steps:
+      1. Remove ``<install_root>/kernel/<target_version>/`` if it exists.
+      2. Invoke the installer (local or github) to populate it fresh.
+
+    Returns 0 on success, non-zero per install.py error semantics.
+    """
+    import shutil as _shutil
+    from updater.install import install_from_github, install_from_local
+
+    install_root = diagnosis.app.install_root
+    if install_root is None:
+        sys.stderr.write(
+            "[cbim] --reinstall: no install root resolved; cannot proceed\n"
+        )
+        return 1
+
+    snapshot_dir = install_root / "kernel" / target_version
+
+    if dry_run:
+        if local_src:
+            print("[cbim] [dry-run] would remove {}".format(snapshot_dir))
+            print("[cbim] [dry-run] would install from local {} as {}".format(
+                local_src, target_version))
+        else:
+            print("[cbim] [dry-run] would remove {}".format(snapshot_dir))
+            print("[cbim] [dry-run] would download+install {} from github".format(
+                target_version))
+        return 0
+
+    if snapshot_dir.is_dir():
+        try:
+            _shutil.rmtree(str(snapshot_dir))
+            print("Removed existing snapshot ({})".format(snapshot_dir))
+        except OSError as exc:
+            sys.stderr.write(
+                "[cbim] --reinstall: failed to remove {}: {}\n".format(
+                    snapshot_dir, exc)
+            )
+            return 1
+
+    try:
+        if local_src:
+            src = Path(local_src).resolve()
+            install_from_local(src, version=target_version)
+        else:
+            install_from_github(version=target_version)
+    except (RuntimeError, OSError, FileNotFoundError) as exc:
+        sys.stderr.write("[cbim] --reinstall: install failed: {}\n".format(exc))
+        return 1
+
+    return 0
+
 
 def _write_pin(project_root: Path, version: str) -> None:
     """Atomic write of ``<project_root>/.cbim/.pin``.
