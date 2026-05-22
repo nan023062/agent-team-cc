@@ -1,6 +1,7 @@
 """Launcher bootstrap — writes ``<install_root>/bin/`` entries."""
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import stat
@@ -225,6 +226,75 @@ def _write_sentinel_block(
 
     with target.open("w", encoding="utf-8", newline="\n") as f:
         f.write(new_content)
+
+
+def ensure_user_settings_deny(install_root: Path) -> None:
+    """Add Write/Edit deny rules for the install root to ``~/.claude/settings.json``.
+
+    Prevents Claude Code from reading kernel internals (source code, venv, etc.)
+    via stray Read/Glob/Grep calls. Idempotent. Never raises.
+    """
+    install_root = Path(install_root)
+    deny_entries = [
+        "Write({}/**)".format(install_root.as_posix()),
+        "Edit({}/**)".format(install_root.as_posix()),
+    ]
+
+    settings_path = Path.home() / ".claude" / "settings.json"
+
+    try:
+        if settings_path.exists():
+            try:
+                data = json.loads(settings_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as exc:
+                print(
+                    "[cbim] WARNING: {} is not valid JSON ({}); skipping deny rule.".format(
+                        settings_path, exc
+                    )
+                )
+                return
+            if not isinstance(data, dict):
+                print(
+                    "[cbim] WARNING: {} root is not an object; skipping deny rule.".format(
+                        settings_path
+                    )
+                )
+                return
+        else:
+            data = {}
+
+        permissions = data.get("permissions")
+        if not isinstance(permissions, dict):
+            permissions = {}
+            data["permissions"] = permissions
+
+        deny = permissions.get("deny")
+        if not isinstance(deny, list):
+            deny = []
+            permissions["deny"] = deny
+
+        added: list[str] = []
+        for deny_entry in deny_entries:
+            if deny_entry in deny:
+                continue
+            deny.append(deny_entry)
+            added.append(deny_entry)
+
+        if not added:
+            print("[cbim] deny rules already present in {}.".format(settings_path))
+            return
+
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+        settings_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        for entry in added:
+            print("[cbim] Added deny rule to {}: {}".format(settings_path, entry))
+    except Exception as exc:  # noqa: BLE001
+        print(
+            "[cbim] WARNING: could not update {}: {}".format(settings_path, exc)
+        )
 
 
 def _is_on_path(bin_path: Path) -> bool:

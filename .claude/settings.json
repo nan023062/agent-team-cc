@@ -14,7 +14,11 @@
     ],
     "deny": [
       "Write(.cbim/**)",
-      "Edit(.cbim/**)"
+      "Edit(.cbim/**)",
+      "Write(.claudeignore)",
+      "Edit(.claudeignore)",
+      "Write(.claude/settings*.json)",
+      "Edit(.claude/settings*.json)"
     ],
     "defaultMode": "bypassPermissions"
   },

@@ -48,21 +48,43 @@ def save_config(data: dict, start: Path | None = None) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _split_path(key: str) -> list[str]:
+    return key.split(".")
+
+
+def _coerce(value_str: str):
+    try:
+        return json.loads(value_str)
+    except (json.JSONDecodeError, ValueError):
+        return value_str
+
+
 def cmd_config_get(args) -> int:
     data = load_config()
-    val = data.get(args.key)
-    if val is None:
-        print("(not set)", file=sys.stderr)
-        return 1
-    print(val)
+    node = data
+    for part in _split_path(args.key):
+        if not isinstance(node, dict) or part not in node:
+            print("(not set)", file=sys.stderr)
+            return 1
+        node = node[part]
+    print(node)
     return 0
 
 
 def cmd_config_set(args) -> int:
     data = load_config()
-    data[args.key] = args.value
+    parts = _split_path(args.key)
+    value = _coerce(args.value)
+    node = data
+    for part in parts[:-1]:
+        existing = node.get(part)
+        if not isinstance(existing, dict):
+            existing = {}
+            node[part] = existing
+        node = existing
+    node[parts[-1]] = value
     save_config(data)
-    print(f"[config] {args.key} = {args.value}")
+    print(f"[config] {args.key} = {value}")
     return 0
 
 
