@@ -1,7 +1,7 @@
 """
 services/knowledge_service.py — read-only .dna module service.
 
-Thin wrapper over cbi.engine.modules.list_modules that also pulls the
+Thin wrapper over cbi._primitives.modules.list_modules that also pulls the
 collateral docs (contract.md, workflows/*/workflow.md) into a single
 record shape suitable for the dashboard UI and MCP tooling.
 """
@@ -39,7 +39,7 @@ def list_modules(cwd=None) -> list[dict]:
 
     # Re-use the canonical loader — it understands the registry, legacy
     # module.json fallback, and skip-dir rules.
-    from cbim_kernel.cbi.engine.modules import list_modules as _list_modules
+    from cbim_kernel.cbi._primitives.modules import list_modules as _list_modules
 
     modules = _list_modules(root)
     # The engine loader returns workflows as a list of slugs; the dashboard

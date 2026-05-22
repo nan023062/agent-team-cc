@@ -1,7 +1,9 @@
 """Tests for `dna write-doc` — body-content write into module.md / contract.md.
 
-Covers the contract in cbim_kernel.cbi.engine.modules.write_module_doc and the
-argparse-level cmd_modules_write_doc in cbim_kernel.cbi.engine.cli.
+Covers the contract in cbim_kernel.cbi._primitives.modules.write_module_doc and the
+argparse-level _handle_dna_write_doc in cbim_kernel.engine.cli (formerly
+cmd_modules_write_doc in cbim_kernel.cbi._primitives.cli, inlined into the
+top-level dispatcher in P3 Wave 1).
 
 Scope:
   - frontmatter on module.md is preserved byte-for-byte; only the body is replaced
@@ -18,8 +20,8 @@ from pathlib import Path
 
 import pytest
 
-from cbim_kernel.cbi.engine.modules import write_module_doc
-from cbim_kernel.cbi.engine.cli import cmd_modules_write_doc
+from cbim_kernel.cbi._primitives.modules import write_module_doc
+from cbim_kernel.engine.cli import _handle_dna_write_doc as cmd_modules_write_doc
 
 
 # --- helpers --------------------------------------------------------------

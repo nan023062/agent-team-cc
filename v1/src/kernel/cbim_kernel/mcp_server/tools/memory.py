@@ -13,24 +13,26 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def _engine_for_project(cwd: Path):
-    """Build a MemoryEngine pointed at <project>/.cbim/memory/."""
-    from cbim_kernel.memory.engine.engine import MemoryEngine
-    from cbim_kernel.memory.engine.file_backend import FileBackend
-
-    # Find the .cbim/ directory by walking up from cwd
+def _project_root(cwd: Path) -> Path:
+    """Walk up from cwd to find the directory containing .cbim/."""
     p = cwd.resolve()
     for _ in range(6):
         if (p / ".cbim").is_dir():
-            store_dir = p / ".cbim" / "memory"
-            store_dir.mkdir(parents=True, exist_ok=True)
-            return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+            return p
         if p.parent == p:
             break
         p = p.parent
     raise RuntimeError(
         f"No .cbim/ directory found walking up from {cwd}; cannot locate memory store."
     )
+
+
+def _store_dir(cwd: str) -> Path:
+    """Resolve <project>/.cbim/memory/ for the given cwd (creating if absent)."""
+    root = _project_root(Path(cwd) if cwd else Path.cwd())
+    store = root / ".cbim" / "memory"
+    store.mkdir(parents=True, exist_ok=True)
+    return store
 
 
 def register(mcp) -> None:
@@ -47,12 +49,13 @@ def register(mcp) -> None:
         Returns:
             Newline-separated list of matching entry IDs (paths relative to the store).
         """
-        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
+        from cbim_kernel.cbi.resources import Memory
+        root = _project_root(Path(cwd) if cwd else Path.cwd())
         tier_arg = tier if tier in ("short", "medium") else None
-        results = engine.query(text, tier=tier_arg, top_k=top_k)
+        results = Memory.query(text, tier=tier_arg, top_k=top_k, root=root)
         if not results:
             return "(no matches)"
-        return "\n".join(results)
+        return "\n".join(r["doc_id"] for r in results)
 
     @mcp.tool()
     def memory_list(tier: str = "", cwd: str = "") -> str:
@@ -71,8 +74,7 @@ def register(mcp) -> None:
         entries = list_entries(tier=tier_arg, cwd=cwd or None)
         if not entries:
             return "(empty)"
-        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
-        store_dir = engine.store_dir
+        store_dir = _store_dir(cwd)
         return "\n".join(
             str(store_dir / e["tier"] / e["id"]) for e in entries
         )
@@ -95,21 +97,18 @@ def register(mcp) -> None:
         Returns:
             Path of the created entry relative to the store.
         """
-        from datetime import date
+        from cbim_kernel.cbi.resources import Memory
 
         if tier not in ("short", "medium"):
             return f"ERROR: tier must be 'short' or 'medium', got {tier!r}"
 
-        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
-        store = engine.store_dir / tier
+        root = _project_root(Path(cwd) if cwd else Path.cwd())
+        store = root / ".cbim" / "memory"
         store.mkdir(parents=True, exist_ok=True)
-        today = date.today().isoformat()
-        path = store / f"{today}-manual-{slug}.md"
-        if path.exists():
-            return f"ERROR: {path.name} already exists"
-        path.write_text(content, encoding="utf-8")
-        engine.add(path, tier)
-        return str(path.relative_to(engine.store_dir))
+        entry = Memory.create(
+            slug=slug, content=content, tier=tier, kind="manual", root=root,
+        )
+        return str(entry.path.relative_to(store))
 
     @mcp.tool()
     def memory_delete(path: str, cwd: str = "") -> str:
@@ -119,14 +118,15 @@ def register(mcp) -> None:
             path: Path relative to the memory store directory.
             cwd: Project directory (default: current working dir).
         """
-        engine = _engine_for_project(Path(cwd) if cwd else Path.cwd())
-        target = (engine.store_dir / path).resolve()
+        from cbim_kernel.cbi.resources import Memory
+
+        store = _store_dir(cwd)
+        target = (store / path).resolve()
         try:
-            target.relative_to(engine.store_dir.resolve())
+            target.relative_to(store.resolve())
         except ValueError:
             return f"ERROR: path {path!r} escapes the memory store"
         if not target.exists():
             return f"ERROR: not found: {path}"
-        engine.delete(target)
-        target.unlink()
+        Memory.load(target).delete()
         return f"deleted {path}"

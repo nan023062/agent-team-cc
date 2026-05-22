@@ -14,7 +14,7 @@ import json
 import re
 from pathlib import Path
 
-from cbim_kernel.cbi.engine.agents import list_agents
+from cbim_kernel.cbi._primitives.agents import list_agents
 from cbim_kernel.cbi.skills.hr_assessment.config import CONFIG as _cfg
 
 SKILLS_VOLUME_THRESHOLD      = _cfg["skills_volume_threshold"]

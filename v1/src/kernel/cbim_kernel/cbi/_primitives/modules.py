@@ -14,6 +14,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from cbim_kernel.services._fm import (
+    parse_frontmatter,
+    render_frontmatter,
+    strip_frontmatter,
+)
+
 try:
     from cbim_kernel.engine.import_log import log_import as _log_import
 except ImportError:
@@ -26,65 +32,6 @@ def _rel_for_log(p: Path, root: Path) -> str:
         return p.resolve().relative_to(root.resolve()).as_posix()
     except Exception:
         return p.as_posix()
-
-
-# ---------------------------------------------------------------------------
-# YAML frontmatter parser (no PyYAML dependency)
-# ---------------------------------------------------------------------------
-
-def _parse_frontmatter(text: str) -> dict:
-    """Parse YAML frontmatter from markdown text. Returns (meta, body)."""
-    if not text.startswith("---"):
-        return {}
-    end = text.find("\n---", 3)
-    if end == -1:
-        return {}
-    block = text[3:end].strip()
-    return _parse_yaml_block(block)
-
-
-def _strip_frontmatter(text: str) -> str:
-    """Return markdown body after frontmatter."""
-    if text.startswith("---"):
-        end = text.find("\n---", 3)
-        if end != -1:
-            return text[end + 4:].strip()
-    return text.strip()
-
-
-def _parse_yaml_block(block: str) -> dict:
-    """Minimal YAML parser for frontmatter: supports scalars, simple lists, flow lists."""
-    meta: dict = {}
-    current_key = ""
-    for line in block.splitlines():
-        stripped = line.strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        # List continuation: "  - value"
-        if line.startswith("  - ") and current_key:
-            val = line.strip().lstrip("- ").strip()
-            if not isinstance(meta.get(current_key), list):
-                meta[current_key] = []
-            meta[current_key].append(val)
-            continue
-        if ":" in stripped:
-            k, _, v = stripped.partition(":")
-            k = k.strip()
-            v = v.strip()
-            current_key = k
-            if not v:
-                # Next lines may be list items
-                meta[k] = []
-            elif v.startswith("[") and v.endswith("]"):
-                # Flow list: [a, b, c]
-                inner = v[1:-1].strip()
-                if inner:
-                    meta[k] = [item.strip().strip("'\"") for item in inner.split(",")]
-                else:
-                    meta[k] = []
-            else:
-                meta[k] = v.strip("'\"")
-    return meta
 
 
 # ---------------------------------------------------------------------------
@@ -115,8 +62,8 @@ def _load_new_format(mod_dir: Path, root: Path, aimod: Path, module_md: Path) ->
         _log_import(f"dna:{_rel_for_log(module_md, root)}", "miss", "dna.load")
         return None
 
-    data = _parse_frontmatter(raw)
-    body = _strip_frontmatter(raw)
+    data = parse_frontmatter(raw)
+    body = strip_frontmatter(raw)
     rel = mod_dir.relative_to(root).as_posix()
 
     contract_path = aimod / "contract.md"
@@ -460,8 +407,8 @@ def update_module_meta(mod_dir: Path, **kwargs) -> None:
 
     if module_md.exists():
         raw = module_md.read_text(encoding="utf-8")
-        meta = _parse_frontmatter(raw)
-        body = _strip_frontmatter(raw)
+        meta = parse_frontmatter(raw)
+        body = strip_frontmatter(raw)
         meta.update({k: v for k, v in kwargs.items() if v is not None})
         module_md.write_text(_build_module_md(meta, body), encoding="utf-8")
     elif legacy_json.exists():
@@ -470,38 +417,22 @@ def update_module_meta(mod_dir: Path, **kwargs) -> None:
         legacy_json.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+_MODULE_FM_SCHEMA = (
+    "name", "owner", "description",
+    "keywords", "dependencies", "includeDirs",
+)
+
+# Frontmatter fields whose YAML type is a list. The CLI uses this to reject
+# scalar `--value` writes against these fields and to require `--value-list`
+# instead, so users never accidentally serialize "a,b,c" as a single string.
+_MODULE_FM_LIST_FIELDS = frozenset({
+    "keywords", "dependencies", "includeDirs",
+})
+
+
 def _build_module_md(meta: dict, body: str) -> str:
     """Reconstruct module.md from meta dict and body string."""
-    fm_lines = ["---"]
-    # Emit known fields in a stable order
-    for key in ["name", "owner", "description", "keywords", "dependencies", "includeDirs"]:
-        if key not in meta:
-            continue
-        val = meta[key]
-        if isinstance(val, list):
-            if val:
-                fm_lines.append(f"{key}:")
-                for item in val:
-                    fm_lines.append(f"  - {item}")
-            else:
-                fm_lines.append(f"{key}: []")
-        else:
-            fm_lines.append(f"{key}: {val}")
-    # Emit any remaining keys
-    for key, val in meta.items():
-        if key in ("name", "owner", "description", "keywords", "dependencies", "includeDirs"):
-            continue
-        if isinstance(val, list):
-            if val:
-                fm_lines.append(f"{key}:")
-                for item in val:
-                    fm_lines.append(f"  - {item}")
-            else:
-                fm_lines.append(f"{key}: []")
-        else:
-            fm_lines.append(f"{key}: {val}")
-    fm_lines.append("---")
-    return "\n".join(fm_lines) + "\n\n" + body + "\n"
+    return render_frontmatter(meta, _MODULE_FM_SCHEMA) + "\n" + body + "\n"
 
 
 _WRITE_DOC_ALLOWED = ("module.md", "contract.md")
@@ -714,7 +645,7 @@ def write_module_section(
 
     original = target.read_text(encoding="utf-8")
     had_frontmatter = original.startswith("---") and original.find("\n---", 3) != -1
-    original_meta = _parse_frontmatter(original) if had_frontmatter else {}
+    original_meta = parse_frontmatter(original) if had_frontmatter else {}
 
     frontmatter_block, body_text = _split_frontmatter_block(original)
     body_lines = body_text.splitlines()
@@ -809,7 +740,7 @@ def write_module_section(
 
     # Validate frontmatter still parses if it did before.
     if had_frontmatter:
-        new_meta = _parse_frontmatter(new_content)
+        new_meta = parse_frontmatter(new_content)
         if not new_meta and original_meta:
             raise RuntimeError(
                 "post-edit frontmatter failed to parse; aborting (file unchanged)"

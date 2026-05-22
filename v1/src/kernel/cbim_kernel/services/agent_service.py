@@ -1,7 +1,7 @@
 """
 services/agent_service.py — read-only agent roster service.
 
-Wraps cbi.engine.agents with a stable, dashboard/MCP-facing surface.
+Wraps cbi._primitives.agents with a stable, dashboard/MCP-facing surface.
 Filters out the built-in framework agents (architect / hr / auditor /
 programmer) so the dashboard UI only shows user-defined work agents.
 """

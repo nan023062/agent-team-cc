@@ -1,5 +1,5 @@
 """
-engine/snapshot.py — Project knowledge snapshot for session context.
+_primitives/snapshot.py — Project knowledge snapshot for session context.
 
 Generates a concise markdown summary of:
   - Module tree (business layer, from .dna/)
@@ -8,14 +8,14 @@ Generates a concise markdown summary of:
 Invoke via unified CLI:
   python .cbim/engine snapshot --root <project-root>
 
-Or import directly:
-  from cbi.engine.snapshot import build_snapshot
+Or import directly (INTERNAL — prefer the resource layer):
+  from cbim_kernel.cbi._primitives.snapshot import build_snapshot
 """
 
 from pathlib import Path
 
-from cbim_kernel.cbi.engine.modules import list_modules
-from cbim_kernel.cbi.engine.agents import list_agents
+from cbim_kernel.cbi._primitives.modules import list_modules
+from cbim_kernel.cbi._primitives.agents import list_agents
 
 
 def build_snapshot(root: Path) -> str:

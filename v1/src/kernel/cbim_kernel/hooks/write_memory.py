@@ -3,26 +3,15 @@ write_memory.py — Stop hook (fires at end of each assistant turn).
 
   1. Logs [ASSIST] — the assistant's last text response (from transcript JSONL)
   2. Marks .cc-status as idle so the scheduler may fire idle-sensitive tasks
-  3. Delegates memory distillation to the memory engine
+  3. Writes a short-term memory entry from the transcript (in-process — no
+     subprocess hop into a CLI)
 """
 
 import json
-import subprocess
 import sys
 from pathlib import Path
 
-from cbim_kernel.context import cbim_dir, project_root
-
-
-def _find_python() -> str:
-    for root in [project_root(), cbim_dir()]:
-        for candidate in [
-            root / ".venv" / "Scripts" / "python.exe",
-            root / ".venv" / "bin" / "python",
-        ]:
-            if candidate.exists():
-                return str(candidate)
-    return sys.executable
+from cbim_kernel.context import cbim_dir
 
 
 def _mark_idle() -> None:
@@ -33,6 +22,31 @@ def _mark_idle() -> None:
         )
     except Exception:
         pass
+
+
+def _write_session_entry(transcript_path: str) -> None:
+    """In-process equivalent of the former `cbim memory write-session`.
+
+    Mirrors memory/engine/cli.py:cmd_write_session: build the default
+    FileBackend-backed engine pointed at <project>/.cbim/memory/, then hand
+    the transcript to writer.write_session.
+    """
+    try:
+        from cbim_kernel.memory.engine.config import load_config
+        from cbim_kernel.memory.engine.engine import MemoryEngine
+        from cbim_kernel.memory.engine.file_backend import FileBackend
+        from cbim_kernel.memory.engine.writer import write_session
+
+        store_dir = cbim_dir() / "memory"
+        engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+        cfg = load_config()
+        path = write_session(transcript_path, store_dir, engine, cfg)
+        if path:
+            print(f"[memory] wrote {path.name}", file=sys.stderr)
+    except Exception as e:
+        # Hooks must never break the assistant turn. Swallow but surface
+        # the reason on stderr for debuggability.
+        print(f"[memory] write_session failed: {e}", file=sys.stderr)
 
 
 def main(event: dict | None = None) -> int:
@@ -60,12 +74,7 @@ def main(event: dict | None = None) -> int:
     if not transcript_path:
         return 0
 
-    subprocess.run(
-        [_find_python(), "-m", "cbim_kernel", "memory", "write-session", transcript_path],
-        cwd=str(project_root()),
-        timeout=60,
-        check=False,
-    )
+    _write_session_entry(transcript_path)
     return 0
 
 

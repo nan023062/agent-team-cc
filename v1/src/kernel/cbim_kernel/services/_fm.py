@@ -53,6 +53,39 @@ def strip_frontmatter(text: str) -> str:
     return text.strip()
 
 
+def render_frontmatter(meta: dict, schema: tuple[str, ...] = ()) -> str:
+    """Render `meta` as a `---\\n...\\n---\\n` YAML frontmatter block.
+
+    Fields listed in `schema` are emitted first, in the given order, only if
+    present in `meta`. Remaining keys follow in insertion order. Lists render
+    block-style when populated (``key:`` then ``  - item`` lines) and ``[]``
+    when empty. All other values are rendered as ``key: value``.
+    """
+    lines: list[str] = ["---"]
+    emitted: set[str] = set()
+    for key in schema:
+        if key in meta:
+            lines.extend(_render_field(key, meta[key]))
+            emitted.add(key)
+    for key, val in meta.items():
+        if key in emitted:
+            continue
+        lines.extend(_render_field(key, val))
+    lines.append("---")
+    return "\n".join(lines) + "\n"
+
+
+def _render_field(key: str, val) -> list[str]:
+    if isinstance(val, list):
+        if val:
+            out = [f"{key}:"]
+            for item in val:
+                out.append(f"  - {item}")
+            return out
+        return [f"{key}: []"]
+    return [f"{key}: {val}"]
+
+
 def find_project_root(cwd) -> "object":
     """Walk up from cwd looking for .cbim/. Returns Path or cwd."""
     from pathlib import Path

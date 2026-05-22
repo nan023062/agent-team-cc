@@ -60,27 +60,34 @@ def register(mcp) -> None:
             module_path: Path to the module directory (containing .dna/), e.g. 'src/combat'.
             cwd: Project directory (default: current working dir).
         """
-        from cbim_kernel.cbi.engine.modules import load_module
+        from cbim_kernel.cbi.resources import DNAModule
         root = _project_root(cwd)
         mod_dir = (root / module_path).resolve()
-        m = load_module(mod_dir, root)
-        if not m:
+        try:
+            m = DNAModule.load(mod_dir, root=root)
+        except FileNotFoundError:
             return f"ERROR: no .dna/ found in {mod_dir}"
+        fm = m.frontmatter
         lines = [
-            f"Name        : {m['name']}",
-            f"Owner       : {m['owner']}",
-            f"Description : {m['description']}",
+            f"Name        : {fm.get('name', m.id)}",
+            f"Owner       : {fm.get('owner', '')}",
+            f"Description : {fm.get('description', '')}",
         ]
-        if m.get("keywords"):
-            lines.append(f"Keywords    : {', '.join(m['keywords'])}")
-        if m.get("dependencies"):
-            lines.append(f"Dependencies: {', '.join(m['dependencies'])}")
-        if m.get("workflows"):
-            lines.append(f"Workflows   : {', '.join(m['workflows'])}")
-        if m.get("architecture"):
-            lines.append("\n--- module.md (body) ---\n" + m["architecture"])
-        if m.get("contract"):
-            lines.append("\n--- contract.md ---\n" + m["contract"])
+        keywords = fm.get("keywords") or []
+        if keywords:
+            lines.append(f"Keywords    : {', '.join(keywords)}")
+        dependencies = fm.get("dependencies") or []
+        if dependencies:
+            lines.append(f"Dependencies: {', '.join(dependencies)}")
+        workflows = m.workflows.list()
+        if workflows:
+            lines.append(f"Workflows   : {', '.join(workflows)}")
+        body_text = m.body.read()
+        if body_text:
+            lines.append("\n--- module.md (body) ---\n" + body_text)
+        contract_text = m.contract.body.read() if m.contract.exists() else ""
+        if contract_text:
+            lines.append("\n--- contract.md ---\n" + contract_text)
         return "\n".join(lines)
 
     @mcp.tool()
@@ -90,7 +97,8 @@ def register(mcp) -> None:
         Args:
             cwd: Project directory (default: current working dir).
         """
-        from cbim_kernel.cbi.engine.modules import update_index, list_modules
+        from cbim_kernel.cbi.resources import DNAModule
         root = _project_root(cwd)
-        update_index(root)
-        return f"Rebuilt registry  ({len(list_modules(root))} modules)"
+        DNAModule.reindex(root=root)
+        count = len(DNAModule.list_all(root=root))
+        return f"Rebuilt registry  ({count} modules)"

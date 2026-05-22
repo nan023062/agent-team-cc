@@ -5,8 +5,8 @@ Usage (cwd=.cbim/):
   python .cbim/engine <domain> <command> [args]
 
 Domains:
-  memory      write-session | load-context | create | add | query | delete | reindex | cleanup
-  dna         list | show | init | reindex
+  memory      create | add | query | delete | reindex | cleanup
+  dna         list | show | init | reindex | edit | write-doc (deprecated) | write-section (deprecated)
   agent       list | show | scaffold | archive
   snapshot    [--root PATH]
   skill       list | show <name>
@@ -37,42 +37,65 @@ def main() -> int:
     cfg = load_config()
     pm = sub.add_parser("memory", help="Memory engine commands")
     msub = pm.add_subparsers(dest="command")
-    _p = msub.add_parser("write-session"); _p.add_argument("transcript_path"); _p.add_argument("--store-dir", dest="store_dir", default=None)
-    _p = msub.add_parser("load-context"); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("create"); _p.add_argument("--slug", required=True); _p.add_argument("--content", required=True); _p.add_argument("--tier", default="short", choices=["short", "medium"]); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("add"); _p.add_argument("path"); _p.add_argument("--tier", default="short", choices=["short", "medium"]); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("query"); _p.add_argument("text"); _p.add_argument("--tier", choices=["short", "medium"], default=None); _p.add_argument("--top-k", type=int, default=cfg["query"]["default_top_k"], dest="top_k"); _p.add_argument("--verbose", action="store_true"); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("delete"); _p.add_argument("path"); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("reindex"); _p.add_argument("--tier", choices=["short", "medium"], default=None); _p.add_argument("--store-dir", dest="store_dir", default=None)
     _p = msub.add_parser("cleanup"); _p.add_argument("--keep-days", type=int, default=cfg["short_term"]["keep_days"], dest="keep_days"); _p.add_argument("--store-dir", dest="store_dir", default=None)
-    _p = msub.add_parser("preview"); _p.add_argument("--port", type=int, default=8765); _p.add_argument("--store-dir", dest="store_dir", default=None)
     mem_cmds = {
-        "write-session": mcli.cmd_write_session, "load-context": mcli.cmd_load_context,
         "create": mcli.cmd_create, "add": mcli.cmd_add, "query": mcli.cmd_query,
         "delete": mcli.cmd_delete, "reindex": mcli.cmd_reindex,
-        "cleanup": mcli.cmd_cleanup, "preview": mcli.cmd_preview,
+        "cleanup": mcli.cmd_cleanup,
     }
 
     # dna ---------------------------------------------------------------------
-    from cbim_kernel.cbi.engine import cli as kcli
     pd = sub.add_parser("dna", help="Module (.dna) commands")
     dsub = pd.add_subparsers(dest="command")
     _p = dsub.add_parser("list"); _p.add_argument("--root", default=None)
     _p = dsub.add_parser("show"); _p.add_argument("path")
     _p = dsub.add_parser("init"); _p.add_argument("dir"); _p.add_argument("--type", required=True, choices=["root", "parent", "leaf"]); _p.add_argument("--name", required=True); _p.add_argument("--owner", required=True); _p.add_argument("--description", default=""); _p.add_argument("--with-contract", action="store_true", dest="with_contract")
     _p = dsub.add_parser("reindex"); _p.add_argument("--root", default=None)
-    _p = dsub.add_parser("write-doc", help="Write body content into <module>/.dna/{module.md,contract.md}, preserving frontmatter")
+    _p = dsub.add_parser(
+        "edit",
+        help=(
+            "Unified module edit: frontmatter / body / section / contract / "
+            "contract-section / workflow. Replaces write-doc and write-section."
+        ),
+    )
+    _p.add_argument("module_path", help="Path to the module directory (the one containing .dna/)")
+    _p.add_argument("--target", required=True,
+                    choices=["frontmatter", "body", "section", "contract", "contract-section", "workflow"],
+                    help="What to edit")
+    _p.add_argument("--field", default=None, help="Frontmatter field name (for --target frontmatter)")
+    _p.add_argument("--value", default=None,
+                    help="Frontmatter scalar value (for --target frontmatter); "
+                         "use --value-list for list-typed fields")
+    _p.add_argument("--value-list", dest="value_list", nargs="+", default=None,
+                    metavar="ITEM",
+                    help="Frontmatter list value (one or more items, space-separated); "
+                         "mutually exclusive with --value")
+    _p.add_argument("--content", default=None, help="Inline markdown content")
+    _p.add_argument("--content-file", dest="content_file", default=None, help="Read content from this path")
+    _p.add_argument("--stdin", action="store_true", help="Read content from stdin")
+    _p.add_argument("--heading", default=None, help="Exact heading text (for section / contract-section)")
+    _p.add_argument("--level", type=int, default=2, choices=[2, 3], help="Heading level (default: 2)")
+    _p.add_argument("--mode", default=None, choices=["replace", "append", "insert-after", "delete"],
+                    help="Section edit mode (default: replace; ignored for non-section targets)")
+    _p.add_argument("--name", default=None, help="Workflow slug (for --target workflow)")
+    _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
+                    help="For section replace/append: if heading absent, append a new section at EOF")
+    _p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                    help="Print rendered result to stdout; do not write to disk")
+
+    _p = dsub.add_parser("write-doc", help="[deprecated] use `dna edit --target body` instead")
     _p.add_argument("module_path", help="Path to the module directory (the one containing .dna/)")
     _p.add_argument("--file", required=True, choices=["module.md", "contract.md"], help="Which file in .dna/ to write")
     _p.add_argument("--content", default=None, help="Body markdown as an inline string")
     _p.add_argument("--content-file", dest="content_file", default=None, help="Read body markdown from this path")
     _p = dsub.add_parser(
         "write-section",
-        help=(
-            "Section-level (H2/H3) surgical edit of .dna/{module.md,contract.md}. "
-            "Frontmatter is preserved verbatim. "
-            "Setext-style headings (underline with ===) are not supported."
-        ),
+        help="[deprecated] use `dna edit --target section` instead",
     )
     _p.add_argument("module_path", help="Path to the module directory (the one containing .dna/)")
     _p.add_argument("--file", required=True, choices=["module.md", "contract.md"], help="Which file in .dna/ to edit")
@@ -86,7 +109,15 @@ def main() -> int:
                     help="For replace/append: if heading absent, append a new section at EOF")
     _p.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="Print resulting file to stdout; do not write")
-    dna_cmds = {"list": kcli.cmd_modules_list, "show": kcli.cmd_modules_show, "init": kcli.cmd_modules_init, "reindex": kcli.cmd_modules_reindex, "write-doc": kcli.cmd_modules_write_doc, "write-section": kcli.cmd_modules_write_section}
+    dna_cmds = {
+        "list": _handle_dna_list,
+        "show": _handle_dna_show,
+        "init": _handle_dna_init,
+        "reindex": _handle_dna_reindex,
+        "edit": _handle_dna_edit,
+        "write-doc": _handle_dna_write_doc,
+        "write-section": _handle_dna_write_section,
+    }
 
     # agent -------------------------------------------------------------------
     pa = sub.add_parser("agent", help="Agent roster commands")
@@ -95,10 +126,15 @@ def main() -> int:
     _p = asub.add_parser("show"); _p.add_argument("name")
     _p = asub.add_parser("scaffold"); _p.add_argument("name"); _p.add_argument("--description", default=""); _p.add_argument("--model", default="claude-sonnet-4-6")
     _p = asub.add_parser("archive"); _p.add_argument("name")
-    agent_cmds = {"list": kcli.cmd_agents_list, "show": kcli.cmd_agents_show, "scaffold": kcli.cmd_agents_scaffold, "archive": kcli.cmd_agents_archive}
+    agent_cmds = {
+        "list": _handle_agent_list,
+        "show": _handle_agent_show,
+        "scaffold": _handle_agent_scaffold,
+        "archive": _handle_agent_archive,
+    }
 
     # snapshot ----------------------------------------------------------------
-    from cbim_kernel.cbi.engine.snapshot import build_snapshot
+    from cbim_kernel.cbi._primitives.snapshot import build_snapshot
     ps = sub.add_parser("snapshot", help="Project knowledge snapshot")
     ps.add_argument("--root", default=".")
 
@@ -401,11 +437,6 @@ def cmd_dashboard(args) -> int:
     return 0
 
 
-# Backwards-compatible alias - the deprecated `memory preview` shim and any
-# other legacy caller still import `cmd_preview` from here.
-cmd_preview = cmd_dashboard
-
-
 def _find_settings() -> Path | None:
     p = Path.cwd().resolve()
     for _ in range(5):
@@ -450,62 +481,22 @@ def _cmd_debug(args) -> int:
     return 1
 
 
-def _load_skills(trigger: str | None = None) -> dict[str, str]:
-    import cbim_kernel.cbi.agents as agents_pkg
-    skills: dict[str, str] = {}
-    for agent_info in pkgutil.iter_modules(agents_pkg.__path__):
-        try:
-            agent_skills_pkg = importlib.import_module(
-                f"{agents_pkg.__name__}.{agent_info.name}.skills"
-            )
-            for skill_info in pkgutil.iter_modules(agent_skills_pkg.__path__):
-                module_path = f"{agent_skills_pkg.__name__}.{skill_info.name}.skill"
-                try:
-                    mod = importlib.import_module(module_path)
-                    if trigger is not None:
-                        log_import(module_path, "ok", trigger)
-                    if hasattr(mod, "SKILL"):
-                        key = f"{agent_info.name}.{skill_info.name}"
-                        skills[key] = mod.SKILL
-                except ModuleNotFoundError:
-                    if trigger is not None:
-                        log_import(module_path, "miss", trigger)
-        except ModuleNotFoundError:
-            pass
-
-    try:
-        import cbim_kernel.cbi.skills as coord_skills_pkg
-        for skill_info in pkgutil.iter_modules(coord_skills_pkg.__path__):
-            module_path = f"{coord_skills_pkg.__name__}.{skill_info.name}.skill"
-            try:
-                mod = importlib.import_module(module_path)
-                if trigger is not None:
-                    log_import(module_path, "ok", trigger)
-                if hasattr(mod, "SKILL"):
-                    skills[skill_info.name] = mod.SKILL
-            except ModuleNotFoundError:
-                if trigger is not None:
-                    log_import(module_path, "miss", trigger)
-    except ModuleNotFoundError:
-        pass
-
-    return skills
-
-
 def _cmd_skill(args, parser):
+    from cbim_kernel.cbi.resources import Skill
+
     if not args.command:
         parser.print_help(); return 1
     if args.command == "list":
-        skills = _load_skills()
-        for name in sorted(skills):
+        for name in Skill.list_builtin():
             print(name)
         return 0
     if args.command == "show":
-        skills = _load_skills(trigger="skill.show")
-        if args.name not in skills:
+        try:
+            skill = Skill.load_builtin(args.name, trigger="skill.show")
+        except FileNotFoundError:
             print(f"Skill not found: {args.name}", file=sys.stderr)
             return 1
-        print(skills[args.name])
+        print(skill.body.read())
         return 0
     parser.print_help()
     return 1
@@ -555,3 +546,430 @@ def _cmd_soul(args, parser):
             print(f"Soul not found: {args.name}", file=sys.stderr); return 1
         print(souls[args.name]); return 0
     parser.print_help(); return 1
+
+
+# ---------------------------------------------------------------------------
+# Agent handlers — drive cbi.resources.Agent directly. Previously these lived
+# in cbi/_primitives/cli.py as cmd_agents_*; that thin wrapper layer was deleted
+# in P3 Wave 1 so the CLI dispatch calls the resource model with no detour.
+# ---------------------------------------------------------------------------
+
+def _handle_agent_list(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import Agent
+    agents = Agent.list_all()
+    if not agents:
+        print("  No agents found.")
+        return 0
+    for a in agents:
+        skills_list = a.skills.list()
+        skills = f"  [{', '.join(skills_list)}]" if skills_list else ""
+        name = a.frontmatter.get("name", a.id)
+        model = a.frontmatter.get("model", "")
+        desc = a.frontmatter.get("description", "")
+        print(f"  {name:16s}  {model:24s}  {desc[:48]}{skills}")
+    return 0
+
+
+def _handle_agent_show(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import Agent
+    try:
+        agent = Agent.load(args.name)
+    except FileNotFoundError:
+        print(f"Agent not found: {args.name}", file=sys.stderr)
+        return 1
+    name = agent.frontmatter.get("name", agent.id)
+    model = agent.frontmatter.get("model", "")
+    tools = agent.frontmatter.get("tools", "")
+    skills_list = agent.skills.list()
+    description = agent.frontmatter.get("description", "")
+    print(f"Name    : {name}")
+    print(f"Model   : {model}")
+    print(f"Tools   : {tools}")
+    print(f"Skills  : {', '.join(skills_list) or '—'}")
+    print(f"\nDescription:\n  {description}")
+    print(f"\n{agent.body.read()}")
+    return 0
+
+
+def _handle_agent_scaffold(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import Agent
+    try:
+        agent = Agent.create(
+            args.name,
+            description=args.description,
+            model=args.model,
+        )
+        print(f"Created: {agent.path}")
+    except FileExistsError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    return 0
+
+
+def _handle_agent_archive(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import Agent
+    try:
+        agent = Agent.load(args.name)
+        archived = agent.archive()
+        print(f"Archived: {archived}")
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# DNA handlers — drive cbi.resources.DNAModule directly. write-doc and
+# write-section retain their stderr DeprecationWarning and continue calling
+# the surgical engine primitives (write_module_doc / write_module_section)
+# that preserve frontmatter byte-for-byte; the object model's save() path
+# re-renders frontmatter and would break that guarantee.
+# ---------------------------------------------------------------------------
+
+def _read_dna_content(args: argparse.Namespace, *, allow_stdin: bool = True) -> str | None:
+    """Resolve --content / --content-file / --stdin into one body string.
+
+    Returns the resolved string, None when no source was provided. Raises
+    ValueError on mutually-exclusive misuse or unreadable --content-file.
+    """
+    sources = [
+        ("--content", args.content is not None),
+        ("--content-file", getattr(args, "content_file", None) is not None),
+    ]
+    if allow_stdin:
+        sources.append(("--stdin", bool(getattr(args, "stdin", False))))
+    provided = [name for name, ok in sources if ok]
+
+    if len(provided) == 0:
+        return None
+    if len(provided) > 1:
+        raise ValueError(f"{', '.join(provided)} are mutually exclusive")
+
+    if args.content is not None:
+        return args.content
+    if getattr(args, "content_file", None) is not None:
+        src = Path(args.content_file)
+        if not src.is_file():
+            raise ValueError(f"--content-file not found: {src}")
+        return src.read_text(encoding="utf-8")
+    return sys.stdin.read()
+
+
+def _handle_dna_list(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import DNAModule
+    root = Path(args.root) if args.root else Path.cwd()
+    modules = DNAModule.list_all(root=root)
+    if not modules:
+        print("  No .dna modules found.")
+        return 0
+    for m in modules:
+        keywords = m.frontmatter.get("keywords") or []
+        kw = f"  [{', '.join(keywords)}]" if keywords else ""
+        owner = m.frontmatter.get("owner", "") or ""
+        desc = m.frontmatter.get("description", "") or ""
+        print(f"  {m.id:32s}  [{owner:12s}]  {desc[:40]}{kw}")
+    return 0
+
+
+def _handle_dna_show(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import DNAModule
+    mod_dir = Path(args.path)
+    root = mod_dir.parent if mod_dir.parent != mod_dir else Path.cwd()
+    try:
+        m = DNAModule.load(mod_dir, root=root)
+    except FileNotFoundError:
+        print(f"No .dna/ found in: {mod_dir}", file=sys.stderr)
+        return 1
+
+    name = m.frontmatter.get("name", m.id)
+    owner = m.frontmatter.get("owner", "") or ""
+    description = m.frontmatter.get("description", "") or ""
+    keywords = m.frontmatter.get("keywords") or []
+    dependencies = m.frontmatter.get("dependencies") or []
+    workflows = m.workflows.list()
+    architecture = m.body.read()
+    contract = m.contract.body.read() if m.contract.exists() else ""
+
+    print(f"Name        : {name}")
+    print(f"Owner       : {owner}")
+    print(f"Description : {description}")
+    if keywords:     print(f"Keywords    : {', '.join(keywords)}")
+    if dependencies: print(f"Dependencies: {', '.join(dependencies)}")
+    if workflows:    print(f"Workflows   : {', '.join(workflows)}")
+    if architecture: print(f"\n--- module.md (body) ---\n{architecture[:600]}")
+    if contract:     print(f"\n--- contract.md ---\n{contract[:600]}")
+    return 0
+
+
+def _handle_dna_init(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi.resources import DNAModule
+    try:
+        m = DNAModule.create(
+            Path(args.dir),
+            name=args.name,
+            owner=args.owner,
+            description=args.description,
+            with_contract=args.with_contract,
+            type=args.type,
+        )
+        aimod = m.path.parent  # <mod_dir>/.dna
+        print(f"Initialized [{args.type}]: {aimod}/")
+        files = ".dna/module.md"
+        if args.type == "root":
+            files += ", index.md"
+        if args.with_contract:
+            files += ", contract.md"
+        print(f"  Edit {files}")
+        if args.type != "root":
+            print(f"  Then run: python .cbim/engine dna reindex")
+    except (FileExistsError, FileNotFoundError, ValueError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
+def _handle_dna_reindex(args: argparse.Namespace) -> int:
+    from cbim_kernel.cbi._primitives.modules import update_index
+    from cbim_kernel.cbi.resources import DNAModule
+    root = Path(args.root) if args.root else Path.cwd()
+    update_index(root)
+    modules = DNAModule.list_all(root=root)
+    print(f"Rebuilt index.md  ({len(modules)} modules)")
+    return 0
+
+
+def _handle_dna_write_doc(args: argparse.Namespace) -> int:
+    """[DEPRECATED] Write body into <module-path>/.dna/<file>, preserving frontmatter."""
+    from cbim_kernel.cbi._primitives.modules import write_module_doc
+    print(
+        "DeprecationWarning: 'dna write-doc' is deprecated, "
+        "use 'dna edit --target body' instead.",
+        file=sys.stderr,
+    )
+    if args.content is None and args.content_file is None:
+        print("Error: one of --content or --content-file is required", file=sys.stderr)
+        return 1
+    if args.content is not None and args.content_file is not None:
+        print("Error: --content and --content-file are mutually exclusive", file=sys.stderr)
+        return 1
+
+    if args.content is not None:
+        body = args.content
+    else:
+        src = Path(args.content_file)
+        if not src.is_file():
+            print(f"Error: --content-file not found: {src}", file=sys.stderr)
+            return 1
+        body = src.read_text(encoding="utf-8")
+
+    try:
+        written = write_module_doc(Path(args.module_path), args.file, body)
+    except (ValueError, FileNotFoundError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(str(written.resolve()))
+    return 0
+
+
+def _handle_dna_write_section(args: argparse.Namespace) -> int:
+    """[DEPRECATED] Section-level surgical edit of .dna/{module.md,contract.md}."""
+    from cbim_kernel.cbi._primitives.modules import write_module_section
+    print(
+        "DeprecationWarning: 'dna write-section' is deprecated, "
+        "use 'dna edit --target section' instead.",
+        file=sys.stderr,
+    )
+    needs_content = args.mode != "delete"
+    sources = [
+        ("--content", args.content is not None),
+        ("--content-file", args.content_file is not None),
+        ("--stdin", bool(getattr(args, "stdin", False))),
+    ]
+    provided = [name for name, ok in sources if ok]
+
+    if needs_content:
+        if len(provided) == 0:
+            print(
+                "Error: one of --content, --content-file, or --stdin is required",
+                file=sys.stderr,
+            )
+            return 1
+        if len(provided) > 1:
+            print(
+                f"Error: {', '.join(provided)} are mutually exclusive",
+                file=sys.stderr,
+            )
+            return 1
+        if args.content is not None:
+            body = args.content
+        elif args.content_file is not None:
+            src = Path(args.content_file)
+            if not src.is_file():
+                print(f"Error: --content-file not found: {src}", file=sys.stderr)
+                return 1
+            body = src.read_text(encoding="utf-8")
+        else:
+            body = sys.stdin.read()
+    else:
+        if provided:
+            print(
+                f"Error: {', '.join(provided)} forbidden with --mode delete",
+                file=sys.stderr,
+            )
+            return 1
+        body = None
+
+    try:
+        result = write_module_section(
+            Path(args.module_path),
+            args.file,
+            args.heading,
+            args.level,
+            args.mode,
+            body,
+            create_if_missing=bool(getattr(args, "create_if_missing", False)),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+    except (ValueError, FileNotFoundError, LookupError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        sys.stdout.write(result if isinstance(result, str) else str(result))
+        if isinstance(result, str) and not result.endswith("\n"):
+            sys.stdout.write("\n")
+        return 0
+
+    print(str(Path(result).resolve()))
+    return 0
+
+
+def _handle_dna_edit(args: argparse.Namespace) -> int:
+    """Unified module-edit entry point.
+
+    Routes by --target to the appropriate sub-object on the in-memory
+    DNAModule. Frontmatter edits use --field/--value; everything else uses
+    the --content / --content-file / --stdin trio resolved by _read_dna_content.
+
+    Dry-run prints the rendered result to stdout and does NOT touch disk.
+    """
+    from cbim_kernel.cbi.resources import DNAModule
+
+    target = args.target
+    dry_run = bool(getattr(args, "dry_run", False))
+
+    try:
+        m = DNAModule.load(Path(args.module_path))
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        if target == "frontmatter":
+            from cbim_kernel.cbi._primitives.modules import _MODULE_FM_LIST_FIELDS
+
+            if args.field is None:
+                raise ValueError("--field is required for --target frontmatter")
+            value_given = args.value is not None
+            list_given = getattr(args, "value_list", None) is not None
+            if value_given and list_given:
+                raise ValueError("--value and --value-list are mutually exclusive")
+            if not value_given and not list_given:
+                raise ValueError(
+                    "one of --value or --value-list is required for --target frontmatter"
+                )
+            if args.field in _MODULE_FM_LIST_FIELDS and value_given:
+                raise ValueError(
+                    f"field {args.field!r} is a list-typed field; "
+                    f"use --value-list instead of --value\n"
+                    f"       example: cbim dna edit ... --field {args.field} "
+                    f"--value-list item_a item_b"
+                )
+            new_value = args.value_list if list_given else args.value
+            m.frontmatter.set(args.field, new_value)
+
+        elif target == "body":
+            content = _read_dna_content(args)
+            if content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            m.body.write(content)
+
+        elif target == "section":
+            if args.heading is None:
+                raise ValueError("--heading is required for --target section")
+            mode = args.mode or "replace"
+            needs_content = mode != "delete"
+            content = _read_dna_content(args)
+            if needs_content and content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            if not needs_content and content is not None:
+                raise ValueError("content sources are forbidden with --mode delete")
+            m.body.write_section(
+                args.heading, content,
+                level=args.level, mode=mode,
+                create_if_missing=bool(args.create_if_missing),
+            )
+
+        elif target == "contract":
+            content = _read_dna_content(args)
+            if content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            if not dry_run:
+                m.contract.ensure()
+            m.contract.body.write(content)
+
+        elif target == "contract-section":
+            if args.heading is None:
+                raise ValueError("--heading is required for --target contract-section")
+            mode = args.mode or "replace"
+            needs_content = mode != "delete"
+            content = _read_dna_content(args)
+            if needs_content and content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            if not needs_content and content is not None:
+                raise ValueError("content sources are forbidden with --mode delete")
+            if not dry_run:
+                m.contract.ensure()
+            m.contract.body.write_section(
+                args.heading, content,
+                level=args.level, mode=mode,
+                create_if_missing=bool(args.create_if_missing),
+            )
+
+        elif target == "workflow":
+            if not args.name:
+                raise ValueError("--name is required for --target workflow")
+            content = _read_dna_content(args)
+            if content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            if dry_run:
+                sys.stdout.write(content if content.endswith("\n") else content + "\n")
+                return 0
+            m.workflows.add(args.name, content)
+            print(str((m.path.parent / "workflows" / args.name / "workflow.md").resolve()))
+            return 0
+
+        else:
+            raise ValueError(f"unknown --target: {target!r}")
+
+    except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if dry_run:
+        if target in ("contract", "contract-section"):
+            out = m.contract.body.read()
+        else:
+            out = m._render()
+        sys.stdout.write(out)
+        if out and not out.endswith("\n"):
+            sys.stdout.write("\n")
+        return 0
+
+    m.save()
+    if target in ("contract", "contract-section"):
+        print(str(m.contract.path.resolve()))
+    else:
+        print(str(m.path.resolve()))
+    return 0

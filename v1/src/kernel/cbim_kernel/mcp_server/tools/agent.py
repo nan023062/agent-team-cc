@@ -11,15 +11,16 @@ from __future__ import annotations
 from pathlib import Path
 
 
-def _agents_dir(cwd: str) -> Path:
+def _project_root(cwd: str) -> Path:
+    """Walk up from cwd to find a directory containing .claude/agents/."""
     p = Path(cwd).resolve() if cwd else Path.cwd().resolve()
     for _ in range(6):
         if (p / ".claude" / "agents").is_dir():
-            return p / ".claude" / "agents"
+            return p
         if p.parent == p:
             break
         p = p.parent
-    return (Path(cwd).resolve() if cwd else Path.cwd().resolve()) / ".claude" / "agents"
+    return Path(cwd).resolve() if cwd else Path.cwd().resolve()
 
 
 def register(mcp) -> None:
@@ -50,15 +51,19 @@ def register(mcp) -> None:
             name: Agent directory name (e.g. 'architect', 'hr').
             cwd: Project directory (default: current working dir).
         """
-        from cbim_kernel.cbi.engine.agents import load_agent
-        a = load_agent(_agents_dir(cwd) / name)
-        if not a:
+        from cbim_kernel.cbi.resources import Agent
+        root = _project_root(cwd)
+        try:
+            a = Agent.load(name, root=root)
+        except FileNotFoundError:
             return f"ERROR: agent not found: {name}"
+        fm = a.frontmatter
+        skills = a.skills.list()
         return (
-            f"Name    : {a['name']}\n"
-            f"Model   : {a['model']}\n"
-            f"Tools   : {a['tools']}\n"
-            f"Skills  : {', '.join(a.get('skills', [])) or '—'}\n\n"
-            f"Description:\n  {a['description']}\n\n"
-            f"{a['body']}"
+            f"Name    : {fm.get('name', a.id)}\n"
+            f"Model   : {fm.get('model', '')}\n"
+            f"Tools   : {fm.get('tools', '')}\n"
+            f"Skills  : {', '.join(skills) or '—'}\n\n"
+            f"Description:\n  {fm.get('description', '')}\n\n"
+            f"{a.body.read()}"
         )

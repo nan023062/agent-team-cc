@@ -33,31 +33,10 @@ def _build_engine(args: argparse.Namespace):
 
 
 # ---------------------------------------------------------------------------
-# Hook-facing commands
+# Hook-facing entry points (write_session / load_context) are no longer
+# exposed through this CLI. The Stop / SessionStart hooks now import them
+# directly from memory.engine.{writer,loader}; see hooks/{write,load}_memory.py.
 # ---------------------------------------------------------------------------
-
-def cmd_write_session(args: argparse.Namespace) -> int:
-    from .writer import write_session
-
-    cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or _default_store())
-    engine = _build_engine(args)
-    path = write_session(args.transcript_path, store_dir, engine, cfg)
-    if path:
-        print(f"[memory] wrote {path.name}", file=sys.stderr)
-    return 0
-
-
-def cmd_load_context(args: argparse.Namespace) -> int:
-    from .loader import load_context
-
-    cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or _default_store())
-    engine = _build_engine(args)
-    output = load_context(store_dir, engine, cfg)
-    if output:
-        print(output)
-    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -134,28 +113,5 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
           file=sys.stderr)
     return 0
-
-
-def cmd_preview(args: argparse.Namespace) -> int:
-    """Deprecated. Use `python .cbim/engine dashboard` instead.
-
-    Kept as a forwarding shim so existing wrappers / docs that still
-    invoke `memory preview` keep working. Emits a single stderr warning
-    and delegates straight to the top-level dashboard command.
-    """
-    print(
-        "[deprecated] `memory preview` is now `python .cbim/engine dashboard`",
-        file=sys.stderr,
-    )
-
-    # Forward to the top-level command. We synthesize its argparse Namespace
-    # so we don't re-parse argv — the caller already gave us --port.
-    from cbim_kernel.engine.cli import cmd_dashboard as _cmd_dashboard
-
-    class _Forward:
-        port = getattr(args, "port", None)
-        no_browser = False  # legacy command never had this knob
-
-    return _cmd_dashboard(_Forward())
 
 

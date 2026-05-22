@@ -3,48 +3,18 @@ load_memory.py — SessionStart hook.
 
 Receives session-start event from Claude Code and:
   1. Opens a new per-session log file under .cbim/logs/session_*.log
-  2. Loads recent memory context  (python -m cbim_kernel memory load-context)
-  3. Generates project knowledge snapshot  (python -m cbim_kernel snapshot)
+  2. Loads recent memory context (in-process via memory.engine.loader.load_context)
+  3. Generates project knowledge snapshot (in-process via cbi._primitives.snapshot.build_snapshot)
 Merges both into a single additionalContext JSON block.
 """
 
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
 from cbim_kernel.context import cbim_dir, project_root
 from updater.upgrade.notify import session_start_line
-
-
-def _find_python() -> str:
-    """Look for .venv in project root then cbim dir; fall back to sys.executable."""
-    for root in [project_root(), cbim_dir()]:
-        for candidate in [
-            root / ".venv" / "Scripts" / "python.exe",
-            root / ".venv" / "bin" / "python",
-        ]:
-            if candidate.exists():
-                return str(candidate)
-    return sys.executable
-
-
-def _run(python: str, args: list[str], cwd: str) -> str:
-    try:
-        result = subprocess.run(
-            [python] + args,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd,
-            timeout=60,
-            check=False,
-        )
-        return result.stdout.strip()
-    except Exception:
-        return ""
 
 
 def _start_session_log(session_id: str, cwd: str) -> None:
@@ -54,6 +24,35 @@ def _start_session_log(session_id: str, cwd: str) -> None:
         start_session(session_id=session_id, cwd=cwd, cbim=cbim_dir())
     except Exception:
         pass
+
+
+def _load_memory_context() -> str:
+    """In-process equivalent of the former `cbim memory load-context`.
+
+    Returns the JSON-wrapped additionalContext payload (str) or "" on
+    nothing-to-show / any error.
+    """
+    try:
+        from cbim_kernel.memory.engine.config import load_config
+        from cbim_kernel.memory.engine.engine import MemoryEngine
+        from cbim_kernel.memory.engine.file_backend import FileBackend
+        from cbim_kernel.memory.engine.loader import load_context
+
+        store_dir = cbim_dir() / "memory"
+        engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+        cfg = load_config()
+        return load_context(store_dir, engine, cfg) or ""
+    except Exception:
+        return ""
+
+
+def _build_snapshot(root: Path) -> str:
+    """In-process equivalent of the former `cbim snapshot --root <root>`."""
+    try:
+        from cbim_kernel.cbi._primitives.snapshot import build_snapshot
+        return build_snapshot(Path(root).resolve()) or ""
+    except Exception:
+        return ""
 
 
 def main(event: dict | None = None) -> int:
@@ -68,23 +67,14 @@ def main(event: dict | None = None) -> int:
 
     cwd = Path(event.get("cwd", os.getcwd()))
     session_id = event.get("session_id", "")
-    python = _find_python()
 
     _start_session_log(session_id, str(cwd))
 
-    # 1. Memory context
-    memory_out = _run(
-        python,
-        ["-m", "cbim_kernel", "memory", "load-context"],
-        str(project_root()),
-    )
+    # 1. Memory context (JSON-wrapped additionalContext payload)
+    memory_out = _load_memory_context()
 
     # 2. Project knowledge snapshot
-    snapshot_out = _run(
-        python,
-        ["-m", "cbim_kernel", "snapshot", "--root", str(cwd)],
-        str(project_root()),
-    )
+    snapshot_out = _build_snapshot(cwd)
 
     # Upgrade banner
     try:

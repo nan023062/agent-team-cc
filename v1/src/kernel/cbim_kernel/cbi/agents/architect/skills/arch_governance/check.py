@@ -19,7 +19,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from cbim_kernel.cbi.engine.modules import (
+from cbim_kernel.cbi._primitives.modules import (
     list_modules, read_index, _SCAN_SKIP_DIRS, _scan_modules,
 )
 from cbim_kernel.cbi.skills.arch_governance.config import CONFIG as _cfg

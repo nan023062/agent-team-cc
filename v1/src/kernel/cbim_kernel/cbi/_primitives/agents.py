@@ -6,6 +6,8 @@ Operates on .claude/agents/ in the project root.
 
 from pathlib import Path
 
+from cbim_kernel.services._fm import parse_frontmatter, strip_frontmatter
+
 
 # ---------------------------------------------------------------------------
 # Read
@@ -16,8 +18,8 @@ def load_agent(agent_dir: Path) -> dict | None:
     if not md.exists():
         return None
     raw = md.read_text(encoding="utf-8")
-    meta = _parse_frontmatter(raw)
-    body = _strip_frontmatter(raw)
+    meta = parse_frontmatter(raw)
+    body = strip_frontmatter(raw)
     skills_dir = agent_dir / "skills"
     skills = sorted(f.stem for f in skills_dir.glob("*.md")) if skills_dir.exists() else []
     return {
@@ -89,29 +91,3 @@ def archive_agent(agent_dir: Path) -> Path:
     archived = md.with_suffix(".md.archived")
     md.rename(archived)
     return archived
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _parse_frontmatter(text: str) -> dict:
-    meta: dict = {}
-    if not text.startswith("---"):
-        return meta
-    end = text.find("\n---", 3)
-    if end == -1:
-        return meta
-    for line in text[3:end].strip().splitlines():
-        if ":" in line:
-            k, _, v = line.partition(":")
-            meta[k.strip()] = v.strip()
-    return meta
-
-
-def _strip_frontmatter(text: str) -> str:
-    if text.startswith("---"):
-        end = text.find("\n---", 3)
-        if end != -1:
-            return text[end + 4:].strip()
-    return text.strip()

@@ -16,6 +16,6 @@ def register(mcp) -> None:
         Args:
             cwd: Project directory (default: current working dir of the MCP server).
         """
-        from cbim_kernel.cbi.engine.snapshot import build_snapshot
+        from cbim_kernel.cbi._primitives.snapshot import build_snapshot
         root = Path(cwd).resolve() if cwd else Path.cwd().resolve()
         return build_snapshot(root)
