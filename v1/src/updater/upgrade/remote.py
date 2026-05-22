@@ -12,7 +12,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
-from cbim_kernel.project.upgrade.config import UpgradeConfig
+from updater.upgrade.config import UpgradeConfig
 
 
 @dataclass

@@ -16,3 +16,4 @@
 - v1/src/kernel/cbim_kernel/project
 - v1/src/kernel/cbim_kernel/project/upgrade
 - v1/src/kernel/cbim_kernel/services
+- v1/src/updater

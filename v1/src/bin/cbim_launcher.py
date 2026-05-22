@@ -48,7 +48,9 @@ def _install_root() -> Path:
 
 CBIM_HOME = _install_root()
 
-INSTALLER_COMMANDS = {"install", "uninstall", "use", "versions", "pin"}
+UPDATER_COMMANDS = {"install", "uninstall", "use", "versions", "pin",
+                    "update", "upgrade", "migrate", "check", "apply", "self-update"}
+INSTALLER_COMMANDS = UPDATER_COMMANDS  # back-compat alias
 VERSION_FLAGS = {"version", "--version", "-V"}
 HELP_FLAGS = {"help", "--help", "-h"}
 
@@ -241,13 +243,13 @@ def cmd_version():
 
 
 def cmd_installer(name, args):
-    """Route installer commands through <install_root>/installer (installed by install.py)."""
-    installer_dir = CBIM_HOME / "installer"
-    if not installer_dir.is_dir():
+    """Route updater commands through <install_root>/updater (installed by install.py)."""
+    updater_dir = CBIM_HOME / "updater"
+    if not updater_dir.is_dir():
         sys.stderr.write(
-            "cbim: installer package not found at {}.\n"
+            "cbim: updater package not found at {}.\n"
             "      Run: python install.py  (from a kernel checkout) to bootstrap.\n".format(
-                installer_dir
+                updater_dir
             )
         )
         return 1
@@ -258,12 +260,12 @@ def cmd_installer(name, args):
     )
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "installer", name] + list(args),
+            [sys.executable, "-m", "updater", name] + list(args),
             env=env,
         )
         return result.returncode
     except OSError as exc:
-        sys.stderr.write("cbim: failed to run installer: {}\n".format(exc))
+        sys.stderr.write("cbim: failed to run updater: {}\n".format(exc))
         return 1
 
 

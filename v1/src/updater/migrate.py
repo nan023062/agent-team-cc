@@ -1,4 +1,10 @@
-"""`cbim migrate` — upgrade a kernel-in-project layout to the global-kernel model."""
+"""`cbim migrate` — upgrade a kernel-in-project layout to the global-kernel model.
+
+Lives in the updater package (not the kernel) so the migration path stays
+available even when the project's pinned kernel cannot start. The kernel-side
+``cbim migrate`` command is a thin subprocess facade onto ``python -m updater
+migrate``.
+"""
 from __future__ import annotations
 
 import json
@@ -6,13 +12,37 @@ import shutil
 import tarfile
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
-from cbim_kernel.project import pin as _pin
-from cbim_kernel.project import sync as _sync
+from cbim_kernel.project import sync as project_sync
 
-_AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
+_AGENT_NAMES = project_sync.KERNEL_AGENT_NAMES
 
 _KERNEL_DIRS = ["engine", "hooks", "mcp_server", "services", "dashboard", "cbi"]
+
+_PIN_FILE = ".pin"
+
+
+def _read_pin(project_root: Path) -> Optional[str]:
+    """Inlined — format frozen: plain text, single line, trailing newline."""
+    try:
+        text = (project_root / ".cbim" / _PIN_FILE).read_text(encoding="utf-8").strip()
+        return text if text else None
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
+def _write_pin(project_root: Path, version: str) -> None:
+    """Atomic write of ``<project_root>/.cbim/.pin``.
+
+    Format frozen: plain text, single line, trailing newline.
+    """
+    cbim_dir = project_root / ".cbim"
+    cbim_dir.mkdir(parents=True, exist_ok=True)
+    pin_path = cbim_dir / _PIN_FILE
+    tmp = pin_path.with_suffix(".pin.tmp")
+    tmp.write_text(version + "\n", encoding="utf-8")
+    tmp.replace(pin_path)
 
 
 def _is_old_layout(cbim_dir: Path) -> bool:
@@ -20,7 +50,7 @@ def _is_old_layout(cbim_dir: Path) -> bool:
     return any((cbim_dir / d).is_dir() for d in ["engine", "hooks", "mcp_server"])
 
 
-def _create_backup(project_root: Path, cbim_dir: Path, dry_run: bool) -> Path | None:
+def _create_backup(project_root: Path, cbim_dir: Path, dry_run: bool) -> Optional[Path]:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"cbim_migration_backup_{ts}.tar.gz"
     backup_path = project_root / backup_name
@@ -56,7 +86,7 @@ def _has_legacy_pin(cbim_dir: Path) -> bool:
 
 def _inject_version(cbim_dir: Path, version: str, dry_run: bool) -> None:
     project_root = cbim_dir.parent
-    current = _pin.read_pin(project_root)
+    current = _read_pin(project_root)
     if current == version:
         print(f"[cbim] .cbim/.pin already pinned to \"{version}\"")
         return
@@ -65,7 +95,7 @@ def _inject_version(cbim_dir: Path, version: str, dry_run: bool) -> None:
         print(f"[cbim] [dry-run] would write .cbim/.pin = \"{version}\"")
         return
 
-    _pin.write_pin(project_root, version)
+    _write_pin(project_root, version)
     print(f"[cbim] wrote .cbim/.pin = \"{version}\"")
 
 
@@ -97,7 +127,7 @@ def _migrate_legacy_pin(cbim_dir: Path, dry_run: bool) -> None:
         return
 
     if isinstance(legacy, str) and legacy.strip():
-        _pin.write_pin(project_root, legacy.strip())
+        _write_pin(project_root, legacy.strip())
         print(f"[cbim] lifted legacy cbim_version=\"{legacy.strip()}\" into .cbim/.pin")
 
     del cfg["cbim_version"]
@@ -133,14 +163,14 @@ def _ensure_pin_gitignored(project_root: Path, dry_run: bool) -> None:
 
 
 def _update_settings(project_root: Path, dry_run: bool) -> None:
-    action = _sync.sync_settings(project_root, dry_run=dry_run)
+    action = project_sync.sync_settings(project_root, dry_run=dry_run)
     prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
     print(f"{prefix}{action}")
 
 
 def _update_agents(project_root: Path, dry_run: bool) -> None:
     prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
-    for action in _sync.sync_agents(project_root, dry_run=dry_run):
+    for action in project_sync.sync_agents(project_root, dry_run=dry_run):
         print(f"{prefix}{action}")
 
 
@@ -159,7 +189,7 @@ def _remove_old_dirs(cbim_dir: Path, dry_run: bool) -> None:
 
 def migrate_project(
     project_root: Path,
-    version: str,
+    version: Optional[str] = None,
     dry_run: bool = False,
     force: bool = False,
 ) -> int:
@@ -169,6 +199,14 @@ def migrate_project(
     """
     project_root = Path(project_root).resolve()
     cbim_dir = project_root / ".cbim"
+
+    if version is None:
+        # Fall back to the kernel's __version__ so callers can omit --version.
+        try:
+            from cbim_kernel import __version__ as _kernel_version
+            version = _kernel_version
+        except Exception:  # noqa: BLE001
+            version = ""
 
     print(f"[cbim] Migrating project at {project_root}")
     print(f"[cbim] Target kernel version: {version}")
@@ -182,11 +220,11 @@ def migrate_project(
         # No backup tarball (no old kernel dirs to preserve) and no
         # confirmation prompt (config.json + settings + agents only).
         legacy_pending = _has_legacy_pin(cbim_dir)
-        pin_matches = _pin.read_pin(project_root) == version and not legacy_pending
+        pin_matches = _read_pin(project_root) == version and not legacy_pending
 
         if pin_matches:
-            settings_action = _sync.sync_settings(project_root, dry_run=True)
-            agent_actions = _sync.sync_agents(project_root, dry_run=True)
+            settings_action = project_sync.sync_settings(project_root, dry_run=True)
+            agent_actions = project_sync.sync_agents(project_root, dry_run=True)
             if settings_action.startswith("unchanged ") and all(
                 a.startswith("unchanged ") for a in agent_actions
             ):

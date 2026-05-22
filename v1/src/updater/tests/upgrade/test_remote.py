@@ -5,8 +5,8 @@ import subprocess
 
 import pytest
 
-from cbim_kernel.project.upgrade import remote
-from cbim_kernel.project.upgrade.config import default_config
+from updater.upgrade import remote
+from updater.upgrade.config import default_config
 
 
 class _FakeCompleted:

@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from cbim_kernel.project.upgrade.project_state import (
+from updater.upgrade.project_state import (
     find_project_root,
     read_upgrade_config,
 )
@@ -88,7 +88,7 @@ def _spawn_background_refresh(project_root: Path) -> None:
         else:
             kwargs["start_new_session"] = True
         subprocess.Popen(
-            [sys.executable, "-m", "cbim_kernel", "upgrade", "check",
+            [sys.executable, "-m", "updater", "check",
              "--json", "--no-network", "--refresh-cache"],
             **kwargs,
         )

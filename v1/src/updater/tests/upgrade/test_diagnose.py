@@ -5,11 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from cbim_kernel.project.upgrade.app_state import AppState
-from cbim_kernel.project.upgrade.config import default_config
-from cbim_kernel.project.upgrade.diagnose import diagnose, scenario_id
-from cbim_kernel.project.upgrade.project_state import ProjectState
-from cbim_kernel.project.upgrade.remote import RemoteState
+from updater.upgrade.app_state import AppState
+from updater.upgrade.config import default_config
+from updater.upgrade.diagnose import diagnose, scenario_id
+from updater.upgrade.project_state import ProjectState
+from updater.upgrade.remote import RemoteState
 
 
 def _app(installed: dict, active: str | None = None) -> AppState:

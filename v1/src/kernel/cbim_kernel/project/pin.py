@@ -1,10 +1,12 @@
 """Single accessor for ``.cbim/.pin`` — the project's pinned kernel version.
 
-All reads and writes of the pin file go through this module. No other code in
-the kernel should open ``.cbim/.pin`` directly.
+Reads only. All pin *writes* live in ``updater.migrate`` (or
+``updater.upgrade.cli`` for the post-apply pin bump). The kernel is read-only
+with respect to ``.cbim/.pin``.
 
 Format: plain text, single-line version + trailing newline (e.g. ``1.3.1\n``).
 """
+# write_pin moved to updater.migrate — kernel is read-only for .pin
 from __future__ import annotations
 
 from pathlib import Path
@@ -19,11 +21,3 @@ def read_pin(project_root: Path) -> str | None:
         return text if text else None
     except FileNotFoundError:
         return None
-
-
-def write_pin(project_root: Path, version: str) -> None:
-    cbim_dir = project_root / ".cbim"
-    cbim_dir.mkdir(parents=True, exist_ok=True)
-    tmp = cbim_dir / f"{_PIN_FILE}.tmp"
-    tmp.write_text(f"{version}\n", encoding="utf-8")
-    tmp.replace(cbim_dir / _PIN_FILE)

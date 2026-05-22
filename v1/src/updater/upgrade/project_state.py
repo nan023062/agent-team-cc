@@ -1,7 +1,7 @@
 """Project-side state read surface for upgrade diagnosis.
 
 Pure reads — never writes to ``.cbim/``. All writes go through
-``project.init`` / ``project.migrate``.
+the kernel's ``project.init`` or ``updater.migrate``.
 """
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from cbim_kernel.project import pin as project_pin
-from cbim_kernel.project.upgrade.config import UpgradeConfig, load_from_project
+from updater.upgrade.config import UpgradeConfig, load_from_project
 
 
 @dataclass
@@ -42,9 +41,18 @@ def find_project_root(start: Path) -> Optional[Path]:
     return None
 
 
+def _read_pin(project_root: Path) -> Optional[str]:
+    """Inlined — format frozen: plain text, single line, trailing newline."""
+    try:
+        text = (project_root / ".cbim" / ".pin").read_text(encoding="utf-8").strip()
+        return text if text else None
+    except (OSError, UnicodeDecodeError):
+        return None
+
+
 def read_pin(project_root: Path) -> Optional[str]:
     """Read the pinned kernel version from ``.cbim/.pin``; return None on absence."""
-    return project_pin.read_pin(project_root)
+    return _read_pin(project_root)
 
 
 def read_upgrade_config(project_root: Path) -> UpgradeConfig:
@@ -56,10 +64,10 @@ def get_project_state(start: Path) -> ProjectState:
     root = find_project_root(start)
     if root is None:
         # No project: use defaults; pin is unknown.
-        from cbim_kernel.project.upgrade.config import default_config
+        from updater.upgrade.config import default_config
         return ProjectState(root=None, pin=None, upgrade_config=default_config())
     return ProjectState(
         root=root,
-        pin=read_pin(root),
+        pin=_read_pin(root),
         upgrade_config=read_upgrade_config(root),
     )

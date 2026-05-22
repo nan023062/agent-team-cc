@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from cbim_kernel.context import cbim_dir, project_root
-from cbim_kernel.project.upgrade.notify import session_start_line
+from updater.upgrade.notify import session_start_line
 
 
 def _find_python() -> str:

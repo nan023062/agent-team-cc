@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from cbim_kernel.project.upgrade.app_state import AppState
-from cbim_kernel.project.upgrade.project_state import ProjectState
-from cbim_kernel.project.upgrade.remote import RemoteState
+from updater.upgrade.app_state import AppState
+from updater.upgrade.project_state import ProjectState
+from updater.upgrade.remote import RemoteState
 
 
 @dataclass

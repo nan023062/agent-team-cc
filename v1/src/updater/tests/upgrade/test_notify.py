@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from cbim_kernel.project.upgrade import notify
-from cbim_kernel.project.upgrade.config import default_config
+from updater.upgrade import notify
+from updater.upgrade.config import default_config
 
 
 def _make_project(tmp_path: Path, cfg_overrides: dict | None = None) -> Path:
@@ -86,7 +86,7 @@ def test_session_start_line_fresh_cache_no_spawn(monkeypatch, tmp_path):
     assert spawned["called"] is False
     assert line is not None
     assert "1.2.0" in line and "1.2.5" in line
-    assert "update available" in line
+    assert "A new CBIM version is available" in line
 
 
 # Stale cache (older than interval) triggers refresh AND still returns the

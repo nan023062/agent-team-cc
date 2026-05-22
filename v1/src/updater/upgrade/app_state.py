@@ -1,13 +1,7 @@
-"""App-side install state, resolved from the installer's on-disk contract.
+"""App-side install state, resolved from the updater's on-disk contract.
 
-Contract: this module MUST NOT ``import installer.paths`` or
-``import installer.registry`` (kernel never imports installer). Instead we:
-
-  1. Mirror ``installer/paths.py:install_root()`` inline (see
-     ``_resolve_install_root``). Any change there must be mirrored in
-     ``v1/src/bin/cbim_launcher.py:_install_root`` as well.
-  2. Read ``<install_root>/versions.json`` directly — it is the installer's
-     stable on-disk contract (same file the launcher reads).
+Reads ``<install_root>/versions.json`` directly — it is the updater's
+stable on-disk contract (same file the launcher reads).
 
 Design rule: ``install_root`` is *pure path resolution* (env + platform).
 It is populated whenever ``_resolve_install_root()`` returns a path,
@@ -56,10 +50,9 @@ def _version_key(v: str) -> tuple:
 
 
 def _resolve_install_root() -> Optional[Path]:
-    """Resolve the CBIM install root using the same rules as ``installer.paths``.
+    """Resolve the CBIM install root using the same rules as ``updater.paths``.
 
-    Mirrors ``installer/paths.py:install_root()`` inline — we cannot import it
-    (contract: kernel never imports installer). The launcher
+    Mirrors ``updater/paths.py:install_root()`` inline. The launcher
     (``v1/src/bin/cbim_launcher.py:_install_root``) is the third mirror; keep
     all three in sync.
 
@@ -98,7 +91,7 @@ def _resolve_install_root() -> Optional[Path]:
 def _read_versions_json(install_root: Path) -> Optional[dict]:
     """Read ``<install_root>/versions.json`` directly.
 
-    This file is the installer's stable on-disk contract (the launcher
+    This file is the updater's stable on-disk contract (the launcher
     reads it too). Returns ``None`` if the file is missing or unreadable;
     never raises.
     """

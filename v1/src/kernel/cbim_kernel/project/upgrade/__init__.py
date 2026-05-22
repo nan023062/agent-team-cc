@@ -1,5 +1,8 @@
-"""`cbim upgrade` — holistic version-state inspector + app-side install repointer.
+"""DEPRECATED — upgrade logic has moved to ``updater.upgrade``.
 
-See `.dna/module.md` for the 7-scenario diagnostic matrix and design decisions,
-and `.dna/contract.md` for the CLI surface and JSON schema.
+This package now contains only:
+  - ``apply_flow``: snapshot/invoke/verify/rollback (will be moved in PR-3)
+  - ``cli``: kernel-side CLI facade (will become a subprocess shim in PR-3)
+
+See `updater/.dna/module.md` for the canonical upgrade module layout.
 """

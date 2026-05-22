@@ -4,10 +4,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from cbim_kernel.project import sync as _sync
-from cbim_kernel.project.pin import write_pin
 
 _TEMPLATES = _sync._TEMPLATES
 _AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
+
+
+def _write_pin(project_root: Path, version: str) -> None:
+    """Atomic write of ``<project_root>/.cbim/.pin`` (inlined — kernel never
+    writes pins through ``cbim_kernel.project.pin``; that module is read-only)."""
+    pin_path = project_root / ".cbim" / ".pin"
+    pin_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = pin_path.with_suffix(".pin.tmp")
+    tmp.write_text(str(version) + "\n", encoding="utf-8")
+    tmp.replace(pin_path)
 
 
 def _read_template(name: str) -> str:
@@ -49,7 +58,7 @@ def _install_pin(project_root: Path, version: str, force: bool) -> None:
     if pin_path.exists() and not force:
         _print("skipped (exists)", pin_path, project_root)
         return
-    write_pin(project_root, version)
+    _write_pin(project_root, version)
     _print("created", pin_path, project_root)
 
 

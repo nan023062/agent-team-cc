@@ -5,20 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from cbim_kernel.project.upgrade import apply_flow
-from cbim_kernel.project.upgrade.app_state import AppState
-from cbim_kernel.project.upgrade.config import default_config
-from cbim_kernel.project.upgrade.diagnose import diagnose
-from cbim_kernel.project.upgrade.project_state import ProjectState
-from cbim_kernel.project.upgrade.remote import RemoteState
+from updater.upgrade import apply_flow
+from updater.upgrade.app_state import AppState
+from updater.upgrade.config import default_config
+from updater.upgrade.diagnose import diagnose
+from updater.upgrade.project_state import ProjectState
+from updater.upgrade.remote import RemoteState
 
 
 def _make_install_root(tmp_path: Path, version: str = "1.2.3") -> Path:
     root = tmp_path / "Cbim-CC"
-    (root / "installer").mkdir(parents=True)
-    (root / "installer" / "__init__.py").write_text("# stub", encoding="utf-8")
-    (root / "bin").mkdir(parents=True)
-    (root / "bin" / "marker.txt").write_text("v1", encoding="utf-8")
     kdir = root / "kernel" / version / "cbim_kernel"
     kdir.mkdir(parents=True)
     (kdir / "__main__.py").write_text("# kernel", encoding="utf-8")
@@ -41,19 +37,19 @@ def _diagnosis_for(install_root: Path, pin: str | None, target: str) -> "diagnos
 
 
 # ---------------------------------------------------------------------------
-# Snapshot + rollback round-trip
+# Snapshot + rollback round-trip — narrowed scope: only kernel/ + versions.json.
 def test_snapshot_then_rollback_restores_files(tmp_path):
     root = _make_install_root(tmp_path)
     snap = apply_flow.snapshot_app(root)
     assert snap.is_file()
 
-    # Mutate: wipe bin/, add a stray file under installer/.
-    (root / "bin" / "marker.txt").unlink()
-    (root / "installer" / "stray.txt").write_text("dirty", encoding="utf-8")
+    # Mutate: trash the kernel main + versions.json.
+    (root / "kernel" / "1.2.3" / "cbim_kernel" / "__main__.py").write_text("# dirty", encoding="utf-8")
+    (root / "versions.json").write_text("{}", encoding="utf-8")
 
     apply_flow.rollback_from_snapshot(snap, root)
-    assert (root / "bin" / "marker.txt").read_text(encoding="utf-8") == "v1"
-    assert not (root / "installer" / "stray.txt").exists()
+    assert (root / "kernel" / "1.2.3" / "cbim_kernel" / "__main__.py").read_text(encoding="utf-8") == "# kernel"
+    assert '"active_default"' in (root / "versions.json").read_text(encoding="utf-8")
     snap.unlink()
 
 
@@ -74,7 +70,11 @@ def test_verify_post_install_missing_kernel(tmp_path):
 # Preflight: refuses when project pin requires migration first.
 def test_preflight_refuses_when_pin_older_than_target(tmp_path):
     root = _make_install_root(tmp_path)
-    project = ProjectState(root=tmp_path, pin="1.0.0", upgrade_config=default_config())
+    # Project root that has neither a .pin nor a legacy config.json — the
+    # Bug-A check must not fire on this path. Pin is supplied directly.
+    proj_root = tmp_path / "proj"
+    (proj_root / ".cbim").mkdir(parents=True)
+    project = ProjectState(root=proj_root, pin="1.0.0", upgrade_config=default_config())
     app = AppState(install_root=root, installed=_entry("1.2.3"), active_default="1.2.3")
     remote = RemoteState(url="x", latest="1.2.5", reachable=True)
     d = diagnose(app, project, remote)
@@ -86,7 +86,9 @@ def test_preflight_refuses_when_pin_older_than_target(tmp_path):
 # Preflight: allows when target == pin.
 def test_preflight_allows_when_target_equals_pin(tmp_path):
     root = _make_install_root(tmp_path)
-    project = ProjectState(root=tmp_path, pin="1.2.3", upgrade_config=default_config())
+    proj_root = tmp_path / "proj"
+    (proj_root / ".cbim").mkdir(parents=True)
+    project = ProjectState(root=proj_root, pin="1.2.3", upgrade_config=default_config())
     app = AppState(install_root=root, installed=_entry("1.2.3"), active_default="1.2.3")
     remote = RemoteState(url="x", latest="1.2.3", reachable=True)
     d = diagnose(app, project, remote)
@@ -103,6 +105,23 @@ def test_preflight_allows_when_no_project(tmp_path):
     apply_flow.preflight(d, "1.2.5")  # no raise
 
 
+# Bug-A fix: refuses legacy schema (cbim_version in config.json, no .pin file).
+def test_preflight_refuses_legacy_schema(tmp_path):
+    root = _make_install_root(tmp_path)
+    proj_root = tmp_path / "legacy_proj"
+    (proj_root / ".cbim").mkdir(parents=True)
+    (proj_root / ".cbim" / "config.json").write_text(
+        '{"cbim_version": "1.2.0"}', encoding="utf-8"
+    )
+    project = ProjectState(root=proj_root, pin=None, upgrade_config=default_config())
+    app = AppState(install_root=root, installed=_entry("1.2.3"), active_default="1.2.3")
+    remote = RemoteState(url="x", latest="1.2.5", reachable=True)
+    d = diagnose(app, project, remote)
+    with pytest.raises(SystemExit) as exc:
+        apply_flow.preflight(d, "1.2.5")
+    assert exc.value.code == 2
+
+
 # ---------------------------------------------------------------------------
 # run_apply happy path: monkeypatch invoke + verify; ensure exit code 0.
 def test_run_apply_happy_path(tmp_path, monkeypatch):
@@ -111,7 +130,7 @@ def test_run_apply_happy_path(tmp_path, monkeypatch):
 
     called = {}
 
-    def fake_invoke(install_root, version):
+    def fake_invoke(install_root, version, source="github", source_from=None):
         called["invoke"] = (install_root, version)
         # Simulate the installer staging the new version.
         new_k = install_root / "kernel" / version / "cbim_kernel"
@@ -125,7 +144,7 @@ def test_run_apply_happy_path(tmp_path, monkeypatch):
         (install_root / "versions.json").write_text(_j.dumps(data), encoding="utf-8")
         return 0
 
-    monkeypatch.setattr(apply_flow, "invoke_installer", fake_invoke)
+    monkeypatch.setattr(apply_flow, "invoke_updater", fake_invoke)
 
     rc = apply_flow.run_apply(d, target_version="1.2.5", dry_run=False)
     assert rc == 0
@@ -138,16 +157,16 @@ def test_run_apply_rollback_on_installer_failure(tmp_path, monkeypatch):
     root = _make_install_root(tmp_path)
     d = _diagnosis_for(root, pin=None, target="1.2.5")
 
-    def fake_invoke(install_root, version):
-        # Pretend the installer trashed bin/ before failing.
-        (install_root / "bin" / "marker.txt").unlink()
+    def fake_invoke(install_root, version, source="github", source_from=None):
+        # Pretend the installer trashed versions.json before failing.
+        (install_root / "versions.json").write_text("{}", encoding="utf-8")
         return 9
 
-    monkeypatch.setattr(apply_flow, "invoke_installer", fake_invoke)
+    monkeypatch.setattr(apply_flow, "invoke_updater", fake_invoke)
 
     rc = apply_flow.run_apply(d, target_version="1.2.5", dry_run=False)
     assert rc == 4
-    assert (root / "bin" / "marker.txt").read_text(encoding="utf-8") == "v1"
+    assert '"active_default"' in (root / "versions.json").read_text(encoding="utf-8")
 
 
 # Rollback on verify failure: installer returns 0 but verification fails.
@@ -155,21 +174,24 @@ def test_run_apply_rollback_on_verify_failure(tmp_path, monkeypatch):
     root = _make_install_root(tmp_path)
     d = _diagnosis_for(root, pin=None, target="1.2.5")
 
-    def fake_invoke(install_root, version):
+    def fake_invoke(install_root, version, source="github", source_from=None):
         # Do nothing — verify_post_install will then fail.
         return 0
 
-    monkeypatch.setattr(apply_flow, "invoke_installer", fake_invoke)
+    monkeypatch.setattr(apply_flow, "invoke_updater", fake_invoke)
 
     rc = apply_flow.run_apply(d, target_version="1.2.5", dry_run=False)
     assert rc == 4
-    assert (root / "bin" / "marker.txt").exists()
+    # Original kernel content preserved.
+    assert (root / "kernel" / "1.2.3" / "cbim_kernel" / "__main__.py").is_file()
 
 
 # Preflight refusal short-circuits before snapshot.
 def test_run_apply_preflight_refusal(tmp_path):
     root = _make_install_root(tmp_path)
-    project = ProjectState(root=tmp_path, pin="1.0.0", upgrade_config=default_config())
+    proj_root = tmp_path / "proj"
+    (proj_root / ".cbim").mkdir(parents=True)
+    project = ProjectState(root=proj_root, pin="1.0.0", upgrade_config=default_config())
     app = AppState(install_root=root, installed=_entry("1.2.3"), active_default="1.2.3")
     remote = RemoteState(url="x", latest="1.2.5", reachable=True)
     d = diagnose(app, project, remote)
@@ -194,8 +216,8 @@ def test_run_apply_dry_run_no_invoke(tmp_path, monkeypatch):
     d = _diagnosis_for(root, pin=None, target="1.2.5")
 
     def fail(*a, **kw):
-        raise AssertionError("invoke_installer must not be called in dry-run")
+        raise AssertionError("invoke_updater must not be called in dry-run")
 
-    monkeypatch.setattr(apply_flow, "invoke_installer", fail)
+    monkeypatch.setattr(apply_flow, "invoke_updater", fail)
     rc = apply_flow.run_apply(d, target_version="1.2.5", dry_run=True)
     assert rc == 0

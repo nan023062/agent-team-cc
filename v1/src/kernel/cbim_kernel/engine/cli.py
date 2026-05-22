@@ -289,34 +289,19 @@ def _cmd_init(args) -> int:
 def _cmd_migrate(args) -> int:
     """Migrate a kernel-in-project layout to the global-kernel model.
 
-    Like `init`, this targets cwd explicitly. We additionally require that
-    `cwd/.cbim` exists, because migrate is meaningless without an existing
-    project to upgrade.
+    Subprocess facade onto ``python -m updater migrate``. The migration logic
+    lives in the updater (not the kernel) so it stays reachable even when the
+    pinned kernel cannot start.
     """
-    import os
-    from cbim_kernel import __version__ as _kernel_version
-    from cbim_kernel.project.migrate import migrate_project
-
-    version = (
-        args.version
-        or _kernel_version
-        or os.environ.get("CBIM_DEFAULT_VERSION")
-        or os.environ.get("CBIM_LAUNCHER_VERSION")
-    )
-    target = Path.cwd().resolve()
-    if not (target / ".cbim").is_dir():
-        print(
-            f"migrate: no CBIM project in current directory ({target}); "
-            "cd into the project root first",
-            file=sys.stderr,
-        )
-        return 1
-    return migrate_project(
-        target,
-        version=version,
-        dry_run=args.dry_run,
-        force=args.force,
-    )
+    import subprocess
+    cmd = [sys.executable, "-m", "updater", "migrate"]
+    if getattr(args, "version", None):
+        cmd += ["--version", args.version]
+    if getattr(args, "dry_run", False):
+        cmd.append("--dry-run")
+    if getattr(args, "force", False):
+        cmd.append("--force")
+    return subprocess.run(cmd).returncode
 
 
 def _cmd_project(args) -> int:
@@ -327,7 +312,7 @@ def _cmd_project(args) -> int:
     meaningless outside a project.
     """
     from cbim_kernel.project.sync import sync_templates
-    from cbim_kernel.project.upgrade.project_state import find_project_root
+    from updater.upgrade.project_state import find_project_root
 
     if args.command != "sync":
         return 1
