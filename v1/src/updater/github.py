@@ -60,8 +60,9 @@ def latest_version(repo: str = REPO) -> str:
 
 def asset_url(version: str, repo: str = REPO) -> str:
     """Return the download URL for the kernel tarball for the given version."""
+    bare = version[1:] if version.startswith("v") else version
     return "{}/{}/releases/download/v{}/cbim-kernel-{}.tar.gz".format(
-        _GH_BASE, repo, version, version
+        _GH_BASE, repo, bare, bare
     )
 
 
