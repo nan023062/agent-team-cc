@@ -6,6 +6,22 @@
 
 ---
 
+## [1.3.4] - 2026-05-22
+
+### 新增
+
+- `bootstrap.sh` / `bootstrap.py`：从仓库一行命令安装，无需 `git clone`。支持 `CBIM_VERSION` / `CBIM_REF` 环境变量，并通过 `CBIM_BOOTSTRAP_DRY_RUN` 进行校验。
+
+### 变更
+
+- README 快速开始改为以一行 bootstrap 为首选；原先的 `git clone` + `python v1/src/install.py` 路径仍然可用，但不再是主推方式。
+
+### 移除
+
+- `v1/INSTALL.md` 与 `v1/INSTALL.zh-CN.md` —— 这份手工 SOP 已与仓库结构发生漂移（引用了不存在的顶层 `.cbim/mcp_server/`，并手动覆盖了 `cbim init` 已能安全合并的 `.claude/settings.json`）。bootstrap 脚本 + `install.py` + `cbim init` 现已端到端独占安装入口。
+
+---
+
 ## [1.3.3] - 2026-05-22
 
 ### 动机

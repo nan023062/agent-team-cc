@@ -8,28 +8,37 @@
 
 CBIM (Capability–Business Independence + Memory) is a context-management framework for Claude Code. It splits an LLM agent project along two axes — capability (specialized agents and their skills) and business (a per-module `.dna/` knowledge tree) — and adds a session-spanning memory pipeline so each task loads only `target-agent-soul × task-subtree.dna`, never the whole project. The result: bounded context, fewer hallucinations, durable cross-session knowledge.
 
-### 5-Minute Quickstart
+### Install (one line)
 
 ```bash
-git clone https://github.com/nan023062/cbim.git
-cd cbim
-python v1/src/install.py        # installs kernel + venv, puts `cbim` on PATH
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.sh | bash
 ```
+
+No `git clone` required. Installs the kernel + venv into your user data directory
+(`%LOCALAPPDATA%\Cbim-CC\` on Windows, `~/.local/share/Cbim-CC/` on POSIX)
+and puts `cbim` on your PATH.
+
+Windows / no-bash environments:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
+```
+
+Pin a specific version: `CBIM_VERSION=1.3.3 curl ... | bash`
 
 Then, in any project you want CBIM in:
 
 ```bash
 cd /path/to/your/project
-cbim init                       # bootstraps .cbim/, .claude/, CLAUDE.md, .gitignore
+cbim init
 ```
 
-Restart Claude Code in that project, then send:
+Restart Claude Code there and send:
 
 > Please bootstrap the module knowledge system for this project.
 
-The Architect will create the first `.dna/` knowledge tree.
-
-**Upgrading:** inside Claude Code, type `/cbim_update`. Or run `cbim update -y && cbim migrate --version <latest>`.
+**Upgrading:** inside Claude Code type `/cbim_update`, or run
+`cbim update -y && cbim migrate --version <latest>`.
 
 ### Core Commands
 
@@ -92,28 +101,37 @@ Two implementations live in this repo:
 
 CBIM（Capability–Business Independence + Memory）是面向 Claude Code 的上下文管理框架。沿能力（专精 agent 及其 skill）与业务（按模块切分的 `.dna/` 知识树）两个维度切分项目，并提供跨会话记忆管道，让每个任务的上下文 = 目标 agent 灵魂 × 任务子树 `.dna/`，与项目总大小无关。结果：上下文有界、幻觉减少、跨会话知识沉淀。
 
-### 5 分钟上手
+### 安装（一行）
 
 ```bash
-git clone https://github.com/nan023062/cbim.git
-cd cbim
-python v1/src/install.py        # 安装内核 + venv，并把 `cbim` 加入 PATH
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.sh | bash
 ```
 
-然后，在任何想启用 CBIM 的项目里：
+无需 `git clone`。会把内核和虚拟环境装到用户数据目录
+（Windows 是 `%LOCALAPPDATA%\Cbim-CC\`，POSIX 是 `~/.local/share/Cbim-CC/`），
+并把 `cbim` 加入 PATH。
+
+Windows / 无 bash 环境：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
+```
+
+固定版本：`CBIM_VERSION=1.3.3 curl ... | bash`
+
+随后，在任何想启用 CBIM 的项目里：
 
 ```bash
 cd /path/to/your/project
-cbim init                       # 铺设 .cbim/、.claude/、CLAUDE.md、.gitignore
+cbim init
 ```
 
-在该项目里重启 Claude Code，然后发一句：
+在该项目里重启 Claude Code，然后发：
 
 > 请帮我初始化本项目的模块知识系统
 
-Architect 会为这个项目创建第一棵 `.dna/` 知识树。
-
-**升级**：在 Claude Code 里输入 `/cbim_update`；或命令行 `cbim update -y && cbim migrate --version <latest>`。
+**升级**：在 Claude Code 里输入 `/cbim_update`；或命令行
+`cbim update -y && cbim migrate --version <latest>`。
 
 ### 核心命令
 

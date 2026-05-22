@@ -6,6 +6,22 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [1.3.4] - 2026-05-22
+
+### Added
+
+- `bootstrap.sh` / `bootstrap.py`: one-line install from the repo, no `git clone` required. Honors `CBIM_VERSION` / `CBIM_REF` env vars and supports `CBIM_BOOTSTRAP_DRY_RUN` for verification.
+
+### Changed
+
+- README quickstart now leads with the one-line bootstrap; the historical `git clone` + `python v1/src/install.py` path still works but is no longer the primary recommendation.
+
+### Removed
+
+- `v1/INSTALL.md` and `v1/INSTALL.zh-CN.md` — the manual SOP had drifted from repo layout (referenced a top-level `.cbim/mcp_server/`, manually overwrote `.claude/settings.json` that `cbim init` already merges safely). The bootstrap script + `install.py` + `cbim init` now own the install surface end-to-end.
+
+---
+
 ## [1.3.3] - 2026-05-22
 
 ### Motivation
