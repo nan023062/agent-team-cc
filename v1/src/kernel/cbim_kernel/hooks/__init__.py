@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import sys
 
-
 EVENT_MAP = {
     "session-start": "run_session_start",
     "session-end":   "run_session_end",

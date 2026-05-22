@@ -28,12 +28,44 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 _MAX_ENTRY_CHARS = 3000   # [USER] / [ASSIST] cap
 _MAX_CMD_CHARS   = 400    # Bash command preview
 _MAX_RET_CHARS   = 300    # tool result preview (regular tools)
 _MAX_RET_AGENT   = 600    # tool result preview (Agent — important output)
+
+
+# ---------------------------------------------------------------------------
+# Agent identity — derived from the hook event's transcript_path.
+#
+# Claude Code transcript layout:
+#   Main session : <project_slug>/<session_id>.jsonl
+#   Subagent     : <project_slug>/<session_id>/subagents/agent-<aid>.jsonl
+#                  + sibling agent-<aid>.meta.json containing {"agentType": ...}
+#
+# Only transcript_path carries reliable agent identity in hook payloads;
+# session_id / cwd / tool_name do not.
+# ---------------------------------------------------------------------------
+
+@lru_cache(maxsize=128)
+def _agent_label(transcript_path: str) -> str:
+    """Return '[agent:<name>] ' for subagent transcripts, '' for main session."""
+    if not transcript_path:
+        return ""
+    try:
+        p = Path(transcript_path)
+        if p.parent.name != "subagents":
+            return ""
+        meta = p.with_suffix(".meta.json")
+        if not meta.exists():
+            return ""
+        data = json.loads(meta.read_text(encoding="utf-8"))
+        name = (data.get("agentType") or "").strip()
+        return f"[agent:{name}] " if name else ""
+    except Exception:
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -92,8 +124,18 @@ def _escape(text: str) -> str:
     return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n")
 
 
-def append(tag: str, message: str, cbim: Path | None = None, log_path: Path | None = None) -> None:
+def append(
+    tag: str,
+    message: str,
+    cbim: Path | None = None,
+    log_path: Path | None = None,
+    transcript_path: str = "",
+) -> None:
     """Append one timestamped line to the current session log.
+
+    When transcript_path points to a subagent transcript, the line is tagged
+    with [agent:<name>] between the tag and the message. Main-session lines
+    carry no agent label.
 
     Creates an orphan session log on the fly if no session has started yet.
     Swallows all exceptions — logging must never crash the host process.
@@ -104,7 +146,8 @@ def append(tag: str, message: str, cbim: Path | None = None, log_path: Path | No
         if path is None:
             path = _create_session_file("orphan", os.getcwd(), cbim)
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        line = f"[{ts}] [{tag}] {_escape(message)}\n"
+        agent = _agent_label(transcript_path)
+        line = f"[{ts}] [{tag}] {agent}{_escape(message)}\n"
         with path.open("a", encoding="utf-8") as f:
             f.write(line)
     except Exception:
@@ -207,21 +250,27 @@ def format_tool_call(tool: str, inp: dict) -> tuple[str, str]:
 # High-level write helpers — called by hooks
 # ---------------------------------------------------------------------------
 
-def log_user(prompt: str, cbim: Path | None = None) -> None:
+def log_user(prompt: str, cbim: Path | None = None, transcript_path: str = "") -> None:
     """[USER] full user prompt."""
     text = (prompt or "").strip()
     if len(text) > _MAX_ENTRY_CHARS:
         text = text[:_MAX_ENTRY_CHARS] + "…"
-    append("USER", text, cbim=cbim)
+    append("USER", text, cbim=cbim, transcript_path=transcript_path)
 
 
-def log_call(tool: str, inp: dict, cbim: Path | None = None) -> None:
+def log_call(tool: str, inp: dict, cbim: Path | None = None, transcript_path: str = "") -> None:
     """[CALL] / [CBIM:*] tool invocation — called from PreToolUse hook."""
     tag, message = format_tool_call(tool, inp)
-    append(tag, message, cbim=cbim)
+    append(tag, message, cbim=cbim, transcript_path=transcript_path)
 
 
-def log_ret(tool: str, inp: dict, response: dict, cbim: Path | None = None) -> None:
+def log_ret(
+    tool: str,
+    inp: dict,
+    response: dict,
+    cbim: Path | None = None,
+    transcript_path: str = "",
+) -> None:
     """[RET] tool result preview — called from PostToolUse hook."""
     is_error = bool(response.get("is_error") or response.get("error"))
     status = "ERR" if is_error else "ok"
@@ -244,10 +293,20 @@ def log_ret(tool: str, inp: dict, response: dict, cbim: Path | None = None) -> N
             parts = cmd.split()
             domain = parts[1] if len(parts) > 1 else ""
             tag = f"RET:{domain}" if domain else "RET"
-            append(tag, f"{status} | {preview}" if preview else status, cbim=cbim)
+            append(
+                tag,
+                f"{status} | {preview}" if preview else status,
+                cbim=cbim,
+                transcript_path=transcript_path,
+            )
             return
 
-    append("RET", f"{tool} | {status}" + (f" | {preview}" if preview else ""), cbim=cbim)
+    append(
+        "RET",
+        f"{tool} | {status}" + (f" | {preview}" if preview else ""),
+        cbim=cbim,
+        transcript_path=transcript_path,
+    )
 
 
 def log_assist(transcript_path: str, cbim: Path | None = None) -> None:
@@ -257,7 +316,7 @@ def log_assist(transcript_path: str, cbim: Path | None = None) -> None:
         return
     if len(text) > _MAX_ENTRY_CHARS:
         text = text[:_MAX_ENTRY_CHARS] + "…"
-    append("ASSIST", text, cbim=cbim)
+    append("ASSIST", text, cbim=cbim, transcript_path=transcript_path)
 
 
 # ---------------------------------------------------------------------------

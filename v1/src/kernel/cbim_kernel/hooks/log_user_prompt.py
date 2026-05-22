@@ -21,10 +21,11 @@ def main(event: dict | None = None) -> int:
             return 0
 
     prompt = event.get("prompt", "")
+    transcript_path = event.get("transcript_path", "") or ""
 
     try:
         from cbim_kernel.engine.logger import log_user
-        log_user(prompt, cbim=cbim_dir())
+        log_user(prompt, cbim=cbim_dir(), transcript_path=transcript_path)
     except Exception:
         pass
 

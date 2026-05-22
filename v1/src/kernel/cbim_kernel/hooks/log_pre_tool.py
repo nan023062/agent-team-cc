@@ -28,9 +28,10 @@ def main(event: dict | None = None) -> int:
 
     tool = event.get("tool_name", "?")
     inp = event.get("tool_input", {}) or {}
+    transcript_path = event.get("transcript_path", "") or ""
     try:
         from cbim_kernel.engine.logger import log_call
-        log_call(tool, inp, cbim=cbim_dir())
+        log_call(tool, inp, cbim=cbim_dir(), transcript_path=transcript_path)
     except Exception:
         pass
     return 0
