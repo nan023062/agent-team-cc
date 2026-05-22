@@ -37,13 +37,13 @@ flowchart TD
 
     subgraph Kernel ["Kernel  新版  python -m cbim_kernel"]
         MigrateProject["migrate_project()\nschema 迁移"]
-        SyncTemplates["sync_templates()\nOWNED: CLAUDE.md / .claudeignore / agents\nMERGED: settings.json / .gitignore"]
+        SyncTemplates["sync_templates()\nOWNED: CLAUDE.md / .claudeignore / agents / commands\nMERGED: settings.json / .gitignore"]
         PinWrite2["write .cbim/.pin = new_ver"]
     end
 
     subgraph Filesystem ["文件系统"]
         InstallRoot["install_root/\n  versions.json\n  kernel/&lt;ver&gt;/\n  updater/\n  bin/"]
-        ProjectFiles[".cbim/.pin\n.cbim/config.json\nCLAUDE.md\n.claude/agents/\n.claude/settings.json\n.claudeignore"]
+        ProjectFiles[".cbim/.pin\n.cbim/config.json\nCLAUDE.md\n.claude/agents/\n.claude/commands/\n.claude/settings.json\n.claudeignore"]
     end
 
     Check2["cbim upgrade check\n--no-network 确认"]
@@ -115,12 +115,12 @@ cbim upgrade check → Scenario 5/6
 
 | 策略 | 文件 | 规则 |
 |------|------|------|
-| **OWNED** | `CLAUDE.md`、内建 agent.md（4 个） | 整文件覆盖；kernel 完全所有，零扩展点 |
+| **OWNED** | `CLAUDE.md`、内建 agent.md（4 个）、内建 `.claude/commands/cbim_*.md`（6 个） | 整文件覆盖；kernel 完全所有，零扩展点 |
 | **MERGED** | `.claude/settings.json`（4 个白名单键）、`.gitignore` | 键级合并 / 只追加缺失行 |
 | **SEEDED** | `.cbim/config.json` | 初始化一次写入，之后永不触碰 |
-| **UNTOUCHED** | 用户自定义 agent、memory、commands、dna | 永不写入 |
+| **UNTOUCHED** | 用户自定义 agent、memory、`.claude/commands/<user-owned>`、dna | 永不写入 |
 
-用户私有内容（自定义 agent、`.claude/commands/`、`.dna/`）通过物理路径分离得到保护，无需额外处理。
+用户私有内容（自定义 agent、用户自建的 `.claude/commands/*.md`、`.dna/`）通过物理命名分离得到保护——只有 6 个内建命名命令会被覆盖，其它 `.claude/commands/*.md` 一律不动。
 
 ---
 

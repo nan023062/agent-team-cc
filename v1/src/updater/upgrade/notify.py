@@ -139,8 +139,9 @@ def session_start_line(project_root: Optional[Path] = None) -> Optional[str]:
         "message: A new CBIM version is available.\n"
         "on_confirm: cbim update && cbim project sync\n"
         "preserves: .cbim/config.json customizations, .cbim/memory/, "
-        ".claude/commands/, custom agents, .dna/ knowledge\n"
+        ".claude/commands/<user-owned>, custom agents, .dna/ knowledge\n"
         "overwrites: CLAUDE.md, .claude/agents (4 built-in), "
+        ".claude/commands/ (6 built-in), "
         ".claude/settings.json (kernel-managed keys only)\n"
         "[/cbim:upgrade-prompt]"
     )

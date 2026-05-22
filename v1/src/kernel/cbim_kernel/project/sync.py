@@ -3,18 +3,19 @@
 Shared template-copy logic used by `init`, `migrate`, and the standalone
 `project sync` command. The rules per file:
 
-| File                                  | Rule                                                           |
-|---------------------------------------|----------------------------------------------------------------|
-| CLAUDE.md                             | Always overwrite from template                                 |
-| .claude/agents/<name>/<name>.md (x4)  | Always overwrite (only the 4 built-in named agents)            |
-| .claude/settings.json                 | Merge: only `hooks`, `permissions.deny`, `permissions.default- |
-|                                       | Mode`, `mcpServers` — preserve everything else                  |
-| .gitignore                            | Append missing entries only                                    |
+| File                                    | Rule                                                           |
+|-----------------------------------------|----------------------------------------------------------------|
+| CLAUDE.md                               | Always overwrite from template                                 |
+| .claude/agents/<name>/<name>.md (x4)    | Always overwrite (only the 4 built-in named agents)            |
+| .claude/commands/<name>.md (x6)         | Always overwrite (only the 6 built-in slash commands)          |
+| .claude/settings.json                   | Merge: only `hooks`, `permissions.deny`, `permissions.default- |
+|                                         | Mode`, `mcpServers` — preserve everything else                  |
+| .gitignore                              | Append missing entries only                                    |
 
 Never touched by sync:
 - .cbim/config.json                 (pin is updated separately by `cbim update`)
 - .cbim/memory/**, .cbim/logs/**, .cbim/.upgrade_cache.json
-- .claude/commands/**
+- .claude/commands/<other>.md       (any slash command not in the built-in 6)
 - .claude/agents/<other>/           (any agent not in the built-in 4)
 - Any .dna/ directory
 """
@@ -26,10 +27,22 @@ from pathlib import Path
 _PKG_DIR = Path(__file__).resolve().parent
 _TEMPLATES = _PKG_DIR / "templates"
 _AGENTS = _PKG_DIR / "agents"
+_COMMANDS = _PKG_DIR / "commands"
 
 # The four kernel-managed (built-in) agents. Any other agent directory under
 # .claude/agents/ is treated as user-owned and never touched.
 KERNEL_AGENT_NAMES: tuple[str, ...] = ("architect", "auditor", "hr", "programmer")
+
+# The six kernel-managed (built-in) slash commands. Any other .md file under
+# .claude/commands/ is treated as user-owned and never touched.
+KERNEL_COMMAND_NAMES: tuple[str, ...] = (
+    "cbim_dashboard",
+    "cbim_debug",
+    "cbim_help",
+    "cbim_log",
+    "cbim_sched",
+    "cbim_update",
+)
 
 
 def _read_template(name: str) -> str:
@@ -106,6 +119,28 @@ def sync_agent(project_root: Path, name: str, dry_run: bool = False) -> str:
 
 def sync_agents(project_root: Path, dry_run: bool = False) -> list[str]:
     return [sync_agent(project_root, name, dry_run) for name in KERNEL_AGENT_NAMES]
+
+
+def sync_command(project_root: Path, name: str, dry_run: bool = False) -> str:
+    """OWNED file. Overwrite the built-in slash command from template."""
+    src = _COMMANDS / f"{name}.md"
+    dst = project_root / ".claude" / "commands" / f"{name}.md"
+    rel = _rel(dst, project_root)
+    content = src.read_text(encoding="utf-8")
+
+    if dst.exists() and dst.read_text(encoding="utf-8") == content:
+        return f"unchanged {rel}"
+    verb = "would overwrite" if dry_run else "overwrote"
+    if not dst.exists():
+        verb = "would create" if dry_run else "created"
+    if not dry_run:
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.write_text(content, encoding="utf-8")
+    return f"{verb} {rel}"
+
+
+def sync_commands(project_root: Path, dry_run: bool = False) -> list[str]:
+    return [sync_command(project_root, name, dry_run) for name in KERNEL_COMMAND_NAMES]
 
 
 def sync_settings(project_root: Path, dry_run: bool = False) -> str:
@@ -199,15 +234,18 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
 
     Order is fixed and deterministic so dry-run output is reproducible:
       1. CLAUDE.md
-      2. .claude/agents/<name>/<name>.md  (architect, auditor, hr, programmer)
-      3. .claude/settings.json
-      4. .gitignore
+      2. .claudeignore
+      3. .claude/agents/<name>/<name>.md  (architect, auditor, hr, programmer)
+      4. .claude/commands/<name>.md       (6 built-in slash commands)
+      5. .claude/settings.json
+      6. .gitignore
     """
     project_root = Path(project_root).resolve()
     actions: list[str] = []
     actions.append(sync_claude_md(project_root, dry_run=dry_run))
     actions.append(sync_claudeignore(project_root, dry_run=dry_run))
     actions.extend(sync_agents(project_root, dry_run=dry_run))
+    actions.extend(sync_commands(project_root, dry_run=dry_run))
     actions.append(sync_settings(project_root, dry_run=dry_run))
     actions.append(sync_gitignore(project_root, dry_run=dry_run))
     return actions

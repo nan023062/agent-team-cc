@@ -7,6 +7,7 @@ from cbim_kernel.project import sync as _sync
 
 _TEMPLATES = _sync._TEMPLATES
 _AGENT_NAMES = _sync.KERNEL_AGENT_NAMES
+_COMMAND_NAMES = _sync.KERNEL_COMMAND_NAMES
 
 
 def _write_pin(project_root: Path, version: str) -> None:
@@ -73,6 +74,17 @@ def _install_agents(project_root: Path, force: bool) -> None:
         print(f"[cbim] {action}")
 
 
+def _install_commands(project_root: Path, force: bool) -> None:
+    for name in _COMMAND_NAMES:
+        dst = project_root / ".claude" / "commands" / f"{name}.md"
+        if dst.exists() and not force:
+            _print("skipped (exists)", dst, project_root)
+            continue
+        # Delegate to sync's always-overwrite primitive.
+        action = _sync.sync_command(project_root, name, dry_run=False)
+        print(f"[cbim] {action}")
+
+
 def _install_settings(project_root: Path, force: bool) -> None:
     # sync_settings already merges idempotently; force has no effect on merge
     # semantics (the merge is always safe).
@@ -131,6 +143,7 @@ def init_project(project_root: Path, version: str, force: bool = False) -> None:
     _ensure_dir(project_root / ".cbim" / "memory" / "medium", project_root)
     _install_pin(project_root, version, force)
     _install_agents(project_root, force)
+    _install_commands(project_root, force)
     _install_settings(project_root, force)
     _install_claude_md(project_root, force)
     _install_claudeignore(project_root, force)

@@ -174,6 +174,12 @@ def _update_agents(project_root: Path, dry_run: bool) -> None:
         print(f"{prefix}{action}")
 
 
+def _update_commands(project_root: Path, dry_run: bool) -> None:
+    prefix = "[cbim] [dry-run] " if dry_run else "[cbim] "
+    for action in project_sync.sync_commands(project_root, dry_run=dry_run):
+        print(f"{prefix}{action}")
+
+
 def _remove_old_dirs(cbim_dir: Path, dry_run: bool) -> None:
     for d in _KERNEL_DIRS:
         target = cbim_dir / d
@@ -225,8 +231,11 @@ def migrate_project(
         if pin_matches:
             settings_action = project_sync.sync_settings(project_root, dry_run=True)
             agent_actions = project_sync.sync_agents(project_root, dry_run=True)
-            if settings_action.startswith("unchanged ") and all(
-                a.startswith("unchanged ") for a in agent_actions
+            command_actions = project_sync.sync_commands(project_root, dry_run=True)
+            if (
+                settings_action.startswith("unchanged ")
+                and all(a.startswith("unchanged ") for a in agent_actions)
+                and all(a.startswith("unchanged ") for a in command_actions)
             ):
                 print(f"[cbim] already aligned with .cbim/.pin = \"{version}\"; nothing to do")
                 return 0
@@ -235,13 +244,17 @@ def migrate_project(
         _inject_version(cbim_dir, version, dry_run)
         _update_settings(project_root, dry_run)
         _update_agents(project_root, dry_run)
+        _update_commands(project_root, dry_run)
 
         if dry_run:
             print("[cbim] --- DRY RUN complete ---")
         return 0
 
     if not (dry_run or force):
-        print(f"[cbim] This will modify .cbim/, .claude/settings.json, and .claude/agents/.")
+        print(
+            f"[cbim] This will modify .cbim/, .claude/settings.json, "
+            f".claude/agents/, and .claude/commands/."
+        )
         print(f"[cbim] A full backup will be created at the project root first.")
         try:
             answer = input("[cbim] Proceed? [y/N] ").strip().lower()
@@ -258,6 +271,7 @@ def migrate_project(
     _inject_version(cbim_dir, version, dry_run)
     _update_settings(project_root, dry_run)
     _update_agents(project_root, dry_run)
+    _update_commands(project_root, dry_run)
     _remove_old_dirs(cbim_dir, dry_run)
 
     if dry_run:

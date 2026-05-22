@@ -37,13 +37,13 @@ flowchart TD
 
     subgraph Kernel ["Kernel  new version  python -m cbim_kernel"]
         MigrateProject["migrate_project()\nschema migration"]
-        SyncTemplates["sync_templates()\nOWNED: CLAUDE.md / .claudeignore / agents\nMERGED: settings.json / .gitignore"]
+        SyncTemplates["sync_templates()\nOWNED: CLAUDE.md / .claudeignore / agents / commands\nMERGED: settings.json / .gitignore"]
         PinWrite2["write .cbim/.pin = new_ver"]
     end
 
     subgraph Filesystem ["Filesystem"]
         InstallRoot["install_root/\n  versions.json\n  kernel/&lt;ver&gt;/\n  updater/\n  bin/"]
-        ProjectFiles[".cbim/.pin\n.cbim/config.json\nCLAUDE.md\n.claude/agents/\n.claude/settings.json\n.claudeignore"]
+        ProjectFiles[".cbim/.pin\n.cbim/config.json\nCLAUDE.md\n.claude/agents/\n.claude/commands/\n.claude/settings.json\n.claudeignore"]
     end
 
     Check2["cbim upgrade check\n--no-network confirm"]
@@ -115,12 +115,12 @@ cbim upgrade check → Scenario 5/6
 
 | Strategy | Files | Rule |
 |----------|-------|------|
-| **OWNED** | `CLAUDE.md`, 4 built-in agent.md files | Full overwrite; kernel-owned, zero extension points |
+| **OWNED** | `CLAUDE.md`, 4 built-in agent.md files, 6 built-in `.claude/commands/cbim_*.md` | Full overwrite; kernel-owned, zero extension points |
 | **MERGED** | `.claude/settings.json` (4 whitelisted keys), `.gitignore` | Key-level merge / append-only |
 | **SEEDED** | `.cbim/config.json` | Written once at init, never touched again |
-| **UNTOUCHED** | User agents, memory, commands, dna | Never written |
+| **UNTOUCHED** | User agents, memory, `.claude/commands/<user-owned>`, dna | Never written |
 
-User-owned content (custom agents, `.claude/commands/`, `.dna/`) is protected by physical path separation — no special handling needed.
+User-owned content (custom agents, user-defined slash commands under `.claude/commands/`, `.dna/`) is protected by physical name separation — only the 6 named built-in commands are touched; any other `.claude/commands/*.md` is left alone.
 
 ---
 
