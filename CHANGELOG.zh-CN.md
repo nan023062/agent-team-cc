@@ -6,6 +6,20 @@
 
 ---
 
+## [1.3.5] - 2026-05-22
+
+### 修复
+
+- Launcher 现在先从 `.cbim/.pin`（1.3.3 之后的位置）读取项目 pin，再回退到 `.cbim/config.json` 中遗留的 `cbim_version` 字段。1.3.5 之前，全新安装会以 `no kernel version resolved` 失败 —— 因为 1.3.3 之后的 `cbim init` 模板不再向 `config.json` 写 `cbim_version`。**现有的 1.3.4 安装在未重装之前都是坏的**：请重新跑 `python install.py`（重新 bootstrap 或拉新 tarball），以更新带补丁的 launcher。仅 `cbim install 1.3.5` **不会**刷新 `<install_root>/bin/cbim_launcher.py`。
+- Launcher 在既无项目 pin 也无 `CBIM_DEFAULT_VERSION` 时，现在回退到 `versions.json[active_default]`，而不是直接报错退出。
+
+### 变更
+
+- 文档：README 调度器章节回归现实（任务随内核包 `cbim_kernel.mcp_server.tasks` 出厂；目标项目里不存在 `.cbim/mcp_server/`；尚未提供项目本地任务投放路径）。
+- 内部：`ARCHITECTURE.md`/`ARCHITECTURE.zh-CN.md`、`install/cli.py`、`install/install.py`、`install/settings.py`、`cbi/claude_md.py` 以及 `CLAUDE.md.tmpl` 顶部 banner 里残留的 `INSTALL.md` 引用，全部改指 `README.md`。
+
+---
+
 ## [1.3.4] - 2026-05-22
 
 ### 新增

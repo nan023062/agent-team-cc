@@ -1,5 +1,5 @@
 CLAUDE_MD: str = """\
-<!-- This file is managed by the CBIM install flow (see INSTALL.md) and overwritten on every install/upgrade.
+<!-- This file is managed by the CBIM install flow (see README.md) and overwritten on every install/upgrade.
      Do not edit; put project-specific notes elsewhere (e.g. README.md or .dna/module.md). -->
 # Assistant — Coordination Hub
 

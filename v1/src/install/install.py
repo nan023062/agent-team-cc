@@ -1,7 +1,7 @@
 """
 install.py — Legacy script-based installer entry point.
 
-Prefer the copy-based install documented in INSTALL.md at the repo root.
+Prefer the bootstrap install documented in README.md at the repo root.
 This script is kept for users who want a one-command install:
 
     python install/install.py

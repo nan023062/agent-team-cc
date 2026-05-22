@@ -15,7 +15,7 @@ controls extra [ENG]/[IMP] engine-internal lines, not the session signals.
 Interpreter choice:
   Hooks    → `python3` (POSIX) / `python` (Windows) — stdlib only, no venv required
   MCP server → `.venv/bin/python3` (POSIX) / `.venv\\Scripts\\python.exe` (Windows)
-              — needs the `mcp` SDK installed in the venv (see Step 4 of INSTALL.md)
+              — needs the `mcp` SDK installed in the venv
 """
 
 import sys

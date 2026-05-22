@@ -59,27 +59,13 @@ Server 基于官方 `mcp` Python SDK（FastMCP）实现，通过 `cbim mcp` laun
 
 ## 调度器
 
-MCP server 内嵌一个异步任务调度器（在其 lifespan 中启动）。每 30 秒 tick 一次，派发位于 `.cbim/mcp_server/tasks/*.py` 下发现的任务。
+MCP server 内嵌一个异步任务调度器（在其 lifespan 中启动）。每 30 秒 tick 一次，派发随内核包一起出厂的内置任务（`cbim_kernel.mcp_server.tasks`）。
 
-每个任务继承 `mcp_server.scheduler.Task`：
-
-```python
-from mcp_server.scheduler import Task
-
-class MyTask(Task):
-    name = "my-task"
-    description = "轮询某事或运行基准"
-    interval_seconds = 600       # 0 = 仅手动
-    respect_cc_idle = True       # 仅在 CC 空闲时触发（依据 .cbim/.cc-status）
-
-    async def run(self, context: dict) -> str:
-        # context: {project_root, cbim_root, cc_idle}
-        return "summary line written to session log + state.json"
-```
+每个任务继承 `cbim_kernel.mcp_server.scheduler.Task`，声明 `name`、`description`、`interval_seconds`（0 = 仅手动）、`respect_cc_idle`（True = 仅在 CC 空闲时触发，依据 `.cbim/.cc-status`）。任务目前内置于内核包中，尚未提供项目本地的任务投放路径。
 
 `UserPromptSubmit` 与 `Stop` 钩子维护 `.cbim/.cc-status`（`busy` / `idle`），让 opt-in 任务只在轮次之间触发。状态持久化在 `.cbim/scheduler/state.json`；结果以 `[SCHED]` 前缀写入 session 日志。
 
-**生命周期**：调度器随 Claude Code 退出 MCP server 时一同终止。若任务必须在 CC 离线时运行，独立启动 server（`python .cbim/mcp_server/server.py`）—— 同一份代码，无需 CC。
+**生命周期**：调度器与 MCP server 进程同生命周期。CC 通过 `cbim mcp` launcher 启动 server → 调度器启动；CC 退出 → 调度器停止。
 
 ---
 

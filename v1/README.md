@@ -59,27 +59,13 @@ The server is implemented with the official `mcp` Python SDK (FastMCP) and runs 
 
 ## Scheduler
 
-An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches tasks discovered under `.cbim/mcp_server/tasks/*.py`.
+An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches built-in tasks that ship with the kernel package (`cbim_kernel.mcp_server.tasks`).
 
-Each task subclasses `mcp_server.scheduler.Task`:
-
-```python
-from mcp_server.scheduler import Task
-
-class MyTask(Task):
-    name = "my-task"
-    description = "Poll something or run a benchmark"
-    interval_seconds = 600       # 0 = manual only
-    respect_cc_idle = True       # only fire when CC is idle (per .cbim/.cc-status)
-
-    async def run(self, context: dict) -> str:
-        # context: {project_root, cbim_root, cc_idle}
-        return "summary line written to session log + state.json"
-```
+Each task subclasses `cbim_kernel.mcp_server.scheduler.Task` and declares `name`, `description`, `interval_seconds` (0 = manual-only), and `respect_cc_idle` (True = only fire when CC is idle, per `.cbim/.cc-status`). Tasks currently ship inside the kernel; there is no project-local task drop-in path yet.
 
 `UserPromptSubmit` and `Stop` hooks maintain `.cbim/.cc-status` (`busy` / `idle`) so opt-in tasks only fire between turns. State persists in `.cbim/scheduler/state.json`; results are logged as `[SCHED]` in the session log.
 
-**Lifetime**: the scheduler dies when Claude Code exits the MCP server. For tasks that must run when CC is offline, launch the server standalone (`python .cbim/mcp_server/server.py`) — same code path, no CC required.
+**Lifetime**: the scheduler runs inside the MCP server process. CC starts the server (via the `cbim mcp` launcher) → scheduler starts; CC exits → scheduler stops.
 
 ---
 

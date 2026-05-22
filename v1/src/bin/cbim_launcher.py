@@ -25,7 +25,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-LAUNCHER_VERSION = "1.0.1"
+LAUNCHER_VERSION = "1.0.2"
 
 
 # Mirror of installer/paths.py:install_root(). Keep in sync.
@@ -64,8 +64,9 @@ Usage:
 
 Project resolution:
   The launcher walks up from the current directory looking for .cbim/config.json
-  and reads the pinned 'cbim_version' field. The matching kernel must be
-  installed at <install_root>/kernel/<version>/ (see CBIM_INSTALL_ROOT).
+  and reads the pinned kernel version from .cbim/.pin (falling back to the
+  legacy 'cbim_version' field in .cbim/config.json for pre-1.3.3 projects, then
+  to versions.json[active_default]).
 
 Development overrides:
   CBIM_KERNEL_OVERRIDE   Path to a kernel checkout (bypasses version lookup)
@@ -123,7 +124,44 @@ def read_versions_json():
         return None
 
 
+def _active_default_version():
+    """Fallback to <install_root>/versions.json[active_default] when no
+    project pin is available. Returns None if versions.json is missing or
+    has no active_default registered."""
+    versions = read_versions_json()
+    if versions and isinstance(versions.get("active_default"), str):
+        v = versions["active_default"].strip()
+        return v or None
+    return None
+
+
+def read_project_pin(project_root):
+    """Read `.cbim/.pin` — the post-1.3.3 location for the project pin.
+
+    Inlined copy of cbim_kernel.project.pin:read_pin. The launcher cannot
+    import from cbim_kernel (it bootstraps PATH before kernel is on sys.path).
+    Keep in sync with v1/src/kernel/cbim_kernel/project/pin.py.
+    """
+    pin_path = project_root / ".cbim" / ".pin"
+    try:
+        text = pin_path.read_text(encoding="utf-8").strip()
+        return text if text else None
+    except (OSError, UnicodeDecodeError) as exc:
+        debug("failed to read {}: {}".format(pin_path, exc))
+        return None
+
+
 def read_project_version(project_root):
+    """Resolve the project's pinned kernel version.
+
+    Priority:
+      1. `.cbim/.pin` (post-1.3.3 — single-line plain text).
+      2. `.cbim/config.json[cbim_version]` (legacy, pre-1.3.3 layout).
+    Returns None if neither is present.
+    """
+    pinned = read_project_pin(project_root)
+    if pinned:
+        return pinned
     cfg_path = project_root / ".cbim" / "config.json"
     try:
         with cfg_path.open("r", encoding="utf-8") as f:
@@ -146,8 +184,8 @@ def resolve_kernel_path(version):
             die("CBIM_KERNEL_OVERRIDE points to non-existent directory: {}".format(p))
         return p
     if not version:
-        die("no kernel version resolved (project config missing 'cbim_version' "
-            "and CBIM_DEFAULT_VERSION not set)")
+        die("no kernel version resolved (project has no .cbim/.pin, "
+            "CBIM_DEFAULT_VERSION not set, and no active_default in versions.json)")
     p = CBIM_HOME / "kernel" / version
     if not p.is_dir():
         die("Kernel version {} not installed. Run: cbim install {}".format(version, version))
@@ -264,7 +302,11 @@ def main(argv):
             die("Not a CBIM project. Run 'cbim init' to initialize.")
             return 1  # unreachable, keeps linters happy
     else:
-        version = read_project_version(project_root) or os.environ.get("CBIM_DEFAULT_VERSION")
+        version = (
+            read_project_version(project_root)
+            or os.environ.get("CBIM_DEFAULT_VERSION")
+            or _active_default_version()
+        )
 
     kernel_path = resolve_kernel_path(version)
     interpreter = resolve_interpreter()

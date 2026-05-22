@@ -6,6 +6,20 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [1.3.5] - 2026-05-22
+
+### Fixed
+
+- Launcher now reads the project pin from `.cbim/.pin` (post-1.3.3 location) before falling back to the legacy `cbim_version` field in `.cbim/config.json`. Before 1.3.5, fresh installs failed with `no kernel version resolved` because the post-1.3.3 `cbim init` template no longer writes `cbim_version` into `config.json`. **Existing 1.3.4 installs are broken until re-installed**: rerun `python install.py` (re-bootstrap or pull tarball) to pick up the patched launcher. `cbim install 1.3.5` alone will NOT refresh `<install_root>/bin/cbim_launcher.py`.
+- Launcher now falls back to `versions.json[active_default]` when neither project pin nor `CBIM_DEFAULT_VERSION` is set, instead of dying.
+
+### Changed
+
+- Docs: README scheduler section reflects reality (tasks ship inside the kernel package `cbim_kernel.mcp_server.tasks`; there is no `.cbim/mcp_server/` in target projects; no project-local task drop-in path yet).
+- Internal: stale `INSTALL.md` references in `ARCHITECTURE.md`/`ARCHITECTURE.zh-CN.md`, `install/cli.py`, `install/install.py`, `install/settings.py`, `cbi/claude_md.py`, and the `CLAUDE.md.tmpl` banner all now point to `README.md`.
+
+---
+
 ## [1.3.4] - 2026-05-22
 
 ### Added

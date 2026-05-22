@@ -561,7 +561,7 @@ Split into multiple sub-modules
         └── index.html / app.js / style.css
 ```
 
-Installation no longer ships an in-repo installer script. The install flow is the copy-based SOP in `INSTALL.md` (or, with the kernel CLI installed globally, `cbim install`). Upgrades go through `cbim update -y` (or the `/cbim_update` slash command). The project schema pin lives in `.cbim/.pin` and is the only thing migrations touch (`cbim migrate --version <X>`).
+Installation no longer ships an in-repo installer script. The install flow is the bootstrap documented in the repo `README.md` (or, with the kernel CLI installed globally, `cbim install`). Upgrades go through `cbim update -y` (or the `/cbim_update` slash command). The project schema pin lives in `.cbim/.pin` and is the only thing migrations touch (`cbim migrate --version <X>`).
 
 ---
 
