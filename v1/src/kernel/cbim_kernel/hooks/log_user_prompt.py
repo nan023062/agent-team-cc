@@ -1,8 +1,7 @@
 """
 log_user_prompt.py — UserPromptSubmit hook.
 
-Records "user spoke, assistant is about to think" — the start of a turn — into
-the per-session log under [USER].
+Logs the full user prompt [USER] and marks .cc-status as "busy".
 """
 
 import json
@@ -22,15 +21,13 @@ def main(event: dict | None = None) -> int:
             return 0
 
     prompt = event.get("prompt", "")
-    summary = prompt.strip().replace("\n", " ")[:120] if prompt else ""
 
     try:
-        from cbim_kernel.engine.session_log import append
-        append("USER", f"prompt_chars={len(prompt)} preview={summary!r}", cbim=cbim_dir())
+        from cbim_kernel.engine.logger import log_user
+        log_user(prompt, cbim=cbim_dir())
     except Exception:
         pass
 
-    # Mark CC as busy — scheduler reads this when deciding whether to fire idle-sensitive tasks
     try:
         from datetime import datetime
         (cbim_dir() / ".cc-status").write_text(

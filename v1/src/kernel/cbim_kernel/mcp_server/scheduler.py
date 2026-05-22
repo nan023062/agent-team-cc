@@ -222,8 +222,4 @@ class Scheduler:
     # ---------------------------------------------------------- log helper
 
     def _log(self, tag: str, msg: str) -> None:
-        try:
-            from cbim_kernel.engine.session_log import append
-            append(tag, msg, cbim=self.cbim_root)
-        except Exception:
-            pass
+        pass  # scheduler internals are not user-visible; no session log entry

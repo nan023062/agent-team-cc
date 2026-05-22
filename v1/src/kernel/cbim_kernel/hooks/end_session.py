@@ -1,4 +1,8 @@
-"""end_session.py — SessionEnd hook. Writes the paired [SESSION] end marker."""
+"""end_session.py — SessionEnd hook.
+
+Finalises the session log via logger.end_session(). The [SESSION] end
+marker is written only when .cbim/.debug is present.
+"""
 import json
 import sys
 
@@ -17,7 +21,7 @@ def main(event: dict | None = None) -> int:
     session_id = event.get("session_id", "")
     reason = event.get("reason", "") or "unknown"
     try:
-        from cbim_kernel.engine.session_log import end_session
+        from cbim_kernel.engine.logger import end_session
         end_session(session_id=session_id, reason=reason, cbim=cbim_dir())
     except Exception:
         pass

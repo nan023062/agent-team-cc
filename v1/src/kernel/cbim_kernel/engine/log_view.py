@@ -1,7 +1,8 @@
 """log_view.py — view per-session log files.
 
-`log show [--lines N] [--session SLUG]` — print the last N lines of the current
-(or specified) session log.
+`log show [--lines N] [--session SLUG]` — print the last N lines of the
+current (or specified) session log, expanding \\n escapes for readability.
+
 `log tail` — follow the current session log as it grows.
 """
 
@@ -10,7 +11,7 @@ from pathlib import Path
 
 
 def _logs_dir() -> Path:
-    from .session_log import logs_dir
+    from .logger import logs_dir
     return logs_dir()
 
 
@@ -24,8 +25,13 @@ def _resolve_log(session_slug: str | None) -> Path | None:
         if matches:
             return matches[-1]
         return None
-    from .session_log import current_log_path
+    from .logger import current_log_path
     return current_log_path()
+
+
+def _expand(line: str) -> str:
+    """Expand \\n escapes back to real newlines for display."""
+    return line.replace("\\n", "\n")
 
 
 def cmd_log_show(args) -> int:
@@ -38,7 +44,7 @@ def cmd_log_show(args) -> int:
     content = log.read_text(encoding="utf-8", errors="replace").splitlines()
     print(f"# {log}")
     for line in content[-lines:]:
-        print(line)
+        print(_expand(line))
     return 0
 
 
@@ -59,7 +65,7 @@ def cmd_log_tail(args) -> int:
                 if not line:
                     time.sleep(interval)
                     continue
-                print(line.rstrip(), flush=True)
+                print(_expand(line.rstrip()), flush=True)
     except KeyboardInterrupt:
         pass
     return 0
