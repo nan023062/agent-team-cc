@@ -47,22 +47,36 @@ Focus on:
 
 **Update Soul** (handling MUST signals):
 
-Edit `.claude/agents/<id>/<id>.md`:
+All writes to `.claude/agents/` go through the kernel CLI (Kernel-Only Writes hard rule). Stage the new section body into a temp file, then:
+
+```bash
+cbim agent update <id> --target section --heading "Principles" --mode append --content-file <path>
+```
+
+Example principles to append (one line each, concise):
 
 ```markdown
-## Principles
-(append new behavioral constraints; keep concise, one line each)
 - Before executing bulk deletes, must display expected change scope and get confirmation
 - When encountering undefined business terms, must clarify before executing — do not self-interpret
 ```
 
-Do not modify frontmatter (`model`, `tools` require user confirmation).
+Do not modify frontmatter (`model`, `tools` require user confirmation). If user confirms, use:
+
+```bash
+cbim agent update <id> --target frontmatter --field tools --value "Read, Grep, Bash"
+```
 
 **Add New Skill** (handling HOW signals):
 
-```
-.claude/agents/<id>/skills/<skill-name>.md
+Write the skill body to a temp file with the template below, then publish:
 
+```bash
+cbim agent add-skill <id> <skill-name> --content-file <path>
+```
+
+Skill body template:
+
+```markdown
 # Skill: <Scenario Name>
 
 ## Trigger Conditions

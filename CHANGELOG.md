@@ -17,6 +17,39 @@ This keeps the version line meaningful (each tag is a real surface change) and a
 
 ---
 
+## [1.0.3] - 2026-05-22 — governance loop wiring: HR write closure + memory threshold trigger
+
+Closes two long-standing governance gaps. (1) HR write closure: the architect-flagged "dead-lock" where `.claude/agents/` is a governed directory but the only path the skill text suggested was `Edit` — agents whose tools list did not include `Edit` had no way to fulfil HR write operations. (2) Memory threshold trigger: the short-tier write pipeline was muscular but the governance side was unwired — entries accumulated indefinitely with no nag to distill.
+
+### HR write closure
+
+- **New CLI subcommands** `cbim agent update` and `cbim agent add-skill`, mirroring the `cbim dna edit` surface: `--target {frontmatter|body|section}`, `--content` / `--content-file` / `--stdin`, `--dry-run`.
+- `agent update --target frontmatter` covers `description` / `model` / `tools`. Rejects `--field name` — rename is a separate operation by design.
+- `agent update --target section` supports `replace` / `append` / `insert-after` / `delete` on `## Heading` blocks via `Body.write_section`.
+- `agent add-skill` creates `.claude/agents/<id>/skills/<skill-id>/skill.md` atomically; exits 2 if the skill already exists.
+- Updates targeting **kernel-managed** agents (architect / auditor / hr / programmer) emit a stderr warning — `"kernel-managed; will be overwritten on next 'cbim project sync'"` — but proceed. Local override is intentionally still possible.
+- **Engine refactor:** `engine/cli.py` helper `_read_dna_content` renamed to `_read_content_arg` — a single content-input helper across all resources. Five call-sites updated; no behavior change.
+- **HR skills synced:** `hr_agents` (Tools / Update / Archive / Fission sections) and `hr_training` (Step 3) now reference `cbim agent ...` instead of "directly edit" prose. The skill text and the CLI surface are finally aligned.
+
+### Memory threshold trigger
+
+- **SessionStart hook** (`load_memory.py`) emits a single-line banner when `count(.cbim/memory/short/*.md) >= memory.distill.suggest_threshold`, nudging the user to run `cbim skill show memory_distill`.
+- **Banner ordering** preserves `additionalContext` priority: upgrade banner → threshold banner → snapshot → memory_out. Distillation nudges never bury the upgrade-required signal.
+- **Config-driven threshold:** read via `memory.engine.config.load_config()` — fully decoupled from the config file location. Falls back to the in-code `_DEFAULTS` (= 5) when the key is unset, so legacy projects continue to work without migration.
+- **Failure mode:** the hook swallows all exceptions per the `hooks/.dna` iron rule — a threshold-check bug never blocks the session.
+
+### `memory.distill.*` config knobs (now visible)
+
+- `v1/src/kernel/cbim_kernel/project/templates/config.json.tmpl` extended with a `memory.distill.{suggest_threshold, how_to_skill_threshold, how_to_workflow_threshold, must_review_threshold}` block, byte-aligned with `_DEFAULTS`.
+- New projects ship with the knobs visible in `config.json` (tunable without code dives). Existing projects pick up identical numerical values from `_DEFAULTS` fallback — **zero migration risk, no auto-upgrade**.
+
+### Notes
+
+- No schema bump. Pure additive: new subcommands, new hook banner, new config block with backward-compatible defaults.
+- Bug fix in spirit, not in letter — `cbim agent` did not previously crash; it simply had no `update` / `add-skill` verbs. HR's documented workflow was the gap.
+
+---
+
 ## [1.0.2] - 2026-05-22 — fix: `cbim migrate` PYTHONPATH bug + enforce updater sibling-split invariant
 
 A pure patch release. No surface change; no schema change. Fixes a regression in `cbim migrate` and removes a long-standing reverse-import that violated the updater↔kernel sibling-split iron rule.

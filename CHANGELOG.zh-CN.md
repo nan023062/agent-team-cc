@@ -17,6 +17,39 @@ CBIM 早期阶段修复频率高。为降低用户的迁移摩擦：
 
 ---
 
+## [1.0.3] - 2026-05-22 —— 治理闭环接线：HR 写入路径打通 + memory 阈值触发
+
+补齐两处长期挂账的治理空洞。(1) HR 写入路径：架构师此前指出的"死结"—— `.claude/agents/` 是 governed-dir，但 skill 文本只暗示用 `Edit`；工具列表中没有 `Edit` 的 agent 根本无路可走。(2) memory 阈值触发：short 层写入管道功能完备，但治理侧从未接线 —— 条目无止境堆积，从不提醒整理。
+
+### HR 写入路径打通
+
+- **新增 CLI 子命令** `cbim agent update` 与 `cbim agent add-skill`，对齐 `cbim dna edit` 的接口：`--target {frontmatter|body|section}`、`--content` / `--content-file` / `--stdin`、`--dry-run`。
+- `agent update --target frontmatter` 覆盖 `description` / `model` / `tools`。拒绝 `--field name` —— 改名是另一个独立操作，按设计分离。
+- `agent update --target section` 通过 `Body.write_section` 支持对 `## Heading` 块的 `replace` / `append` / `insert-after` / `delete`。
+- `agent add-skill` 原子地创建 `.claude/agents/<id>/skills/<skill-id>/skill.md`；skill 已存在时退出码 2。
+- 针对 **kernel-managed** agent（architect / auditor / hr / programmer）的更新会向 stderr 打印警告 —— `"kernel-managed; will be overwritten on next 'cbim project sync'"` —— 但仍执行。故意保留本地覆盖的可能。
+- **Engine 重构：** `engine/cli.py` 内 helper `_read_dna_content` 重命名为 `_read_content_arg` —— 跨所有资源统一的 content 输入助手。5 处调用点已同步；行为无变化。
+- **HR skills 同步：** `hr_agents`（Tools / Update / Archive / Fission 段）与 `hr_training`（Step 3）已改为引用 `cbim agent ...`，不再写 "directly edit"。skill 文本与 CLI 表面终于对齐。
+
+### Memory 阈值触发
+
+- **SessionStart 钩子**（`load_memory.py`）当 `count(.cbim/memory/short/*.md) >= memory.distill.suggest_threshold` 时输出单行 banner，提示用户 `cbim skill show memory_distill`。
+- **Banner 顺序**保持 `additionalContext` 优先级：upgrade banner → threshold banner → snapshot → memory_out。整理提示永远不会盖掉 upgrade-required 信号。
+- **配置驱动阈值：**经由 `memory.engine.config.load_config()` 读取 —— 与配置文件物理位置完全解耦。键缺失时回退到代码内 `_DEFAULTS`（= 5），老项目零迁移即可工作。
+- **失败行为：**hook 遵循 `hooks/.dna` 铁律吞掉所有异常 —— 阈值检查 bug 不会阻塞 session。
+
+### `memory.distill.*` 配置项（现在可见）
+
+- `v1/src/kernel/cbim_kernel/project/templates/config.json.tmpl` 增加 `memory.distill.{suggest_threshold, how_to_skill_threshold, how_to_workflow_threshold, must_review_threshold}` 块，数值与 `_DEFAULTS` 严格对齐。
+- 新建项目的 `config.json` 直接可见这些旋钮（无需翻代码即可调）。已存在项目从 `_DEFAULTS` 回退取到完全相同的数值 —— **零迁移风险，无自动升级**。
+
+### Notes
+
+- 无 schema bump。纯加法：新增子命令、新增 hook banner、新增配置块（默认值完全向后兼容）。
+- 精神上是 bug fix 而非字面上 —— `cbim agent` 此前并不会崩，只是没有 `update` / `add-skill` 动词。HR 文档化的工作流才是真正的缺口。
+
+---
+
 ## [1.0.2] - 2026-05-22 —— 修复 `cbim migrate` PYTHONPATH bug + 收紧 updater 同级切分铁律
 
 纯补丁版本。无对外接口变化，无 schema 变化。修复 `cbim migrate` 的一处回归，并消除长期存在的、违反 updater↔kernel 同级铁律的反向 import。

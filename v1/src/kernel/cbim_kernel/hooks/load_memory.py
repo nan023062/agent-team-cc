@@ -46,6 +46,32 @@ def _load_memory_context() -> str:
         return ""
 
 
+def _short_threshold_banner() -> str | None:
+    """Return a one-line suggestion banner if short/ exceeds threshold, else None.
+
+    Reads threshold via memory.engine.config.load_config() — shared contract
+    with task-9 (memory/config.json schema). No direct JSON parsing. Silently
+    returns None on any exception."""
+    try:
+        from cbim_kernel.memory.engine.config import load_config
+
+        short_dir = cbim_dir() / "memory" / "short"
+        if not short_dir.exists():
+            return None
+        count = sum(1 for p in short_dir.glob("*.md") if p.is_file())
+        cfg = load_config()
+        threshold = int(cfg.get("distill", {}).get("suggest_threshold", 5))
+        if count < threshold:
+            return None
+        return (
+            f"[CBIM] Short-term memory has {count} entries "
+            f"(threshold {threshold}). Consider running "
+            f"`cbim skill show memory_distill` to consolidate."
+        )
+    except Exception:
+        return None
+
+
 def _build_snapshot(root: Path) -> str:
     """In-process equivalent of the former `cbim snapshot --root <root>`."""
     try:
@@ -82,7 +108,10 @@ def main(event: dict | None = None) -> int:
     except Exception:
         banner = None
 
-    parts = [p for p in [banner, snapshot_out, memory_out] if p]
+    # Short-term memory threshold banner (between upgrade and snapshot)
+    threshold_banner = _short_threshold_banner()
+
+    parts = [p for p in [banner, threshold_banner, snapshot_out, memory_out] if p]
     if not parts:
         return 0
 
@@ -93,7 +122,7 @@ def main(event: dict | None = None) -> int:
         try:
             mem_data = json.loads(memory_out)
             mem_text = mem_data.get("additionalContext", memory_out)
-            parts = [p for p in [banner, snapshot_out, mem_text] if p]
+            parts = [p for p in [banner, threshold_banner, snapshot_out, mem_text] if p]
             combined = "\n\n---\n\n".join(parts)
         except json.JSONDecodeError:
             pass

@@ -126,11 +126,61 @@ def main() -> int:
     _p = asub.add_parser("show"); _p.add_argument("name")
     _p = asub.add_parser("scaffold"); _p.add_argument("name"); _p.add_argument("--description", default=""); _p.add_argument("--model", default="claude-sonnet-4-6")
     _p = asub.add_parser("archive"); _p.add_argument("name")
+    _p = asub.add_parser(
+        "update",
+        help=(
+            "Edit an agent's frontmatter / body / section. The agent's `name` "
+            "and the on-disk basename are NOT editable here (rename is a "
+            "different operation)."
+        ),
+    )
+    _p.add_argument("name", help="Agent id (directory name under .claude/agents/)")
+    _p.add_argument("--target", required=True,
+                    choices=["frontmatter", "body", "section"],
+                    help="What to edit")
+    _p.add_argument("--field", default=None,
+                    help="Frontmatter field (frontmatter only): "
+                         "description | model | tools")
+    _p.add_argument("--value", default=None,
+                    help="Frontmatter scalar value; mutually exclusive with --value-list")
+    _p.add_argument("--value-list", dest="value_list", nargs="+", default=None,
+                    metavar="ITEM",
+                    help="Frontmatter list value (one or more items)")
+    _p.add_argument("--content", default=None, help="Inline markdown content (body/section)")
+    _p.add_argument("--content-file", dest="content_file", default=None,
+                    help="Read content from this path (body/section)")
+    _p.add_argument("--stdin", action="store_true", help="Read content from stdin (body/section)")
+    _p.add_argument("--heading", default=None, help="Exact heading text (section only)")
+    _p.add_argument("--level", type=int, default=2, choices=[2, 3],
+                    help="Heading level (section only; default: 2)")
+    _p.add_argument("--mode", default=None,
+                    choices=["replace", "append", "insert-after", "delete"],
+                    help="Section edit mode (default: replace; section only)")
+    _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
+                    help="For section replace/append: if heading absent, append at EOF")
+    _p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                    help="Print rendered result to stdout; do not write to disk")
+
+    _p = asub.add_parser(
+        "add-skill",
+        help="Create a new skill markdown file under an agent's skills/ directory",
+    )
+    _p.add_argument("agent_name", help="Agent id (directory name under .claude/agents/)")
+    _p.add_argument("skill_name", help="Skill file stem (no .md suffix)")
+    _p.add_argument("--content", default=None, help="Inline markdown content")
+    _p.add_argument("--content-file", dest="content_file", default=None,
+                    help="Read content from this path")
+    _p.add_argument("--stdin", action="store_true", help="Read content from stdin")
+    _p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                    help="Print content to stdout; do not create the file")
+
     agent_cmds = {
         "list": _handle_agent_list,
         "show": _handle_agent_show,
         "scaffold": _handle_agent_scaffold,
         "archive": _handle_agent_archive,
+        "update": _handle_agent_update,
+        "add-skill": _handle_agent_add_skill,
     }
 
     # snapshot ----------------------------------------------------------------
@@ -627,6 +677,166 @@ def _handle_agent_archive(args: argparse.Namespace) -> int:
     return 0
 
 
+# Frontmatter fields that `agent update --target frontmatter` is allowed to
+# touch. `name` (and the on-disk basename) is intentionally NOT editable —
+# renaming an agent is a separate operation, not a frontmatter edit.
+_AGENT_FM_EDITABLE: tuple[str, ...] = ("description", "model", "tools")
+
+
+def _render_agent(agent) -> str:
+    """Mirror Agent.save() rendering without touching disk (for --dry-run)."""
+    fm = agent.frontmatter.render()
+    body = agent.body.read()
+    if body and not body.startswith("\n"):
+        text = fm + "\n" + body
+    else:
+        text = fm + body
+    if not text.endswith("\n"):
+        text += "\n"
+    return text
+
+
+def _warn_if_kernel_managed(name: str) -> None:
+    """Warn (on stderr) when the user is mutating a kernel-managed agent.
+
+    The 4 built-in agents are overwritten by `cbim project sync`; edits will
+    not survive the next sync. Warning only — does not block.
+    """
+    from cbim_kernel.project.sync import KERNEL_AGENT_NAMES
+    if name in KERNEL_AGENT_NAMES:
+        print(
+            f"warning: '{name}' is a kernel-managed agent; "
+            f"your edits will be overwritten on the next `cbim project sync`",
+            file=sys.stderr,
+        )
+
+
+def _handle_agent_update(args: argparse.Namespace) -> int:
+    """Edit an existing agent's frontmatter, body, or a single body section.
+
+    Routes by --target to the appropriate sub-object on the in-memory Agent.
+    Frontmatter edits use --field plus --value (scalar) or --value-list
+    (multi-item). The `name` field is locked. Body / section edits use the
+    shared --content / --content-file / --stdin trio. Dry-run prints the
+    rendered file to stdout and never touches disk.
+    """
+    from cbim_kernel.cbi.resources import Agent
+
+    target = args.target
+    dry_run = bool(getattr(args, "dry_run", False))
+
+    try:
+        agent = Agent.load(args.name)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        if target == "frontmatter":
+            if args.field is None:
+                raise ValueError("--field is required for --target frontmatter")
+            if args.field not in _AGENT_FM_EDITABLE:
+                raise ValueError(
+                    f"field {args.field!r} is not editable; "
+                    f"allowed: {', '.join(_AGENT_FM_EDITABLE)} "
+                    f"(rename is a separate operation, not handled here)"
+                )
+            value_given = args.value is not None
+            list_given = getattr(args, "value_list", None) is not None
+            if value_given and list_given:
+                raise ValueError("--value and --value-list are mutually exclusive")
+            if not value_given and not list_given:
+                raise ValueError(
+                    "one of --value or --value-list is required for --target frontmatter"
+                )
+            new_value = args.value_list if list_given else args.value
+            agent.frontmatter.set(args.field, new_value)
+
+        elif target == "body":
+            content = _read_content_arg(args)
+            if content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            agent.body.write(content)
+
+        elif target == "section":
+            if args.heading is None:
+                raise ValueError("--heading is required for --target section")
+            mode = args.mode or "replace"
+            needs_content = mode != "delete"
+            content = _read_content_arg(args)
+            if needs_content and content is None:
+                raise ValueError("one of --content / --content-file / --stdin is required")
+            if not needs_content and content is not None:
+                raise ValueError("content sources are forbidden with --mode delete")
+            agent.body.write_section(
+                args.heading, content,
+                level=args.level, mode=mode,
+                create_if_missing=bool(args.create_if_missing),
+            )
+
+        else:
+            raise ValueError(f"unknown --target: {target!r}")
+
+    except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if dry_run:
+        sys.stdout.write(_render_agent(agent))
+        return 0
+
+    _warn_if_kernel_managed(args.name)
+    agent.save()
+    print(str(agent.path.resolve()))
+    return 0
+
+
+def _handle_agent_add_skill(args: argparse.Namespace) -> int:
+    """Create a new skill markdown file under <agent>/skills/.
+
+    Refuses to overwrite an existing skill (exit code 2). For modifying an
+    existing skill, a future `cbim agent edit-skill` is planned but not yet
+    implemented.
+    """
+    from cbim_kernel.cbi.resources import Agent
+
+    try:
+        content = _read_content_arg(args)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    if content is None:
+        print(
+            "Error: one of --content / --content-file / --stdin is required",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.dry_run:
+        sys.stdout.write(content if content.endswith("\n") else content + "\n")
+        return 0
+
+    try:
+        agent = Agent.load(args.agent_name)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    if args.skill_name in agent.skills:
+        print(
+            f"Error: skill already exists: {args.skill_name} "
+            f"(modifying an existing skill is not yet supported; "
+            f"edit the file directly via the kernel in a future release)",
+            file=sys.stderr,
+        )
+        return 2
+
+    _warn_if_kernel_managed(args.agent_name)
+    skill = agent.skills.add(args.skill_name, content)
+    print(str(skill.path.resolve()))
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # DNA handlers — drive cbi.resources.DNAModule directly. write-doc and
 # write-section retain their stderr DeprecationWarning and continue calling
@@ -635,11 +845,12 @@ def _handle_agent_archive(args: argparse.Namespace) -> int:
 # re-renders frontmatter and would break that guarantee.
 # ---------------------------------------------------------------------------
 
-def _read_dna_content(args: argparse.Namespace, *, allow_stdin: bool = True) -> str | None:
+def _read_content_arg(args: argparse.Namespace, *, allow_stdin: bool = True) -> str | None:
     """Resolve --content / --content-file / --stdin into one body string.
 
-    Returns the resolved string, None when no source was provided. Raises
-    ValueError on mutually-exclusive misuse or unreadable --content-file.
+    Shared by `dna edit`, `agent update`, and `agent add-skill`. Returns the
+    resolved string, None when no source was provided. Raises ValueError on
+    mutually-exclusive misuse or unreadable --content-file.
     """
     sources = [
         ("--content", args.content is not None),
@@ -859,7 +1070,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
 
     Routes by --target to the appropriate sub-object on the in-memory
     DNAModule. Frontmatter edits use --field/--value; everything else uses
-    the --content / --content-file / --stdin trio resolved by _read_dna_content.
+    the --content / --content-file / --stdin trio resolved by _read_content_arg.
 
     Dry-run prints the rendered result to stdout and does NOT touch disk.
     """
@@ -899,7 +1110,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
             m.frontmatter.set(args.field, new_value)
 
         elif target == "body":
-            content = _read_dna_content(args)
+            content = _read_content_arg(args)
             if content is None:
                 raise ValueError("one of --content / --content-file / --stdin is required")
             m.body.write(content)
@@ -909,7 +1120,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
                 raise ValueError("--heading is required for --target section")
             mode = args.mode or "replace"
             needs_content = mode != "delete"
-            content = _read_dna_content(args)
+            content = _read_content_arg(args)
             if needs_content and content is None:
                 raise ValueError("one of --content / --content-file / --stdin is required")
             if not needs_content and content is not None:
@@ -921,7 +1132,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
             )
 
         elif target == "contract":
-            content = _read_dna_content(args)
+            content = _read_content_arg(args)
             if content is None:
                 raise ValueError("one of --content / --content-file / --stdin is required")
             if not dry_run:
@@ -933,7 +1144,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
                 raise ValueError("--heading is required for --target contract-section")
             mode = args.mode or "replace"
             needs_content = mode != "delete"
-            content = _read_dna_content(args)
+            content = _read_content_arg(args)
             if needs_content and content is None:
                 raise ValueError("one of --content / --content-file / --stdin is required")
             if not needs_content and content is not None:
@@ -949,7 +1160,7 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
         elif target == "workflow":
             if not args.name:
                 raise ValueError("--name is required for --target workflow")
-            content = _read_dna_content(args)
+            content = _read_content_arg(args)
             if content is None:
                 raise ValueError("one of --content / --content-file / --stdin is required")
             if dry_run:
