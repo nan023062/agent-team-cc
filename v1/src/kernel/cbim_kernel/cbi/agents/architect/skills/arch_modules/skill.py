@@ -63,7 +63,7 @@ Each state has exactly one default action path. **Do not improvise.**
 |-------|----------|------------------|
 | **0** | Apply the **Worth0 decision** (below). 「值得建?」 | If **worth** → `cbim dna init …` to create module.md (+ contract.md if protocol-boundary). If **not worth** → **skip**, record reason in ContextPack. |
 | **1** | No DNA change needed | Directly extract module path + design constraints into ContextPack. |
-| **2** | DNA must catch up before work proceeds | Analyse the divergence (which interfaces / boundaries / dependencies changed?), update `.dna/module.md` via Edit (or `cbim dna update` when available) to reflect current code, **then** build ContextPack. |
+| **2** | DNA must catch up before work proceeds | Analyse the divergence (which interfaces / boundaries / dependencies changed?), update `.dna/module.md` via `cbim dna edit --target body` (or `--target section` for targeted edits) to reflect current code, **then** build ContextPack. |
 | **3** | Validate feasibility | Verify upstream / downstream dependencies are ready. Mark the module in the ContextPack as **「待实现 spec」**, i.e. DNA = task brief. Work Agent must implement to the spec, not modify it. |
 
 #### Worth0 decision (state-0 only)

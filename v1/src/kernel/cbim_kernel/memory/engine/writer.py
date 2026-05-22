@@ -16,6 +16,19 @@ from pathlib import Path
 
 from .engine import MemoryEngine, SHORT
 
+# Four-quadrant signal checklist template.
+# Emitted into every fresh entry's `## 信号` section as a fallback so the user
+# has a concrete prompt to fill in. `_fill_signals` overwrites this template
+# wholesale when LLM/heuristic signals are available (it slices on the marker
+# `\n## 信号\n` and replaces everything after it).
+# Order MUST → WANT → HOW → IS matches the skill spec; do not reorder.
+_SIGNAL_TEMPLATE = (
+    "- [ ] MUST: <agent-id>: <constraint>\n"
+    "- [ ] WANT: <module>: <decision rationale>\n"
+    "- [ ] HOW: <agent-id or module>: <flow pattern>\n"
+    "- [ ] IS: <module>: <current fact / old → new>\n"
+)
+
 _CORRECTION_PATTERNS = [
     "不对", "错了", "不应该", "不要", "你不能", "应该改", "重新做",
     "incorrect", "wrong", "don't do", "shouldn't", "stop doing",
@@ -579,4 +592,4 @@ tags: session{frontmatter_extra}
 {files_section}
 
 ## 信号
-"""
+{_SIGNAL_TEMPLATE}"""

@@ -17,6 +17,19 @@ This keeps the version line meaningful (each tag is a real surface change) and a
 
 ---
 
+## [1.0.4] - 2026-05-22 — governance polish: signals template in writer + skill CLI alignment
+
+- Memory write closure: `memory/engine/writer.py` now emits a 4-line `_SIGNAL_TEMPLATE` (MUST / WANT / HOW / IS unchecked rows with placeholder hints) under every `## 信号` heading, so empty-signals entries ship with a fill-in stub instead of a blank slot. `_fill_signals` semantics unchanged — the template is the fallback when no signals are auto-extracted; LLM/heuristic signals still replace everything after the byte-exact `\n## 信号\n` marker.
+- `cbi/skills/memory_write/skill.py` "Entry Format" example block byte-aligned with the template (heading was `## Signals` English; corrected to `## 信号` Chinese to match 200+ existing entries + the hook's actual output).
+- Skill text ↔ CLI alignment (14 drift points scanned; 6 MUST/SUGGEST text edits applied, 8 verified clean):
+  - `arch_modules/skill.py`: `cbim dna update` → `cbim dna edit --target body` (S2 action of Execution Gate; was the only stale-command reference in the architect's hot path).
+  - `memory_distill/skill.py`: `(see write.md spec)` → `(see memory_write skill)` (stale file reference); `## Signals` → `## 信号` (aligned with hook output).
+  - `memory_query/skill.py`: removed contradictory duplicate code-block ("If CBIM is installed as a subdirectory..." prose was wrong; `cbim` is a launcher, no path prefix needed).
+  - `architect/agent.py` + `hr/agent.py`: "engine dna / engine agent / engine memory" → "cbim dna / cbim agent / cbim memory" in the Kernel-Only Writes escalation rules (stale invocation surface from before launcher was canonical).
+- Coverage: HR skills already synced in 1.0.3 (P3-1); this round closed all remaining drift in architect / memory skills. `arch_governance/check.py` script existence verified (exists).
+
+---
+
 ## [1.0.3] - 2026-05-22 — governance loop wiring: HR write closure + memory threshold trigger
 
 Closes two long-standing governance gaps. (1) HR write closure: the architect-flagged "dead-lock" where `.claude/agents/` is a governed directory but the only path the skill text suggested was `Edit` — agents whose tools list did not include `Edit` had no way to fulfil HR write operations. (2) Memory threshold trigger: the short-tier write pipeline was muscular but the governance side was unwired — entries accumulated indefinitely with no nag to distill.

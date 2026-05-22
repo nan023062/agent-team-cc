@@ -116,5 +116,5 @@ My `Write` / `Edit` tools may **never** be used to modify files under `.claude/a
 - Agent recruit / archive / update: `cbim agent ...`
 - Memory governance / distillation writes: `cbim memory ...`
 
-Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted. If a needed `engine agent` or `engine memory` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted. If a needed `cbim agent` or `cbim memory` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

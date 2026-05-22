@@ -17,6 +17,19 @@ CBIM 早期阶段修复频率高。为降低用户的迁移摩擦：
 
 ---
 
+## [1.0.4] - 2026-05-22 —— 治理打磨：writer 注入信号模板 + skill 与 CLI 对齐
+
+- Memory 写入闭环：`memory/engine/writer.py` 现在会在每个 `## 信号` 标题下输出 4 行 `_SIGNAL_TEMPLATE`（MUST / WANT / HOW / IS 未勾选条目，附 placeholder 提示），让"空信号"条目落盘时自带可填写模板，而不是留一个空槽。`_fill_signals` 语义不变 —— 模板只在未自动抽出信号时作为回退；LLM / 启发式信号仍然会替换 `\n## 信号\n` byte-exact marker 之后的全部内容。
+- `cbi/skills/memory_write/skill.py` 的 "Entry Format" 示例块与模板字节对齐（原文写的是英文 `## Signals`；修正为 `## 信号` 中文，与 200+ 存量条目以及 hook 的真实输出一致）。
+- Skill 文本 ↔ CLI 对齐（共扫描 14 处漂移；6 处 MUST/SUGGEST 文本修正落地，8 处复核无问题）：
+  - `arch_modules/skill.py`：`cbim dna update` → `cbim dna edit --target body`（Execution Gate 的 S2 动作；这是 architect 热路径里唯一残留的旧命令引用）。
+  - `memory_distill/skill.py`：`(see write.md spec)` → `(see memory_write skill)`（残留文件引用）；`## Signals` → `## 信号`（与 hook 输出对齐）。
+  - `memory_query/skill.py`：移除自相矛盾的重复代码块（"If CBIM is installed as a subdirectory..." 段说法是错的；`cbim` 是 launcher，无需路径前缀）。
+  - `architect/agent.py` + `hr/agent.py`：Kernel-Only Writes 升级规则中的 "engine dna / engine agent / engine memory" → "cbim dna / cbim agent / cbim memory"（launcher 成为规范入口之前的旧调用面）。
+- 覆盖度：HR skills 已在 1.0.3 (P3-1) 同步；本轮关闭了 architect / memory skills 中剩余的全部漂移。`arch_governance/check.py` 脚本存在性已核实（存在）。
+
+---
+
 ## [1.0.3] - 2026-05-22 —— 治理闭环接线：HR 写入路径打通 + memory 阈值触发
 
 补齐两处长期挂账的治理空洞。(1) HR 写入路径：架构师此前指出的"死结"—— `.claude/agents/` 是 governed-dir，但 skill 文本只暗示用 `Edit`；工具列表中没有 `Edit` 的 agent 根本无路可走。(2) memory 阈值触发：short 层写入管道功能完备，但治理侧从未接线 —— 条目无止境堆积，从不提醒整理。

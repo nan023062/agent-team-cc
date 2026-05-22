@@ -18,12 +18,6 @@ cbim memory query "" --tier short --top-k 5
 cbim memory query "" --tier medium --top-k 3
 ```
 
-If CBIM is installed as a subdirectory (e.g. `.cbim/`), prefix with that path:
-
-```bash
-cbim memory query "" --top-k 5
-```
-
 The default backend (FileBackend) sorts by modification time; the query text argument is ignored.
 If switched to a semantic backend (ChromaBackend), the query text participates in similarity ranking.
 

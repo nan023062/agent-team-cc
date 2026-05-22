@@ -71,11 +71,11 @@ Result: <key output summary>
 ## Files Written / Modified
 - path/to/file
 
-## Signals
-- [ ] MUST: agent-id: description
-- [ ] WANT: module-name: description
-- [ ] HOW: agent-id or module-name: description
-- [ ] IS: module-name: description
+## 信号
+- [ ] MUST: <agent-id>: <constraint>
+- [ ] WANT: <module>: <decision rationale>
+- [ ] HOW: <agent-id or module>: <flow pattern>
+- [ ] IS: <module>: <current fact / old → new>
 ```
 
 ---

@@ -135,5 +135,5 @@ My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under a
 - Module CRUD (create / update / deprecate / split / index): `cbim dna ...`
 - Memory promotion / archival operations against `memory/`: `cbim memory ...`
 
-Reads (`Read`, `Glob`, `Grep`, `ls`/`cat`) against these paths are unrestricted and expected. If a needed `engine dna` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+Reads (`Read`, `Glob`, `Grep`, `ls`/`cat`) against these paths are unrestricted and expected. If a needed `cbim dna` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
 """

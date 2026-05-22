@@ -20,9 +20,9 @@ Medium-term memory is organized by **four quadrants**, each determining where in
 
 ## Prerequisite: Complete Signal Fields
 
-Entries written by the Stop hook have empty signal rows by default. **Signals must be filled in before distillation** (see write.md spec); otherwise there is no material to distill.
+Entries written by the Stop hook have empty signal rows by default. **Signals must be filled in before distillation** (see memory_write skill); otherwise there is no material to distill.
 
-For each pending `short/*.md`, check the `## Signals` section and complete the `- [x]` lines.
+For each pending `short/*.md`, check the `## 信号` section and complete the `- [x]` lines.
 
 ---
 
