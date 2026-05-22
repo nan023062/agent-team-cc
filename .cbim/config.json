@@ -1,5 +1,4 @@
 {
-  "cbim_version": "1.3.5",
   "dashboard": {
     "port": 8765,
     "auto_open": true,
