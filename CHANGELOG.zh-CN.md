@@ -6,220 +6,57 @@
 
 ---
 
-## [2.3.0] - 2026-05-22
+## [1.0.0] - 2026-05-22
 
-### 架构 — 统一资源对象模型
+首个公开发布版本。版本号从内部迭代中重置。
 
-收口长期遗留的 `.dna/` 与 `.claude/agents/` Kernel-Only Writes 缺口。新增 `cbi/resources/` 包，暴露五类资源对象 façade —— `Agent`、`DNAModule`、`Skill`、`Workflow`、`Memory`，每个对象都有一致的 `.load() / .save() / .delete()` 生命周期，以及 `.frontmatter` / `.body` / 子集合访问器。CLI 变为这些对象之上的薄层（约 120 行）；资源行为只在一个地方实现。
+### 架构
 
-依赖方向严格单向：`cli → resources → _primitives → services/_fm`。
+CBIM（Capability–Business Independence + Memory）沿两轴切分 LLM agent 项目：
+- **业务轴** —— 按模块切分的 `.dna/` 知识树，由 Architect 角色治理。
+- **能力轴** —— 专精 agent 与其 skill，由 HR 角色治理。
 
-### 新增
+跨会话记忆管道让每个任务的上下文 = 目标 agent 灵魂 × 任务子树 `.dna/` —— 上下文有界、幻觉减少、跨会话知识沉淀。
 
-- `cbi/resources/` 包 —— 10 个模块：`Resource` 基类、`Frontmatter`、`Body`、`atomic_write_text`，以及 `Agent` / `DNAModule` / `Skill` / `Workflow` / `Memory` 五类 façade。
-- `cbim dna edit --target {frontmatter|body|section|contract|contract-section|workflow}` —— DNA 统一编辑入口；支持 `--dry-run`、`--content` / `--content-file` / `--stdin`、`--create-if-missing`。
-- `--value-list` 参数处理 list 类型 frontmatter 字段（`keywords`、`dependencies`、`includeDirs`），写出块式 YAML 列表。对 list 字段误用 scalar `--value` 现在会显式报错。
-- `cbim update --reinstall`（`--force` 别名）—— 跳过版本号比对，强制重装当前 pin 版本的快照。支持 `--reinstall --local <path>` 用于开发期本地热刷新。
-- `Skill.list_builtin()` / `Skill.load_builtin(key)` —— 内置 skill 发现统一为资源类方法。
+仓库中并存两套实现：
+- **V1 — CC Kernel**（本次发布）：跑在 Claude Code 之上的 Python 扩展。
+- **V2 — Native Agent**：独立的 C# / .NET 8 运行时；设计阶段。
 
-### 变更
+### 内核 CLI
 
-- `cbi/engine/` 重命名为 `cbi/_primitives/`，明示"内部原语，外部不要直接 import"。外部调用方应改用 `cbi.resources`。
-- `cbi/_primitives/cli.py` 从约 350 行 `cmd_*` 包装精简为 17 行 stub；dispatch 上移到 `engine/cli.py` 的 `_handle_*` 私有函数，直接调用 `cbi.resources`。
-- `services/_fm.py` 新增 `render_frontmatter`，成为唯一的 frontmatter 解析/渲染实现；`agents.py` / `modules.py` 内部重复的 `_parse_frontmatter` / `_strip_frontmatter` / `_parse_yaml_block` 全部删除。
-- hooks（`write_memory`、`load_memory`）从 subprocess 改为 in-process import `memory.engine.{writer,loader}` 和 `cbi._primitives.snapshot`，消除每次事件的 Python 启动开销。
-- MCP tools（`agent.py`、`dna.py`、`memory.py`、`skill.py`、`snapshot.py`）改走 `cbi.resources`，不再直接 import `MemoryEngine` 与 engine 原语。
+- `cbim init` —— 在当前项目铺设 `.cbim/`、`.claude/`、`CLAUDE.md`、`.claudeignore`。
+- `cbim migrate --version <v>` —— 把当前项目的布局与 pin 迁移到目标内核版本。
+- `cbim update [--reinstall] [--local <path>]` —— 更新已装内核；`--reinstall`（别名 `--force`）跳过版本号比对，强制重装快照。
+- `cbim upgrade {check, apply}` —— 比对并应用 schema 升级。
+- `cbim dna {list, show, init, edit, reindex, write-doc, write-section}` —— 模块知识 CRUD。`edit --target {frontmatter|body|section|contract|contract-section|workflow}` 为统一入口；`--value-list` 写入块式 YAML 列表，用于 list 类型字段。`write-doc` / `write-section` 保留为 deprecated 别名。
+- `cbim agent {list, show, scaffold, archive}` —— agent 定义 CRUD。
+- `cbim memory {add, query, cleanup, reindex}` —— 记忆条目；会话开始/结束的记忆刷新由 hook 进程内处理。
+- `cbim skill {list, show}` —— 内置 skill 发现。
+- `cbim snapshot`、`cbim config`、`cbim log`、`cbim dashboard`、`cbim debug`、`cbim hook`、`cbim mcp`、`cbim project`、`cbim release-notes`。
 
-### 弃用
+### 内部架构
 
-- `cbim dna write-doc` / `write-section` —— 保留为 deprecated 别名，调用时向 stderr 输出警告并转发到旧路径。请改用 `cbim dna edit --target body|section`。
+- `cbi/resources/` —— 统一资源对象模型：`Agent`、`DNAModule`、`Skill`、`Workflow`、`Memory`。每个 façade 暴露 `.frontmatter` / `.body` / 子集合访问器，以及原子 `.save()`。
+- `cbi/_primitives/` —— 内部引擎原语（load / parse / write）。不应被直接 import；请使用 `cbi.resources`。
+- `services/_fm.py` —— 唯一的 frontmatter 解析/渲染实现。
+- 依赖方向严格单向：`cli → resources → _primitives → services/_fm`。
+- hooks（`write_memory`、`load_memory`）进程内运行，降低会话边界延迟。
 
-### 移除
-
-- `cbim memory write-session` / `load-context` / `preview` —— 由 hook 的 in-process 调用替代；`preview` 由 `cbim dashboard` 替代。这些原本属于 hook 实现细节，普通用户工作流不受影响。
-
-### 修复
-
-- `cbim dna edit` argparse 注册完整列出所有 `--target` 选项并对 list 字段做严格校验。
-- Architect agent 定义（`architect.md`）不再错误地把 `index.md` 列为 `.dna/` 核心文件（注册表实际在 `.cbim/index.md`，由内核自动维护）。
-
-## [2.2.3] - 2026-05-22
-
-### 新增
-- 会话日志 Agent 标识：所有 subagent 的日志行在信号标签之后插入 `[agent:<名称>]`，主 session 行保持不变。身份通过 `transcript_path` 旁的 `.meta.json`（`agentType` 字段）解析。
-- 富会话日志：所有工具调用均以 `[CALL]`/`[RET]` 信号完整记录对话流。
-
-### 修复
-- 在 cbim 入口点将 stdout/stderr 重新配置为 UTF-8，修复 Windows 下的编解码错误。
-- `config set/get` 现已正确处理嵌套键路径；`cbim install` 在首次安装时写入 Claude deny rules。
-- `cbim_update` skill：移除 `release-notes` 调用中多余的 `--no-additional-flags` 参数。
-
-### 变更
-- 精简 `cbim_update` 提示词（删除冗余步骤 5）；放宽 `settings.json` deny rules，仅覆盖 `.cbim/**` 路径。
-
-## [2.2.0] - 2026-05-22
-
-### 新增
-- `cbim release-notes <version>` 命令 — 打印任意已安装 kernel 版本的 GitHub 发布说明；网络不通时优雅降级（打印 fallback URL，exit 0）。
-- `cbim_update` skill 在成功更新后自动输出发布说明（Step 5）；无版本变更时（scenario 7）跳过。
-
-### 变更
-- Session log 重构为独立 logger 模块。
-
-### 修复
-- `cbim release-notes` 在 Windows GBK 控制台下输出乱码；现已显式将 stdout 重新配置为 UTF-8。
-
-## [2.1.0] - 2026-05-22
-
-### 内建 Slash 命令 — OWNED Kernel 资产
-
-`cbim init` 现在会将 6 个内建 slash 命令安装到 `.claude/commands/`。这些命令由 kernel 持有（OWNED 策略）：`cbim migrate` 和 `cbim update` 在升级时会覆盖它们，确保命令内容始终与 kernel 版本同步。非内建的用户自定义命令永不触碰。
-
-### 新增
-
-- `v1/src/kernel/cbim_kernel/project/commands/` — 新模板目录，存放 6 个内建 slash 命令：`cbim_dashboard`、`cbim_debug`、`cbim_help`、`cbim_log`、`cbim_sched`、`cbim_update`。
-- `sync.py` 中的 `KERNEL_COMMAND_NAMES` 常量 — 内建命令的显式枚举，与 `KERNEL_AGENT_NAMES` 对仗。
-- `sync.py` 中的 `sync_command()` / `sync_commands()` — 内建命令的 OWNED 同步函数，镜像 `sync_agent` / `sync_agents` 语义。
-- `migrate.py` 中的 `_update_commands()` — 每次 `cbim migrate` / `cbim update` 时覆盖内建命令。
-
-### 变更
-
-- `sync_templates()` 现在在 `sync_agents()` 之后、`sync_settings()` 之前插入 `sync_commands()`。
-- `cbim init` 随 `.claude/agents/` 一起安装 `.claude/commands/`；非 `--force` 时已有文件跳过。
-- UPDATE-FLOW 文档：OWNED 行扩展为包含 6 个内建命令；UNTOUCHED 行改为 `.claude/commands/<user-owned>`（非内建命令仍然不动）。
-- 升级提示文案：在 overwrites 中区分 `.claude/commands/ (6 built-in)`，在 preserves 中区分 `.claude/commands/<user-owned>`。
-
----
-
-## [2.0.0] - 2026-05-22
-
-### 架构 — Updater / Kernel 兄弟拆分
-
-这是一次重大架构版本。Updater 与 Kernel 现在是**兄弟关系**，不再是单体。跨版本操作（install、upgrade、migrate、pin）完全归属全新的 `updater` 包；Kernel 是纯粹的单版本运行时，不再知道自己如何被安装或升级。
-
-### 新增
-
-- `v1/src/updater/` — 新建机器级 updater 包，从 `installer/` 和 kernel 的 upgrade 子模块提取而来，持有所有跨版本操作。
-- `cbim pin <version>` 子命令 — 将当前项目锁定到任意已安装版本（Bug C 修复）。
-- updater CLI 的 `cbim migrate` 子命令 — 项目 schema 迁移现在可以直接通过 `python -m updater migrate` 触发。
-- `cbim self-update` 通过 launcher 路由到 updater。
-- `.claudeignore` 项目模板（OWNED 策略）— 由 `cbim init` 生成，`cbim migrate` 时刷新。默认内容：`.cbim/`、`**/.dna/`、`.venv/`、`__pycache__/`、`*.pyc`。
-- `sync.read_template(name)` — kernel 管理的模板文件公开访问器，供 `cbim soul show assistant` 使用。
-- `v1/docs/UPDATE-FLOW.md` / `UPDATE-FLOW.zh-CN.md` — 完整更新闭环流程图与组件边界参考。
-
-### 变更
-
-- `installer/` 降级为 deprecated reexport shim，所有逻辑移入 `updater/`，未来版本将删除。
-- Launcher `INSTALLER_COMMANDS` → `UPDATER_COMMANDS`，新增 `update`、`upgrade`、`migrate`、`check`、`apply`、`self-update`；launcher 现在启动 `python -m updater` 而非 `python -m installer`。
-- `write_pin` 从 `kernel/project/pin.py` 移除；kernel 对 `.cbim/.pin` 只读，只有 updater 负责写入。
-- `kernel/project/upgrade/cli.py` 替换为 subprocess facade，将 `cbim upgrade check|apply` 和 `cbim update` 转发给 `python -m updater`。
-- `kernel/project/migrate.py` 移入 `updater/migrate.py`；kernel 的 `_cmd_migrate` 改为 subprocess facade。
-- Snapshot 范围收窄为仅覆盖 `versions.json` + `kernel/<ver>/`，排除 `updater/`、`bin/`、`venv/`。
-- `cbim soul show assistant` 现在读取 `project/templates/CLAUDE.md.tmpl`，而非过时的 `cbi/claude_md.py` 常量。
-
-### 修复
-
-- **Bug A** — `upgrade apply` 的 preflight 现在能检测 legacy schema（`config.json` 有 `cbim_version` 但无 `.pin` 文件），并给出明确错误提示，引导用户先跑 `cbim migrate`。
-- **Bug B** — `cbim update` 现在在内核升级成功后自动触发 `cbim migrate`，确保项目配置在同一次操作中同步跟进。
-- **Bug C** — `cbim pin <version>` 子命令现已实现（此前 `cbim upgrade check` 输出中已推荐但 CLI 中不存在）。
-
-### 移除
-
-- `v1/src/install/` legacy installer 目录（已被 `v1/src/installer/` 和 `v1/src/updater/` 取代）。
-- `v1/src/kernel/cbim_kernel/cbi/claude_md.py` 死代码（过时的 CLAUDE_MD 常量，无任何活引用）。
-- `kernel/project/upgrade/{app_state,apply_flow,config,diagnose,notify,project_state,remote}.py` — 全部移入 `updater/upgrade/`。
-
----
-
-## [1.3.5] - 2026-05-22
-
-### 修复
-
-- Launcher 现在先从 `.cbim/.pin`（1.3.3 之后的位置）读取项目 pin，再回退到 `.cbim/config.json` 中遗留的 `cbim_version` 字段。1.3.5 之前，全新安装会以 `no kernel version resolved` 失败 —— 因为 1.3.3 之后的 `cbim init` 模板不再向 `config.json` 写 `cbim_version`。**现有的 1.3.4 安装在未重装之前都是坏的**：请重新跑 `python install.py`（重新 bootstrap 或拉新 tarball），以更新带补丁的 launcher。仅 `cbim install 1.3.5` **不会**刷新 `<install_root>/bin/cbim_launcher.py`。
-- Launcher 在既无项目 pin 也无 `CBIM_DEFAULT_VERSION` 时，现在回退到 `versions.json[active_default]`，而不是直接报错退出。
-
-### 变更
-
-- 文档：README 调度器章节回归现实（任务随内核包 `cbim_kernel.mcp_server.tasks` 出厂；目标项目里不存在 `.cbim/mcp_server/`；尚未提供项目本地任务投放路径）。
-- 内部：`ARCHITECTURE.md`/`ARCHITECTURE.zh-CN.md`、`install/cli.py`、`install/install.py`、`install/settings.py`、`cbi/claude_md.py` 以及 `CLAUDE.md.tmpl` 顶部 banner 里残留的 `INSTALL.md` 引用，全部改指 `README.md`。
-
----
-
-## [1.3.4] - 2026-05-22
-
-### 新增
-
-- `bootstrap.sh` / `bootstrap.py`：从仓库一行命令安装，无需 `git clone`。支持 `CBIM_VERSION` / `CBIM_REF` 环境变量，并通过 `CBIM_BOOTSTRAP_DRY_RUN` 进行校验。
-
-### 变更
-
-- README 快速开始改为以一行 bootstrap 为首选；原先的 `git clone` + `python v1/src/install.py` 路径仍然可用，但不再是主推方式。
-
-### 移除
-
-- `v1/INSTALL.md` 与 `v1/INSTALL.zh-CN.md` —— 这份手工 SOP 已与仓库结构发生漂移（引用了不存在的顶层 `.cbim/mcp_server/`，并手动覆盖了 `cbim init` 已能安全合并的 `.claude/settings.json`）。bootstrap 脚本 + `install.py` + `cbim init` 现已端到端独占安装入口。
-
----
-
-## [1.3.3] - 2026-05-22
-
-### 动机
-
-项目 schema pin —— 标记"本项目处于 schema X"的项目级版本号 —— 是项目状态里写得最频繁的一项。每次 `cbim update`、`cbim upgrade apply`、`cbim migrate` 都会推进它。把它放在 `.cbim/config.json` 里意味着每次推进都：
-
-- 让 `git diff` 出现整个 config 文件的 JSON 重新序列化，即便没有任何用户设置发生变化；
-- 仅为翻一个整数就被迫做一次 JSON load-modify-dump 往返；
-- 让"机器持有的游标"与"用户持有的配置"挤在同一个文件里，使得"该提交什么"变得含糊。
-
-### 变更
-
-- 项目 schema pin 从 `.cbim/config.json` 抽离到独立纯文本文件 `.cbim/.pin`。
-  - 单行：版本号字符串，行尾带一个换行。没有 JSON、没有字段、没有注释。
-  - 该文件已加入 `.gitignore` —— pin 属于本地项目状态，不属于源码。
-- 所有 pin 的读写都经唯一访问器模块 `project/pin.py`（铁律 —— 其他任何代码都不得直接触碰 `.cbim/.pin`）。
-- `cbim_version` 从 `.cbim/config.json` 中移除，内核不再读写该字段。
-
-### 迁移
-
-每个项目跑一次以下任一命令即可，二者均幂等：
+### 安装
 
 ```bash
-cbim update -y
-# 或者，如果你只想迁移而不拉取新内核：
-cbim migrate --version 1.3.3
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.sh | bash
 ```
 
-迁移器会：
+Windows / 无 bash 环境：
 
-1. 从 `.cbim/config.json` 读取旧的 `cbim_version`。
-2. 将其写入 `.cbim/.pin`（单行，行尾换行）。
-3. 从 `.cbim/config.json` 删除 `cbim_version`。
-4. 若 `.gitignore` 中尚未包含 `.cbim/.pin`，自动追加。
+```bash
+curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
+```
 
-迁移完成后，`git diff` 不再因 pin 推进出现噪音。
+固定版本：`CBIM_VERSION=1.0.0 curl ... | bash`
 
----
+### 环境要求
 
-## [1.3.2] - 2026-05-22
-
-### 修复
-
-- `cbim migrate` 即使项目布局已是新版也始终推进 pin。现在没有可迁移项时直接 no-op。
-- `cbim upgrade apply` 的 preflight 错误信息引用了已删除的 `--to` 标志。现已统一指向正确的 `--version`。
-- `diagnose.py` 与 `/cbim_update` 斜杠命令的标志命名不一致。两者均统一为 `--version`。
-
----
-
-## [1.3.1] - 2026-05-22
-
-### 修复
-
-- `cbim upgrade apply` 仍在向下游调用透传已删除的 `--set-default` 标志，导致每次升级都回滚。现已移除该残留标志，升级可正常应用。
-
----
-
-## [1.3.0] - 2026-05-21
-
-### 变更
-
-- 基线版本号推进。对最终用户无行为变化；本版本用于让内核版本线与 1.3.1+ 中落地的 schema pin 工作对齐。
+- Python 3.10+
+- Claude Code CLI
