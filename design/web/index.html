@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="./style.css" />
   <script src="./i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
 </head>
 <body>
 
@@ -87,7 +88,17 @@
     <h2 class="zh">全局结构</h2>
     <h2 class="en">Global Structure</h2>
     <div class="mermaid-wrap">
-      <div class="mermaid" data-source="src-global"></div>
+      <div class="mermaid-target" data-source="src-global"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大 / Zoom in">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小 / Zoom out">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原 / Reset">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 / Fullscreen (Esc to exit)">⛶</button>
+      </div>
+      <div class="mermaid-hint">
+        <span class="zh">拖拽移动 · 滚轮缩放</span>
+        <span class="en">Drag to pan · Scroll to zoom</span>
+      </div>
     </div>
     <p class="notes zh">
       用户只感知首尾，Coordinator 自治调度；Architect 做业务知识的必经门，HR 管能力图谱，记忆贯穿全程。
@@ -143,64 +154,8 @@ graph TB
     Arch <-->|"协同裂变"| HR
 </script>
 
-<!-- ── Render ── -->
-<script>
-  (function () {
-    function isDark() {
-      return document.documentElement.getAttribute('data-theme') === 'dark';
-    }
-    function themeVars(dark) {
-      return {
-        darkMode: dark,
-        background: dark ? '#161b27' : '#f8fafc',
-        primaryColor: dark ? '#1e2a3a' : '#f1f5f9',
-        primaryTextColor: dark ? '#e2e8f0' : '#0f172a',
-        primaryBorderColor: '#7c3aed',
-        lineColor: dark ? '#4a5568' : '#94a3b8',
-        secondaryColor: dark ? '#1a1040' : '#ede9fe',
-        tertiaryColor: dark ? '#0d1520' : '#e0e7ff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        fontSize: '14px'
-      };
-    }
-    function showError(el, err) {
-      var msg = (err && err.message) ? err.message : String(err);
-      el.innerHTML =
-        '<pre style="color:#f87171;background:#1a0606;padding:12px 16px;' +
-        'border:1px solid #7f1d1d;border-radius:8px;font-size:12px;' +
-        'white-space:pre-wrap;text-align:left;max-width:100%;overflow:auto;">' +
-        msg.replace(/</g, '&lt;') + '</pre>';
-    }
-    function renderAll() {
-      var dark = isDark();
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: dark ? 'dark' : 'default',
-        themeVariables: themeVars(dark),
-        flowchart: { htmlLabels: true, useMaxWidth: true }
-      });
-      document.querySelectorAll('.mermaid[data-source]').forEach(function (el, i) {
-        var srcId = el.getAttribute('data-source');
-        var srcEl = document.getElementById(srcId);
-        if (!srcEl) return;
-        var source = srcEl.textContent.trim();
-        var id = 'm-' + srcId + '-' + Date.now() + '-' + i;
-        try {
-          var p = mermaid.render(id, source);
-          if (p && typeof p.then === 'function') {
-            p.then(function (r) { el.innerHTML = r.svg; if (r.bindFunctions) r.bindFunctions(el); })
-             .catch(function (err) { showError(el, err); });
-          } else if (p && p.svg) {
-            el.innerHTML = p.svg;
-            if (p.bindFunctions) p.bindFunctions(el);
-          }
-        } catch (err) { showError(el, err); }
-      });
-    }
-    renderAll();
-    document.addEventListener('cbim-theme-changed', renderAll);
-  })();
-</script>
+<!-- ── Render + pan/zoom + toolbar ── -->
+<script src="./mermaid-render.js"></script>
 
 </body>
 </html>

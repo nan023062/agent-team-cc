@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="./style.css" />
   <script src="./i18n.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
 </head>
 <body>
 
@@ -66,31 +67,76 @@
   <section id="tab-exec" class="diagram-section active">
     <p class="notes zh">用户说一次需求，Coordinator 自治驱动到完成。Architect 是必经门。</p>
     <p class="notes en">User states a need once; Coordinator drives to completion. Architect is the mandatory gate.</p>
-    <div class="mermaid-wrap"><div class="mermaid" data-source="src-exec"></div></div>
+    <div class="mermaid-wrap">
+      <div class="mermaid-target" data-source="src-exec"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 (Esc)">⛶</button>
+      </div>
+      <div class="mermaid-hint"><span class="zh">拖拽 · 滚轮缩放</span><span class="en">Drag · Scroll to zoom</span></div>
+    </div>
   </section>
 
   <section id="tab-memory" class="diagram-section">
     <p class="notes zh">执行经验自动沉淀为知识。Hook 驱动，对用户透明。</p>
     <p class="notes en">Execution experience sediments into knowledge. Hook-driven, transparent to the user.</p>
-    <div class="mermaid-wrap"><div class="mermaid" data-source="src-memory"></div></div>
+    <div class="mermaid-wrap">
+      <div class="mermaid-target" data-source="src-memory"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 (Esc)">⛶</button>
+      </div>
+      <div class="mermaid-hint"><span class="zh">拖拽 · 滚轮缩放</span><span class="en">Drag · Scroll to zoom</span></div>
+    </div>
   </section>
 
   <section id="tab-hr" class="diagram-section">
     <p class="notes zh">能力轴：招募 → 训练 → 评估 → 归档，能力图谱持续裂变。</p>
     <p class="notes en">Capability axis: recruit → train → assess → archive; the capability graph keeps fissioning.</p>
-    <div class="mermaid-wrap"><div class="mermaid" data-source="src-hr"></div></div>
+    <div class="mermaid-wrap">
+      <div class="mermaid-target" data-source="src-hr"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 (Esc)">⛶</button>
+      </div>
+      <div class="mermaid-hint"><span class="zh">拖拽 · 滚轮缩放</span><span class="en">Drag · Scroll to zoom</span></div>
+    </div>
   </section>
 
   <section id="tab-arch" class="diagram-section">
     <p class="notes zh">业务轴：DNA 四状态（无 / 同步 / 代码超前 / DNA 超前），懒式生成。</p>
     <p class="notes en">Business axis: four DNA states (absent / synced / code-ahead / DNA-ahead), lazy generation.</p>
-    <div class="mermaid-wrap"><div class="mermaid" data-source="src-arch"></div></div>
+    <div class="mermaid-wrap">
+      <div class="mermaid-target" data-source="src-arch"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 (Esc)">⛶</button>
+      </div>
+      <div class="mermaid-hint"><span class="zh">拖拽 · 滚轮缩放</span><span class="en">Drag · Scroll to zoom</span></div>
+    </div>
   </section>
 
   <section id="tab-rel" class="diagram-section">
     <p class="notes zh">执行驱动治理，治理回流增强执行；双轴协同裂变，记忆贯穿全程。</p>
     <p class="notes en">Execution drives governance; governance flows back. Dual axes co-evolve; memory pervades all.</p>
-    <div class="mermaid-wrap"><div class="mermaid" data-source="src-rel"></div></div>
+    <div class="mermaid-wrap">
+      <div class="mermaid-target" data-source="src-rel"></div>
+      <div class="mermaid-toolbar">
+        <button onclick="diagramZoom(this,'in')" title="放大">+</button>
+        <button onclick="diagramZoom(this,'out')" title="缩小">−</button>
+        <button onclick="diagramZoom(this,'reset')" title="还原">⟲</button>
+        <button onclick="diagramFullscreen(this)" title="全屏 (Esc)">⛶</button>
+      </div>
+      <div class="mermaid-hint"><span class="zh">拖拽 · 滚轮缩放</span><span class="en">Drag · Scroll to zoom</span></div>
+    </div>
   </section>
 
 </main>
@@ -246,80 +292,38 @@ graph LR
     Cap -->|"增强"| Exec
 </script>
 
-<!-- ── Render + tab switching ── -->
+<!-- ── Tab switcher ── -->
 <script>
   function show(id, btn) {
     document.querySelectorAll('.diagram-section').forEach(function (s) { s.classList.remove('active'); });
     document.querySelectorAll('nav button').forEach(function (b) { b.classList.remove('active'); });
-    document.getElementById('tab-' + id).classList.add('active');
+    var sec = document.getElementById('tab-' + id);
+    if (sec) sec.classList.add('active');
     if (btn) btn.classList.add('active');
     else {
-      var fallback = document.querySelector('nav button[data-tab="' + id + '"]');
-      if (fallback) fallback.classList.add('active');
+      var fb = document.querySelector('nav button[data-tab="' + id + '"]');
+      if (fb) fb.classList.add('active');
     }
     if (history && history.replaceState) history.replaceState(null, '', '#' + id);
+    // Re-fit pan/zoom on the now-visible diagram
+    if (sec) {
+      var target = sec.querySelector('.mermaid-target');
+      if (target && target._panZoom) {
+        setTimeout(function () {
+          try { target._panZoom.resize(); target._panZoom.fit(); target._panZoom.center(); } catch (e) {}
+        }, 50);
+      }
+    }
   }
-
-  (function () {
-    function isDark() {
-      return document.documentElement.getAttribute('data-theme') === 'dark';
-    }
-    function themeVars(dark) {
-      return {
-        darkMode: dark,
-        background: dark ? '#161b27' : '#f8fafc',
-        primaryColor: dark ? '#1e2a3a' : '#f1f5f9',
-        primaryTextColor: dark ? '#e2e8f0' : '#0f172a',
-        primaryBorderColor: '#7c3aed',
-        lineColor: dark ? '#4a5568' : '#94a3b8',
-        secondaryColor: dark ? '#1a1040' : '#ede9fe',
-        tertiaryColor: dark ? '#0d1520' : '#e0e7ff',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        fontSize: '14px'
-      };
-    }
-    function showError(el, err) {
-      var msg = (err && err.message) ? err.message : String(err);
-      el.innerHTML =
-        '<pre style="color:#f87171;background:#1a0606;padding:12px 16px;' +
-        'border:1px solid #7f1d1d;border-radius:8px;font-size:12px;' +
-        'white-space:pre-wrap;text-align:left;max-width:100%;overflow:auto;">' +
-        msg.replace(/</g, '&lt;') + '</pre>';
-    }
-    function renderAll() {
-      var dark = isDark();
-      mermaid.initialize({
-        startOnLoad: false,
-        theme: dark ? 'dark' : 'default',
-        themeVariables: themeVars(dark),
-        flowchart: { htmlLabels: true, useMaxWidth: true }
-      });
-      document.querySelectorAll('.mermaid[data-source]').forEach(function (el, i) {
-        var srcId = el.getAttribute('data-source');
-        var srcEl = document.getElementById(srcId);
-        if (!srcEl) return;
-        var source = srcEl.textContent.trim();
-        var id = 'm-' + srcId + '-' + Date.now() + '-' + i;
-        try {
-          var p = mermaid.render(id, source);
-          if (p && typeof p.then === 'function') {
-            p.then(function (r) { el.innerHTML = r.svg; if (r.bindFunctions) r.bindFunctions(el); })
-             .catch(function (err) { showError(el, err); });
-          } else if (p && p.svg) {
-            el.innerHTML = p.svg;
-            if (p.bindFunctions) p.bindFunctions(el);
-          }
-        } catch (err) { showError(el, err); }
-      });
-    }
-    renderAll();
-    document.addEventListener('cbim-theme-changed', renderAll);
-
-    // Deep link
+  // Deep link on load
+  document.addEventListener('DOMContentLoaded', function () {
     var hash = (location.hash || '').replace('#', '');
     if (hash && document.getElementById('tab-' + hash)) show(hash, null);
-  })();
+  });
 </script>
+
+<!-- ── Mermaid renderer + pan/zoom + toolbar ── -->
+<script src="./mermaid-render.js"></script>
 
 </body>
 </html>
