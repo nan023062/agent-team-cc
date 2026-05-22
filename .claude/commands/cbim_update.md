@@ -21,8 +21,6 @@ Force update the CBIM kernel to the latest available version (local or remote) a
 
 4. After completion, run `cbim upgrade check --no-network` again to confirm the new state, and show a brief summary to the user.
 
-5. If the update was not a no-op (i.e., the version changed — not scenario 7), run `cbim release-notes <target>` and print the output under a heading like "## Release notes for v<target>". If the command fails or returns empty, print a single fallback line: `(release notes unavailable — see https://github.com/nan023062/cbim/releases/tag/v<target>)`. Skip this step entirely if scenario 7 (all-aligned, nothing changed).
-
 ## Error handling
 
 - If the network is unreachable and the local version is already up to date with what's installed, say so and offer to run `cbim migrate --version <app_latest_local>` to just advance the project pin.
