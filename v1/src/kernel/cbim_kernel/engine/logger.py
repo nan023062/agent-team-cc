@@ -4,15 +4,23 @@ logger.py — CBIM session logger (dedicated log module).
 All session log writes flow through this module. Centralises:
   - Session file lifecycle (create, pointer, finalise)
   - Tag definitions and high-level write helpers
-  - Transcript extraction (assistant response)
+  - Transcript extraction (assistant final text)
 
 Signal tags written to .cbim/logs/session_<ts>_<id>.log:
-  [USER]        Full user prompt — written at UserPromptSubmit
-  [ASSIST]      Full assistant text — written at Stop (from transcript JSONL)
-  [CBIM:<dom>]  cbim CLI call — dom = dna | agent | skill | memory | workflow | …
-  [CBIM:skill]  Skill tool invocation
-  [CBIM:agent]  Agent tool dispatch
-  [MCP]         MCP tool call (always-on; these ARE CBIM operations)
+
+  Conversation flow (real-time via hooks):
+    [USER]        Full user prompt — UserPromptSubmit hook
+    [CALL]        Tool invocation — PreToolUse hook
+    [CBIM:<dom>]  cbim CLI call (dom = dna|agent|skill|memory|…) — PreToolUse
+    [CBIM:skill]  Skill tool invocation — PreToolUse
+    [CBIM:agent]  Agent tool dispatch — PreToolUse
+    [RET]         Tool result preview — PostToolUse hook
+
+  End-of-turn (Stop hook + transcript):
+    [ASSIST]      Full assistant text — extracted from transcript JSONL
+
+  Infrastructure (always-on):
+    [MCP]         MCP tool call
 """
 
 from __future__ import annotations
@@ -22,7 +30,10 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-_MAX_ENTRY_CHARS = 3000  # per-entry cap; prompts/responses can be large
+_MAX_ENTRY_CHARS = 3000   # [USER] / [ASSIST] cap
+_MAX_CMD_CHARS   = 400    # Bash command preview
+_MAX_RET_CHARS   = 300    # tool result preview (regular tools)
+_MAX_RET_AGENT   = 600    # tool result preview (Agent — important output)
 
 
 # ---------------------------------------------------------------------------
@@ -77,16 +88,15 @@ def current_log_path(cbim: Path | None = None) -> Path | None:
 # ---------------------------------------------------------------------------
 
 def _escape(text: str) -> str:
-    """Collapse text to a single line (replace newlines with the literal \\n)."""
+    """Collapse text to a single line (replace newlines with literal \\n)."""
     return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "\\n")
 
 
 def append(tag: str, message: str, cbim: Path | None = None, log_path: Path | None = None) -> None:
     """Append one timestamped line to the current session log.
 
-    Creates an orphan session log on the fly if no session has started yet,
-    so no messages are lost. Swallows all exceptions — logging must never
-    crash the host process.
+    Creates an orphan session log on the fly if no session has started yet.
+    Swallows all exceptions — logging must never crash the host process.
     """
     try:
         cbim = cbim or cbim_root_from_cwd() or _ctx_cbim_dir()
@@ -106,7 +116,7 @@ def append(tag: str, message: str, cbim: Path | None = None, log_path: Path | No
 # ---------------------------------------------------------------------------
 
 def _create_session_file(session_id: str, cwd: str, cbim: Path) -> Path:
-    """Create the log file and write the .current pointer. No tags written here."""
+    """Create the log file and write the .current pointer."""
     ts = datetime.now().strftime("%Y-%m-%d_%H%M%S")
     short = (session_id or "anon").replace("/", "_").replace("\\", "_")[:8]
     log_path = logs_dir(cbim) / f"session_{ts}_{short}.log"
@@ -116,22 +126,13 @@ def _create_session_file(session_id: str, cwd: str, cbim: Path) -> Path:
 
 
 def start_session(session_id: str = "", cwd: str = "", cbim: Path | None = None) -> Path:
-    """Open a new session log file and write the .current pointer.
-
-    Returns the new log file path. No [SESSION] tag is written — the
-    conversation flow ([USER] / [ASSIST]) already marks session boundaries.
-    """
+    """Open a new session log file. No tag written — [USER] marks turn starts."""
     cbim = cbim or cbim_root_from_cwd() or _ctx_cbim_dir()
     return _create_session_file(session_id, cwd, cbim)
 
 
 def end_session(session_id: str = "", reason: str = "", cbim: Path | None = None) -> Path | None:
-    """Clear the .current pointer to finalise the session log.
-
-    Returns the finalised log path, or None if no active session.
-    No [SESSION] tag is written — session end is implicit from [ASSIST] being
-    the last entry before the next [USER] in a new file.
-    """
+    """Clear the .current pointer to finalise the session log."""
     cbim = cbim or cbim_root_from_cwd() or _ctx_cbim_dir()
     path = current_log_path(cbim)
     if path is None:
@@ -146,24 +147,111 @@ def end_session(session_id: str = "", reason: str = "", cbim: Path | None = None
 
 
 # ---------------------------------------------------------------------------
+# Tool call formatting — shared by PreToolUse and PostToolUse hooks
+# ---------------------------------------------------------------------------
+
+def format_tool_call(tool: str, inp: dict) -> tuple[str, str]:
+    """Return (tag, message) for a tool invocation.
+
+    CBIM-specific tools get [CBIM:*] tags; everything else gets [CALL].
+    """
+    if tool == "Bash":
+        cmd = str(inp.get("command", "")).strip()
+        if cmd == "cbim" or cmd.startswith("cbim "):
+            parts = cmd.split()
+            domain = parts[1] if len(parts) > 1 else ""
+            tag = f"CBIM:{domain}" if domain else "CBIM"
+            display = cmd if len(cmd) <= _MAX_CMD_CHARS else cmd[:_MAX_CMD_CHARS] + "…"
+            return tag, display
+        preview = cmd if len(cmd) <= _MAX_CMD_CHARS else cmd[:_MAX_CMD_CHARS] + "…"
+        return "CALL", f"Bash | {preview}"
+
+    if tool == "Skill":
+        skill = inp.get("skill", "?")
+        args = (inp.get("args", "") or "").strip()
+        msg = f"skill={skill!r}" + (f" args={args!r}" if args else "")
+        return "CBIM:skill", msg
+
+    if tool == "Agent":
+        subagent = inp.get("subagent_type", "default")
+        desc = str(inp.get("description", "") or "")[:120]
+        return "CBIM:agent", f"subagent={subagent} desc={desc!r}"
+
+    if tool in ("Read", "Write", "Edit", "MultiEdit"):
+        return "CALL", f"{tool} | {inp.get('file_path', '?')}"
+
+    if tool == "Glob":
+        pat = inp.get("pattern", "?")
+        path = inp.get("path", "")
+        return "CALL", f"Glob | {pat}" + (f" in {path}" if path else "")
+
+    if tool == "Grep":
+        pat = inp.get("pattern", "?")
+        path = inp.get("path", "")
+        return "CALL", f"Grep | {pat!r}" + (f" in {path}" if path else "")
+
+    if tool == "WebFetch":
+        return "CALL", f"WebFetch | {inp.get('url', '?')}"
+
+    if tool == "WebSearch":
+        return "CALL", f"WebSearch | {inp.get('query', '?')!r}"
+
+    if tool in ("TaskCreate", "TaskUpdate", "TaskList", "TaskGet", "TaskStop"):
+        subject = inp.get("subject", "") or inp.get("taskId", "") or ""
+        return "CALL", f"{tool}" + (f" | {subject}" if subject else "")
+
+    return "CALL", f"{tool} | {len(inp)} params"
+
+
+# ---------------------------------------------------------------------------
 # High-level write helpers — called by hooks
 # ---------------------------------------------------------------------------
 
 def log_user(prompt: str, cbim: Path | None = None) -> None:
-    """Log the full user prompt [USER]."""
+    """[USER] full user prompt."""
     text = (prompt or "").strip()
     if len(text) > _MAX_ENTRY_CHARS:
         text = text[:_MAX_ENTRY_CHARS] + "…"
     append("USER", text, cbim=cbim)
 
 
-def log_cbim_call(tag: str, message: str, cbim: Path | None = None) -> None:
-    """Log a CBIM-specific operation [CBIM:<domain>], [CBIM:skill], [CBIM:agent]."""
+def log_call(tool: str, inp: dict, cbim: Path | None = None) -> None:
+    """[CALL] / [CBIM:*] tool invocation — called from PreToolUse hook."""
+    tag, message = format_tool_call(tool, inp)
     append(tag, message, cbim=cbim)
 
 
+def log_ret(tool: str, inp: dict, response: dict, cbim: Path | None = None) -> None:
+    """[RET] tool result preview — called from PostToolUse hook."""
+    is_error = bool(response.get("is_error") or response.get("error"))
+    status = "ERR" if is_error else "ok"
+
+    out = response.get("content") or response.get("stdout") or ""
+    if isinstance(out, list):
+        out = " ".join(
+            x.get("text", "") for x in out
+            if isinstance(x, dict) and x.get("type") == "text"
+        )
+    out = str(out).strip()
+
+    cap = _MAX_RET_AGENT if tool == "Agent" else _MAX_RET_CHARS
+    preview = out if len(out) <= cap else out[:cap] + "…"
+
+    # For CBIM bash, tag the result to match the call tag
+    if tool == "Bash":
+        cmd = str((inp or {}).get("command", "")).strip()
+        if cmd == "cbim" or cmd.startswith("cbim "):
+            parts = cmd.split()
+            domain = parts[1] if len(parts) > 1 else ""
+            tag = f"RET:{domain}" if domain else "RET"
+            append(tag, f"{status} | {preview}" if preview else status, cbim=cbim)
+            return
+
+    append("RET", f"{tool} | {status}" + (f" | {preview}" if preview else ""), cbim=cbim)
+
+
 def log_assist(transcript_path: str, cbim: Path | None = None) -> None:
-    """Extract the last assistant text from the JSONL transcript and log [ASSIST]."""
+    """[ASSIST] final assistant text — extracted from transcript at Stop."""
     text = _last_assistant_text(transcript_path)
     if not text:
         return
@@ -192,7 +280,6 @@ def _last_assistant_text(transcript_path: str) -> str:
         for msg in reversed(messages):
             role = msg.get("role", "")
             content = msg.get("content", None)
-            # Handle both direct {role, content} and wrapped {message: {role, content}}
             if not role and "message" in msg:
                 inner = msg.get("message") or {}
                 role = inner.get("role", "")
@@ -217,3 +304,11 @@ def _last_assistant_text(transcript_path: str) -> str:
     except Exception:
         pass
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Deprecated helpers — kept for any remaining callers
+# ---------------------------------------------------------------------------
+
+def log_cbim_call(tag: str, message: str, cbim: Path | None = None) -> None:
+    append(tag, message, cbim=cbim)

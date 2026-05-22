@@ -109,7 +109,6 @@ def write_session(transcript_path: str, store_dir: Path,
         return None
 
     st = cfg["short_term"]
-    ls_cfg = cfg.get("last_session", {})
     distill_cfg = cfg.get("session_distill", {})
     info = _parse_transcript(
         messages,
@@ -121,11 +120,6 @@ def write_session(transcript_path: str, store_dir: Path,
 
     short_dir = store_dir / SHORT
     short_dir.mkdir(parents=True, exist_ok=True)
-
-    # Always refresh last-session.md so the next session's SessionStart hook
-    # injects the latest state — even if this session is a near-duplicate of
-    # the previous one (which would otherwise be skipped by _should_write).
-    _write_last_session(info, store_dir, ls_cfg)
 
     now = datetime.now()
     ts = now.strftime("%Y-%m-%d-%H%M%S")
@@ -517,94 +511,8 @@ def _parse_transcript(messages: list, max_request_chars: int,
 
 
 # ---------------------------------------------------------------------------
-# Entry and recovery note formatting
+# Entry formatting
 # ---------------------------------------------------------------------------
-
-def _write_last_session(info: dict, store_dir: Path, ls_cfg: dict | None = None) -> None:
-    """Write last-session.md — a structured recovery note for the next session.
-
-    The next session's SessionStart hook injects this file's content into the
-    new assistant's context, so it must answer: "what was I working on, what
-    did I do, where did I stop?"
-    """
-    ls_cfg = ls_cfg or {}
-    preview_chars = ls_cfg.get("result_preview_chars", 120)
-    max_files = ls_cfg.get("max_files", 10)
-    max_topics = ls_cfg.get("max_topics", 6)
-    last_msg_chars = ls_cfg.get("last_message_chars", 200)
-
-    ended_at = datetime.now().strftime("%Y-%m-%d %H:%M")
-    user_request = info.get("user_request") or "（未能提取）"
-    topics = info.get("topics", [])
-    last_msg = info.get("last_user_message", "")
-    turn_count = info.get("user_turn_count", 0)
-
-    lines = [
-        "## 上次 Session 恢复点",
-        "",
-        f"**结束时间**: {ended_at}",
-        f"**用户回合数**: {turn_count}",
-        f"**核心任务**（首次实质性请求）: {user_request}",
-    ]
-
-    # Show topic list if more than one substantive request happened in this session
-    if len(topics) > 1:
-        lines.append("")
-        lines.append("**本次涉及话题**（按时间顺序）:")
-        for i, t in enumerate(topics[:max_topics], 1):
-            preview = t.replace("\n", " ").strip()[:80]
-            lines.append(f"{i}. {preview}")
-        if len(topics) > max_topics:
-            lines.append(f"…共 {len(topics)} 个话题")
-
-    # Last raw user message — critical for knowing how the session ended
-    # (ack like "继续/好" vs a real handoff request)
-    if last_msg and last_msg != user_request:
-        last_preview = last_msg.replace("\n", " ").strip()[:last_msg_chars]
-        lines.append("")
-        lines.append(f"**最后一次用户消息**: \"{last_preview}\"")
-
-    lines.append("")
-
-    calls = info["agent_calls"]
-    if calls:
-        lines.append("**执行记录**（按调度顺序）:")
-        for c in calls:
-            label = c["description"] or c["subagent_type"] or "subagent"
-            result = c["result"]
-            preview = (result[:preview_chars] + "…") if len(result) > preview_chars else result
-            lines.append(f"- {label}" + (f" → {preview}" if preview else ""))
-        lines.append("")
-
-    files = info["files_changed"]
-    if files:
-        lines.append(f"**改动文件**（共 {len(files)} 个）:")
-        for f in files[:max_files]:
-            lines.append(f"- {f}")
-        if len(files) > max_files:
-            lines.append(f"- …共 {len(files)} 个文件")
-        lines.append("")
-
-    modules = info["modules"]
-    if modules:
-        lines.append(f"**涉及模块**: {', '.join(modules)}")
-        lines.append("")
-
-    # Recovery hint at the bottom — tells the next assistant how to resume
-    if last_msg and not _is_substantive(last_msg):
-        # User ended with an ack — suggests they were ready to continue
-        ack_preview = last_msg.strip()[:30]
-        lines.append(
-            f"*用户最后说的是简短回复（「{ack_preview}」），"
-            f"说明你们正处于上述任务进行中。如用户说「继续」，从上面「执行记录」末尾接力。*"
-        )
-    else:
-        lines.append("*如需接续上次工作，告知助手即可；如开启新话题，可直接说。*")
-
-    last = store_dir / "last-session.md"
-    store_dir.mkdir(parents=True, exist_ok=True)
-    last.write_text("\n".join(lines), encoding="utf-8")
-
 
 def _slug(text: str, max_input: int, max_output: int) -> str:
     s = re.sub(r"[^\w一-鿿]+", "-", text[:max_input])

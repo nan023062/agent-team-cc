@@ -3,6 +3,9 @@ loader.py — Session context loader.
 
 Encapsulates querying recent memory and building the additionalContext payload
 for Claude Code's SessionStart hook. Hooks are not aware of this logic.
+
+Session recovery is done by reading .cbim/logs/session_*.log directly —
+the last-session.md file is no longer used.
 """
 
 import json
@@ -12,22 +15,14 @@ from .engine import MemoryEngine
 
 
 def load_context(store_dir: Path, engine: MemoryEngine, cfg: dict) -> str | None:
-    """Build session context: last-session recovery + recent memory.
+    """Build session context from recent memory entries.
 
     Returns JSON string '{"additionalContext": "..."}' on success, None if empty.
     The hook prints this directly to stdout — Claude Code picks it up automatically.
     """
     parts: list[str] = []
 
-    # 1. Last-session recovery note — always injected first if it exists.
-    last_session = store_dir / "last-session.md"
-    if last_session.exists():
-        try:
-            parts.append(last_session.read_text(encoding="utf-8").strip())
-        except (FileNotFoundError, PermissionError):
-            pass
-
-    # 2. Recent memory — backend determines ordering (recency or semantic).
+    # Recent memory — backend determines ordering (recency or semantic).
     if store_dir.exists():
         has_entries = any((store_dir / t).glob("*.md") for t in ("short", "medium"))
         if has_entries:

@@ -1,21 +1,36 @@
 """
 log_post_tool.py — PostToolUse hook.
 
-Tool results are visible in the Claude Code conversation itself, so this
-hook is intentionally silent. The PreToolUse hook already records CBIM
-call entries; no additional result logging is needed here.
+Logs a [RET] preview for every tool result to the session log.
+  [RET]        Regular tools — status + content preview (300 chars)
+  [RET:domain] CBIM bash results — matched to the corresponding [CBIM:domain] call
+  [RET]        Agent results — extended preview (600 chars)
 """
 
+import json
 import sys
+
+from cbim_kernel.context import cbim_dir
 
 
 def main(event: dict | None = None) -> int:
-    # Consume stdin so the hook doesn't leave a dangling pipe.
     if event is None:
+        raw = sys.stdin.buffer.read().decode("utf-8").strip()
+        if not raw:
+            return 0
         try:
-            sys.stdin.buffer.read()
-        except Exception:
-            pass
+            event = json.loads(raw)
+        except json.JSONDecodeError:
+            return 0
+
+    tool = event.get("tool_name", "?")
+    inp = event.get("tool_input", {}) or {}
+    response = event.get("tool_response", {}) or {}
+    try:
+        from cbim_kernel.engine.logger import log_ret
+        log_ret(tool, inp, response, cbim=cbim_dir())
+    except Exception:
+        pass
     return 0
 
 
