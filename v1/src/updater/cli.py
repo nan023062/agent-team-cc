@@ -107,6 +107,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_migrate.add_argument("--dry-run", action="store_true", dest="dry_run")
     p_migrate.add_argument("--force", action="store_true")
 
+    # release-notes
+    p_notes = sub.add_parser(
+        "release-notes",
+        help="Print GitHub release notes for a kernel version",
+    )
+    p_notes.add_argument("version", help="Version tag (e.g. v2.1.0 or 2.1.0)")
+
     return parser
 
 
@@ -288,6 +295,39 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_release_notes(args: argparse.Namespace) -> int:
+    """Print GitHub release notes for a given kernel version.
+
+    Network failure or empty body degrades gracefully: prints a single
+    fallback line pointing at the release page and exits 0 so callers
+    (notably the `cbim_update` slash command) are never broken by
+    release-notes unavailability.
+    """
+    raw = str(args.version).strip()
+    bare = raw[1:] if raw.startswith("v") else raw
+    fallback = (
+        "(release notes unavailable - see "
+        "https://github.com/nan023062/cbim/releases/tag/v{})".format(bare)
+    )
+
+    from updater.github import fetch_release
+
+    try:
+        data = fetch_release(bare)
+    except Exception:  # noqa: BLE001 — any failure degrades to fallback
+        print(fallback)
+        return 0
+
+    body = (data or {}).get("body") or ""
+    body = body.strip()
+    if not body:
+        print(fallback)
+        return 0
+
+    print(body)
+    return 0
+
+
 def _cmd_version_json() -> int:
     """Emit updater state as JSON.
 
@@ -343,6 +383,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         return upgrade_cli.cmd_update(args)
     if args.command == "migrate":
         return _cmd_migrate(args)
+    if args.command == "release-notes":
+        return _cmd_release_notes(args)
     if args.command == "upgrade":
         from updater.upgrade import cli as upgrade_cli
         sub_cmd = getattr(args, "upgrade_command", None)
