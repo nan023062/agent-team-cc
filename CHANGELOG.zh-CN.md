@@ -6,6 +6,28 @@
 
 ---
 
+## [2.1.0] - 2026-05-22
+
+### 内建 Slash 命令 — OWNED Kernel 资产
+
+`cbim init` 现在会将 6 个内建 slash 命令安装到 `.claude/commands/`。这些命令由 kernel 持有（OWNED 策略）：`cbim migrate` 和 `cbim update` 在升级时会覆盖它们，确保命令内容始终与 kernel 版本同步。非内建的用户自定义命令永不触碰。
+
+### 新增
+
+- `v1/src/kernel/cbim_kernel/project/commands/` — 新模板目录，存放 6 个内建 slash 命令：`cbim_dashboard`、`cbim_debug`、`cbim_help`、`cbim_log`、`cbim_sched`、`cbim_update`。
+- `sync.py` 中的 `KERNEL_COMMAND_NAMES` 常量 — 内建命令的显式枚举，与 `KERNEL_AGENT_NAMES` 对仗。
+- `sync.py` 中的 `sync_command()` / `sync_commands()` — 内建命令的 OWNED 同步函数，镜像 `sync_agent` / `sync_agents` 语义。
+- `migrate.py` 中的 `_update_commands()` — 每次 `cbim migrate` / `cbim update` 时覆盖内建命令。
+
+### 变更
+
+- `sync_templates()` 现在在 `sync_agents()` 之后、`sync_settings()` 之前插入 `sync_commands()`。
+- `cbim init` 随 `.claude/agents/` 一起安装 `.claude/commands/`；非 `--force` 时已有文件跳过。
+- UPDATE-FLOW 文档：OWNED 行扩展为包含 6 个内建命令；UNTOUCHED 行改为 `.claude/commands/<user-owned>`（非内建命令仍然不动）。
+- 升级提示文案：在 overwrites 中区分 `.claude/commands/ (6 built-in)`，在 preserves 中区分 `.claude/commands/<user-owned>`。
+
+---
+
 ## [2.0.0] - 2026-05-22
 
 ### 架构 — Updater / Kernel 兄弟拆分

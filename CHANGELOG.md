@@ -6,6 +6,28 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [2.1.0] - 2026-05-22
+
+### Built-in Slash Commands — OWNED Kernel Assets
+
+`cbim init` now installs six built-in slash commands into `.claude/commands/`. These commands are kernel-owned (OWNED strategy): `cbim migrate` and `cbim update` overwrite them on upgrade so their content stays in sync with the kernel version. User-created commands outside the built-in set are never touched.
+
+### Added
+
+- `v1/src/kernel/cbim_kernel/project/commands/` — new template directory holding the 6 built-in slash commands: `cbim_dashboard`, `cbim_debug`, `cbim_help`, `cbim_log`, `cbim_sched`, `cbim_update`.
+- `KERNEL_COMMAND_NAMES` constant in `sync.py` — explicit enumeration of built-in commands, parallel to `KERNEL_AGENT_NAMES`.
+- `sync_command()` / `sync_commands()` in `sync.py` — OWNED sync functions for built-in commands, mirroring `sync_agent` / `sync_agents` semantics.
+- `_update_commands()` in `migrate.py` — built-in commands are now overwritten on every `cbim migrate` / `cbim update`.
+
+### Changed
+
+- `sync_templates()` now includes `sync_commands()` between `sync_agents()` and `sync_settings()`.
+- `cbim init` installs `.claude/commands/` alongside `.claude/agents/`; existing files skipped unless `--force`.
+- UPDATE-FLOW docs: OWNED row extended to include 6 built-in commands; UNTOUCHED row now reads `.claude/commands/<user-owned>` (non-built-in commands are still never touched).
+- Upgrade notify text: distinguishes `.claude/commands/ (6 built-in)` in overwrites from `.claude/commands/<user-owned>` in preserves.
+
+---
+
 ## [2.0.0] - 2026-05-22
 
 ### Architecture — Updater / Kernel Sibling Split
