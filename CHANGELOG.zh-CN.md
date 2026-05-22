@@ -17,6 +17,45 @@ CBIM 早期阶段修复频率高。为降低用户的迁移摩擦：
 
 ---
 
+## [1.0.1] - 2026-05-22 —— 执行循环机制层
+
+本次发布把执行循环从"协调者临场发挥"提升为"显式的、由 soul prompt 驱动的机制"。不新增 CLI、不新增 hook —— 纪律完全落在 skill 文本与 `cbim init` 铺设的项目级 `CLAUDE.md` 模板里。已存在的项目通过 `cbim update --reinstall` + 重新 `init` 模板拉取。
+
+### `arch_modules` skill
+
+- **Execution Gate** —— DNA 状态分诊（0 / 1 / 2 / 3），配套显式的 state→action 矩阵与 Worth0 决策步骤，让架构师按知识状态路由，而不是按直觉。
+- **ContextPack Schema** —— 4 个顶层字段 + `modules[]` 子 schema + Markdown 示例 + Work Agent 消费规则（缺失即拒绝，不做改写）。
+
+### `dispatch` skill
+
+- **Decomposition Heuristics** —— 并行 vs 串行分诊，保守默认（拿不准就串行）。
+- **Phase 2 Input Contract** —— ContextPack 原文转发，用统一的 `<!-- BEGIN ContextPack -->` / `<!-- END ContextPack -->` 包裹；Work Agent 收到不含此块的 prompt 直接 reject。
+- **Interruption Thresholds** —— 三条显式停机条件：意图歧义、结果冲突、破坏性越权。
+
+### `CLAUDE.md` 模板（kernel 生成，永不由用户编辑）
+
+- **Workflow 重写。** Step 6 分出 Branch A 回环路径：Work Agent → Architect，通过 `NEEDS_ARCH_DECISION:` 升级标记触发。Step 7 改为三分支汇总：done / follow-up / conflict。
+- **循环终止。** 5 次软上限 + 显式 convergence 信号 —— 循环必须终止，不允许静默自旋。
+- **Requirement-type 任务定义。** 代码 / 模块 / 契约 / `.dna` 写入被列为一等需求类型。
+- **升级标记格式。** Work Agent 升级走固定的 `NEEDS_ARCH_DECISION:` 前缀。
+- **Hard Rules +3。** 每次循环都先走 knowledge-first；尊重升级标记；循环必须终止。
+
+### 架构决策强化
+
+- 所有配置由 kernel 生成，永不复制 —— `cbim init` / `cbim update` 从模板覆盖 `CLAUDE.md`；用户对该文件的编辑不被保留。
+- CBIM 执行循环作为 soul-prompt-driven 的 LLM 自律运行。不新增 CLI 命令、不新增 hook，纪律完全在文本里。
+
+### 升级路径
+
+```bash
+cbim update --reinstall --local <kernel-src>   # 把 1.0.1 拉进 install root
+cbim migrate --version 1.0.1                   # 项目重新 pin
+```
+
+然后在每个项目里重跑 `cbim init`（或等模板刷新路径）以拿到新的 `CLAUDE.md`。
+
+---
+
 ## [1.0.0] - 2026-05-22
 
 首个公开发布版本。版本号从内部迭代中重置。
