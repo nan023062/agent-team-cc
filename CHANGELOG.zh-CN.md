@@ -6,6 +6,20 @@
 
 ---
 
+## [2.2.3] - 2026-05-22
+
+### 新增
+- 会话日志 Agent 标识：所有 subagent 的日志行在信号标签之后插入 `[agent:<名称>]`，主 session 行保持不变。身份通过 `transcript_path` 旁的 `.meta.json`（`agentType` 字段）解析。
+- 富会话日志：所有工具调用均以 `[CALL]`/`[RET]` 信号完整记录对话流。
+
+### 修复
+- 在 cbim 入口点将 stdout/stderr 重新配置为 UTF-8，修复 Windows 下的编解码错误。
+- `config set/get` 现已正确处理嵌套键路径；`cbim install` 在首次安装时写入 Claude deny rules。
+- `cbim_update` skill：移除 `release-notes` 调用中多余的 `--no-additional-flags` 参数。
+
+### 变更
+- 精简 `cbim_update` 提示词（删除冗余步骤 5）；放宽 `settings.json` deny rules，仅覆盖 `.cbim/**` 路径。
+
 ## [2.2.0] - 2026-05-22
 
 ### 新增

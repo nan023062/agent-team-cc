@@ -6,6 +6,20 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## [2.2.3] - 2026-05-22
+
+### Added
+- Agent tagging in session log: all subagent log entries are tagged with `[agent:<name>]` between the signal tag and the message; main-session lines remain untagged. Identity is resolved from `transcript_path` via the sibling `.meta.json` (`agentType` field).
+- Rich session log: full conversation flow recorded with `[CALL]`/`[RET]` signals for all tool invocations.
+
+### Fixed
+- Reconfigure stdout/stderr to UTF-8 at cbim entry point to avoid codec errors on Windows.
+- `config set/get` now correctly handles nested key paths; `cbim install` writes Claude deny rules on first install.
+- `cbim_update` skill: removed stray `--no-additional-flags` argument from `release-notes` call.
+
+### Changed
+- Trim `cbim_update` prompt (removed verbose step 5); loosen `settings.json` deny rules to only cover `.cbim/**` paths.
+
 ## [2.2.0] - 2026-05-22
 
 ### Added
