@@ -6,6 +6,46 @@
 
 ---
 
+## [2.0.0] - 2026-05-22
+
+### 架构 — Updater / Kernel 兄弟拆分
+
+这是一次重大架构版本。Updater 与 Kernel 现在是**兄弟关系**，不再是单体。跨版本操作（install、upgrade、migrate、pin）完全归属全新的 `updater` 包；Kernel 是纯粹的单版本运行时，不再知道自己如何被安装或升级。
+
+### 新增
+
+- `v1/src/updater/` — 新建机器级 updater 包，从 `installer/` 和 kernel 的 upgrade 子模块提取而来，持有所有跨版本操作。
+- `cbim pin <version>` 子命令 — 将当前项目锁定到任意已安装版本（Bug C 修复）。
+- updater CLI 的 `cbim migrate` 子命令 — 项目 schema 迁移现在可以直接通过 `python -m updater migrate` 触发。
+- `cbim self-update` 通过 launcher 路由到 updater。
+- `.claudeignore` 项目模板（OWNED 策略）— 由 `cbim init` 生成，`cbim migrate` 时刷新。默认内容：`.cbim/`、`**/.dna/`、`.venv/`、`__pycache__/`、`*.pyc`。
+- `sync.read_template(name)` — kernel 管理的模板文件公开访问器，供 `cbim soul show assistant` 使用。
+- `v1/docs/UPDATE-FLOW.md` / `UPDATE-FLOW.zh-CN.md` — 完整更新闭环流程图与组件边界参考。
+
+### 变更
+
+- `installer/` 降级为 deprecated reexport shim，所有逻辑移入 `updater/`，未来版本将删除。
+- Launcher `INSTALLER_COMMANDS` → `UPDATER_COMMANDS`，新增 `update`、`upgrade`、`migrate`、`check`、`apply`、`self-update`；launcher 现在启动 `python -m updater` 而非 `python -m installer`。
+- `write_pin` 从 `kernel/project/pin.py` 移除；kernel 对 `.cbim/.pin` 只读，只有 updater 负责写入。
+- `kernel/project/upgrade/cli.py` 替换为 subprocess facade，将 `cbim upgrade check|apply` 和 `cbim update` 转发给 `python -m updater`。
+- `kernel/project/migrate.py` 移入 `updater/migrate.py`；kernel 的 `_cmd_migrate` 改为 subprocess facade。
+- Snapshot 范围收窄为仅覆盖 `versions.json` + `kernel/<ver>/`，排除 `updater/`、`bin/`、`venv/`。
+- `cbim soul show assistant` 现在读取 `project/templates/CLAUDE.md.tmpl`，而非过时的 `cbi/claude_md.py` 常量。
+
+### 修复
+
+- **Bug A** — `upgrade apply` 的 preflight 现在能检测 legacy schema（`config.json` 有 `cbim_version` 但无 `.pin` 文件），并给出明确错误提示，引导用户先跑 `cbim migrate`。
+- **Bug B** — `cbim update` 现在在内核升级成功后自动触发 `cbim migrate`，确保项目配置在同一次操作中同步跟进。
+- **Bug C** — `cbim pin <version>` 子命令现已实现（此前 `cbim upgrade check` 输出中已推荐但 CLI 中不存在）。
+
+### 移除
+
+- `v1/src/install/` legacy installer 目录（已被 `v1/src/installer/` 和 `v1/src/updater/` 取代）。
+- `v1/src/kernel/cbim_kernel/cbi/claude_md.py` 死代码（过时的 CLAUDE_MD 常量，无任何活引用）。
+- `kernel/project/upgrade/{app_state,apply_flow,config,diagnose,notify,project_state,remote}.py` — 全部移入 `updater/upgrade/`。
+
+---
+
 ## [1.3.5] - 2026-05-22
 
 ### 修复
