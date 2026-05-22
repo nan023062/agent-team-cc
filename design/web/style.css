@@ -515,23 +515,67 @@ main { padding: 44px 56px; max-width: 1400px; margin: 0 auto; }
 }
 
 /* ══════════════════════════════════════════════════════════
+   Intro section (simplified index)
+══════════════════════════════════════════════════════════ */
+.intro { margin-bottom: 40px; max-width: 920px; }
+.intro-title {
+  font-size: 1.4rem; font-weight: 700; color: var(--section-h2);
+  margin-bottom: 16px;
+}
+.intro p {
+  font-size: 1.02rem; line-height: 1.85; color: var(--text);
+  max-width: 760px; margin-bottom: 24px;
+}
+.intro p strong { color: var(--accent); }
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+.key-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px 18px;
+}
+.key-card h4 {
+  font-size: .9rem; font-weight: 700; color: var(--accent);
+  margin-bottom: 6px;
+}
+.key-card p {
+  font-size: .8rem; color: var(--muted); line-height: 1.55; margin: 0;
+}
+
+.diagram-section h2 {
+  font-size: 1.05rem; font-weight: 700; color: var(--section-h2);
+  margin: 28px 0 14px;
+}
+
+.cta { margin-top: 36px; text-align: center; }
+.cta a {
+  display: inline-block; padding: 10px 22px;
+  font-size: .9rem; font-weight: 600;
+  color: var(--accent);
+  background: var(--page-link-active-bg);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  transition: all .15s;
+}
+.cta a:hover {
+  background: var(--btn-hover-bg);
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════════════════════════════════
    Responsive
 ══════════════════════════════════════════════════════════ */
 @media (max-width: 900px) {
   header { padding: 24px 20px 20px; }
   nav { padding: 0 20px; }
   main { padding: 28px 20px; }
-  .manifesto { padding: 28px 22px; }
-  .manifesto::before { font-size: 5rem; right: 10px; }
-  .fit-grid { grid-template-columns: 1fr; }
-  .principles-grid { grid-template-columns: 1fr; }
-  .overview-grid { grid-template-columns: 1fr 1fr; }
   .header-top { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .compare-wrap { font-size: .78rem; overflow-x: auto; }
-  .compare-wrap table { min-width: 600px; }
 }
 
 @media (max-width: 520px) {
-  .overview-grid { grid-template-columns: 1fr; }
   header h1 { font-size: 1.2rem; }
+  .key-grid { grid-template-columns: 1fr; }
 }
