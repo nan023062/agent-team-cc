@@ -46,9 +46,9 @@ memory/
                    │ Stop                 │ SessionStart
                    ▼                      ▼
          ┌──────────────────┐   ┌──────────────────┐
-         │ write-memory.py  │   │ load-memory.py   │   ← hooks（薄层，无业务逻辑）
+         │ write-memory.py  │   │ load-memory.py   │   ← hooks（薄层，in-process 调用 engine）
          └────────┬─────────┘   └────────┬─────────┘
-                  │ cli write-session      │ cli load-context
+                  │ writer.write_session() │ loader.load_context()
                   ▼                        ▼
          ┌──────────────────┐   ┌──────────────────┐
          │   writer.py      │   │   loader.py      │   ← engine 业务逻辑
@@ -132,18 +132,17 @@ python3 -m venv .venv
 ## CLI 参考
 
 ```bash
-# hook 命令（通常由 hook 自动调用）
-python .cbim/engine memory write-session <transcript_path>
-python .cbim/engine memory load-context
+# 会话写入 / 上下文加载：由 Stop / SessionStart hook 自动 in-process 调用
+# （分别调 memory.engine.writer.write_session 和 memory.engine.loader.load_context，无 CLI）
 
 # agent 命令（手动 / skill 中使用）
-python .cbim/engine memory query "查询意图" [--tier short|medium] [--top-k N] [--verbose]
-python .cbim/engine memory add <path> --tier short|medium
-python .cbim/engine memory cleanup [--keep-days N]
-python .cbim/engine memory reindex [--tier short|medium]
+cbim memory query "查询意图" [--tier short|medium] [--top-k N] [--verbose]
+cbim memory add <path> --tier short|medium
+cbim memory cleanup [--keep-days N]
+cbim memory reindex [--tier short|medium]
 
-# 预览命令（启动本地 HTTP server，自动打开浏览器）
-python .cbim/engine memory preview [--port 8765]
+# 预览：用统一仪表盘（替代旧 `memory preview`）
+cbim dashboard [--port 8765] [--no-browser]
 ```
 
 ---

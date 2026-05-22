@@ -22,7 +22,7 @@ Windows / 无 bash 环境：
 curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
 ```
 
-固定版本：`CBIM_VERSION=1.3.3 curl ... | bash`
+固定版本：`CBIM_VERSION=2.2.3 curl ... | bash`
 
 随后，在任何想启用 CBIM 的项目里：
 
@@ -49,6 +49,7 @@ cbim init
 | `cbim upgrade check` | 比对项目固定的 schema 与已装内核。 |
 | `cbim upgrade apply` | 对当前项目执行待升级的 schema。 |
 | `cbim update` | 把已装内核更新到最新发布版本。 |
+| `cbim release-notes <v>` | 打印任意已安装 kernel 版本的 GitHub 发布说明。 |
 | `cbim dna` | 读写模块知识（`.dna/module.md`、`contract.md`、`index.md`）。 |
 | `cbim agent` | 管理 `.claude/agents/` 下的 agent 定义。 |
 | `cbim memory` | 读写、晋升 `.cbim/memory/` 下的记忆条目。 |
@@ -80,8 +81,8 @@ cbim init
 | | [V1 — CC Kernel](v1/) | [V2 — Native Agent](v2/) |
 |---|---|---|
 | **是什么** | 跑在 Claude Code 之上的 CBIM —— prompt、agent 定义、Python hook | 独立的 C# / .NET 8 运行时，确定性调度器 |
-| **状态** | 已可用，今天就能装 | 设计阶段，见 [`v2/`](v2/) |
-| **安装** | `python v1/src/install.py` | — |
+| **状态** | 已可用，当前发布 `v2.2.3` | 设计阶段，见 [`v2/`](v2/) |
+| **安装** | 上方一行 bootstrap | — |
 
 ---
 

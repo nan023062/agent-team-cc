@@ -36,9 +36,9 @@ Display the following overview to the user verbatim (in Chinese):
 
 | 域 | 命令 | 说明 |
 |---|---|---|
-| `memory` | `write-session` / `load-context` / `create` / `add` / `query` / `delete` / `reindex` / `cleanup` | 记忆 CRUD + 查询 |
+| `memory` | `create` / `add` / `query` / `delete` / `reindex` / `cleanup` | 记忆 CRUD + 查询（会话写入/加载由 hook 自动处理） |
 | `dashboard` | `--port` / `--no-browser` | 启动本地仪表盘 |
-| `dna` | `list` / `show` / `init` / `reindex` | 业务模块（`.dna/`）管理 |
+| `dna` | `list` / `show` / `init` / `reindex` / `edit --target {frontmatter\|body\|section\|contract\|contract-section\|workflow}` | 业务模块（`.dna/`）管理（`write-doc` / `write-section` 已 deprecated，改用 `edit --target body\|section`） |
 | `agent` | `list` / `show` / `scaffold` / `archive` | Agent 注册表 |
 | `skill` | `list` / `show <name>` | 列出/查看 skill 内容 |
 | `soul` | `list` / `show <name>` | 列出/查看 agent 灵魂模板 |
