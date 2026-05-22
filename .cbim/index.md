@@ -5,8 +5,8 @@
 - v1/src/installer
 - v1/src/kernel/cbim_kernel
 - v1/src/kernel/cbim_kernel/cbi
+- v1/src/kernel/cbim_kernel/cbi/_primitives
 - v1/src/kernel/cbim_kernel/cbi/agents
-- v1/src/kernel/cbim_kernel/cbi/engine
 - v1/src/kernel/cbim_kernel/cbi/skills
 - v1/src/kernel/cbim_kernel/dashboard
 - v1/src/kernel/cbim_kernel/engine
