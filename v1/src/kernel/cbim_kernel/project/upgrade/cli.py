@@ -1,6 +1,28 @@
 """Kernel-side upgrade CLI facade — delegates to `python -m updater`."""
 from __future__ import annotations
 import os, subprocess, sys
+from pathlib import Path
+
+
+def _install_root() -> Path:
+    """Mirror of installer/paths.py:install_root() / launcher's _install_root().
+
+    Kept inline so this facade has no import dependency on installer/ — the
+    subprocess we spawn needs <install_root> on PYTHONPATH precisely because
+    sibling packages (updater/) live there as version-less singletons.
+    """
+    env = os.environ.get("CBIM_INSTALL_ROOT")
+    if env:
+        return Path(env).expanduser()
+    if sys.platform == "win32":
+        base = os.environ.get("LOCALAPPDATA")
+        if base:
+            return Path(base) / "Cbim-CC"
+        return Path.home() / "AppData" / "Local" / "Cbim-CC"
+    base = os.environ.get("XDG_DATA_HOME")
+    if base:
+        return Path(base) / "Cbim-CC"
+    return Path.home() / ".local" / "share" / "Cbim-CC"
 
 
 def build_parser(subparsers) -> None:
@@ -18,7 +40,19 @@ def build_parser(subparsers) -> None:
 
 
 def _fwd(subcmd: str, extra: list) -> int:
-    return subprocess.run([sys.executable, "-m", "updater", subcmd] + extra).returncode
+    # The subprocess inherits sys.executable (often the shared venv python),
+    # whose site-packages does NOT contain `updater`. updater/ lives at
+    # <install_root>/updater/ as a sibling-package singleton, so we must put
+    # <install_root> on PYTHONPATH for `python -m updater` to resolve.
+    env = os.environ.copy()
+    install_root = _install_root()
+    existing_pp = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = (
+        str(install_root) + (os.pathsep + existing_pp if existing_pp else "")
+    )
+    return subprocess.run(
+        [sys.executable, "-m", "updater", subcmd] + extra, env=env
+    ).returncode
 
 
 def cmd_check(args) -> int:

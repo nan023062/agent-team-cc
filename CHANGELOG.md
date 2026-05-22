@@ -6,6 +6,17 @@ All notable changes to CBIM are recorded here. Format roughly follows [Keep a Ch
 
 ---
 
+## Versioning Policy
+
+During CBIM's early phase, fix cadence is high. To keep user friction low:
+
+- **Major / minor bumps** ship features or schema changes; users `cbim migrate --version <v>` to adopt.
+- **Patches** (bug fixes, doc tweaks, internal refactors) do **not** bump the version. Users pull them with `cbim update --reinstall --local <kernel-src>` (or remote equivalent), keeping their current pin. The CHANGELOG records what was rolled into the pinned version after-the-fact.
+
+This keeps the version line meaningful (each tag is a real surface change) and avoids forcing reinstall churn for every fix.
+
+---
+
 ## [1.0.0] - 2026-05-22
 
 Initial public release. Version numbering reset from internal iteration.
@@ -41,6 +52,13 @@ Two implementations live side by side:
 - `services/_fm.py` — sole frontmatter parser / renderer.
 - Strict unidirectional dependency: `cli → resources → _primitives → services/_fm`.
 - Hooks (`write_memory`, `load_memory`) run in-process for low-latency session boundary handling.
+
+### Rolling Fixes (under pinned 1.0.0)
+
+Per the versioning policy above, the following fixes have been rolled into the 1.0.0 source line without a version bump. Pull with `cbim update --reinstall --local <kernel-src>`.
+
+- `cbim upgrade` / `cbim update` invoked through the kernel facade now propagate `<install_root>` on `PYTHONPATH` to the spawned `python -m updater` subprocess, fixing `ModuleNotFoundError: No module named 'updater'` on projects that had installed kernel 1.0.0.
+- `cbim install` (both `--local` and GitHub release paths) now refreshes the on-PATH launcher (`cbim_launcher.py`, `cbim`, `cbim.cmd`) under `<install_root>/bin/`. Previously the launcher was written once at first install and never updated, so routing changes (e.g. the addition of `upgrade` / `check` / `apply` to `UPDATER_COMMANDS`) never reached the user's machine. Refresh is atomic via `os.replace`, safe under Windows file-lock semantics.
 
 ### Install
 
