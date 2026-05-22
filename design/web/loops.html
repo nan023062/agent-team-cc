@@ -31,6 +31,11 @@
           <span class="zh">四循环</span><span class="en">Four Loops</span>
         </a>
       </div>
+      <div class="theme-switcher" role="group" aria-label="Theme">
+        <button data-theme-pref="system" title="跟随系统 / System" aria-label="System theme" onclick="setTheme('system')">💻</button>
+        <button data-theme-pref="light"  title="明亮 / Light"     aria-label="Light theme"  onclick="setTheme('light')">☀</button>
+        <button data-theme-pref="dark"   title="暗色 / Dark"      aria-label="Dark theme"   onclick="setTheme('dark')">🌙</button>
+      </div>
       <button onclick="toggleLang()" class="lang-btn">
         <span class="zh">EN</span><span class="en">中文</span>
       </button>
@@ -76,23 +81,24 @@
   <div class="mermaid-wrap">
     <div class="mermaid">
 flowchart TD
-    User(["👤 用户\n说一次需求"])
-    Respond(["👤 用户\n收到最终结果"])
+    User(["👤 用户<br/>说一次需求"])
+    Respond(["👤 用户<br/>收到最终结果"])
+    HR["👥 HR 能力治理"]
 
     User --> Understand
 
     subgraph Loop["🔄 Coordinator 自治调度循环"]
-        Understand["1️⃣ 理解意图\n从对话提取需求\n不清晰 → 只问一个聚焦问题"]
-        Route["2️⃣ 分类路由\ncbim skill show dispatch"]
-        Decompose["3️⃣ 拆解子任务\n并行 / 串行"]
-        ArchGate["4️⃣ Architect 必经门\nDNA 状态分析-思考-执行\n返回模块路径 + 设计约束"]
-        WorkAgent["5️⃣ Work Agent 执行\n携带 Architect 上下文"]
+        Understand["1️⃣ 理解意图<br/>从对话提取需求<br/>不清晰 → 只问一个聚焦问题"]
+        Route["2️⃣ 分类路由<br/>cbim skill show dispatch"]
+        Decompose["3️⃣ 拆解子任务<br/>并行 / 串行"]
+        ArchGate["4️⃣ Architect 必经门<br/>DNA 状态分析-思考-执行<br/>返回模块路径 + 设计约束"]
+        WorkAgent["5️⃣ Work Agent 执行<br/>携带 Architect 上下文"]
         Collect["6️⃣ 收集分析结果"]
 
         Understand --> Route
         Route -->|"执行任务"| Decompose
         Route -->|"业务层 CRUD"| ArchGate
-        Route -->|"能力层 CRUD"| HR["👥 HR 能力治理"]
+        Route -->|"能力层 CRUD"| HR
         Decompose --> ArchGate
         ArchGate --> WorkAgent
         WorkAgent -->|"设计决策无法独立完成"| ArchGate
@@ -141,17 +147,17 @@ flowchart TD
     <div class="mermaid">
 flowchart TD
     SessionStart(["⚡ SessionStart Hook"])
-    Load["load_memory.py\n读取 memory/short/ + memory/medium/\n注入当前会话上下文"]
-    Session["🗣 会话进行中\nCoordinator + Agents 执行任务"]
-    PrePost["⚡ PreToolUse / PostToolUse Hook\nlogger.py\n记录 CALL · RET · USER · ASSIST · agent:name"]
-    Log[("📄 session_YYYY-MM-DD.log\n结构化会话日志")]
-    StopHook["⚡ Stop Hook\nwrite_memory.py\n提炼本轮对话要点"]
-    Short[("📁 memory/short/\n原始会话提炼")]
-    Threshold{"short/ 积累\n达到阈值?"}
-    Distill["🏛 Architect 蒸馏\n识别跨会话重复模式"]
-    Medium[("📁 memory/medium/\n跨会话规律\n用户偏好 · 常见决策")]
+    Load["load_memory.py<br/>读取 memory/short/ + memory/medium/<br/>注入当前会话上下文"]
+    Session["🗣 会话进行中<br/>Coordinator + Agents 执行任务"]
+    PrePost["⚡ PreToolUse / PostToolUse Hook<br/>logger.py<br/>记录 CALL · RET · USER · ASSIST · agent name"]
+    Log[("📄 session_YYYY-MM-DD.log<br/>结构化会话日志")]
+    StopHook["⚡ Stop Hook<br/>write_memory.py<br/>提炼本轮对话要点"]
+    Short[("📁 memory/short/<br/>原始会话提炼")]
+    Threshold{"short/ 积累<br/>达到阈值?"}
+    Distill["🏛 Architect 蒸馏<br/>识别跨会话重复模式"]
+    Medium[("📁 memory/medium/<br/>跨会话规律<br/>用户偏好 · 常见决策")]
     Promote{"发现稳定原则?"}
-    DNA[("📁 .dna/\n架构约束 · 设计原则\n模块契约")]
+    DNA[("📁 .dna/<br/>架构约束 · 设计原则<br/>模块契约")]
     NextSession(["⚡ 下次 SessionStart"])
 
     SessionStart --> Load
@@ -208,30 +214,30 @@ flowchart TD
   <div class="mermaid-wrap">
     <div class="mermaid">
 flowchart TD
-    Trigger(["触发条件\n· 执行任务发现能力缺口\n· 用户显式请求招募/训练/评估/归档\n· HR 定期评估能力覆盖度"])
+    Trigger(["触发条件<br/>· 执行任务发现能力缺口<br/>· 用户显式请求招募/训练/评估/归档<br/>· HR 定期评估能力覆盖度"])
 
-    Scan["🔍 扫描 .claude/agents/\n盘点现有 agent 能力清单"]
+    Scan["🔍 扫描 .claude/agents/<br/>盘点现有 agent 能力清单"]
     Match{"匹配结果"}
 
     HasFit["✅ 有且胜任"]
     HasWeak["⚠️ 有但能力不足"]
     NoAgent["❌ 无匹配 agent"]
 
-    ReturnPath["返回 agent 路径\n给 Coordinator"]
+    ReturnPath["返回 agent 路径<br/>给 Coordinator"]
     TrainOrRecruit{"训练 or 招募?"}
-    Train["📚 训练\ncbim agent update\n更新技能 / 性格 / 行为规范"]
-    WorthNew{"复杂度足够\n值得专属 agent?"}
-    Scaffold["🌱 招募新 agent\ncbim agent scaffold\n定义角色 / 技能 / 性格 / 工具权限"]
-    Temporary["使用现有通用\nagent 临时处理"]
+    Train["📚 训练<br/>cbim agent update<br/>更新技能 / 性格 / 行为规范"]
+    WorthNew{"复杂度足够<br/>值得专属 agent?"}
+    Scaffold["🌱 招募新 agent<br/>cbim agent scaffold<br/>定义角色 / 技能 / 性格 / 工具权限"]
+    Temporary["使用现有通用<br/>agent 临时处理"]
 
     Execute(["⚙️ 任务执行"])
     Assess["📊 评估表现"]
     AssessResult{"表现如何?"}
-    Improve["更新 agent.md\n记录最佳实践\n提升能力描述"]
-    Retrain["🔧 再训练\n调整性格 / 技能 / 边界约束"]
-    Archive["📦 归档\ncbim agent archive"]
+    Improve["更新 agent.md<br/>记录最佳实践<br/>提升能力描述"]
+    Retrain["🔧 再训练<br/>调整性格 / 技能 / 边界约束"]
+    Archive["📦 归档<br/>cbim agent archive"]
 
-    Fission(["✨ 裂变\n专用 agent 孵化 → 能力图谱扩展\n通用 agent 分化 → 专项独立\n老 agent 归档 → 能力沉淀 memory"])
+    Fission(["✨ 裂变<br/>专用 agent 孵化 → 能力图谱扩展<br/>通用 agent 分化 → 专项独立<br/>老 agent 归档 → 能力沉淀 memory"])
 
     Trigger --> Scan
     Scan --> Match
@@ -298,38 +304,38 @@ flowchart TD
   <div class="mermaid-wrap">
     <div class="mermaid">
 flowchart TD
-    Trigger(["触发条件\n· 执行任务循环派入（必经门）\n· 用户显式请求模块设计 / 合规审查\n· Work Agent 上报设计决策"])
+    Trigger(["触发条件<br/>· 执行任务循环派入（必经门）<br/>· 用户显式请求模块设计 / 合规审查<br/>· Work Agent 上报设计决策"])
 
-    Scan["🔍 读取相关模块 .dna/ 文件\n扫描工作区代码结构"]
+    Scan["🔍 读取相关模块 .dna/ 文件<br/>扫描工作区代码结构"]
     StateCheck{"DNA 状态判断"}
 
-    S0["状态 0\nDNA 不存在"]
-    S1["状态 1\nDNA 同步 ✅"]
-    S2["状态 2\n代码超前\nDNA 未跟上"]
-    S3["状态 3\nDNA 超前\n设计意图未实现"]
+    S0["状态 0<br/>DNA 不存在"]
+    S1["状态 1<br/>DNA 同步 ✅"]
+    S2["状态 2<br/>代码超前<br/>DNA 未跟上"]
+    S3["状态 3<br/>DNA 超前<br/>设计意图未实现"]
 
-    Worth0{"值得建 DNA?\n复杂度高 / 多处引用\n有明确设计意图"}
-    Init["cbim dna init\n生成 module.md + contract.md\n边界 · 接口契约 · 依赖规则"]
-    Skip0["跳过\n一次性脚本 / 临时代码"]
+    Worth0{"值得建 DNA?<br/>复杂度高 / 多处引用<br/>有明确设计意图"}
+    Init["cbim dna init<br/>生成 module.md + contract.md<br/>边界 · 接口契约 · 依赖规则"]
+    Skip0["跳过<br/>一次性脚本 / 临时代码"]
 
-    Extract["直接提取\n模块路径与约束"]
+    Extract["直接提取<br/>模块路径与约束"]
 
-    Think2["分析变更点\n哪些接口/边界/依赖改变?"]
-    Update["cbim dna update\n补齐变更内容"]
+    Think2["分析变更点<br/>哪些接口/边界/依赖改变?"]
+    Update["cbim dna update<br/>补齐变更内容"]
 
-    Validate3["验证设计可行性\n上下游依赖是否就绪?"]
-    MarkSpec["标记「待实现 spec」\nDNA 即任务书"]
+    Validate3["验证设计可行性<br/>上下游依赖是否就绪?"]
+    MarkSpec["标记「待实现 spec」<br/>DNA 即任务书"]
 
-    ContextPack["📦 返回任务上下文包\n模块路径 + 设计约束\n依赖规则 + DNA 状态标记"]
+    ContextPack["📦 返回任务上下文包<br/>模块路径 + 设计约束<br/>依赖规则 + DNA 状态标记"]
 
     WorkAgent(["⚙️ Work Agent 执行"])
 
-    Review["📋 架构合规复查\n实现是否破坏约束?"]
+    Review["📋 架构合规复查<br/>实现是否破坏约束?"]
     Compliant{"合规?"}
-    UpdateDNA["更新 DNA\n记录实现细节\n知识闭环"]
-    Escalate["上报 Coordinator\n要求修正后再复查"]
+    UpdateDNA["更新 DNA<br/>记录实现细节<br/>知识闭环"]
+    Escalate["上报 Coordinator<br/>要求修正后再复查"]
 
-    Fission(["✨ 裂变\n新模块 DNA → 知识图谱扩展\n旧模块拆分 → 子模块 DNA\n跨模块契约更新 → 依赖图重构"])
+    Fission(["✨ 裂变<br/>新模块 DNA → 知识图谱扩展<br/>旧模块拆分 → 子模块 DNA<br/>跨模块契约更新 → 依赖图重构"])
 
     Trigger --> Scan
     Scan --> StateCheck
@@ -412,9 +418,9 @@ flowchart TD
     <div class="mermaid">
 graph LR
     User(["👤 用户"]) --> Exec["⚡ 执行任务循环"]
-    Exec -->|"必经门"| Biz["🏛 业务知识治理循环\nArchitect · .dna/"]
-    Exec -->|"能力缺口"| Cap["👥 能力知识治理循环\nHR · .claude/agents/"]
-    Exec -->|"执行经验"| Mem["🧠 记忆治理循环\nHook · short→medium→.dna/"]
+    Exec -->|"必经门"| Biz["🏛 业务知识治理循环<br/>Architect · .dna/"]
+    Exec -->|"能力缺口"| Cap["👥 能力知识治理循环<br/>HR · .claude/agents/"]
+    Exec -->|"执行经验"| Mem["🧠 记忆治理循环<br/>Hook · short→medium→.dna/"]
     Mem -->|"知识回流"| Biz
     Biz <-->|"协同裂变"| Cap
     Biz -->|"增强"| Exec
@@ -441,22 +447,49 @@ graph LR
 </main>
 
 <script>
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: 'dark',
-    themeVariables: {
-      darkMode: true,
-      background: '#161b27',
-      primaryColor: '#1e2a3a',
-      primaryTextColor: '#e2e8f0',
-      primaryBorderColor: '#7c3aed',
-      lineColor: '#4a5568',
-      secondaryColor: '#1a1040',
-      tertiaryColor: '#0d1520',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      fontSize: '14px'
+  // ── Mermaid: save sources, render with current theme, re-render on theme change ──
+  (function () {
+    var sources = [];
+    document.querySelectorAll('.mermaid').forEach(function (el, i) {
+      sources[i] = el.textContent;
+    });
+
+    function isDark() {
+      return document.documentElement.getAttribute('data-theme') === 'dark';
     }
-  });
+
+    function themeVars(dark) {
+      return {
+        darkMode: dark,
+        background: dark ? '#161b27' : '#f8fafc',
+        primaryColor: dark ? '#1e2a3a' : '#f1f5f9',
+        primaryTextColor: dark ? '#e2e8f0' : '#0f172a',
+        primaryBorderColor: '#7c3aed',
+        lineColor: dark ? '#4a5568' : '#94a3b8',
+        secondaryColor: dark ? '#1a1040' : '#ede9fe',
+        tertiaryColor: dark ? '#0d1520' : '#e0e7ff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontSize: '14px'
+      };
+    }
+
+    function renderAll() {
+      var dark = isDark();
+      document.querySelectorAll('.mermaid').forEach(function (el, i) {
+        el.removeAttribute('data-processed');
+        el.innerHTML = sources[i];
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: dark ? 'dark' : 'default',
+        themeVariables: themeVars(dark)
+      });
+      mermaid.run({ querySelector: '.mermaid' });
+    }
+
+    renderAll();
+    document.addEventListener('cbim-theme-changed', renderAll);
+  })();
 
   function show(id, btn) {
     document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));

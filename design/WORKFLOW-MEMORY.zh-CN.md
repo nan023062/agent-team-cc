@@ -1,24 +1,24 @@
 # CBIM 记忆治理循环
 
 > **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。  
-> 网页版：`design/loops.html` → 记忆治理循环标签。
+> 网页版：`design/web/loops.html` → 记忆治理循环标签。
 
 执行经验自动沉淀为知识。全程由 Hook 驱动，对用户完全透明。
 
 ```mermaid
 flowchart TD
     SessionStart(["⚡ SessionStart Hook"])
-    Load["load_memory.py\n读取 memory/short/ + memory/medium/\n注入当前会话上下文"]
-    Session["🗣 会话进行中\nCoordinator + Agents 执行任务"]
-    PrePost["⚡ PreToolUse / PostToolUse Hook\nlogger.py\n记录 CALL · RET · USER · ASSIST · agent:name"]
-    Log[("📄 session_YYYY-MM-DD.log\n结构化会话日志")]
-    StopHook["⚡ Stop Hook\nwrite_memory.py\n提炼本轮对话要点"]
-    Short[("📁 memory/short/\n原始会话提炼")]
-    Threshold{"short/ 积累\n达到阈值?"}
-    Distill["🏛 Architect 蒸馏\n识别跨会话重复模式"]
-    Medium[("📁 memory/medium/\n跨会话规律\n用户偏好 · 常见决策")]
+    Load["load_memory.py<br/>读取 memory/short/ + memory/medium/<br/>注入当前会话上下文"]
+    Session["🗣 会话进行中<br/>Coordinator + Agents 执行任务"]
+    PrePost["⚡ PreToolUse / PostToolUse Hook<br/>logger.py<br/>记录 CALL · RET · USER · ASSIST · agent:name"]
+    Log[("📄 session_YYYY-MM-DD.log<br/>结构化会话日志")]
+    StopHook["⚡ Stop Hook<br/>write_memory.py<br/>提炼本轮对话要点"]
+    Short[("📁 memory/short/<br/>原始会话提炼")]
+    Threshold{"short/ 积累<br/>达到阈值?"}
+    Distill["🏛 Architect 蒸馏<br/>识别跨会话重复模式"]
+    Medium[("📁 memory/medium/<br/>跨会话规律<br/>用户偏好 · 常见决策")]
     Promote{"发现稳定原则?"}
-    DNA[("📁 .dna/\n架构约束 · 设计原则\n模块契约")]
+    DNA[("📁 .dna/<br/>架构约束 · 设计原则<br/>模块契约")]
     NextSession(["⚡ 下次 SessionStart"])
 
     SessionStart --> Load

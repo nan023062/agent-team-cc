@@ -1,34 +1,34 @@
 # CBIM 全局系统结构
 
 > **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。  
-> 网页版：`design/index.html` → 全局结构标签。
+> 网页版：`design/web/index.html` → 全局结构标签。
 
 三个层次 · 四个循环 · 双轴迭代裂变。用户只感知首尾，其余全部自治。
 
 ```mermaid
 graph TB
-    User(["👤 用户\n说一次需求，等最终结果"])
+    User(["👤 用户<br/>说一次需求，等最终结果"])
 
     subgraph ExecLayer["  执行层 — Claude Code 优化  "]
-        Coord["🎯 Coordinator\n自治调度中心"]
-        WorkAgent["🔧 Work Agent\n执行实现"]
+        Coord["🎯 Coordinator<br/>自治调度中心"]
+        WorkAgent["🔧 Work Agent<br/>执行实现"]
     end
 
     subgraph GovLayer["  治理层 — 双轴迭代裂变  "]
         subgraph BizAxis["业务轴"]
-            Arch["🏛 Architect\n业务知识治理循环\n.dna/ 知识系统"]
+            Arch["🏛 Architect<br/>业务知识治理循环<br/>.dna/ 知识系统"]
         end
         subgraph CapAxis["能力轴"]
-            HR["👥 HR\n能力知识治理循环\n.claude/agents/"]
+            HR["👥 HR<br/>能力知识治理循环<br/>.claude/agents/"]
         end
     end
 
     subgraph MemLayer["  记忆层 — Hook 自动驱动  "]
-        Mem["🧠 记忆治理循环\nshort/ → medium/ → .dna/"]
+        Mem["🧠 记忆治理循环<br/>short/ → medium/ → .dna/"]
     end
 
     User -->|"提出需求"| Coord
-    Coord -->|"必经门\nDNA 状态确认"| Arch
+    Coord -->|"必经门<br/>DNA 状态确认"| Arch
     Arch -->|"模块路径 + 设计约束"| Coord
     Coord -->|"携带上下文派发"| WorkAgent
     WorkAgent -->|"设计决策上报"| Coord

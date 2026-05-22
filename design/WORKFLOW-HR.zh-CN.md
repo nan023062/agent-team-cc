@@ -1,36 +1,36 @@
 # CBIM 能力知识治理循环
 
 > **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。  
-> 网页版：`design/loops.html` → 能力知识治理循环标签。
+> 网页版：`design/web/loops.html` → 能力知识治理循环标签。
 
 能力轴 · `.claude/agents/` · 能力系统的更新与裂变。与业务知识治理循环对偶，共同构成双轴治理体系。
 
 ```mermaid
 flowchart TD
-    Trigger(["触发条件\n· 执行任务发现能力缺口\n· 用户显式请求招募/训练/评估/归档\n· HR 定期评估能力覆盖度"])
+    Trigger(["触发条件<br/>· 执行任务发现能力缺口<br/>· 用户显式请求招募/训练/评估/归档<br/>· HR 定期评估能力覆盖度"])
 
-    Scan["🔍 扫描 .claude/agents/\n盘点现有 agent 能力清单"]
+    Scan["🔍 扫描 .claude/agents/<br/>盘点现有 agent 能力清单"]
     Match{"匹配结果"}
 
     HasFit["✅ 有且胜任"]
     HasWeak["⚠️ 有但能力不足"]
     NoAgent["❌ 无匹配 agent"]
 
-    ReturnPath["返回 agent 路径\n给 Coordinator"]
+    ReturnPath["返回 agent 路径<br/>给 Coordinator"]
     TrainOrRecruit{"训练 or 招募?"}
-    Train["📚 训练\ncbim agent update\n更新技能 / 性格 / 行为规范"]
-    WorthNew{"复杂度足够\n值得专属 agent?"}
-    Scaffold["🌱 招募新 agent\ncbim agent scaffold\n定义角色 / 技能 / 性格 / 工具权限"]
-    Temporary["使用现有通用\nagent 临时处理"]
+    Train["📚 训练<br/>cbim agent update<br/>更新技能 / 性格 / 行为规范"]
+    WorthNew{"复杂度足够<br/>值得专属 agent?"}
+    Scaffold["🌱 招募新 agent<br/>cbim agent scaffold<br/>定义角色 / 技能 / 性格 / 工具权限"]
+    Temporary["使用现有通用<br/>agent 临时处理"]
 
     Execute(["⚙️ 任务执行"])
     Assess["📊 评估表现"]
     AssessResult{"表现如何?"}
-    Improve["更新 agent.md\n记录最佳实践\n提升能力描述"]
-    Retrain["🔧 再训练\n调整性格 / 技能 / 边界约束"]
-    Archive["📦 归档\ncbim agent archive"]
+    Improve["更新 agent.md<br/>记录最佳实践<br/>提升能力描述"]
+    Retrain["🔧 再训练<br/>调整性格 / 技能 / 边界约束"]
+    Archive["📦 归档<br/>cbim agent archive"]
 
-    Fission(["✨ 裂变\n专用 agent 孵化 → 能力图谱扩展\n通用 agent 分化 → 专项独立\n老 agent 归档 → 能力沉淀 memory"])
+    Fission(["✨ 裂变<br/>专用 agent 孵化 → 能力图谱扩展<br/>通用 agent 分化 → 专项独立<br/>老 agent 归档 → 能力沉淀 memory"])
 
     Trigger --> Scan
     Scan --> Match

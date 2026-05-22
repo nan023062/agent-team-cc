@@ -1,44 +1,44 @@
 # CBIM 业务知识治理循环
 
 > **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。  
-> 网页版：`design/loops.html` → 业务知识治理循环标签。
+> 网页版：`design/web/loops.html` → 业务知识治理循环标签。
 
 业务轴 · `.dna/` · 知识系统的更新与裂变。执行任务的必经门，懒式 DNA 管理。与能力知识治理循环对偶，共同构成双轴治理体系。
 
 ```mermaid
 flowchart TD
-    Trigger(["触发条件\n· 执行任务循环派入（必经门）\n· 用户显式请求模块设计 / 合规审查\n· Work Agent 上报设计决策"])
+    Trigger(["触发条件<br/>· 执行任务循环派入（必经门）<br/>· 用户显式请求模块设计 / 合规审查<br/>· Work Agent 上报设计决策"])
 
-    Scan["🔍 读取相关模块 .dna/ 文件\n扫描工作区代码结构"]
+    Scan["🔍 读取相关模块 .dna/ 文件<br/>扫描工作区代码结构"]
     StateCheck{"DNA 状态判断"}
 
-    S0["状态 0\nDNA 不存在"]
-    S1["状态 1\nDNA 同步 ✅"]
-    S2["状态 2\n代码超前\nDNA 未跟上"]
-    S3["状态 3\nDNA 超前\n设计意图未实现"]
+    S0["状态 0<br/>DNA 不存在"]
+    S1["状态 1<br/>DNA 同步 ✅"]
+    S2["状态 2<br/>代码超前<br/>DNA 未跟上"]
+    S3["状态 3<br/>DNA 超前<br/>设计意图未实现"]
 
-    Worth0{"值得建 DNA?\n复杂度高 / 多处引用\n有明确设计意图"}
-    Init["cbim dna init\n生成 module.md + contract.md\n边界 · 接口契约 · 依赖规则"]
-    Skip0["跳过\n一次性脚本 / 临时代码"]
+    Worth0{"值得建 DNA?<br/>复杂度高 / 多处引用<br/>有明确设计意图"}
+    Init["cbim dna init<br/>生成 module.md + contract.md<br/>边界 · 接口契约 · 依赖规则"]
+    Skip0["跳过<br/>一次性脚本 / 临时代码"]
 
-    Extract["直接提取\n模块路径与约束"]
+    Extract["直接提取<br/>模块路径与约束"]
 
-    Think2["分析变更点\n哪些接口/边界/依赖改变?"]
-    Update["cbim dna update\n补齐变更内容"]
+    Think2["分析变更点<br/>哪些接口/边界/依赖改变?"]
+    Update["cbim dna update<br/>补齐变更内容"]
 
-    Validate3["验证设计可行性\n上下游依赖是否就绪?"]
-    MarkSpec["标记「待实现 spec」\nDNA 即任务书"]
+    Validate3["验证设计可行性<br/>上下游依赖是否就绪?"]
+    MarkSpec["标记「待实现 spec」<br/>DNA 即任务书"]
 
-    ContextPack["📦 返回任务上下文包\n模块路径 + 设计约束\n依赖规则 + DNA 状态标记"]
+    ContextPack["📦 返回任务上下文包<br/>模块路径 + 设计约束<br/>依赖规则 + DNA 状态标记"]
 
     WorkAgent(["⚙️ Work Agent 执行"])
 
-    Review["📋 架构合规复查\n实现是否破坏约束?"]
+    Review["📋 架构合规复查<br/>实现是否破坏约束?"]
     Compliant{"合规?"}
-    UpdateDNA["更新 DNA\n记录实现细节\n知识闭环"]
-    Escalate["上报 Coordinator\n要求修正后再复查"]
+    UpdateDNA["更新 DNA<br/>记录实现细节<br/>知识闭环"]
+    Escalate["上报 Coordinator<br/>要求修正后再复查"]
 
-    Fission(["✨ 裂变\n新模块 DNA → 知识图谱扩展\n旧模块拆分 → 子模块 DNA\n跨模块契约更新 → 依赖图重构"])
+    Fission(["✨ 裂变<br/>新模块 DNA → 知识图谱扩展<br/>旧模块拆分 → 子模块 DNA<br/>跨模块契约更新 → 依赖图重构"])
 
     Trigger --> Scan
     Scan --> StateCheck

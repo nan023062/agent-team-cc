@@ -1,23 +1,23 @@
 # CBIM 执行任务循环
 
 > **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。  
-> 网页版：`design/loops.html` → 执行任务循环标签。
+> 网页版：`design/web/loops.html` → 执行任务循环标签。
 
 对 Claude Code 执行机制的优化。用户说一次需求，Coordinator 自治驱动到完成。Architect 是所有执行任务的必经门。
 
 ```mermaid
 flowchart TD
-    User(["👤 用户\n说一次需求"])
-    Respond(["👤 用户\n收到最终结果"])
+    User(["👤 用户<br/>说一次需求"])
+    Respond(["👤 用户<br/>收到最终结果"])
 
     User --> Understand
 
     subgraph Loop["🔄 Coordinator 自治调度循环"]
-        Understand["1️⃣ 理解意图\n从对话提取需求\n不清晰 → 只问一个聚焦问题"]
-        Route["2️⃣ 分类路由\ncbim skill show dispatch"]
-        Decompose["3️⃣ 拆解子任务\n并行 / 串行"]
-        ArchGate["4️⃣ Architect 必经门\nDNA 状态分析-思考-执行\n返回模块路径 + 设计约束"]
-        WorkAgent["5️⃣ Work Agent 执行\n携带 Architect 上下文"]
+        Understand["1️⃣ 理解意图<br/>从对话提取需求<br/>不清晰 → 只问一个聚焦问题"]
+        Route["2️⃣ 分类路由<br/>cbim skill show dispatch"]
+        Decompose["3️⃣ 拆解子任务<br/>并行 / 串行"]
+        ArchGate["4️⃣ Architect 必经门<br/>DNA 状态分析-思考-执行<br/>返回模块路径 + 设计约束"]
+        WorkAgent["5️⃣ Work Agent 执行<br/>携带 Architect 上下文"]
         Collect["6️⃣ 收集分析结果"]
 
         Understand --> Route

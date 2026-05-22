@@ -31,6 +31,11 @@
           <span class="zh">四循环</span><span class="en">Four Loops</span>
         </a>
       </div>
+      <div class="theme-switcher" role="group" aria-label="Theme">
+        <button data-theme-pref="system" title="跟随系统 / System" aria-label="System theme" onclick="setTheme('system')">💻</button>
+        <button data-theme-pref="light"  title="明亮 / Light"     aria-label="Light theme"  onclick="setTheme('light')">☀</button>
+        <button data-theme-pref="dark"   title="暗色 / Dark"      aria-label="Dark theme"   onclick="setTheme('dark')">🌙</button>
+      </div>
       <button onclick="toggleLang()" class="lang-btn">
         <span class="zh">EN</span><span class="en">中文</span>
       </button>
@@ -447,24 +452,24 @@
   <div class="mermaid-wrap">
     <div class="mermaid">
 graph TB
-    User(["👤 用户\n说一次需求，等最终结果"])
+    User(["👤 用户<br/>说一次需求，等最终结果"])
 
-    subgraph ExecLayer["  执行层 — Claude Code 优化  "]
-        Coord["🎯 Coordinator\n自治调度中心"]
-        WorkAgent["🔧 Work Agent\n执行实现"]
+    subgraph ExecLayer["执行层 — Claude Code 优化"]
+        Coord["🎯 Coordinator<br/>自治调度中心"]
+        WorkAgent["🔧 Work Agent<br/>执行实现"]
     end
 
-    subgraph GovLayer["  治理层 — 双轴迭代裂变  "]
+    subgraph GovLayer["治理层 — 双轴迭代裂变"]
         subgraph BizAxis["业务轴"]
-            Arch["🏛 Architect\n业务知识治理循环\n.dna/ 知识系统"]
+            Arch["🏛 Architect<br/>业务知识治理循环<br/>.dna/ 知识系统"]
         end
         subgraph CapAxis["能力轴"]
-            HR["👥 HR\n能力知识治理循环\n.claude/agents/"]
+            HR["👥 HR<br/>能力知识治理循环<br/>.claude/agents/"]
         end
     end
 
-    subgraph MemLayer["  记忆层 — Hook 自动驱动  "]
-        Mem["🧠 记忆治理循环\nshort/ → medium/ → .dna/"]
+    subgraph MemLayer["记忆层 — Hook 自动驱动"]
+        Mem["🧠 记忆治理循环<br/>short/ → medium/ → .dna/"]
     end
 
     User -->|"提出需求"| Coord
@@ -504,22 +509,49 @@ graph TB
 </main>
 
 <script>
-  mermaid.initialize({
-    startOnLoad: true,
-    theme: 'dark',
-    themeVariables: {
-      darkMode: true,
-      background: '#161b27',
-      primaryColor: '#1e2a3a',
-      primaryTextColor: '#e2e8f0',
-      primaryBorderColor: '#7c3aed',
-      lineColor: '#4a5568',
-      secondaryColor: '#1a1040',
-      tertiaryColor: '#0d1520',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      fontSize: '14px'
+  // ── Mermaid: save sources, render with current theme, re-render on theme change ──
+  (function () {
+    var sources = [];
+    document.querySelectorAll('.mermaid').forEach(function (el, i) {
+      sources[i] = el.textContent;
+    });
+
+    function isDark() {
+      return document.documentElement.getAttribute('data-theme') === 'dark';
     }
-  });
+
+    function themeVars(dark) {
+      return {
+        darkMode: dark,
+        background: dark ? '#161b27' : '#f8fafc',
+        primaryColor: dark ? '#1e2a3a' : '#f1f5f9',
+        primaryTextColor: dark ? '#e2e8f0' : '#0f172a',
+        primaryBorderColor: '#7c3aed',
+        lineColor: dark ? '#4a5568' : '#94a3b8',
+        secondaryColor: dark ? '#1a1040' : '#ede9fe',
+        tertiaryColor: dark ? '#0d1520' : '#e0e7ff',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontSize: '14px'
+      };
+    }
+
+    function renderAll() {
+      var dark = isDark();
+      document.querySelectorAll('.mermaid').forEach(function (el, i) {
+        el.removeAttribute('data-processed');
+        el.innerHTML = sources[i];
+      });
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: dark ? 'dark' : 'default',
+        themeVariables: themeVars(dark)
+      });
+      mermaid.run({ querySelector: '.mermaid' });
+    }
+
+    renderAll();
+    document.addEventListener('cbim-theme-changed', renderAll);
+  })();
 
   function show(id, btn) {
     document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));
