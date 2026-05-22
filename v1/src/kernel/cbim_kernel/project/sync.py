@@ -36,6 +36,11 @@ def _read_template(name: str) -> str:
     return (_TEMPLATES / name).read_text(encoding="utf-8")
 
 
+def read_template(name: str) -> str:
+    """Public accessor for kernel-managed template files."""
+    return _read_template(name)
+
+
 def _rel(path: Path, root: Path) -> str:
     try:
         rel = path.relative_to(root)
@@ -54,6 +59,22 @@ def _rel(path: Path, root: Path) -> str:
 def sync_claude_md(project_root: Path, dry_run: bool = False) -> str:
     dst = project_root / "CLAUDE.md"
     content = _read_template("CLAUDE.md.tmpl")
+    rel = _rel(dst, project_root)
+
+    if dst.exists() and dst.read_text(encoding="utf-8") == content:
+        return f"unchanged {rel}"
+    verb = "would overwrite" if dry_run else "overwrote"
+    if not dst.exists():
+        verb = "would create" if dry_run else "created"
+    if not dry_run:
+        dst.write_text(content, encoding="utf-8")
+    return f"{verb} {rel}"
+
+
+def sync_claudeignore(project_root: Path, dry_run: bool = False) -> str:
+    """OWNED file. Overwrite from template on every sync."""
+    dst = project_root / ".claudeignore"
+    content = _read_template("claudeignore.tmpl")
     rel = _rel(dst, project_root)
 
     if dst.exists() and dst.read_text(encoding="utf-8") == content:
@@ -185,6 +206,7 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
     project_root = Path(project_root).resolve()
     actions: list[str] = []
     actions.append(sync_claude_md(project_root, dry_run=dry_run))
+    actions.append(sync_claudeignore(project_root, dry_run=dry_run))
     actions.extend(sync_agents(project_root, dry_run=dry_run))
     actions.append(sync_settings(project_root, dry_run=dry_run))
     actions.append(sync_gitignore(project_root, dry_run=dry_run))

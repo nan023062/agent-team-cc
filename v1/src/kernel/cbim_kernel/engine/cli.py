@@ -524,18 +524,15 @@ def _load_souls(trigger: str | None = None) -> dict[str, str]:
                 souls[info.name] = getattr(mod, attr)
                 break
 
-    coord_module_path = "cbim_kernel.cbi.claude_md"
+    coord_template = "CLAUDE.md.tmpl"
     try:
-        coord_mod = importlib.import_module(coord_module_path)
+        from cbim_kernel.project.sync import read_template
+        souls["assistant"] = read_template(coord_template)
         if trigger is not None:
-            log_import(coord_module_path, "ok", trigger)
-        for attr in dir(coord_mod):
-            if attr.endswith("_MD"):
-                souls["assistant"] = getattr(coord_mod, attr)
-                break
-    except ModuleNotFoundError:
+            log_import(f"project.templates.{coord_template}", "ok", trigger)
+    except FileNotFoundError:
         if trigger is not None:
-            log_import(coord_module_path, "miss", trigger)
+            log_import(f"project.templates.{coord_template}", "miss", trigger)
 
     return souls
 

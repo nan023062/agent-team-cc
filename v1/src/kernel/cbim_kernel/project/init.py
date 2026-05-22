@@ -87,6 +87,15 @@ def _install_claude_md(project_root: Path, force: bool) -> None:
     print(f"[cbim] {action}")
 
 
+def _install_claudeignore(project_root: Path, force: bool) -> None:
+    dst = project_root / ".claudeignore"
+    if dst.exists() and not force:
+        _print("skipped (exists)", dst, project_root)
+        return
+    action = _sync.sync_claudeignore(project_root, dry_run=False)
+    print(f"[cbim] {action}")
+
+
 def _patch_gitignore(project_root: Path) -> None:
     gi_path = project_root / ".gitignore"
     pre_existed = gi_path.exists()
@@ -115,6 +124,7 @@ def init_project(project_root: Path, version: str, force: bool = False) -> None:
     _install_agents(project_root, force)
     _install_settings(project_root, force)
     _install_claude_md(project_root, force)
+    _install_claudeignore(project_root, force)
     _patch_gitignore(project_root)
 
     print("[cbim] Done! Start Claude Code in this directory.")

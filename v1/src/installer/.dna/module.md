@@ -8,7 +8,17 @@ dependencies: []
 
 ## Positioning
 
-Owns the global Cbim-CC install root (`<install_root>/Cbim-CC/`): where it lives, which kernel versions are inside, which is default, the shared venv, and the on-disk versions registry. Also owns getting the launcher reachable on the user's `PATH` (the only writes the installer makes *outside* the install root). Never imports from `cbim_kernel`. Never knows anything about a particular project.
+Current name on disk: `installer`. **Target name: `updater`** — this module is the current form of what will become `updater`, owning **all** cross-version operations: install, upgrade, schema migration, version registry, venv, launcher placement, PATH.
+
+Owns the global Cbim-CC install root (`<install_root>/Cbim-CC/`): where it lives, which kernel versions are inside, which is default, the shared venv, and the on-disk versions registry. Owns getting the launcher reachable on the user's `PATH` (the only writes this module makes *outside* the install root).
+
+**Slated to absorb (currently in `cbim_kernel/project/`):**
+- `migrate` — project-side schema migration (transforms `<project_root>/.cbim/` from schema N to schema N+1). Cross-version by definition; mis-located in kernel today.
+- `upgrade/` sub-package — `cbim upgrade check|apply`, the 7-scenario diagnostic and the app-side install repointer. Currently lives at `cbim_kernel/project/upgrade/`; will move here.
+
+After migration, kernel keeps only `init` (bootstrap-at-current-version, no version transition).
+
+**Never imports from `cbim_kernel`.** May invoke a staged kernel via subprocess for post-install verification only. Never knows anything about a particular project's runtime state beyond `<project_root>/.cbim/.pin` (read via kernel's pin accessor or by direct read of the plain-text file).
 
 ## Class Diagram
 
@@ -235,3 +245,57 @@ classDiagram
   ```
 
   Field names and meanings already published here are **stable**; removals or rename require a contract version bump.
+
+## Migration Roadmap: Becoming Updater
+
+### Module rename: installer → updater
+
+The on-disk directory will be renamed from `v1/src/installer/` to `v1/src/updater/` after responsibilities settle. The rename is tracked separately; documentation already uses the target name where it clarifies intent. The Python package name also moves from `installer` to `updater` (callers: launcher's subprocess dispatch, CLI entry points, the `python -m installer install <ver>` invocation site in the soon-to-migrate `apply_flow`).
+
+The `<install_root>/installer/` directory becomes `<install_root>/updater/`. Migration concerns: existing installs have `<install_root>/installer/` on disk; the rename's first run must detect and rename that directory (or copy + remove) before any new write. Tracked as a separate task.
+
+### Incoming sub-modules (migrating from `cbim_kernel/project/`)
+
+Two sub-modules will move into this module's tree. Each retains its current internal design; only the location and dependency edges change.
+
+**`migrate` (incoming from `cbim_kernel/project/migrate.py`)**
+- Today: single file at `cbim_kernel/project/migrate.py`. Handles legacy `~/.cbim/` → global-kernel layout migration, plus the pure pin-bump path on already-current layout.
+- Target: `v1/src/installer/migrate/` (or `migrate.py` if it stays single-file). Becomes a peer of `install`, `bootstrap`, `registry`, `venv_mgr`.
+- Dependency direction after migration: `cli` → `migrate` (already exists as `_cmd_migrate` in installer.cli? — verify during migration); `migrate` → `paths`, `registry`, and a pin-access mechanism (see below). `migrate` does NOT import anything from `cbim_kernel`.
+- **Pin write contract:** `migrate` writes `<project_root>/.cbim/.pin`. Per the kernel-side "single pin accessor" iron rule, the write must go through one canonical mechanism. After migration the canonical accessor either (a) moves with `migrate` into updater and becomes updater-owned, or (b) stays kernel-owned and updater invokes it via subprocess (`cbim --write-pin <project> <version>`). The choice is deferred to the migration task; the constraint is **one writer per file**, non-negotiable.
+
+**`upgrade/` (incoming from `cbim_kernel/project/upgrade/`)**
+- Today: sub-package at `cbim_kernel/project/upgrade/`. Contains `cli`, `diagnose`, `app_state`, `project_state`, `apply_flow`, `remote`, `notify`, `config`. Implements the 7-scenario diagnostic matrix and the app-side install repointer.
+- Target: `v1/src/installer/upgrade/`. Becomes a peer of `install` and `migrate`.
+- Dependency direction after migration: `upgrade.apply_flow` currently shells out to `python -m installer install <ver>` (subprocess-to-installer to honor the "kernel never imports installer" rule). After migration, this becomes a **direct import** of `installer.install.install_kernel(...)` — the subprocess hop is no longer needed once both live in the same package. This is the single biggest structural simplification from the migration.
+- `upgrade.project_state.read_pin` and `apply_flow._update_project_pin` currently delegate to `project.pin` (kernel-side). After migration the same options as `migrate` apply: either pin accessor moves with us, or updater calls it via subprocess. **One writer per file** stands.
+- The 7-scenario diagnostic matrix and all its semantics are preserved verbatim — the matrix is the external contract and is unaffected by the move.
+
+### Why these migrate (one-line each)
+
+- **`migrate`**: cross-version transformation of `.cbim/` (reads schema N, writes schema N+1). Cross-version → updater.
+- **`upgrade/apply_flow`**: replaces `<install_root>/installer/` and `<install_root>/kernel/<old>/` with new versions, then repins. Cross-version → updater.
+- **`upgrade/diagnose`**: reads `<install_root>/versions.json` + `<project_root>/.cbim/.pin` + remote tags to classify the joint state. Already pure read of cross-version state; logically belongs with the rest of the cross-version surface.
+- **`init`** (counter-example, **stays in kernel**): creates `.cbim/` fresh at current kernel version. No "from version" → no version transition → not cross-version.
+
+## On-Disk Contract Surface
+
+All cross-module coupling is on-disk and inspectable. Updater never imports `cbim_kernel`; kernel never imports `installer`/`updater`. The full list of on-disk contracts updater owns (writes) or reads:
+
+| Path | Owner (writes) | Readers | Format | Notes |
+|------|---------------|---------|--------|-------|
+| `<install_root>/` | updater | updater, launcher | directory | Resolution: `CBIM_INSTALL_ROOT` env > `%LOCALAPPDATA%\Cbim-CC` (Windows) > `$XDG_DATA_HOME/Cbim-CC` (POSIX). |
+| `<install_root>/versions.json` | updater (`registry`) | updater, kernel via `cbim version --json`, launcher | JSON, atomic write (temp + `os.replace`) | Schema: `{active_default, installed: {ver: {installed_at, kernel_path, venv_path, source}}}`. Additive; consumers tolerate unknown keys. |
+| `<install_root>/kernel/<ver>/` | updater (`install`) | launcher (execs), updater (`upgrade.apply_flow` stages here) | directory tree | One subtree per installed kernel version. |
+| `<install_root>/installer/` (→ `<install_root>/updater/` post-rename) | updater (`bootstrap.copy_installer`) | launcher (subprocess for install/upgrade/migrate/version subcommands) | Python package | Idempotent rmtree + copy on every `install_kernel` call. |
+| `<install_root>/bin/` | updater (`bootstrap.write_launcher`) | OS PATH lookup (via the next row) | launcher binaries | Idempotent overwrite on every `install_kernel` call. |
+| `<install_root>/venv/` | updater (`venv_mgr`) | all kernel versions (shared) | Python venv | Shared across kernel versions; rebuilt/extended by upgrade when `requirements.txt` changes. |
+| Windows: `HKCU\Environment\Path` entry | updater (`bootstrap.ensure_on_path`) | OS | registry user-scope | Only write outside `<install_root>/`. Idempotent via case-insensitive entry match. |
+| POSIX: `~/.local/bin/cbim` symlink | updater (`bootstrap.ensure_on_path`) | OS | symlink → `<install_root>/bin/cbim` | Only write outside `<install_root>/`. |
+| `<project_root>/.cbim/.pin` | **updater** (sole `write_pin` — post-migration of `migrate` + `upgrade.apply_flow`; kernel's `init` routes its one-shot bootstrap write through the same updater-side writer) | launcher, updater, kernel — **each inlines its own `read_pin`** (format is frozen: plain text, single line, trailing `\n`; no shared read code) | plain text, single line, trailing `\n` | **One writer per file (updater). Multiple readers permitted, each inlined.** The format is a tiny stable on-disk contract, not a shared module. Iron rule. |
+| `<project_root>/.cbim/config.json` | kernel (`init`, templates), user edits | kernel (services), updater (`upgrade.config` reads `upgrade.remote`, `upgrade.auto_check`) | JSON | Updater is read-only on this file. |
+
+**Read-only kernel-state surfaces consumed by updater** (no Python imports across the boundary):
+
+- `cbim version --json` (alias `cbim versions --json`) — machine-readable read surface for installed kernels, active default, install root. Updater calls this only for diagnostics that need to round-trip through the kernel's view; for primary reads, updater uses its own `registry` module (it owns the file).
+- `<project_root>/.cbim/.pin` — plain-text read via updater's own inlined `read_pin`. The format is frozen (single line + `\n`); no cross-module import for this read.
