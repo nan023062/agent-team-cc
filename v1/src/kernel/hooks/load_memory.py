@@ -1,0 +1,128 @@
+"""
+load_memory.py — SessionStart hook.
+
+Receives session-start event from Claude Code and:
+  1. Opens a new per-session log file under .cbim/logs/session_*.log
+  2. Loads recent memory context (in-process via memory.engine.loader.load_context)
+  3. Generates project knowledge snapshot (in-process via cbi._primitives.snapshot.build_snapshot)
+Merges both into a single additionalContext JSON block.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+from context import cbim_dir
+
+
+def _start_session_log(session_id: str, cwd: str) -> None:
+    """Open a fresh session log via session_log.start_session()."""
+    try:
+        from engine.session_log import start_session
+        start_session(session_id=session_id, cwd=cwd, cbim=cbim_dir())
+    except Exception:
+        pass
+
+
+def _load_memory_context() -> str:
+    """In-process equivalent of the former `cbim memory load-context`.
+
+    Returns the JSON-wrapped additionalContext payload (str) or "" on
+    nothing-to-show / any error.
+    """
+    try:
+        from memory.engine.config import load_config
+        from memory.engine.engine import MemoryEngine
+        from memory.engine.file_backend import FileBackend
+        from memory.engine.loader import load_context
+
+        store_dir = cbim_dir() / "memory"
+        engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+        cfg = load_config()
+        return load_context(store_dir, engine, cfg) or ""
+    except Exception:
+        return ""
+
+
+def _short_threshold_banner() -> str | None:
+    """Return a one-line suggestion banner if short/ exceeds threshold, else None.
+
+    Reads threshold via memory.engine.config.load_config() — shared contract
+    with task-9 (memory/config.json schema). No direct JSON parsing. Silently
+    returns None on any exception."""
+    try:
+        from memory.engine.config import load_config
+
+        short_dir = cbim_dir() / "memory" / "short"
+        if not short_dir.exists():
+            return None
+        count = sum(1 for p in short_dir.glob("*.md") if p.is_file())
+        cfg = load_config()
+        threshold = int(cfg.get("distill", {}).get("suggest_threshold", 5))
+        if count < threshold:
+            return None
+        return (
+            f"[CBIM] Short-term memory has {count} entries "
+            f"(threshold {threshold}). Consider running "
+            f"`cbim skill show memory_distill` to consolidate."
+        )
+    except Exception:
+        return None
+
+
+def _build_snapshot(root: Path) -> str:
+    """In-process equivalent of the former `cbim snapshot --root <root>`."""
+    try:
+        from cbi._primitives.snapshot import build_snapshot
+        return build_snapshot(Path(root).resolve()) or ""
+    except Exception:
+        return ""
+
+
+def main(event: dict | None = None) -> int:
+    if event is None:
+        raw = sys.stdin.buffer.read().decode("utf-8").strip()
+        if not raw:
+            return 0
+        try:
+            event = json.loads(raw)
+        except json.JSONDecodeError:
+            return 0
+
+    cwd = Path(event.get("cwd", os.getcwd()))
+    session_id = event.get("session_id", "")
+
+    _start_session_log(session_id, str(cwd))
+
+    # 1. Memory context (JSON-wrapped additionalContext payload)
+    memory_out = _load_memory_context()
+
+    # 2. Project knowledge snapshot
+    snapshot_out = _build_snapshot(cwd)
+
+    # Short-term memory threshold banner
+    threshold_banner = _short_threshold_banner()
+
+    parts = [p for p in [threshold_banner, snapshot_out, memory_out] if p]
+    if not parts:
+        return 0
+
+    combined = "\n\n---\n\n".join(parts)
+
+    # Extract memory additionalContext text if already JSON-wrapped
+    if memory_out.startswith("{"):
+        try:
+            mem_data = json.loads(memory_out)
+            mem_text = mem_data.get("additionalContext", memory_out)
+            parts = [p for p in [threshold_banner, snapshot_out, mem_text] if p]
+            combined = "\n\n---\n\n".join(parts)
+        except json.JSONDecodeError:
+            pass
+
+    sys.stdout.buffer.write(json.dumps({"additionalContext": combined}, ensure_ascii=False).encode("utf-8") + b"\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
