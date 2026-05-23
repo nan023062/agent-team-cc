@@ -7,7 +7,41 @@
 
 ---
 
-## 安装后首次使用
+## 安装
+
+1. 在项目根目录打开 Claude Code。
+2. 在 Claude 输入框运行：
+   ```
+   /cbim_install
+   ```
+3. Claude 会从 https://github.com/nan023062/cbim 下载内核到 `<project>/.cbim/kernel/`，然后在该目录内运行 `python3 -m engine init`，完成项目落地（shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。
+4. **重启 Claude Code**，让 `SessionStart` 钩子触发。
+
+安装完成后，项目根目录会出现：
+
+- `.cbim/run`（POSIX，0755）+ `.cbim/run.cmd`（Windows）—— 启动 shim，设置 `PYTHONPATH=<project>/.cbim/kernel` 后执行 `python -m engine "$@"`
+- `.cbim/kernel/` —— 内核安装（gitignored）
+- `.cbim/config.json`、`.cbim/logs/`、`.cbim/memory/{short,medium}/` —— 引擎状态（gitignored）
+- `.claude/agents/{architect,auditor,hr,programmer}/` —— 4 个核心 agent
+- `.claude/commands/cbim_{install,help,dashboard,debug,log,sched}.md` —— 6 个 slash 命令
+- `.claude/settings.json` —— 钩子 + `mcpServers.cbim` 注册
+- `CLAUDE.md` —— 助手身份（协调中枢）
+- `.claudeignore` —— Claude Code 读取范围排除清单
+- `.gitignore` —— 追加 `.cbim/`
+
+**刷新 / 升级**：重跑 `/cbim_install` —— 幂等操作。shim 与内核会被重新生成；`.dna/` 与 `.cbim/memory/` 会被保留。
+
+**卸载**：`rm -rf .cbim/`，然后删除 `.claude/agents/{architect,auditor,hr,programmer}/`、6 个 `.claude/commands/cbim_*.md`、`.claude/settings.json` 里的 `mcpServers.cbim` + 钩子注册、`CLAUDE.md` 里的 CBIM 段，以及 `.gitignore` 里的 `.cbim/` 行。
+
+**从早期布局迁移**：如果 `<project>/cbim-cc/` 是旧版安装留下的，`rm -rf cbim-cc/` 后重跑 `/cbim_install`。shim 会自动重新生成，指向新的 `.cbim/kernel/` 路径。
+
+PATH 上没有 `cbim` 命令，无需 `pip install`，也没有项目级版本 pin。唯一的运行时入口是 `.cbim/run <subcommand>`。
+
+完整安装规范见 [`.cbim/kernel/project/commands/cbim_install.md`](src/kernel/project/commands/cbim_install.md)（本仓库内），或安装后项目里同名文件。
+
+---
+
+## 首次使用
 
 重启 Claude Code，然后发送：
 

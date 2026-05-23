@@ -8,7 +8,7 @@ Bootstrap (or refresh) CBIM in the current project directory. This downloads the
 ## What it does
 
 1. Confirms cwd is the intended project root.
-2. Downloads the kernel from GitHub into `<project>/.cbim/kernel/` (flat layout — `engine/`, `cbi/`, `memory/`, `project/`, etc. are direct children; no `cbim_kernel/` wrapper directory). (Claude performs this download via bash; the kernel has no built-in installer.)
+2. Downloads the kernel from https://github.com/nan023062/cbim into `<project>/.cbim/kernel/` (flat layout — `engine/`, `cbi/`, `memory/`, `project/`, etc. are direct children; no `cbim_kernel/` wrapper directory). (Claude performs this download via bash; the kernel has no built-in installer.)
 3. Runs `PYTHONPATH=<project>/.cbim/kernel python -m engine init` to:
    - Create `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/`
    - Write `.cbim/run` (POSIX, mode 0755) and `.cbim/run.cmd` (Windows). Both export `PYTHONPATH=<project>/.cbim/kernel` and `exec python -m engine "$@"`.

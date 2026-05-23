@@ -7,7 +7,41 @@
 
 ---
 
-## First Use After Installation
+## Install
+
+1. Open your project root in Claude Code.
+2. In the Claude prompt, run:
+   ```
+   /cbim_install
+   ```
+3. Claude downloads the kernel from https://github.com/nan023062/cbim into `<project>/.cbim/kernel/`, then runs `python3 -m engine init` from inside it to populate the project (shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`).
+4. **Restart Claude Code** so the `SessionStart` hook fires.
+
+After install, the project root contains:
+
+- `.cbim/run` (POSIX, 0755) + `.cbim/run.cmd` (Windows) — launcher shims; export `PYTHONPATH=<project>/.cbim/kernel` and exec `python -m engine "$@"`
+- `.cbim/kernel/` — vendored kernel (gitignored)
+- `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/` — engine state (gitignored)
+- `.claude/agents/{architect,auditor,hr,programmer}/` — 4 core agents
+- `.claude/commands/cbim_{install,help,dashboard,debug,log,sched}.md` — 6 slash commands
+- `.claude/settings.json` — hooks + `mcpServers.cbim` entry
+- `CLAUDE.md` — assistant identity (coordination hub)
+- `.claudeignore` — paths Claude Code excludes from its read scope
+- `.gitignore` — adds `.cbim/`
+
+**Refresh / upgrade.** Re-run `/cbim_install` — it's idempotent. The shim and kernel are regenerated; your `.dna/` and `.cbim/memory/` are preserved.
+
+**Uninstall.** `rm -rf .cbim/`, then remove `.claude/agents/{architect,auditor,hr,programmer}/`, the 6 `.claude/commands/cbim_*.md`, the `mcpServers.cbim` + hook entries in `.claude/settings.json`, the CBIM block from `CLAUDE.md`, and the `.cbim/` line in `.gitignore`.
+
+**Migration from an earlier layout.** If `<project>/cbim-cc/` exists from a pre-rename install, `rm -rf cbim-cc/` and re-run `/cbim_install`. The shim regenerates automatically with the new `.cbim/kernel/` path.
+
+There is no `cbim` CLI on your PATH, no global `pip install`, no project-version pinning. The sole runtime entry is `.cbim/run <subcommand>`.
+
+For the canonical install spec see [`.cbim/kernel/project/commands/cbim_install.md`](src/kernel/project/commands/cbim_install.md) inside this repo, or the same file inside your project after install.
+
+---
+
+## First Use
 
 Restart Claude Code, then send:
 
