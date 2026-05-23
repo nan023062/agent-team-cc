@@ -14,9 +14,9 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from v1.tests.workflow.framework.result import Result
-from v1.tests.workflow.framework.runner import run
-from v1.tests.workflow.framework.target import ExternalProject, run_engine_init
+from v1.tests.framework.result import Result
+from v1.tests.framework.runner import run
+from v1.tests.framework.target import ExternalProject, run_engine_init
 
 
 @dataclass

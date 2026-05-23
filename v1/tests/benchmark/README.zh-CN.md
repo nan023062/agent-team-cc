@@ -6,12 +6,12 @@
 
 ## 为什么有这个
 
-仓库里另一个 benchmark（`v1/benchmark/agent-team/`）测的是 CBIM-vs-CBIM 的排列（不同 model mix）。这个补的是缺失的 baseline：**CBIM 相对未增强的 agent 到底有没有帮助？** 同 prompt、同 fixture、两种配置。
+核心问题：**CBIM 相对未增强的 agent 到底有没有帮助？** 同 prompt、同 fixture、两种配置 —— 裸 `claude -p` 和装好 CBIM 的 `claude -p`。side-by-side 数据让答案是实证的，不是断言的。
 
 ## 一行启动
 
 ```bash
-ANTHROPIC_API_KEY=sk-... ./v1/tests/cbim_vs_plain/run-bench.sh
+ANTHROPIC_API_KEY=sk-... ./v1/tests/benchmark/run-bench.sh
 ```
 
 输出：
@@ -39,7 +39,7 @@ ANTHROPIC_API_KEY=sk-... ./v1/tests/cbim_vs_plain/run-bench.sh
 ## 目录结构
 
 ```
-v1/tests/cbim_vs_plain/
+v1/tests/benchmark/
 ├── README.md          （本文）
 ├── README.zh-CN.md    （中文版）
 ├── run-bench.sh       一键 driver
@@ -107,5 +107,5 @@ Runner 自动发现 `tasks/task_*.py`，不用更新任何 registry。
 
 - 启发式指标（`dispatch_count` / `dna_read_count` / `turn_count`）读的是 CBIM session log，**这不是契约**，格式可能演化。同一份启发式两边一致应用，所以任何漂移对两侧偏差相同。
 - Plain mode 没有 session log（没 `.cbim/`），它的启发式计数永远 0。这是对的：裸 `claude -p` 本来就没 subagent 可派发。
-- Token 数取决于 `claude -p --output-format json` 是否暴露。CLI 改 JSON 形态时 token 可能在报告里显示 `?`。best-effort 解析见 `v1/tests/workflow/framework/runner.py:_parse_claude_json`。
+- Token 数取决于 `claude -p --output-format json` 是否暴露。CLI 改 JSON 形态时 token 可能在报告里显示 `?`。best-effort 解析见 `v1/tests/framework/runner.py:_parse_claude_json`。
 - `success_check` 故意严格但窄：只检查 prompt 要求的具体结构性变化，不检查"品味"。

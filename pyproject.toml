@@ -1,0 +1,2 @@
+[tool.pytest.ini_options]
+norecursedirs = ["v1/tests/benchmark/fixture", ".cbim", ".venv", ".git"]

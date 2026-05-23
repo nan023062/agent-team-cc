@@ -293,7 +293,7 @@ def build_bench_report(args: argparse.Namespace) -> str:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(prog="python -m v1.tests.workflow.framework.reporter")
+    ap = argparse.ArgumentParser(prog="python -m v1.tests.framework.reporter")
     ap.add_argument("--raw-output", required=False, default="")
     ap.add_argument("--logs-dir", required=True)
     ap.add_argument("--output", required=True)

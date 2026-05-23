@@ -2,7 +2,7 @@
 
 Public API surface:
 
-    from v1.tests.workflow.framework import (
+    from v1.tests.framework import (
         TestTarget, TmpProject, ExternalProject,
         Result, run,
         Verdict, parse_log,

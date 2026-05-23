@@ -53,7 +53,7 @@ PYTEST_EXIT=${PIPESTATUS[0]}
 TS_END="$(date '+%Y-%m-%d %H:%M:%S')"
 
 # 4. Build the markdown report via framework.reporter
-"$REPO_ROOT/.venv/bin/python" -m v1.tests.workflow.framework.reporter \
+"$REPO_ROOT/.venv/bin/python" -m v1.tests.framework.reporter \
   --raw-output "$RAW_OUTPUT" \
   --logs-dir "$LOGS_DIR" \
   --output "$REPORT_MD" \

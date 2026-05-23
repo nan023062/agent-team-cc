@@ -9,15 +9,15 @@ data table suitable for blog posts, READMEs, and decision memos.
 
 ## Why this exists
 
-The other benchmark in this repo (`v1/benchmark/agent-team/`) measures
-CBIM-vs-CBIM permutations (different model mixes). This one is the missing
-baseline: **does CBIM actually help vs. an unenhanced agent?** Same prompts,
-same fixture, two configurations.
+The baseline question: **does CBIM actually help vs. an unenhanced agent?**
+Same prompts, same fixture, two configurations — plain `claude -p` and
+CBIM-installed `claude -p`. Side-by-side data so the answer is empirical,
+not asserted.
 
 ## Quick start
 
 ```bash
-ANTHROPIC_API_KEY=sk-... ./v1/tests/cbim_vs_plain/run-bench.sh
+ANTHROPIC_API_KEY=sk-... ./v1/tests/benchmark/run-bench.sh
 ```
 
 Output:
@@ -48,7 +48,7 @@ fixture copy); CBIM mode shows whatever the installed agents actually do.
 ## Repo layout
 
 ```
-v1/tests/cbim_vs_plain/
+v1/tests/benchmark/
 ├── README.md          (this file)
 ├── run-bench.sh       one-shot driver
 ├── runner.py          A/B orchestration (plain + cbim modes per task)
@@ -125,7 +125,7 @@ The runner auto-discovers any `tasks/task_*.py`; no registry to update.
   always zero. That's correct: plain `claude -p` has no subagents to dispatch.
 - Token counts depend on `claude -p --output-format json` exposing them. If
   the CLI changes the JSON shape, tokens may show as `?` in the report. See
-  `v1/tests/workflow/framework/runner.py:_parse_claude_json` for the
+  `v1/tests/framework/runner.py:_parse_claude_json` for the
   best-effort parser.
 - `success_check` is intentionally strict-but-narrow: it checks for the
   specific structural changes the prompt asks for, not for "good taste."

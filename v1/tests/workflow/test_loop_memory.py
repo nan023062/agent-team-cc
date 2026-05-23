@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from .framework import assert_memory_loop, parse_log, run
-from .framework.target import TmpProject
+from ..framework import assert_memory_loop, parse_log, run
+from ..framework.target import TmpProject
 
 
 PROMPTS = Path(__file__).parent / "prompts"

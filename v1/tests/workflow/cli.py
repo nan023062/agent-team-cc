@@ -15,11 +15,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from .framework import runner as _runner
-from .framework import reporter as _reporter
-from .framework.generators import get as _get_gen, list_all as _list_gen
-from .framework.generators.static import StaticPromptFile
-from .framework.target import ExternalProject, TmpProject
+from ..framework import runner as _runner
+from ..framework import reporter as _reporter
+from ..framework.generators import get as _get_gen, list_all as _list_gen
+from ..framework.generators.static import StaticPromptFile
+from ..framework.target import ExternalProject, TmpProject
 
 
 def _build_target(project_arg: str | None):

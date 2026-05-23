@@ -20,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from .framework.target import TmpProject, build_template
+from ..framework.target import TmpProject, build_template
 
 
 def pytest_configure(config):

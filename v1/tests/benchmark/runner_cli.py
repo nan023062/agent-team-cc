@@ -23,7 +23,7 @@ def _discover_tasks(tasks_dir: Path) -> list:
     for p in sorted(tasks_dir.glob("task_*.py")):
         if p.name.startswith("_"):
             continue
-        modname = f"v1.tests.cbim_vs_plain.tasks.{p.stem}"
+        modname = f"v1.tests.benchmark.tasks.{p.stem}"
         mods.append(importlib.import_module(modname))
     return mods
 
@@ -54,7 +54,7 @@ def _persist_logs(ab: AbResult, logs_dir: Path) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        prog="python -m v1.tests.cbim_vs_plain.runner_cli",
+        prog="python -m v1.tests.benchmark.runner_cli",
         description="Run CBIM-vs-plain A/B benchmark across all task files.",
     )
     ap.add_argument("--fixture", required=True, type=Path,

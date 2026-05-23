@@ -27,7 +27,7 @@ The kernel must run inside each project's `.cbim/` and serve only that project. 
 
 - **v1 layout collapsed to a single kernel module.** The earlier three-module design (`bin` launcher + `installer`/`updater` + `kernel`) was abandoned. On disk, only `v1/kernel/` exists; there is no launcher binary on PATH, no install-root version registry, no cross-version migrator. Install is a flat copy of `v1/kernel/` into `<project>/.cbim/kernel/` via `install.sh`.
 
-- **Repo layout is `v1/kernel/` + `v1/tests/` + `v1/docs/` + `v1/benchmark/`.** The `v1/` prefix exists because `v2/` (a separate native-agent experiment) lives in this repo but is out of scope for this `.dna/` tree.
+- **Repo layout is `v1/kernel/` + `v1/tests/` + `v1/docs/`.** The `v1/` prefix exists because `v2/` (a separate native-agent experiment) lives in this repo but is out of scope for this `.dna/` tree.
 
 - **Per-project install, no global state.** Each project owns its own `.cbim/kernel/`. Kernel code only ever executes against the project it currently serves. No cross-project, cross-version, or cross-install coordination.
 
