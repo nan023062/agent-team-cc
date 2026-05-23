@@ -233,6 +233,7 @@ def sync_hook_scripts(project_root: Path, dry_run: bool = False) -> list[str]:
 
 
 _CBIM_HOOK_CMD_PREFIX = ".claude/hooks/cbim_"
+_LEGACY_CBIM_HOOK_CMD_PREFIX = ".cbim/run hook"
 _CBIM_DENY_PATTERNS: tuple[str, ...] = (
     "Write(.cbim/**)",
     "Edit(.cbim/**)",
@@ -242,14 +243,22 @@ _CBIM_DENY_PATTERNS: tuple[str, ...] = (
 
 
 def _is_cbim_hook_entry(entry: object) -> bool:
-    """A single hook entry is 'cbim-owned' iff its command starts with the
-    canonical cbim hook path prefix. Non-dict / non-command entries are not
-    cbim-owned (user-defined or future-shape — leave untouched).
+    """A single hook entry is 'cbim-owned' iff its command matches either
+    the canonical cbim hook path prefix or the pre-Phase-3a legacy shim
+    invocation (`.cbim/run hook ...`). The legacy form must be recognised
+    so the upgrade path can strip it on next sync. Non-dict / non-command
+    entries are not cbim-owned (user-defined or future-shape — leave
+    untouched).
     """
     if not isinstance(entry, dict):
         return False
     cmd = entry.get("command")
-    return isinstance(cmd, str) and cmd.startswith(_CBIM_HOOK_CMD_PREFIX)
+    if not isinstance(cmd, str):
+        return False
+    return (
+        cmd.startswith(_CBIM_HOOK_CMD_PREFIX)
+        or cmd.startswith(_LEGACY_CBIM_HOOK_CMD_PREFIX)
+    )
 
 
 def _merge_cbim_hooks(user_hooks: object, template_hooks: dict) -> dict:
