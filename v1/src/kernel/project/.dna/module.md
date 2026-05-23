@@ -48,7 +48,8 @@ No other sub-packages exist here; everything `project/` does decomposes into "co
 
 A CBIM project's filesystem footprint is fixed and small:
 
-- `.cbim/run` + `.cbim/run.cmd` — the shim that execs `python -m engine` with `PYTHONPATH=<project>/.cbim/kernel`
+- `.cbim/run` + `.cbim/run.cmd` — the shim that resolves its own directory and execs `.cbim/.venv/bin/python -m engine` with `PYTHONPATH=<project>/.cbim/kernel`
+- `.cbim/.venv/` — managed venv built by `init` using a bootstrap `python3`; holds `mcp` (and any future CBIM Python deps). Never modifies the user's system Python.
 - `.cbim/kernel/` — the kernel code drop (downloaded by `/cbim_install`, not written by this module)
 - `.cbim/config.json` — project-local config
 - `.cbim/memory/` — memory store (created on first write, not by init)

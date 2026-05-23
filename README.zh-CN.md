@@ -24,14 +24,15 @@
    curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash
    ```
 
-3. 脚本会把仓库 clone 到临时目录，把 `v1/src/kernel/` 拷贝到 `<project>/.cbim/kernel/`（扁平布局 —— `engine/`、`cbi/`、`memory/`、`project/` 是直接子目录），然后跑 `python3 -m engine init` 完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。要求 PATH 上有 `git` 与 `python3` ≥ 3.10；不创建 virtualenv，不做全局 `pip install`。
+3. 脚本会把仓库 clone 到临时目录，把 `v1/src/kernel/` 拷贝到 `<project>/.cbim/kernel/`（扁平布局 —— `engine/`、`cbi/`、`memory/`、`project/` 是直接子目录），然后跑 `python3 -m engine init` 完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。`init` 还会在 `<project>/.cbim/.venv/` 建一个项目本地 venv 并把 `mcp` SDK 装进去 —— 你的系统 Python 不会被动到。要求 PATH 上有 `git` 与 `python3` ≥ 3.10；不做全局 `pip install`。
 4. **重启 Claude Code**，让 `SessionStart` 钩子触发。
 
 Windows 原生不支持 `install.sh`（POSIX bash），请用 WSL。
 
 安装完成后，项目根目录会出现：
 
-- `.cbim/run`（POSIX，0755）+ `.cbim/run.cmd`（Windows）—— 启动 shim；设置 `PYTHONPATH=<project>/.cbim/kernel` 后执行 `python -m engine "$@"`。Python 解释器路径在安装时探测（优先 `python3`，回退 `python`）并烧入 shim。不使用 virtualenv。
+- `.cbim/run`（POSIX，0755）+ `.cbim/run.cmd`（Windows）—— 启动 shim；运行时解析自身目录，设置 `PYTHONPATH=<project>/.cbim/kernel` 后执行 `.cbim/.venv/bin/python -m engine "$@"`。不再烧入系统 Python 绝对路径 —— `.cbim/` 自包含、可拷贝。
+- `.cbim/.venv/`（gitignored）—— 项目本地 venv，由 `engine init` 用 bootstrap 的 `python3` 建好，里面装着 `mcp` 以及 CBIM 后续可能新增的 Python 依赖。你的系统 Python 不会被动到。
 - `.cbim/kernel/` —— 内核安装（gitignored）
 - `.cbim/config.json`、`.cbim/logs/`、`.cbim/memory/{short,medium}/` —— 引擎状态（gitignored）
 - `.claude/agents/{architect,auditor,hr,programmer}/` —— 4 个核心 agent
@@ -47,7 +48,7 @@ Windows 原生不支持 `install.sh`（POSIX bash），请用 WSL。
 
 **从早期布局迁移**：如果 `<project>/cbim-cc/` 是旧版安装留下的，`rm -rf cbim-cc/` 后重跑 `/cbim_install`。shim 会自动重新生成，指向新的 `.cbim/kernel/` 路径。没有自动化迁移脚本 —— 这就是迁移流程的全部。
 
-PATH 上**没有 `cbim` 命令**，**无需 `pip install`**，**没有项目级版本 pin**。唯一的运行时入口是 `.cbim/run <subcommand>`。
+PATH 上**没有 `cbim` 命令**，**无需全局 `pip install`**，**没有项目级版本 pin**。唯一的运行时入口是 `.cbim/run <subcommand>`，它通过 `.cbim/.venv/` 这个项目本地 venv 完成分发。
 
 完整安装规范见 [`v1/src/kernel/project/commands/cbim_install.md`](v1/src/kernel/project/commands/cbim_install.md)。
 

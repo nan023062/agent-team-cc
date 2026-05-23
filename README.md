@@ -24,14 +24,15 @@ Everything below describes **V1**.
    curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash
    ```
 
-3. The script clones the repo into a temp directory, copies `v1/src/kernel/` into `<project>/.cbim/kernel/` (flat — `engine/`, `cbi/`, `memory/`, `project/` are direct children), then runs `python3 -m engine init` to populate the project (launcher shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`). Requires `git` and `python3` ≥ 3.10 on PATH; no virtualenv, no global `pip install`.
+3. The script clones the repo into a temp directory, copies `v1/src/kernel/` into `<project>/.cbim/kernel/` (flat — `engine/`, `cbi/`, `memory/`, `project/` are direct children), then runs `python3 -m engine init` to populate the project (launcher shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`). `init` also builds a managed venv at `<project>/.cbim/.venv/` and installs the `mcp` SDK into it — your system Python is untouched. Requires `git` and `python3` ≥ 3.10 on PATH; no global `pip install`.
 4. **Restart Claude Code** so the `SessionStart` hook fires.
 
 Native Windows is not supported by `install.sh` (POSIX bash); use WSL.
 
 After install, the project root contains:
 
-- `.cbim/run` (POSIX, 0755) + `.cbim/run.cmd` (Windows) — launcher shims; export `PYTHONPATH=<project>/.cbim/kernel` and exec `python -m engine "$@"`. The Python interpreter path is probed (`python3` preferred, `python` fallback) and baked in at install time. No virtualenv.
+- `.cbim/run` (POSIX, 0755) + `.cbim/run.cmd` (Windows) — launcher shims; each resolves its own directory and execs `.cbim/.venv/bin/python -m engine "$@"` with `PYTHONPATH=<project>/.cbim/kernel`. No absolute interpreter path is baked in — `.cbim/` is self-contained.
+- `.cbim/.venv/` — managed venv (gitignored); built by `engine init` with the bootstrap `python3`, then holds `mcp` and any future CBIM Python deps. Your system Python is never modified.
 - `.cbim/kernel/` — vendored kernel (gitignored)
 - `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/` — engine state (gitignored)
 - `.claude/agents/{architect,auditor,hr,programmer}/` — 4 core agents
@@ -47,7 +48,7 @@ After install, the project root contains:
 
 **Migration from an earlier layout.** If `<project>/cbim-cc/` exists from a pre-rename install, `rm -rf cbim-cc/` and re-run `/cbim_install`. The shim regenerates with the new `.cbim/kernel/` path. No automated migrator script exists — this is the entire migration procedure.
 
-There is **no `cbim` CLI on your PATH**, **no global `pip install`**, **no project-version pinning**. The sole runtime entry is `.cbim/run <subcommand>`.
+There is **no `cbim` CLI on your PATH**, **no global `pip install`**, **no project-version pinning**. The sole runtime entry is `.cbim/run <subcommand>`, which dispatches through the project-local venv at `.cbim/.venv/`.
 
 For the canonical install spec see [`v1/src/kernel/project/commands/cbim_install.md`](v1/src/kernel/project/commands/cbim_install.md).
 

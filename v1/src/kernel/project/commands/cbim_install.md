@@ -11,7 +11,8 @@ Bootstrap (or refresh) CBIM in the current project directory. This downloads the
 2. Downloads the kernel from https://github.com/nan023062/cbim into `<project>/.cbim/kernel/` (flat layout — `engine/`, `cbi/`, `memory/`, `project/`, etc. are direct children; no `cbim_kernel/` wrapper directory). (Claude performs this download via bash; the kernel has no built-in installer.)
 3. Runs `PYTHONPATH=<project>/.cbim/kernel python -m engine init` to:
    - Create `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/`
-   - Write `.cbim/run` (POSIX, mode 0755) and `.cbim/run.cmd` (Windows). Both export `PYTHONPATH=<project>/.cbim/kernel` and `exec python -m engine "$@"`.
+   - Build a managed venv at `.cbim/.venv/` using the bootstrap `python3` and install the `mcp` SDK into it. (Your system Python is not touched.)
+   - Write `.cbim/run` (POSIX, mode 0755) and `.cbim/run.cmd` (Windows). Each shim resolves its own directory and execs `.cbim/.venv/bin/python -m engine "$@"` with `PYTHONPATH=<project>/.cbim/kernel`.
    - Install the 4 kernel agents to `.claude/agents/<name>/<name>.md`
    - Install the 6 kernel slash commands to `.claude/commands/*.md`
    - Merge kernel hooks into `.claude/settings.json` (hooks invoke `.claude/hooks/cbim_*.py` in-process)
@@ -25,7 +26,7 @@ This command runs in two situations:
 - **First-time install** — the slash command isn't registered yet (no `.claude/commands/cbim_install.md` exists in the project). In this case the user runs `curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash` from the project root; that script clones the repo, copies `v1/src/kernel/` into `.cbim/kernel/`, and runs the same `python3 -m engine init` flow this file specifies. Once `init` completes, `.claude/commands/cbim_install.md` exists and `/cbim_install` is available for all subsequent invocations.
 - **Refresh** — the slash command is registered. Typing `/cbim_install` re-runs the same flow against the same kernel source. This (and re-running `install.sh`) are the two valid refresh / upgrade paths; there is no `cbim update` CLI.
 
-In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time (it encodes the absolute Python interpreter path and the kernel install path, both of which can change between machines / installs).
+In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time. The shim itself is portable (it resolves its own directory and execs the venv-managed python next to it); rebuilding it is cheap and keeps the install repeatable.
 
 **After `init` completes, do NOT re-read anything under `.cbim/`** — not `cat .cbim/config.json`, not `ls -la .cbim/...`, not `Read` on any `.cbim/*` path. The install writes `permissions.deny` entries that block LLM access to `.cbim/`, and `.claudeignore` hides it from indexing. Attempting to verify install state by reading inside `.cbim/` will trigger permission-denial prompts and confuse the user. To confirm a successful install, check only the artefacts outside `.cbim/`: the seven files under `.claude/hooks/cbim_*.py`, the `mcpServers.cbim` block in project-root `.mcp.json`, and the four agents under `.claude/agents/{architect,auditor,hr,programmer}/`. Anything you need to know about kernel state goes through `cbim` MCP tools, not raw file reads.
 

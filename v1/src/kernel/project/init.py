@@ -1,6 +1,10 @@
 """`cbim init` — bootstrap a new CBIM project."""
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from . import sync as _sync
@@ -44,34 +48,88 @@ def _install_config(project_root: Path, force: bool) -> None:
     _print("created", cfg_path, project_root)
 
 
+def _install_venv(project_root: Path, force: bool) -> None:
+    """Build .cbim/.venv/ and install `mcp` into it. Idempotent.
+
+    The managed venv is the canonical Python environment for every CBIM
+    runtime invocation: shims under `.cbim/run` point at `.venv/bin/python`,
+    the MCP server is launched out of it, and any future Python deps land
+    here. Bootstrapped once with the system `python3`; thereafter the user's
+    system Python is never touched.
+
+    Healthy-skip path: if `.venv/bin/python -c 'import mcp'` exits 0 and
+    `force` is False, do nothing. Otherwise (venv missing, venv broken, or
+    mcp missing inside an otherwise-healthy venv) repair the missing piece.
+
+    Venv build failure is fatal (clear hint about `python3-venv`). Mcp pip
+    install failure is soft-fail (venv survives; user can re-run init or
+    install mcp manually) — but we never silently swallow the error.
+    """
+    venv_dir = project_root / ".cbim" / ".venv"
+    # POSIX layout; Windows is `Scripts/python.exe`.
+    if os.name == "nt":
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    else:
+        venv_python = venv_dir / "bin" / "python"
+
+    if venv_python.exists() and not force:
+        probe = subprocess.run(
+            [str(venv_python), "-c", "import mcp"],
+            capture_output=True, text=True,
+        )
+        if probe.returncode == 0:
+            _print("skipped (already up to date)", venv_dir, project_root)
+            return
+        # Venv is healthy but mcp is missing — fall through to pip install.
+
+    if not venv_python.exists():
+        bootstrap_python = shutil.which("python3") or shutil.which("python")
+        if bootstrap_python is None:
+            raise SystemExit(
+                "neither `python3` nor `python` was found on PATH; "
+                "cannot bootstrap .cbim/.venv/"
+            )
+        result = subprocess.run(
+            [bootstrap_python, "-m", "venv", str(venv_dir)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise SystemExit(
+                f"failed to create venv at {venv_dir}: {result.stderr.strip()}\n"
+                f"  Hint: ensure the bootstrap python has the `venv` module "
+                f"(e.g. `apt install python3-venv` on Debian/Ubuntu)."
+            )
+        _print("created", venv_dir, project_root)
+
+    result = subprocess.run(
+        [str(venv_python), "-m", "pip", "install", "--quiet", "mcp"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        print(
+            f"[cbim] WARNING: failed to install `mcp` into {venv_dir}: "
+            f"{result.stderr.strip()}\n"
+            f"  Manual fix: {venv_python} -m pip install mcp",
+            file=sys.stderr,
+        )
+        return
+    _print("installed mcp", venv_dir, project_root)
+
+
 def _install_run_shim(project_root: Path, force: bool) -> None:
     """Write the .cbim/run launcher shims (POSIX + Windows).
 
     Both files are rewritten on every install (force has no effect — the shim
-    is a derivative of the kernel install path, which can change between
-    installs). The POSIX shim is mode 0755.
-    """
-    import os
-    import shutil
+    is a derivative of the on-disk layout). The shims resolve their own
+    directory at runtime and exec the venv-managed `python` next door at
+    `.venv/`, so no absolute interpreter path is baked in — `.cbim/` is
+    self-contained and portable. The POSIX shim is mode 0755.
 
+    Requires `_install_venv()` to have run first; the shim trusts that the
+    venv exists at the resolved relative path.
+    """
     cbim_dir = project_root / ".cbim"
     cbim_dir.mkdir(parents=True, exist_ok=True)
-
-    # The shim invokes whatever kernel sits next to it under
-    # <project_root>/.cbim/kernel/. The path is computed at install time; if
-    # the kernel is moved, re-run /cbim_install to refresh.
-    install_root_posix = project_root / ".cbim" / "kernel"
-    install_root_win = str(install_root_posix).replace("/", "\\")
-
-    # Probe the Python interpreter at install time. Modern macOS / Debian /
-    # Ubuntu ship `python3` only — a bare `python` exec will ENOENT. Bake the
-    # absolute path into the shim so the shim is self-contained.
-    python_exe = shutil.which("python3") or shutil.which("python")
-    if python_exe is None:
-        raise SystemExit(
-            "neither `python3` nor `python` was found on PATH; "
-            "cannot generate the .cbim/run shim"
-        )
 
     posix_path = cbim_dir / "run"
     # Flat layout: `python <file>` would treat the entry file as __main__ with
@@ -80,21 +138,22 @@ def _install_run_shim(project_root: Path, force: bool) -> None:
     # which routes through engine/__main__.py → engine.cli.main() with the
     # `engine` package properly bound so relative imports resolve.
     posix_content = (
-        f'#!/bin/sh\n'
-        f'export PYTHONPATH="{install_root_posix}${{PYTHONPATH:+:$PYTHONPATH}}"\n'
-        f'exec "{python_exe}" -m engine "$@"\n'
+        '#!/bin/sh\n'
+        'DIR="$(cd "$(dirname "$0")" && pwd)"\n'
+        'export PYTHONPATH="$DIR/kernel${PYTHONPATH:+:$PYTHONPATH}"\n'
+        'exec "$DIR/.venv/bin/python" -m engine "$@"\n'
     )
     posix_path.write_text(posix_content, encoding="utf-8")
     os.chmod(posix_path, 0o755)
     _print("created", posix_path, project_root)
 
     win_path = cbim_dir / "run.cmd"
-    # On Windows the install-time probe usually finds `python` (py-launcher or
-    # python.org installer). We still write the absolute path baked in.
     win_content = (
-        f'@echo off\n'
-        f'set "PYTHONPATH={install_root_win};%PYTHONPATH%"\n'
-        f'"{python_exe}" -m engine %*\n'
+        '@echo off\r\n'
+        'setlocal\r\n'
+        'set "DIR=%~dp0"\r\n'
+        'set "PYTHONPATH=%DIR%kernel;%PYTHONPATH%"\r\n'
+        '"%DIR%.venv\\Scripts\\python.exe" -m engine %*\r\n'
     )
     win_path.write_text(win_content, encoding="utf-8")
     _print("created", win_path, project_root)
@@ -135,34 +194,39 @@ def _install_hook_scripts(project_root: Path, force: bool) -> None:
 
 
 def _check_mcp_sdk(project_root: Path) -> None:
-    """Probe the install-time Python interpreter for the `mcp` SDK.
+    """Verify `mcp` is importable from the managed venv. Diagnostic only.
 
-    `mcp` is a soft dependency: hooks run in-process and do not need it; only
-    the optional MCP server (`cbim mcp`) that exposes governance tools to the
-    LLM requires it. The probe is informational — never fatal.
+    `_install_venv()` already builds the venv and installs `mcp` into it as
+    part of the install flow. This probe runs at the end of init purely as
+    a post-condition check: if mcp is still missing here, the install is
+    incomplete and the MCP server will not start. Soft-fail (warn, don't
+    abort) so the user keeps the rest of a successful init.
     """
-    import shutil
-    import subprocess
-    import sys
+    if os.name == "nt":
+        venv_python = project_root / ".cbim" / ".venv" / "Scripts" / "python.exe"
+    else:
+        venv_python = project_root / ".cbim" / ".venv" / "bin" / "python"
 
-    python_exe = shutil.which("python3") or shutil.which("python") or sys.executable
+    if not venv_python.exists():
+        # _install_venv either hasn't run or failed; the venv-build path
+        # already raised/warned. Don't double-report.
+        return
+
     try:
         res = subprocess.run(
-            [python_exe, "-c", "import mcp"],
-            capture_output=True,
-            timeout=10,
+            [str(venv_python), "-c", "import mcp"],
+            capture_output=True, text=True, timeout=10,
         )
     except (subprocess.TimeoutExpired, OSError):
         return
 
     if res.returncode == 0:
-        print(f"[cbim] verified `mcp` SDK present in {python_exe}")
+        print(f"[cbim] verified `mcp` SDK present in {venv_python}")
         return
 
     print(
-        f"[cbim] NOTE: `mcp` SDK not found in {python_exe}. "
-        f"Install it (`pip install mcp`) if you want the LLM to call CBIM "
-        f"governance tools via MCP; hooks work without it.",
+        f"[cbim] WARNING: `mcp` not importable from {venv_python}; "
+        f"MCP server will not start. Run: {venv_python} -m pip install mcp",
         file=sys.stderr,
     )
 
@@ -237,6 +301,9 @@ def init_project(project_root: Path, force: bool = False) -> None:
     _ensure_dir(project_root / ".cbim" / "logs", project_root)
     _ensure_dir(project_root / ".cbim" / "memory" / "short", project_root)
     _ensure_dir(project_root / ".cbim" / "memory" / "medium", project_root)
+    # MUST come before the shim — the shim hard-codes the venv-relative
+    # python path and assumes `.cbim/.venv/` already exists.
+    _install_venv(project_root, force)
     _install_run_shim(project_root, force)
     _install_agents(project_root, force)
     _install_commands(project_root, force)

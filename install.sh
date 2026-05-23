@@ -54,6 +54,8 @@ cp -R "$SRC_KERNEL/." "$DST_KERNEL/"
 
 # --- 4. run engine init ---
 log "running engine init ..."
+log "(first install builds a managed venv at .cbim/.venv/ and downloads"
+log " the ~10 MB \`mcp\` SDK into it — may take a few seconds)"
 cd "$PROJECT_ROOT"
 PYTHONPATH="$DST_KERNEL" "$PYTHON_BIN" -m engine init
 
