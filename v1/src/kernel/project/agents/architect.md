@@ -129,11 +129,12 @@ When encountering the following scenarios, run the corresponding skill and execu
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. All knowledge writes go through the `cbim` MCP server:
+My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. Governance writes have two legitimate paths, depending on who is writing:
 
-- Module CRUD (create / update / deprecate / split / index): `dna_*` MCP tools (`dna_edit`, `dna_create`, `dna_deprecate`, `dna_split`, `dna_reindex`, ...)
-- Memory promotion / archival operations: `memory_*` MCP tools (`memory_write`, `memory_distill`, `memory_archive`, ...)
-
-The CLI (`cbim dna ...`, `cbim memory ...`) remains available as a human-side fallback and points at the same service layer, but for an LLM-driven agent the MCP tools are the canonical entry — they are sandboxed, schema-checked, and visible to the coordinator.
+| Writer | Path | Notes |
+|--------|------|-------|
+| **LLM (me)** | `cbim` MCP tools — `dna_*` for module CRUD (`dna_edit`, `dna_create`, `dna_deprecate`, `dna_split`, `dna_reindex`, ...) and `memory_*` for promotion / archival (`memory_write`, `memory_distill`, `memory_archive`, ...). The server is registered in the project root `.mcp.json`. | Sandboxed, schema-checked, visible to the coordinator. |
+| **Hook subprocesses** | In-process bridge — `.claude/hooks/cbim_*.py` imports the kernel directly and may write `.cbim/` data subdirectories (`memory/`, `scheduler/`, `logs/`, `.cc-status`, `.debug`). MUST NOT write `.cbim/kernel/`. | Hooks are not LLM tools — they bypass the tool-permission layer entirely. Not my concern. |
+| **Humans / CLI** | `cbim dna ...` / `cbim memory ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
 
 Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`, `ls`/`cat`) are unrestricted and expected. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `dna_*` / `memory_*` MCP tools to query state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.

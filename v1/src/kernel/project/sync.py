@@ -11,7 +11,9 @@ command. The rules per file:
 |                                         | cbim_dashboard, cbim_debug, cbim_help, cbim_install,           |
 |                                         | cbim_log, cbim_sched)                                          |
 | .claude/settings.json                   | Merge: only `hooks`, `permissions.deny`, `permissions.default- |
-|                                         | Mode`, `mcpServers` — preserve everything else                  |
+|                                         | Mode` — preserve everything else. Also strips any legacy        |
+|                                         | `mcpServers.cbim` key (registration moved to `.mcp.json`).      |
+| .mcp.json (project root)                | Merge `mcpServers.cbim` only — preserve other servers          |
 | .gitignore                              | Append missing entries only                                    |
 
 Never touched by sync:
@@ -235,7 +237,12 @@ def sync_settings(project_root: Path, dry_run: bool = False) -> str:
       - hooks                       (replace)
       - permissions.deny            (replace)
       - permissions.defaultMode     (replace)
-      - mcpServers                  (replace)
+
+    Legacy cleanup: if a `mcpServers.cbim` entry survives from a pre-Phase-7
+    install (when CBIM erroneously registered the MCP server here — Claude
+    Code does not read `mcpServers` from `.claude/settings.json`), the `cbim`
+    key is removed. Other `mcpServers.<name>` entries are preserved. An
+    `mcpServers` object that becomes empty after the strip is removed entirely.
 
     Everything else in the file is preserved verbatim. If the file does not
     exist, it is created from the template wholesale.
@@ -264,7 +271,11 @@ def sync_settings(project_root: Path, dry_run: bool = False) -> str:
     existing.setdefault("permissions", {})
     existing["permissions"]["deny"] = template["permissions"]["deny"]
     existing["permissions"]["defaultMode"] = template["permissions"]["defaultMode"]
-    existing["mcpServers"] = template["mcpServers"]
+    mcp = existing.get("mcpServers")
+    if isinstance(mcp, dict) and "cbim" in mcp:
+        del mcp["cbim"]
+        if not mcp:
+            del existing["mcpServers"]
     after = json.dumps(existing, sort_keys=True, ensure_ascii=False)
 
     if before == after:
@@ -273,6 +284,54 @@ def sync_settings(project_root: Path, dry_run: bool = False) -> str:
     verb = "would merge" if dry_run else "merged"
     if not dry_run:
         settings_path.write_text(
+            json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    return f"{verb} {rel}"
+
+
+def sync_mcp_json(project_root: Path, dry_run: bool = False) -> str:
+    """Merge the cbim MCP server registration into project-root `.mcp.json`.
+
+    Claude Code reads project-level MCP server registrations from
+    `<project_root>/.mcp.json` (NOT `.claude/settings.json.mcpServers`). This
+    function ensures the `cbim` entry exists there; other entries under
+    `mcpServers.<name>` are preserved.
+
+    File creation: if `.mcp.json` does not exist, it is created from the
+    template wholesale. Merge: only `mcpServers.cbim` is overwritten; all
+    other top-level keys and all other `mcpServers.<name>` entries survive.
+    """
+    mcp_path = project_root / ".mcp.json"
+    rel = _rel(mcp_path, project_root)
+    template = json.loads(_read_template("mcp.json.tmpl"))
+
+    if not mcp_path.exists():
+        verb = "would create" if dry_run else "created"
+        if not dry_run:
+            mcp_path.parent.mkdir(parents=True, exist_ok=True)
+            mcp_path.write_text(
+                json.dumps(template, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        return f"{verb} {rel}"
+
+    try:
+        existing = json.loads(mcp_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return f"skipped (invalid JSON) {rel}"
+
+    before = json.dumps(existing, sort_keys=True, ensure_ascii=False)
+    existing.setdefault("mcpServers", {})
+    existing["mcpServers"]["cbim"] = template["mcpServers"]["cbim"]
+    after = json.dumps(existing, sort_keys=True, ensure_ascii=False)
+
+    if before == after:
+        return f"unchanged {rel}"
+
+    verb = "would merge" if dry_run else "merged"
+    if not dry_run:
+        mcp_path.write_text(
             json.dumps(existing, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
@@ -324,7 +383,8 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
       4. .claude/commands/<name>.md       (6 built-in slash commands)
       5. .claude/hooks/cbim_*.py + _lib/  (7 hook scripts + shared library)
       6. .claude/settings.json
-      7. .gitignore
+      7. .mcp.json
+      8. .gitignore
     """
     project_root = Path(project_root).resolve()
     actions: list[str] = []
@@ -334,5 +394,6 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
     actions.extend(sync_commands(project_root, dry_run=dry_run))
     actions.extend(sync_hook_scripts(project_root, dry_run=dry_run))
     actions.append(sync_settings(project_root, dry_run=dry_run))
+    actions.append(sync_mcp_json(project_root, dry_run=dry_run))
     actions.append(sync_gitignore(project_root, dry_run=dry_run))
     return actions

@@ -14,7 +14,8 @@ Bootstrap (or refresh) CBIM in the current project directory. This downloads the
    - Write `.cbim/run` (POSIX, mode 0755) and `.cbim/run.cmd` (Windows). Both export `PYTHONPATH=<project>/.cbim/kernel` and `exec python -m engine "$@"`.
    - Install the 4 kernel agents to `.claude/agents/<name>/<name>.md`
    - Install the 6 kernel slash commands to `.claude/commands/*.md`
-   - Merge kernel hooks + `mcpServer.cbim` into `.claude/settings.json` (hooks invoke `.cbim/run hook <event>`; mcpServer.cbim runs `.cbim/run mcp`)
+   - Merge kernel hooks into `.claude/settings.json` (hooks invoke `.claude/hooks/cbim_*.py` in-process)
+   - Write `mcpServers.cbim` into project-root `.mcp.json` (Claude Code reads MCP server registrations from `<project>/.mcp.json`, NOT from `.claude/settings.json`); the entry runs `.cbim/run mcp`
    - Write `CLAUDE.md` from template; append CBIM entries to `.gitignore`.
 
 ## When this runs
@@ -26,7 +27,7 @@ This command runs in two situations:
 
 In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time (it encodes the absolute Python interpreter path and the kernel install path, both of which can change between machines / installs).
 
-**After `init` completes, do NOT re-read anything under `.cbim/`** — not `cat .cbim/config.json`, not `ls -la .cbim/...`, not `Read` on any `.cbim/*` path. The install writes `permissions.deny` entries that block LLM access to `.cbim/`, and `.claudeignore` hides it from indexing. Attempting to verify install state by reading inside `.cbim/` will trigger permission-denial prompts and confuse the user. To confirm a successful install, check only the artefacts outside `.cbim/`: the four files under `.claude/hooks/cbim_*.py`, the `mcpServers.cbim` block in `.claude/settings.json`, and the four agents under `.claude/agents/{architect,auditor,hr,programmer}/`. Anything you need to know about kernel state goes through `cbim` MCP tools, not raw file reads.
+**After `init` completes, do NOT re-read anything under `.cbim/`** — not `cat .cbim/config.json`, not `ls -la .cbim/...`, not `Read` on any `.cbim/*` path. The install writes `permissions.deny` entries that block LLM access to `.cbim/`, and `.claudeignore` hides it from indexing. Attempting to verify install state by reading inside `.cbim/` will trigger permission-denial prompts and confuse the user. To confirm a successful install, check only the artefacts outside `.cbim/`: the seven files under `.claude/hooks/cbim_*.py`, the `mcpServers.cbim` block in project-root `.mcp.json`, and the four agents under `.claude/agents/{architect,auditor,hr,programmer}/`. Anything you need to know about kernel state goes through `cbim` MCP tools, not raw file reads.
 
 ## Idempotency
 
@@ -38,7 +39,7 @@ Restart Claude Code in the project root. The SessionStart hook will load short-t
 
 ## Uninstall
 
-Delete `.cbim/`, `.claude/agents/{architect,auditor,hr,programmer}/`, the 6 `.claude/commands/cbim_*.md` entries, and any CBIM-specific lines in `CLAUDE.md` / `.gitignore` / `.claude/settings.json`.
+Delete `.cbim/`, `.claude/agents/{architect,auditor,hr,programmer}/`, the 6 `.claude/commands/cbim_*.md` entries, project-root `.mcp.json` (or just the `mcpServers.cbim` entry), and any CBIM-specific lines in `CLAUDE.md` / `.gitignore` / `.claude/settings.json`.
 
 ## Migration from pre-rename layout
 

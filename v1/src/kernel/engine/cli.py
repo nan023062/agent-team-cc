@@ -17,7 +17,6 @@ Domains:
   log         show | tail
   init        Bootstrap a new CBIM project in cwd
   project     sync (refresh kernel-managed templates)
-  hook        Dispatch a Claude Code hook event (stdin)
   mcp         Start the CBIM MCP server (stdio)
 """
 import argparse
@@ -290,10 +289,6 @@ def main() -> int:
     dbsub.add_parser("off")
     dbsub.add_parser("status")
 
-    # hook --------------------------------------------------------------------
-    phook = sub.add_parser("hook", help="Dispatch a Claude Code hook event (reads JSON on stdin)")
-    phook.add_argument("event", help="Hook event name (session-start, session-end, stop, log-prompt, log-pre-tool, log-post-tool)")
-
     # mcp ---------------------------------------------------------------------
     sub.add_parser("mcp", help="Start the CBIM MCP server (stdio transport)")
 
@@ -352,9 +347,6 @@ def main() -> int:
         if not args.command:
             pdb.print_help(); return 1
         return _cmd_debug(args)
-    if domain == "hook":
-        from hooks import dispatch
-        return dispatch(args.event)
     if domain == "mcp":
         from mcp_server import server as mcp_server
         mcp_server.mcp.run()

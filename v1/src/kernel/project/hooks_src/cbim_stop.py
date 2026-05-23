@@ -1,13 +1,40 @@
 #!/usr/bin/env python3
-"""Stop hook - thin MCP client."""
+"""Stop hook — in-process bridge to kernel."""
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
 from _lib.event_io import read_event
-from _lib.paths import project_root_from_cwd, mcp_sock_path
-from _lib.mcp_client import McpClient
+from _lib.paths import project_root_from_cwd
+from _lib.bridge import bootstrap_kernel, safe_run
+
+
+def _distill(root: Path, transcript_path: str) -> None:
+    cbim = root / ".cbim"
+    from memory.engine.config import load_config
+    from memory.engine.engine import MemoryEngine
+    from memory.engine.file_backend import FileBackend
+    from memory.engine.writer import write_session
+
+    store_dir = cbim / "memory"
+    engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+    cfg = load_config()
+    write_session(transcript_path, store_dir, engine, cfg)
+
+
+def _mark_idle(root: Path) -> None:
+    cbim = root / ".cbim"
+    cbim.mkdir(parents=True, exist_ok=True)
+    (cbim / ".cc-status").write_text(
+        f"idle {datetime.now().isoformat()}\n", encoding="utf-8"
+    )
+
+
+def _log_assist(root: Path, transcript_path: str) -> None:
+    from engine.logger import log_assist
+    log_assist(transcript_path, cbim=root / ".cbim")
 
 
 def main() -> int:
@@ -15,19 +42,14 @@ def main() -> int:
     cwd = event.get("cwd") or "."
     transcript_path = event.get("transcript_path", "") or ""
     root = project_root_from_cwd(cwd)
-    sock = mcp_sock_path(root)
 
-    client = McpClient(sock)
-    try:
-        if transcript_path:
-            client.call(
-                "memory_distill_session",
-                {"transcript_path": transcript_path, "cwd": cwd},
-            )
-        client.call("cc_status_set", {"state": "idle", "cwd": cwd})
-    finally:
-        client.close()
+    if not bootstrap_kernel(root):
+        return 0
 
+    if transcript_path:
+        safe_run(lambda: _log_assist(root, transcript_path), on_error_label="stop.log_assist")
+        safe_run(lambda: _distill(root, transcript_path), on_error_label="stop.distill")
+    safe_run(lambda: _mark_idle(root), on_error_label="stop.mark_idle")
     return 0
 
 

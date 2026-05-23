@@ -5,14 +5,11 @@ stdlib-only. No business knowledge. No `cbim.*` imports.
 
 Public surface:
     project_root_from_cwd(cwd) -> Path
-    project_hash(project_root)  -> str   (12-hex sha256 prefix)
-    mcp_sock_path(project_root) -> Path  (~/.cache/cbim/<hash>/mcp.sock)
+    kernel_path(project_root)  -> Path  (<project>/.cbim/kernel)
 """
 
 from __future__ import annotations
 
-import hashlib
-import os
 from pathlib import Path
 
 
@@ -20,7 +17,6 @@ def project_root_from_cwd(cwd: str) -> Path:
     """Walk up from `cwd` to find the directory containing `.claude/`.
 
     Falls back to `cwd` itself when nothing is found within 8 ancestors.
-    Does NOT consult `.cbim/` — hook scripts must not touch that tree.
     """
     p = Path(cwd).resolve() if cwd else Path.cwd().resolve()
     cur = p
@@ -33,13 +29,6 @@ def project_root_from_cwd(cwd: str) -> Path:
     return p
 
 
-def project_hash(project_root: Path) -> str:
-    """sha256 prefix of the absolute project root path."""
-    abs_str = str(Path(project_root).resolve())
-    return hashlib.sha256(abs_str.encode("utf-8")).hexdigest()[:12]
-
-
-def mcp_sock_path(project_root: Path) -> Path:
-    """Return `~/.cache/cbim/<project-hash>/mcp.sock`."""
-    cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(cache_home) / "cbim" / project_hash(project_root) / "mcp.sock"
+def kernel_path(project_root: Path) -> Path:
+    """Return `<project_root>/.cbim/kernel`."""
+    return Path(project_root) / ".cbim" / "kernel"

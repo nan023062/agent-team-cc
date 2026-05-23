@@ -137,15 +137,9 @@ def _install_hook_scripts(project_root: Path, force: bool) -> None:
 def _check_mcp_sdk(project_root: Path) -> None:
     """Probe the install-time Python interpreter for the `mcp` SDK.
 
-    Decision: detect-and-warn (option c). Auto-`pip install` (a) is blocked by
-    PEP 668 on system-managed Pythons; a built-in venv (b) violates the README
-    contract ("no virtualenv, no pip install step"). Detect-and-warn keeps the
-    contract intact and surfaces the missing system dependency loudly so the
-    user fixes it once.
-
-    Failure mode if `mcp` is missing: every hook script silently degrades (the
-    UDS connection errors are swallowed and hooks `exit 0`), which is hard to
-    debug after the fact. Catching it at install time is the cheapest fix.
+    `mcp` is a soft dependency: hooks run in-process and do not need it; only
+    the optional MCP server (`cbim mcp`) that exposes governance tools to the
+    LLM requires it. The probe is informational — never fatal.
     """
     import shutil
     import subprocess
@@ -158,12 +152,7 @@ def _check_mcp_sdk(project_root: Path) -> None:
             capture_output=True,
             timeout=10,
         )
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        print(
-            f"[cbim] WARNING: could not probe `mcp` SDK availability ({exc}); "
-            f"if MCP hooks do not fire, run: {python_exe} -m pip install mcp",
-            file=sys.stderr,
-        )
+    except (subprocess.TimeoutExpired, OSError):
         return
 
     if res.returncode == 0:
@@ -171,11 +160,9 @@ def _check_mcp_sdk(project_root: Path) -> None:
         return
 
     print(
-        f"[cbim] WARNING: the `mcp` Python SDK is not importable from {python_exe}.\n"
-        f"        CBIM hook scripts and the MCP server require it. Install it with:\n"
-        f"            {python_exe} -m pip install mcp\n"
-        f"        (on PEP 668-managed systems you may need --user or --break-system-packages,\n"
-        f"         or a system package manager equivalent such as `pipx install mcp`.)",
+        f"[cbim] NOTE: `mcp` SDK not found in {python_exe}. "
+        f"Install it (`pip install mcp`) if you want the LLM to call CBIM "
+        f"governance tools via MCP; hooks work without it.",
         file=sys.stderr,
     )
 
@@ -190,6 +177,17 @@ def _install_settings(project_root: Path, force: bool) -> None:
     # the historical "skipped (already up to date)" phrasing.
     if pre_existed and action.startswith("unchanged") and not force:
         _print("skipped (already up to date)", settings_path, project_root)
+        return
+    print(f"[cbim] {action}")
+
+
+def _install_mcp_json(project_root: Path, force: bool) -> None:
+    # sync_mcp_json merges idempotently; force has no effect on merge semantics.
+    mcp_path = project_root / ".mcp.json"
+    pre_existed = mcp_path.exists()
+    action = _sync.sync_mcp_json(project_root, dry_run=False)
+    if pre_existed and action.startswith("unchanged") and not force:
+        _print("skipped (already up to date)", mcp_path, project_root)
         return
     print(f"[cbim] {action}")
 
@@ -244,6 +242,7 @@ def init_project(project_root: Path, force: bool = False) -> None:
     _install_commands(project_root, force)
     _install_hook_scripts(project_root, force)
     _install_settings(project_root, force)
+    _install_mcp_json(project_root, force)
     _install_claude_md(project_root, force)
     _install_claudeignore(project_root, force)
     _patch_gitignore(project_root)

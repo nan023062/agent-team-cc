@@ -78,7 +78,7 @@ def _check_install(project_root: Path, results: dict, prefix: str) -> None:
     lib_dir = hooks_dir / "_lib"
     results[f"{prefix}.hook._lib.exists"] = lib_dir.is_dir()
     if lib_dir.is_dir():
-        for name in ("paths.py", "mcp_client.py", "event_io.py", "__init__.py"):
+        for name in ("paths.py", "bridge.py", "event_io.py", "__init__.py"):
             results[f"{prefix}.hook._lib.{name}"] = (lib_dir / name).is_file()
 
     # 3. settings.json shape

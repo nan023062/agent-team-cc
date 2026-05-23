@@ -110,11 +110,12 @@ Self-check before promotion: if this content were placed in a completely differe
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. All agent and memory writes go through the `cbim` MCP server:
+My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. Governance writes have two legitimate paths, depending on who is writing:
 
-- Agent recruit / archive / update: `agent_*` MCP tools (`agent_create`, `agent_update`, `agent_archive`, ...)
-- Memory governance / distillation writes: `memory_*` MCP tools (`memory_write`, `memory_distill`, `memory_archive`, ...)
-
-The CLI (`cbim agent ...`, `cbim memory ...`) remains available as a human-side fallback and points at the same service layer, but for an LLM-driven agent the MCP tools are the canonical entry — they are sandboxed, schema-checked, and visible to the coordinator.
+| Writer | Path | Notes |
+|--------|------|-------|
+| **LLM (me)** | `cbim` MCP tools — `agent_*` for agent recruit / archive / update (`agent_create`, `agent_update`, `agent_archive`, ...) and `memory_*` for governance / distillation (`memory_write`, `memory_distill`, `memory_archive`, ...). The server is registered in the project root `.mcp.json`. | Sandboxed, schema-checked, visible to the coordinator. |
+| **Hook subprocesses** | In-process bridge — `.claude/hooks/cbim_*.py` imports the kernel directly and may write `.cbim/` data subdirectories (`memory/`, `scheduler/`, `logs/`, `.cc-status`, `.debug`). MUST NOT write `.cbim/kernel/`. | Hooks are not LLM tools — they bypass the tool-permission layer entirely. Not my concern. |
+| **Humans / CLI** | `cbim agent ...` / `cbim memory ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
 
 Reads of `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `memory_*` MCP tools to query memory state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
