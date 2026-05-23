@@ -28,7 +28,7 @@ from pathlib import Path
 
 
 HERE = Path(__file__).resolve().parent
-KERNEL_SRC = HERE.parent / "src" / "kernel"
+KERNEL_SRC = HERE.parent / "kernel"
 
 
 HOOK_SCRIPTS = (

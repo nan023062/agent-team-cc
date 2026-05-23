@@ -59,4 +59,4 @@ your-project/
 
 The shim is the sole runtime entry point — `.cbim/run <subcommand>` sets `PYTHONPATH=<project>/.cbim/kernel` and execs `python -m engine <subcommand>`. There is no project-pinning, no global venv, and no `cbim` CLI on the user's PATH.
 
-For the canonical install spec see [`v1/src/kernel/project/commands/cbim_install.md`](../src/kernel/project/commands/cbim_install.md).
+For the canonical install spec see [`v1/kernel/project/commands/cbim_install.md`](../kernel/project/commands/cbim_install.md).

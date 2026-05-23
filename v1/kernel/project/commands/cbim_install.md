@@ -23,7 +23,7 @@ Bootstrap (or refresh) CBIM in the current project directory. This downloads the
 
 This command runs in two situations:
 
-- **First-time install** — the slash command isn't registered yet (no `.claude/commands/cbim_install.md` exists in the project). In this case the user runs `curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash` from the project root; that script clones the repo, copies `v1/src/kernel/` into `.cbim/kernel/`, and runs the same `python3 -m engine init` flow this file specifies. Once `init` completes, `.claude/commands/cbim_install.md` exists and `/cbim_install` is available for all subsequent invocations.
+- **First-time install** — the slash command isn't registered yet (no `.claude/commands/cbim_install.md` exists in the project). In this case the user runs `curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash` from the project root; that script clones the repo, copies `v1/kernel/` into `.cbim/kernel/`, and runs the same `python3 -m engine init` flow this file specifies. Once `init` completes, `.claude/commands/cbim_install.md` exists and `/cbim_install` is available for all subsequent invocations.
 - **Refresh** — the slash command is registered. Typing `/cbim_install` re-runs the same flow against the same kernel source. This (and re-running `install.sh`) are the two valid refresh / upgrade paths; there is no `cbim update` CLI.
 
 In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time. The shim itself is portable (it resolves its own directory and execs the venv-managed python next to it); rebuilding it is cheap and keeps the install repeatable.

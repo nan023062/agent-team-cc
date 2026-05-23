@@ -24,7 +24,7 @@
    curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash
    ```
 
-3. 脚本会把仓库 clone 到临时目录，把 `v1/src/kernel/` 拷贝到 `<project>/.cbim/kernel/`（扁平布局 —— `engine/`、`cbi/`、`memory/`、`project/` 是直接子目录），然后跑 `python3 -m engine init` 完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。`init` 还会在 `<project>/.cbim/.venv/` 建一个项目本地 venv 并把 `mcp` SDK 装进去 —— 你的系统 Python 不会被动到。要求 PATH 上有 `git` 与 `python3` ≥ 3.10；不做全局 `pip install`。
+3. 脚本会把仓库 clone 到临时目录，把 `v1/kernel/` 拷贝到 `<project>/.cbim/kernel/`（扁平布局 —— `engine/`、`cbi/`、`memory/`、`project/` 是直接子目录），然后跑 `python3 -m engine init` 完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。`init` 还会在 `<project>/.cbim/.venv/` 建一个项目本地 venv 并把 `mcp` SDK 装进去 —— 你的系统 Python 不会被动到。要求 PATH 上有 `git` 与 `python3` ≥ 3.10；不做全局 `pip install`。
 4. **重启 Claude Code**，让 `SessionStart` 钩子触发。
 
 Windows 原生不支持 `install.sh`（POSIX bash），请用 WSL。
@@ -50,7 +50,7 @@ Windows 原生不支持 `install.sh`（POSIX bash），请用 WSL。
 
 PATH 上**没有 `cbim` 命令**，**无需全局 `pip install`**，**没有项目级版本 pin**。唯一的运行时入口是 `.cbim/run <subcommand>`，它通过 `.cbim/.venv/` 这个项目本地 venv 完成分发。
 
-完整安装规范见 [`v1/src/kernel/project/commands/cbim_install.md`](v1/src/kernel/project/commands/cbim_install.md)。
+完整安装规范见 [`v1/kernel/project/commands/cbim_install.md`](v1/kernel/project/commands/cbim_install.md)。
 
 ---
 

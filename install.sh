@@ -7,7 +7,7 @@
 #
 # Effect (idempotent):
 #   - clones cbim master into a tempdir
-#   - replaces <project>/.cbim/kernel/ with v1/src/kernel/ (flat layout)
+#   - replaces <project>/.cbim/kernel/ with v1/kernel/ (flat layout)
 #   - runs `python3 -m engine init` to (re)populate .cbim/, .claude/, CLAUDE.md, .gitignore
 # Preserved across re-runs: .cbim/memory/, .cbim/scheduler/, .cbim/config.json, .dna/.
 # Not supported on native Windows; use WSL.
@@ -41,7 +41,7 @@ log "cloning $REPO_URL ..."
 git clone --depth 1 "$REPO_URL" "$TMPDIR_CBIM/cbim" >/dev/null 2>&1 \
   || die "git clone failed"
 
-SRC_KERNEL="$TMPDIR_CBIM/cbim/v1/src/kernel"
+SRC_KERNEL="$TMPDIR_CBIM/cbim/v1/kernel"
 [ -d "$SRC_KERNEL" ] || die "kernel source missing in clone: $SRC_KERNEL"
 
 # --- 3. replace kernel (flat copy, no cbim_kernel/ wrapper) ---

@@ -34,7 +34,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-KERNEL_SRC = HERE.parent / "src" / "kernel"
+KERNEL_SRC = HERE.parent / "kernel"
 TEMPLATES = KERNEL_SRC / "project" / "templates"
 AGENTS_SRC = KERNEL_SRC / "project" / "agents"
 COMMANDS_SRC = KERNEL_SRC / "project" / "commands"

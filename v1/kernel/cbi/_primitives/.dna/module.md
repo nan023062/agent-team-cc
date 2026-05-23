@@ -4,7 +4,7 @@ owner: architect
 description: CBI internal primitives: dna (module CRUD/index) + agents (agent file CRUD) + snapshot. Not for direct external use — go through cbi/resources.
 keywords: []
 dependencies:
-  - v1/src/kernel/services
+  - v1/kernel/services
 ---
 
 ## Positioning
@@ -51,4 +51,3 @@ All `cmd_*` handlers previously hosted here were deleted in P3 Wave 1. The top-l
 - **`dna edit` is the unified write surface; `write-doc` / `write-section` are deprecated aliases.** Since P3, all edits route through `cbim dna edit --target {frontmatter | body | section | contract | contract-section | workflow}`, implemented by `_handle_dna_edit` over `DNAModule` and its sub-objects (`.frontmatter` / `.body` / `.contract` / `.workflows`). Frontmatter is always preserved verbatim; `.save()` is atomic. Direct file edits remain banned by the Kernel-Only Writes rule.
 - **Dependency direction is strictly unidirectional.** `engine/cli → cbi/resources → cbi/_primitives → services/_fm`. `cbi/_primitives` must not import `cbi/resources`; the resource layer wraps the primitives, never the other way round.
 - **Package name `_primitives` uses the underscore-prefix convention for internal-use packages.** External callers (work agents, hooks, MCP, dashboard) must go through `cbi.resources` for the rich object model, or `services.*` for the read-mostly facade. P3 Wave 2 renamed `cbi/engine` → `cbi/_primitives` to make this boundary explicit.
-

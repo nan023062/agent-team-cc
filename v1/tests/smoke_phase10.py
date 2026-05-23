@@ -8,7 +8,7 @@ The dashboard tool is tested for its return shape, not for actually
 opening a browser — that's a UX concern, not a contract concern.
 
 Run:
-    PYTHONPATH=v1/src/kernel python3 v1/tests/smoke_phase10.py
+    PYTHONPATH=v1/kernel python3 v1/tests/smoke_phase10.py
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-KERNEL_SRC = HERE.parent / "src" / "kernel"
+KERNEL_SRC = HERE.parent / "kernel"
 COMMANDS_SRC = KERNEL_SRC / "project" / "commands"
 
 # Ensure kernel modules import (mirrors conftest behaviour for direct runs).

@@ -59,4 +59,4 @@ your-project/
 
 shim 是唯一的运行时入口 —— `.cbim/run <subcommand>` 设置 `PYTHONPATH=<project>/.cbim/kernel` 后执行 `python -m engine <subcommand>`。没有项目级 pin，没有全局 venv，用户 PATH 上也没有 `cbim` CLI。
 
-完整安装规范参见 [`v1/src/kernel/project/commands/cbim_install.md`](../src/kernel/project/commands/cbim_install.md)。
+完整安装规范参见 [`v1/kernel/project/commands/cbim_install.md`](../kernel/project/commands/cbim_install.md)。
