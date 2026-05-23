@@ -3,7 +3,8 @@ name: memory
 owner: architect
 description: Project-local memory subsystem: short/medium/archive tiers, file backend
 keywords: []
-dependencies: [v1/src/kernel/cbim_kernel, v1/src/kernel/cbim_kernel/engine]
+dependencies:
+  - v1/src/kernel/engine
 ---
 
 ## Positioning

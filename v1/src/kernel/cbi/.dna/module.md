@@ -3,7 +3,9 @@ name: cbi
 owner: architect
 description: Cbim Cognitive Infrastructure: agents (architect/auditor/hr/programmer) + skills + dna/agents engine ops
 keywords: []
-dependencies: [v1/src/kernel/cbim_kernel/services, v1/src/kernel/cbim_kernel/memory, v1/src/kernel/cbim_kernel]
+dependencies:
+  - v1/src/kernel/services
+  - v1/src/kernel/memory
 ---
 
 ## Positioning
@@ -29,4 +31,5 @@ CBIM agents need three things to function: (1) their identity/system-prompt defi
 ## Key Decisions
 
 - **Per-agent skills live under the agent's own directory.** Skills that belong to one agent only (e.g. `architect.arch_modules`) are under `agents/architect/skills/arch_modules/`. Cross-agent skills (`memory_write` etc.) live under `skills/`. This co-location makes agent ownership obvious.
-- **`engine/` is the only sub-module that owns kernel-managed mutations.** Since P3 Wave 1 its `cli.py` is an empty stub — the previous `cmd_modules_*` / `cmd_agents_*` handlers were inlined into top-level `cbim_kernel/engine/cli.py` as `_handle_dna_*` / `_handle_agent_*` private functions, which now drive everything through `cbi.resources.{DNAModule, Agent}`. `agents/` and `skills/` remain read-only resources, surfaced through `cbi.resources.{Agent, Skill}` (the latter exposes `Skill.list_builtin()` / `Skill.load_builtin()`, replacing the old `engine/cli._load_skills`).
+- **`engine/` is the only sub-module that owns kernel-managed mutations.** Since P3 Wave 1 its `cli.py` is an empty stub — the previous `cmd_modules_*` / `cmd_agents_*` handlers were inlined into top-level `engine/cli.py` as `_handle_dna_*` / `_handle_agent_*` private functions, which now drive everything through `cbi.resources.{DNAModule, Agent}`. `agents/` and `skills/` remain read-only resources, surfaced through `cbi.resources.{Agent, Skill}` (the latter exposes `Skill.list_builtin()` / `Skill.load_builtin()`, replacing the old `engine/cli._load_skills`).
+
