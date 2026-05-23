@@ -7,7 +7,7 @@ Public API surface:
         Result, run,
         Verdict, parse_log,
         assert_execution_loop, assert_architect_loop,
-        assert_hr_loop, assert_memory_loop,
+        assert_hr_loop, assert_memory_loop, assert_audit_loop,
         CaseStats, AggregateStats, aggregate,
         render_markdown, render_markdown_single, render_stdout,
     )
@@ -22,6 +22,7 @@ from .log_assert import (
     assert_architect_loop,
     assert_hr_loop,
     assert_memory_loop,
+    assert_audit_loop,
 )
 from .reporter import (
     render_markdown,
@@ -45,6 +46,7 @@ __all__ = [
     "assert_architect_loop",
     "assert_hr_loop",
     "assert_memory_loop",
+    "assert_audit_loop",
     "CaseStats",
     "AggregateStats",
     "aggregate",

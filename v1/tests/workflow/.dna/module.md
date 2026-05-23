@@ -15,7 +15,7 @@ status: implemented
 - **positive** — prompt that should make the loop fire; assert the expected events occurred.
 - **negative** — prompt that should *not* trigger the loop; assert it did *not* fire (no false positives).
 
-8 cases total = 4 loops × 2 flavors. The four loops:
+8 loop cases = 4 loops × 2 flavors. Plus 5 **audit** cases (one per registered governance check) — positive-only, since audit is a cross-cutting concern with no "should not call" semantics. **13 cases total.** The four loops + audit cross-cut:
 
 | Loop | What is checked |
 |------|-----------------|
@@ -23,6 +23,7 @@ status: implemented
 | Execution 回环 | `NEEDS_ARCH_DECISION:` from a Work Agent re-routes to Architect |
 | HR | Agent recruitment / matching pathway |
 | Memory | `.cbim/memory/` write/query routing |
+| Audit (cross-cutting) | Coordinator dispatches the right owner agent (architect or hr) which then calls `mcp__cbim__audit_run` for the requested check |
 
 **Driver.** pytest, opt-in via `-m workflow`. Each case is a `test_*` function in `test_loop_*.py`. Fixture finalizer copies the session log into `results/` for the report.
 
@@ -43,6 +44,8 @@ classDiagram
 
 - **Two flavors per loop: positive + negative.** A loop that fires on everything is as broken as a loop that never fires. Negative cases catch over-eager routing. Rationale: false-positive coverage is non-negotiable for behavioral assertions.
 
+- **Audit cases are positive-only.** Audit is a cross-cutting governance concern, not a design loop with a "should not fire" semantics — when the user explicitly asks for a governance check, the coordinator must dispatch the right owner agent and have it call `audit_run`. There is no symmetric "should not call audit" scenario worth asserting. Rationale: avoid manufactured negative cases that don't model real coordinator behavior.
+
 - **Session log copy happens in fixture finalizer, not in the test body.** A failed assertion still triggers the finalizer; the log is captured for the report regardless. Rationale: report must always render.
 
 - **One report per test, plus an aggregate.** `render_markdown_single` from framework writes per-case; `render_markdown` writes the cross-case summary. Rationale: debuggers want one file per failing case; humans skimming want one summary.
@@ -58,8 +61,8 @@ graph TD
     conftest["conftest.py<br/>pytest fixtures:<br/>target factory · log copy finalizer · per-test report"]
     cli["cli.py<br/>thin wrapper:<br/>pytest invocation + arg passthrough"]
     runbench["run-bench.sh<br/>set -uo pipefail<br/>cli.py entry"]
-    prompts["prompts/<br/>positive_*.md · negative_*.md<br/>(one pair per loop)"]
-    tests["test_loop_architect.py<br/>test_loop_execution.py<br/>test_loop_hr.py<br/>test_loop_memory.py<br/>(2 cases each)"]
+    prompts["prompts/<br/>positive_*.md · negative_*.md · audit_*_positive.md<br/>(one pair per loop + 5 audit)"]
+    tests["test_loop_architect.py<br/>test_loop_execution.py<br/>test_loop_hr.py<br/>test_loop_memory.py<br/>(2 cases each)<br/>test_loop_audit.py<br/>(5 positive cases)"]
     framework["v1/tests/framework"]
 
     tests --> conftest
@@ -70,7 +73,7 @@ graph TD
     runbench --> cli
 ```
 
-`tests` (8 functions) consume prompts + framework primitives via fixtures provided by `conftest`. `cli.py` + `run-bench.sh` are entry shells. No back-edges to framework.
+`tests` (13 functions) consume prompts + framework primitives via fixtures provided by `conftest`. `cli.py` + `run-bench.sh` are entry shells. No back-edges to framework.
 
 ## Non-Goals
 
@@ -79,3 +82,4 @@ graph TD
 - Not driven by `runner_cli` — that script belongs to `benchmark`. Mixing drivers across siblings would dissolve the parent's "two questions, two drivers" decomposition.
 - Does not own `framework/` primitives. Bug fixes to runner / log parsing / aggregation live in `framework`, not here.
 - Does not run in the default `pytest` collection — `-m workflow` is required. Removing the marker is a regression.
+

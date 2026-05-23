@@ -14,13 +14,25 @@ not to score model performance.
 | HR         | recruit a `frontend` agent                     | list existing agents (read-only)        |
 | MEMORY     | "remember: hooks go in-process, not MCP"       | "你好" greeting                         |
 
+Plus 5 **AUDIT** cases (one per registered check) — positive-only, since
+audit is a cross-cutting concern that should always be honored when the user
+asks for a governance check; there is no "should not call" semantics:
+
+| Audit check        | Expected agent | Prompt summary                                |
+|--------------------|----------------|-----------------------------------------------|
+| `index_consistency`| architect      | check `.dna/index.md` matches actual modules  |
+| `dna_tree`         | architect      | audit DNA dep graph (cycle / orphan / ancestor)|
+| `dna_fission`      | architect      | flag DNA modules over body/workflow threshold |
+| `agent_fission`    | hr             | flag agents over skill/body threshold         |
+| `memory_threshold` | architect      | check memory compaction / promotion thresholds|
+
 Each case is a real `claude` invocation against the real Anthropic API.
-**A full 8-case run costs roughly $1–$10** and takes 3–10 minutes. CI does
+**A full 13-case run costs roughly $2–$15** and takes 5–15 minutes. CI does
 not run them.
 
 ## Framework architecture
 
-`framework/` is a reusable harness; the 8 static tests are its first user,
+`framework/` is a reusable harness; the 13 static tests are its first user,
 Phase 14b's A/B benchmark will be its second.
 
 ```
@@ -28,7 +40,7 @@ framework/
   target.py        TestTarget (Protocol) + TmpProject + ExternalProject
   runner.py        run(target, prompt, timeout) -> Result
   result.py        Result dataclass (exit, wall, tokens, session log, ...)
-  log_assert.py    parse_log + Verdict + 4 assert_*_loop
+  log_assert.py    parse_log + Verdict + 5 assert_*_loop (4 loops + audit)
   stats.py         CaseStats + AggregateStats + aggregate(cases, group_fn)
   reporter.py      render_markdown / render_markdown_single / render_stdout
   generators/      PromptGenerator Protocol + registry (default: `static`)
@@ -46,7 +58,7 @@ Two prompt sources (anything implementing `PromptGenerator` works):
 
 ## How to run
 
-### 1. pytest (the 8 static cases)
+### 1. pytest (the 13 static cases)
 
 ```bash
 ANTHROPIC_API_KEY=sk-... pytest v1/tests/workflow/ -m workflow -v
@@ -67,7 +79,7 @@ Without `-m workflow`, no case is selected.
 ANTHROPIC_API_KEY=sk-... ./v1/tests/workflow/run-bench.sh
 ```
 
-Allocates the next `results/report-NNN.md` slot, runs all 8 cases, copies
+Allocates the next `results/report-NNN.md` slot, runs all 13 cases, copies
 each session log to `results/report-NNN/logs/`, and writes the markdown
 report via `framework.reporter`.
 

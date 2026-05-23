@@ -11,18 +11,28 @@ CBIM 4 个设计循环的**架构验证测试** —— EXECUTION / ARCHITECT / H
 | HR         | 招一个 `frontend` agent | 列出已有 agent（只读）|
 | MEMORY     | "记一下：hook 走 in-process 不走 MCP" | "你好" |
 
-每个 case 都是真实的 `claude` 调用打到 Anthropic API。**完整 8 case 跑一次约 $1-$10**，耗时 3-10 分钟。CI 不跑。
+外加 5 个 **AUDIT** case（每个 audit check 一个）—— 只有正例。audit 是横切关注点，用户明确请求治理检查时永远应当被采纳，没有"该不调"的反例语义：
+
+| Audit 检查        | 期望派给 | Prompt 摘要                                  |
+|-------------------|----------|---------------------------------------------|
+| `index_consistency`| architect | 检查 `.dna/index.md` 与实际模块是否一致     |
+| `dna_tree`         | architect | 审计 DNA 依赖图（环 / 孤儿 / 祖先误声明） |
+| `dna_fission`      | architect | 标记体积或 workflow 过载的 DNA 模块         |
+| `agent_fission`    | hr        | 标记 skill 数或正文过载的 agent             |
+| `memory_threshold` | architect | 检查 memory 压缩 / 提炼阈值                 |
+
+每个 case 都是真实的 `claude` 调用打到 Anthropic API。**完整 13 case 跑一次约 $2-$15**，耗时 5-15 分钟。CI 不跑。
 
 ## 框架架构
 
-`framework/` 是可复用的测试基础设施；8 个静态测试是它的第一批用户，Phase 14b 的 A/B benchmark 是第二批。
+`framework/` 是可复用的测试基础设施；13 个静态测试是它的第一批用户，Phase 14b 的 A/B benchmark 是第二批。
 
 ```
 framework/
   target.py        TestTarget (Protocol) + TmpProject + ExternalProject
   runner.py        run(target, prompt, timeout) -> Result
   result.py        Result dataclass（exit / wall / tokens / session log / ...）
-  log_assert.py    parse_log + Verdict + 4 个 assert_*_loop
+  log_assert.py    parse_log + Verdict + 5 个 assert_*_loop（4 个循环 + audit）
   stats.py         CaseStats + AggregateStats + aggregate(cases, group_fn)
   reporter.py      render_markdown / render_markdown_single / render_stdout
   generators/      PromptGenerator Protocol + registry（默认：`static`）
@@ -40,7 +50,7 @@ framework/
 
 ## 怎么跑
 
-### 1. pytest（跑 8 个静态 case）
+### 1. pytest（跑 13 个静态 case）
 
 ```bash
 ANTHROPIC_API_KEY=sk-... pytest v1/tests/workflow/ -m workflow -v
@@ -60,7 +70,7 @@ pytest v1/tests/workflow/test_loop_memory.py::test_loop_memory_negative -m workf
 ANTHROPIC_API_KEY=sk-... ./v1/tests/workflow/run-bench.sh
 ```
 
-自动分配下一个 `results/report-NNN.md` 序号，跑全部 8 case，把每个 session log copy 到 `results/report-NNN/logs/`，调 `framework.reporter` 生成 markdown 报告。
+自动分配下一个 `results/report-NNN.md` 序号，跑全部 13 case，把每个 session log copy 到 `results/report-NNN/logs/`，调 `framework.reporter` 生成 markdown 报告。
 
 ### 3. CLI（任意 prompt 跑任意项目）
 
