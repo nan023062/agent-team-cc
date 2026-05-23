@@ -2,190 +2,229 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
----
+> CBIM (Capability–Business Independence + Memory) is a cc-prompt-pack for Claude Code. It splits a project along two axes — **capability** (specialized agents and skills) and **business** (a per-module `.dna/` knowledge tree) — and adds a session-spanning **memory** pipeline so each task loads only `target-agent-soul × task-subtree.dna`, never the whole project. The result: bounded context, fewer hallucinations, durable cross-session knowledge.
 
-## English
-
-CBIM (Capability–Business Independence + Memory) is a context-management framework for Claude Code. It splits an LLM agent project along two axes — capability (specialized agents and their skills) and business (a per-module `.dna/` knowledge tree) — and adds a session-spanning memory pipeline so each task loads only `target-agent-soul × task-subtree.dna`, never the whole project. The result: bounded context, fewer hallucinations, durable cross-session knowledge.
-
-### Install (one line)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.sh | bash
-```
-
-No `git clone` required. Installs the kernel + venv into your user data directory
-(`%LOCALAPPDATA%\Cbim-CC\` on Windows, `~/.local/share/Cbim-CC/` on POSIX)
-and puts `cbim` on your PATH.
-
-Windows / no-bash environments:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
-```
-
-Pin a specific version: `CBIM_VERSION=1.0.5 curl ... | bash`
-
-Then, in any project you want CBIM in:
-
-```bash
-cd /path/to/your/project
-cbim init
-```
-
-Restart Claude Code there and send:
-
-> Please bootstrap the module knowledge system for this project.
-
-**Upgrading:** inside Claude Code type `/cbim_update`, or run
-`cbim update -y && cbim migrate --version <latest>`.
-
-### Core Commands
-
-| Command | What it does |
-|---|---|
-| `cbim init` | Bootstrap `.cbim/`, `.claude/`, `CLAUDE.md`, `.claudeignore` in the current project. |
-| `cbim migrate --version <v>` | Migrate the current project's layout and pin to a target kernel version. |
-| `cbim upgrade check` | Compare the project's pinned schema against the installed kernel. |
-| `cbim upgrade apply` | Apply pending schema upgrades to the current project. |
-| `cbim update` | Update the installed kernel to the latest released version. |
-| `cbim release-notes <v>` | Print GitHub release notes for any installed kernel version. |
-| `cbim dna` | Read / write module knowledge (`.dna/module.md`, `contract.md`, `index.md`). |
-| `cbim agent` | Manage agent definitions under `.claude/agents/`. |
-| `cbim memory` | Read / write / promote entries in `.cbim/memory/`. |
-| `cbim skill` | Show or list skills. |
-| `cbim soul` | Inspect agent souls (frontmatter + system prompt). |
-| `cbim snapshot` | Capture / restore project state snapshots. |
-| `cbim config` | Read / write `.cbim/config.json`. |
-| `cbim log` | Tail engine and hook logs. |
-| `cbim dashboard` | Local status dashboard. |
-| `cbim debug` | Diagnostics for the kernel and current project. |
-| `cbim hook` | Manage Claude Code hooks. |
-| `cbim mcp` | Manage MCP server bindings. |
-| `cbim project` | Per-project housekeeping (sync, repair, pin). |
-
-### Architecture in One Picture
-
-```
-User → Assistant (CLAUDE.md, sole interface)
-         ├── Architect    business layer governance (.dna/ knowledge)
-         ├── HR           capability layer governance (agents, skills)
-         ├── Auditor      independent critical review (read-only)
-         └── Work agents  task execution (created by HR on demand)
-```
-
-Two implementations live in this repo:
+This repo hosts two implementations:
 
 | | [V1 — CC Kernel](v1/) | [V2 — Native Agent](v2/) |
 |---|---|---|
-| **What it is** | CBIM on top of Claude Code — prompts, agent definitions, Python hooks | Standalone C# / .NET 8 runtime with a deterministic scheduler |
-| **Status** | Available — current release `v1.0.5` | Design phase — see [`v2/`](v2/) |
-| **Install** | one-line bootstrap above | — |
+| **What it is** | CBIM riding on Claude Code — prompts, agent definitions, Python hooks, an MCP server | Standalone C# / .NET 8 runtime with a deterministic scheduler |
+| **Status** | Available — see install below | Design phase — see [`v2/`](v2/) |
 
-### Requirements
-
-- Python 3.10+
-- Claude Code CLI
-
-### Documentation
-
-- After install: `.cbim/README.md` (user manual) and `.cbim/docs/ARCHITECTURE.md` (deep dive)
-- Release history: [`CHANGELOG.md`](CHANGELOG.md)
-
-### License
-
-[MIT](LICENSE)
+Everything below describes **V1**.
 
 ---
 
-## 中文
+## Install
 
-CBIM（Capability–Business Independence + Memory）是面向 Claude Code 的上下文管理框架。沿能力（专精 agent 及其 skill）与业务（按模块切分的 `.dna/` 知识树）两个维度切分项目，并提供跨会话记忆管道，让每个任务的上下文 = 目标 agent 灵魂 × 任务子树 `.dna/`，与项目总大小无关。结果：上下文有界、幻觉减少、跨会话知识沉淀。
+1. Open your project root in Claude Code.
+2. In the Claude prompt, run:
+   ```
+   /cbim_install
+   ```
+   (First-time only: if the slash command isn't registered yet, paste the bootstrap paragraph at the bottom of this section into Claude instead. It performs the same steps `/cbim_install` would — download + `python3 -m engine init`.)
+3. Claude downloads the kernel from https://github.com/nan023062/cbim into `<project>/.cbim/kernel/`, then runs `python3 -m engine init` from inside it to populate the project (launcher shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`).
+4. **Restart Claude Code** so the `SessionStart` hook fires.
 
-### 安装（一行）
+After install, the project root contains:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.sh | bash
-```
+- `.cbim/run` (POSIX, 0755) + `.cbim/run.cmd` (Windows) — launcher shims; export `PYTHONPATH=<project>/.cbim/kernel` and exec `python -m engine "$@"`. The Python interpreter path is probed (`python3` preferred, `python` fallback) and baked in at install time. No virtualenv.
+- `.cbim/kernel/` — vendored kernel (gitignored)
+- `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/` — engine state (gitignored)
+- `.claude/agents/{architect,auditor,hr,programmer}/` — 4 core agents
+- `.claude/commands/cbim_{install,help,dashboard,debug,log,sched}.md` — 6 slash commands
+- `.claude/settings.json` — hooks (registered as `.cbim/run hook <event>`) + `mcpServers.cbim` entry (runs `.cbim/run mcp`) + `permissions.deny` for `Write(.cbim/**)` / `Edit(.cbim/**)`
+- `CLAUDE.md` — assistant identity (coordination hub); regenerated on every `/cbim_install`
+- `.claudeignore` — paths Claude Code excludes from its read scope
+- `.gitignore` — appends `.cbim/`
 
-无需 `git clone`。会把内核和虚拟环境装到用户数据目录
-（Windows 是 `%LOCALAPPDATA%\Cbim-CC\`，POSIX 是 `~/.local/share/Cbim-CC/`），
-并把 `cbim` 加入 PATH。
+**Refresh / upgrade.** Re-run `/cbim_install` — it's idempotent. The shim and kernel are regenerated; your `.dna/` and `.cbim/memory/` are preserved. There is no `cbim update` CLI; the slash command is the only refresh path.
 
-Windows / 无 bash 环境：
+**Uninstall.** `rm -rf .cbim/`, then remove `.claude/agents/{architect,auditor,hr,programmer}/`, the 6 `.claude/commands/cbim_*.md` files, the `mcpServers.cbim` + hook entries in `.claude/settings.json`, the CBIM block from `CLAUDE.md`, and the `.cbim/` line in `.gitignore`. There is no uninstall CLI.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/nan023062/cbim/master/bootstrap.py | python3
-```
+**Migration from an earlier layout.** If `<project>/cbim-cc/` exists from a pre-rename install, `rm -rf cbim-cc/` and re-run `/cbim_install`. The shim regenerates with the new `.cbim/kernel/` path. No automated migrator script exists — this is the entire migration procedure.
 
-固定版本：`CBIM_VERSION=1.0.5 curl ... | bash`
+There is **no `cbim` CLI on your PATH**, **no global `pip install`**, **no project-version pinning**. The sole runtime entry is `.cbim/run <subcommand>`.
 
-随后，在任何想启用 CBIM 的项目里：
+For the canonical install spec see [`v1/src/kernel/project/commands/cbim_install.md`](v1/src/kernel/project/commands/cbim_install.md).
 
-```bash
-cd /path/to/your/project
-cbim init
-```
+<details>
+<summary><strong>First-time bootstrap paragraph</strong> (paste into Claude if <code>/cbim_install</code> isn't available yet)</summary>
 
-在该项目里重启 Claude Code，然后发：
+> Please bootstrap CBIM in this project. Steps:
+> 1. Confirm the current working directory is the project root I want CBIM in.
+> 2. Clone or download `https://github.com/nan023062/cbim` to a temp directory.
+> 3. Copy `v1/src/kernel/*` from the clone into `<project>/.cbim/kernel/` (flat — `engine/`, `cbi/`, `memory/`, `project/`, etc. should be direct children of `.cbim/kernel/`; no extra `cbim_kernel/` wrapper).
+> 4. From the project root, run `PYTHONPATH=<project>/.cbim/kernel python3 -m engine init`. This generates `.cbim/run`, `.cbim/run.cmd`, `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/`, installs the 4 agents and 6 slash commands, merges hooks + the `mcpServers.cbim` entry into `.claude/settings.json`, writes `CLAUDE.md` from template, and appends `.cbim/` to `.gitignore`.
+> 5. Tell me to restart Claude Code so the `SessionStart` hook fires.
 
-> 请帮我初始化本项目的模块知识系统
+</details>
 
-**升级**：在 Claude Code 里输入 `/cbim_update`；或命令行
-`cbim update -y && cbim migrate --version <latest>`。
+---
 
-### 核心命令
+## First Use
 
-| 命令 | 作用 |
+Restart Claude Code, then send:
+
+> **"Please initialize the module knowledge system for this project"**
+
+The assistant dispatches the architect to build the `.dna/` knowledge system. After that, you're ready.
+
+---
+
+## How to Use
+
+Just tell the assistant what you want — no need to specify an agent:
+
+| What you want | Just say |
+|---------------|----------|
+| Initialize knowledge system | Please initialize the module knowledge system for this project |
+| Create a feature module | Create a combat module |
+| Implement a feature | Implement the login API per the current blueprint |
+| Review a design | Review this change |
+| Query a past decision | What was the decision history for the combat module |
+| Recruit a work agent | Help me recruit an AI engineer agent |
+
+---
+
+## Slash Commands
+
+| Command | Purpose |
 |---|---|
-| `cbim init` | 在当前项目中铺设 `.cbim/`、`.claude/`、`CLAUDE.md`、`.claudeignore`。 |
-| `cbim migrate --version <v>` | 把当前项目的布局与 pin 迁移到目标内核版本。 |
-| `cbim upgrade check` | 比对项目固定的 schema 与已装内核。 |
-| `cbim upgrade apply` | 对当前项目执行待升级的 schema。 |
-| `cbim update` | 把已装内核更新到最新发布版本。 |
-| `cbim release-notes <v>` | 打印任意已安装 kernel 版本的 GitHub 发布说明。 |
-| `cbim dna` | 读写模块知识（`.dna/module.md`、`contract.md`、`index.md`）。 |
-| `cbim agent` | 管理 `.claude/agents/` 下的 agent 定义。 |
-| `cbim memory` | 读写、晋升 `.cbim/memory/` 下的记忆条目。 |
-| `cbim skill` | 列出或查看 skill。 |
-| `cbim soul` | 查看 agent 灵魂（frontmatter + system prompt）。 |
-| `cbim snapshot` | 项目状态快照的创建与恢复。 |
-| `cbim config` | 读写 `.cbim/config.json`。 |
-| `cbim log` | 查看 engine 与 hook 日志。 |
-| `cbim dashboard` | 本地状态面板。 |
-| `cbim debug` | 内核与当前项目的诊断。 |
-| `cbim hook` | 管理 Claude Code hook。 |
-| `cbim mcp` | 管理 MCP server 绑定。 |
-| `cbim project` | 项目级维护（sync、repair、pin）。 |
+| `/cbim_install` | Install or refresh CBIM in the current project (downloads kernel into `.cbim/kernel/`, writes the `.cbim/run` shim, registers hooks + MCP server) |
+| `/cbim_help` | Framework overview (workflow + command list + key paths) |
+| `/cbim_dashboard` | Open the local dashboard (memory / capability / knowledge / log) |
+| `/cbim_debug on\|off\|status` | Toggle/inspect extra engine-internal logging |
+| `/cbim_log [N]` | Show the current session log (agent loop signals) |
+| `/cbim_sched status\|trigger <name>` | Inspect / fire scheduler tasks |
 
-### 架构总览
+## MCP Tools
+
+CBIM also ships as an MCP server registered in `.claude/settings.json` under `mcpServers.cbim`. The assistant can invoke the following tools directly, no `cbim ...` Bash needed:
+
+| Tool | Purpose |
+|---|---|
+| `memory_query` / `memory_list` / `memory_create` / `memory_delete` | CBIM memory store access |
+| `dna_list` / `dna_show` / `dna_reindex` | Module knowledge (.dna/) |
+| `agent_list` / `agent_show` | Claude Code agent registry |
+| `skill_list` / `skill_show` | CBIM skill catalog |
+| `project_snapshot` | Full project knowledge snapshot |
+| `scheduler_status` / `scheduler_trigger` | Inspect and fire scheduled tasks |
+
+The server is implemented with the official `mcp` Python SDK (FastMCP) and runs via the project-local `.cbim/run mcp` shim — no global install, no `pip install` step. The shim sets `PYTHONPATH=<project>/.cbim/kernel` and invokes `python -m engine mcp`.
+
+## Scheduler
+
+An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches built-in tasks that ship with the kernel package (`mcp_server.tasks`).
+
+Each task subclasses `mcp_server.scheduler.Task` and declares `name`, `description`, `interval_seconds` (0 = manual-only), and `respect_cc_idle` (True = only fire when CC is idle, per `.cbim/.cc-status`). Tasks currently ship inside the kernel; there is no project-local task drop-in path yet.
+
+`UserPromptSubmit` and `Stop` hooks maintain `.cbim/.cc-status` (`busy` / `idle`) so opt-in tasks only fire between turns. State persists in `.cbim/scheduler/state.json`; results are logged as `[SCHED]` in the session log.
+
+**Lifetime**: the scheduler runs inside the MCP server process. CC starts the server (via the `.cbim/run mcp` shim registered in `.claude/settings.json` under `mcpServers.cbim`) → scheduler starts; CC exits → scheduler stops.
+
+---
+
+## Directory Structure
+
+`.dna/` directories are **modules** scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The only hard requirement is the framework-managed registry at `.cbim/.dna/index.md` (created by install, updated by `init_module`).
 
 ```
-用户 → Assistant（CLAUDE.md，唯一对外入口）
-         ├── Architect   业务层治理（.dna/ 知识）
-         ├── HR          能力层治理（agent、skill）
-         ├── Auditor     独立审查（只读）
-         └── Work agents 任务执行（由 HR 按需建立）
+your-project/
+├── CLAUDE.md                      ← Assistant identity (main session)
+│
+├── .claude/
+│   ├── settings.json              ← Permission config + hook registration + MCP server registration
+│   ├── agents/                    ← Architect / HR / Auditor / Programmer (installed by /cbim_install)
+│   └── commands/                  ← Slash commands /cbim_install, /cbim_help, /cbim_dashboard, /cbim_debug, /cbim_log, /cbim_sched
+│
+├── src/                           ← Your code (any layout you like)
+│   ├── combat/
+│   │   ├── .dna/                  ← Module (parent): describes children + boundaries
+│   │   │   ├── module.md          ← required: frontmatter + architecture body
+│   │   │   ├── contract.md        ← optional: protocol boundary
+│   │   │   ├── workflows/         ← optional: deterministic process definitions
+│   │   │   └── ...                ← optional: any user-defined files
+│   │   ├── skill/.dna/            ← Module (leaf): specific implementation
+│   │   └── buff/.dna/             ← Module (leaf)
+│   └── economy/.dna/              ← Module
+│
+├── .dna/                          ← OPTIONAL project-root module
+│   └── module.md                  ←   (only if your project root is itself a module —
+│                                  ←    single-app shape; monorepos often skip this)
+│
+└── .cbim/                         ← Framework (this directory)
+    ├── run                        ← POSIX launcher shim (sets PYTHONPATH, execs `python -m engine`)
+    ├── run.cmd                    ← Windows launcher shim
+    ├── config.json                ← Local framework config
+    ├── .dna/index.md              ← Module registry (framework-managed)
+    ├── logs/                      ← Engine logs (gitignored)
+    ├── memory/                    ← Memory store (gitignored)
+    │   ├── short/                 ← Short-term session memory
+    │   └── medium/                ← Medium-term distilled memory
+    └── kernel/                    ← Kernel install (downloaded by /cbim_install)
+        ├── engine/                ← Unified CLI dispatcher (memory / dna / agent / skill / hook / mcp / dashboard ...)
+        ├── cbi/                   ← Capability + business primitives + resources
+        ├── memory/                ← Memory engine
+        ├── hooks/                 ← SessionStart / Stop / UserPromptSubmit / PreToolUse hook scripts
+        ├── mcp_server/            ← FastMCP server + scheduler + built-in tasks
+        ├── dashboard/             ← Local dashboard server
+        ├── services/              ← Cross-cutting services (frontmatter, ids, ...)
+        ├── project/               ← Init / sync / templates
+        └── context.py             ← Shared root-resolution module
 ```
 
-仓库中并存两套实现：
+Note on long-term memory: `.cbim/memory/short/` and `.cbim/memory/medium/` are created at install time. A long-term tier (if/when distilled from medium) is created on demand by the distill flow, not by `init`.
 
-| | [V1 — CC Kernel](v1/) | [V2 — Native Agent](v2/) |
-|---|---|---|
-| **是什么** | 跑在 Claude Code 之上的 CBIM —— prompt、agent 定义、Python hook | 独立的 C# / .NET 8 运行时，确定性调度器 |
-| **状态** | 已可用，当前发布 `v1.0.5` | 设计阶段，见 [`v2/`](v2/) |
-| **安装** | 上方一行 bootstrap | — |
+---
 
-### 环境要求
+## Two-Layer Governance
 
-- Python 3.10+
+| Layer | Governed by | Scope | Rule |
+|-------|-------------|-------|------|
+| **Capability layer** | HR | `.claude/agents/` + `.cbim/kernel/cbi/skills/` | No project-specific content |
+| **Business layer** | Architect | `.dna/` (`module.md` = sole hard constraint; extensions optional) | No agent spec references |
+
+The `.dna/` convention follows **minimal constraint + open extension**: the directory's existence marks a module; `module.md` is the only required file (YAML frontmatter + architecture body in one file); `contract.md`, `workflows/`, and any user-defined files are optional.
+
+| Skill type | Storage | Characteristics |
+|------------|---------|----------------|
+| **Capability skill** | `.cbim/kernel/cbi/skills/` | Agent private capability; portable; governed by HR |
+| **Business skill** | `.dna/workflows/` | Module deterministic process; project-bound; governed by architect |
+
+---
+
+## Memory System
+
+| Stage | Path | Purpose |
+|-------|------|---------|
+| Short-term | `.cbim/memory/short/` | Raw session records (cleaned after 3 days) |
+| Medium-term | `.cbim/memory/medium/` | Compressed pattern summaries |
+| Knowledge | `.cbim/kernel/cbi/skills/` + `.dna/` | Crystallized into governance structures |
+
+`SessionStart` hook automatically injects at session start: project knowledge snapshot + last session recovery point + recent memory.
+`Stop` hook distills the just-finished session into `memory/short/`.
+`PreToolUse` hook (inert by default) writes tool-call logs to `.cbim/logs/tools.txt` when `/cbim_debug on` is set.
+
+---
+
+## Dashboard
+
+Run `/cbim_dashboard` (or `.cbim/run dashboard`) — opens http://127.0.0.1:8765 with Memory / Capability / Knowledge / Log tabs. The dashboard is also auto-spawned in the background by the `auto_preview` hook when CC is idle.
+
+---
+
+## Architecture Details
+
+See [v1/docs/ARCHITECTURE.md](v1/docs/ARCHITECTURE.md) | [架构文档（中文）](v1/docs/ARCHITECTURE.zh-CN.md)
+
+---
+
+## Requirements
+
+- Python 3.10+ (`python3` on PATH at install time; baked into the shim as an absolute path)
 - Claude Code CLI
 
-### 文档
-
-- 安装后：`.cbim/README.md`（用户手册）与 `.cbim/docs/ARCHITECTURE.md`（架构详解）
-- 版本历史：[`CHANGELOG.md`](CHANGELOG.md) / [`CHANGELOG.zh-CN.md`](CHANGELOG.zh-CN.md)
-
-### 许可
+## License
 
 [MIT](LICENSE)

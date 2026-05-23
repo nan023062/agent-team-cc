@@ -17,6 +17,15 @@ Bootstrap (or refresh) CBIM in the current project directory. This downloads the
    - Merge kernel hooks + `mcpServer.cbim` into `.claude/settings.json` (hooks invoke `.cbim/run hook <event>`; mcpServer.cbim runs `.cbim/run mcp`)
    - Write `CLAUDE.md` from template; append CBIM entries to `.gitignore`.
 
+## When this runs
+
+This command runs in two situations:
+
+- **First-time install** — the slash command isn't registered yet (no `.claude/commands/cbim_install.md` exists in the project). In this case, the user pastes the "first-time bootstrap paragraph" from the repo-root README into Claude, which performs the same download + `python3 -m engine init` steps this file specifies. Once `init` completes, `.claude/commands/cbim_install.md` exists and `/cbim_install` is available for all subsequent invocations.
+- **Refresh** — the slash command is registered. Typing `/cbim_install` re-runs the same flow against the same kernel source. Re-running is the only refresh / upgrade path; there is no `cbim update` CLI.
+
+In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time (it encodes the absolute Python interpreter path and the kernel install path, both of which can change between machines / installs).
+
 ## Idempotency
 
 Re-running `/cbim_install` is safe. Existing project files are preserved unless `--force` is passed. `.cbim/run` and `.cbim/run.cmd` are always rewritten (they encode the kernel install path).
