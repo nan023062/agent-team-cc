@@ -427,7 +427,7 @@ Transformation between stages:
   2. **Last session recovery point** (`last-session.md`, always injected first)
   3. **Recent memory** (sorted by modification time, top-k entries)
 
-- **On-demand query** — during session, query history via `.cbim/memory/engine/cli.py query`
+- **On-demand query** — during session, query history via `.cbim/run memory query <args>`
 
 ```
 Session ends
@@ -485,83 +485,51 @@ Split into multiple sub-modules
 `.dna/` directories are scattered through the codebase at any depth where a module exists; they form a tree by filesystem hierarchy. The project root **does not** require a `.dna/`. The framework-managed registry at `.cbim/index.md` is the only hard requirement (created by install, updated by `init_module`).
 
 ```
-<project>/
-├── CLAUDE.md                          ← Assistant identity (main session)
+your-project/
+├── CLAUDE.md                      ← Assistant identity (main session)
 │
 ├── .claude/
-│   ├── settings.json                  ← Permission config + hook registration
-│   ├── commands/                      ← Slash commands (/cbim_*)
-│   └── agents/
-│       ├── architect/architect.md
-│       ├── hr/hr.md
-│       ├── auditor/auditor.md
-│       └── programmer/programmer.md
+│   ├── settings.json              ← Permission config + hook registration + MCP server registration
+│   ├── agents/                    ← Architect / HR / Auditor / Programmer (installed by /cbim_install)
+│   └── commands/                  ← Slash commands /cbim_install, /cbim_help, /cbim_dashboard, /cbim_debug, /cbim_log, /cbim_sched
 │
-├── src/                               ← Your code (any layout)
+├── src/                           ← Your code (any layout you like)
 │   ├── combat/
-│   │   ├── .dna/                      ← Module (parent): describes children + boundaries
-│   │   │   ├── module.md              ← required: frontmatter + architecture body
-│   │   │   ├── contract.md            ← optional: protocol boundary (REST / gRPC / SDK)
-│   │   │   ├── workflows/             ← optional: deterministic process definitions
-│   │   │   └── ...                    ← optional: any user-defined files
-│   │   ├── skill/.dna/                ← Module (leaf)
-│   │   └── buff/.dna/                 ← Module (leaf)
-│   └── economy/.dna/                  ← Module
+│   │   ├── .dna/                  ← Module (parent): describes children + boundaries
+│   │   │   ├── module.md          ← required: frontmatter + architecture body
+│   │   │   ├── contract.md        ← optional: protocol boundary
+│   │   │   ├── workflows/         ← optional: deterministic process definitions
+│   │   │   └── ...                ← optional: any user-defined files
+│   │   ├── skill/.dna/            ← Module (leaf): specific implementation
+│   │   └── buff/.dna/             ← Module (leaf)
+│   └── economy/.dna/              ← Module
 │
-├── .dna/                              ← OPTIONAL project-root module (single-app shape;
-│   └── module.md                      ←   monorepos typically skip this)
+├── .dna/                          ← OPTIONAL project-root module
+│   └── module.md                  ←   (only if your project root is itself a module —
+│                                  ←    single-app shape; monorepos often skip this)
 │
-└── .cbim/                              ← Framework
-    ├── .dna/index.md                  ← Module registry (framework-managed; required after install)
-    ├── .pin                           ← Project-pinned CBIM schema version (single-line, gitignored)
-    ├── README.md / README.zh-CN.md
-    ├── config.json                    ← Local framework config (does NOT carry the version pin since 1.3.3)
-    │
-    ├── cbi/                           ← Capability + business knowledge base
-    │   ├── README.md                  ← Four-quadrant architecture explanation
-    │   ├── agent-convention.md        ← Agent definition spec
-    │   ├── dna-convention.md          ← .dna/ content spec
-    │   ├── claude_md.py               ← CLAUDE.md template (assistant identity)
-    │   ├── agents/                    ← Agent souls + private skills
-    │   │   ├── architect/             ← agent.py + skills/{arch_governance,arch_modules,arch_upgrade}/
-    │   │   ├── auditor/               ← agent.py + skills/audit_review/
-    │   │   ├── hr/                    ← agent.py + skills/{hr_agents,hr_assessment,hr_training}/
-    │   │   └── programmer/agent.py
-    │   ├── engine/                    ← Knowledge CRUD primitives
-    │   │   ├── cli.py                 ← agents / modules dual-domain commands
-    │   │   ├── agents.py
-    │   │   ├── modules.py
-    │   │   └── snapshot.py            ← Project knowledge snapshot
-    │   └── skills/                    ← Global skills (assistant + memory)
-    │       ├── dispatch/skill.py      ← Assistant request classification and routing
-    │       ├── memory_write/skill.py
-    │       ├── memory_query/skill.py
-    │       └── memory_distill/skill.py
-    │
-    ├── engine/                        ← Unified CLI entry (invoked via `cbim ...`)
-    │   ├── cli.py                     ← memory / dna / agent / skill / soul / snapshot / config / debug / log
-    │   ├── config.py
-    │   └── log_view.py
-    │
-    ├── hooks/                         ← Runtime hooks (registered via .claude/settings.json)
-    │   ├── load_memory.py             ← SessionStart: snapshot + memory injection
-    │   └── write_memory.py            ← Stop: write short-term memory
-    │
-    ├── memory/                        ← Memory engine
-    │   ├── engine/                    ← Python package (FileBackend / ChromaBackend)
-    │   └── store/
-    │       ├── short/                 ← Short-term memory (gitignored)
-    │       └── medium/                ← Medium-term memory (gitignored)
-    │
-    ├── docs/                          ← Architecture documentation
-    │
-    └── dashboard/                     ← Local dashboard server (memory / capability / knowledge / log)
-        ├── server.py
-        ├── dashboard.py / dashboard.bat
-        └── index.html / app.js / style.css
+└── .cbim/                         ← Framework (this directory)
+    ├── run                        ← POSIX launcher shim (sets PYTHONPATH, execs `python -m engine`)
+    ├── run.cmd                    ← Windows launcher shim
+    ├── config.json                ← Local framework config
+    ├── .dna/index.md              ← Module registry (framework-managed)
+    ├── logs/                      ← Engine logs (gitignored)
+    ├── memory/                    ← Memory store (gitignored)
+    │   ├── short/                 ← Short-term session memory
+    │   └── medium/                ← Medium-term distilled memory
+    └── kernel/                    ← Kernel install (downloaded by /cbim_install)
+        ├── engine/                ← Unified CLI dispatcher (memory / dna / agent / skill / hook / mcp / dashboard ...)
+        ├── cbi/                   ← Capability + business primitives + resources
+        ├── memory/                ← Memory engine
+        ├── hooks/                 ← SessionStart / Stop / UserPromptSubmit / PreToolUse hook scripts
+        ├── mcp_server/            ← FastMCP server + scheduler + built-in tasks
+        ├── dashboard/             ← Local dashboard server
+        ├── services/              ← Cross-cutting services (frontmatter, ids, ...)
+        ├── project/               ← Init / sync / templates
+        └── context.py             ← Shared root-resolution module
 ```
 
-Installation no longer ships an in-repo installer script. The install flow is the bootstrap documented in the repo `README.md` (or, with the kernel CLI installed globally, `cbim install`). Upgrades go through `cbim update -y` (or the `/cbim_update` slash command). The project schema pin lives in `.cbim/.pin` and is the only thing migrations touch (`cbim migrate --version <X>`).
+Installation is driven by the `/cbim_install` slash command. It downloads the kernel into `<project>/.cbim/kernel/`, generates `.cbim/run` (POSIX) and `.cbim/run.cmd` (Windows) launcher shims, installs the 4 core agents into `.claude/agents/`, installs the 6 `/cbim_*` slash commands, and merges hook + MCP-server entries into `.claude/settings.json`. The shim is the sole runtime entry point — `.cbim/run <subcommand>` sets `PYTHONPATH=<project>/.cbim/kernel` and execs `python -m engine <subcommand>`. There is no project-pinning, no global venv, and no `cbim` CLI on the user's PATH. Re-running `/cbim_install` is idempotent and is also how the kernel is refreshed/upgraded. See `.cbim/kernel/project/commands/cbim_install.md` for the canonical install/uninstall/migration details (including how to migrate from an earlier `cbim-cc/` layout).
 
 ---
 

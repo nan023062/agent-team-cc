@@ -36,11 +36,12 @@ Just tell the assistant what you want — no need to specify an agent:
 
 | Command | Purpose |
 |---|---|
+| `/cbim_install` | Install or refresh CBIM in the current project (downloads kernel into `.cbim/kernel/`, writes the `.cbim/run` shim, registers hooks + MCP server) |
 | `/cbim_help` | Framework overview (workflow + command list + key paths) |
+| `/cbim_dashboard` | Open the local dashboard (memory / capability / knowledge / log) |
 | `/cbim_debug on\|off\|status` | Toggle/inspect extra engine-internal logging |
 | `/cbim_log [N]` | Show the current session log (agent loop signals) |
 | `/cbim_sched status\|trigger <name>` | Inspect / fire scheduler tasks |
-| `/cbim_update` | Upgrade the CBIM kernel to latest (equivalent to `cbim update -y`) |
 
 ## MCP Tools
 
@@ -55,17 +56,17 @@ CBIM also ships as an MCP server registered in `.claude/settings.json` under `mc
 | `project_snapshot` | Full project knowledge snapshot |
 | `scheduler_status` / `scheduler_trigger` | Inspect and fire scheduled tasks |
 
-The server is implemented with the official `mcp` Python SDK (FastMCP) and runs out of the global kernel venv via the `cbim mcp` launcher — no project-local venv or extra `pip install` required.
+The server is implemented with the official `mcp` Python SDK (FastMCP) and runs via the project-local `.cbim/run mcp` shim — no global install, no `pip install` step. The shim sets `PYTHONPATH=<project>/.cbim/kernel` and invokes `python -m engine mcp`.
 
 ## Scheduler
 
-An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches built-in tasks that ship with the kernel package (`cbim_kernel.mcp_server.tasks`).
+An async task scheduler is embedded in the MCP server (started in its lifespan). It ticks every 30 seconds and dispatches built-in tasks that ship with the kernel package (`mcp_server.tasks`).
 
-Each task subclasses `cbim_kernel.mcp_server.scheduler.Task` and declares `name`, `description`, `interval_seconds` (0 = manual-only), and `respect_cc_idle` (True = only fire when CC is idle, per `.cbim/.cc-status`). Tasks currently ship inside the kernel; there is no project-local task drop-in path yet.
+Each task subclasses `mcp_server.scheduler.Task` and declares `name`, `description`, `interval_seconds` (0 = manual-only), and `respect_cc_idle` (True = only fire when CC is idle, per `.cbim/.cc-status`). Tasks currently ship inside the kernel; there is no project-local task drop-in path yet.
 
 `UserPromptSubmit` and `Stop` hooks maintain `.cbim/.cc-status` (`busy` / `idle`) so opt-in tasks only fire between turns. State persists in `.cbim/scheduler/state.json`; results are logged as `[SCHED]` in the session log.
 
-**Lifetime**: the scheduler runs inside the MCP server process. CC starts the server (via the `cbim mcp` launcher) → scheduler starts; CC exits → scheduler stops.
+**Lifetime**: the scheduler runs inside the MCP server process. CC starts the server (via the `.cbim/run mcp` shim registered in `.claude/settings.json` under `mcpServers.cbim`) → scheduler starts; CC exits → scheduler stops.
 
 ---
 
@@ -76,12 +77,11 @@ Each task subclasses `cbim_kernel.mcp_server.scheduler.Task` and declares `name`
 ```
 your-project/
 ├── CLAUDE.md                      ← Assistant identity (main session)
-├── .venv/                         ← Python virtual environment (gitignored)
 │
 ├── .claude/
-│   ├── settings.json              ← Permission config + hook registration
-│   ├── agents/                    ← Architect / HR / Auditor / Programmer
-│   └── commands/                  ← Slash commands (/cbim_*)
+│   ├── settings.json              ← Permission config + hook registration + MCP server registration
+│   ├── agents/                    ← Architect / HR / Auditor / Programmer (installed by /cbim_install)
+│   └── commands/                  ← Slash commands /cbim_install, /cbim_help, /cbim_dashboard, /cbim_debug, /cbim_log, /cbim_sched
 │
 ├── src/                           ← Your code (any layout you like)
 │   ├── combat/
@@ -99,29 +99,25 @@ your-project/
 │                                  ←    single-app shape; monorepos often skip this)
 │
 └── .cbim/                         ← Framework (this directory)
-    ├── .dna/index.md              ← Module registry (framework-managed, required after install)
-    ├── .pin                       ← Project-pinned CBIM schema version (single line)
-    ├── cbi/                       ← Capability + business definitions, agents, skills
-    ├── engine/                    ← Unified CLI entry (invoked via `cbim ...`)
-    ├── hooks/                     ← SessionStart / Stop / PreToolUse hook scripts
-    ├── memory/                    ← Memory engine + store
-    ├── dashboard/                 ← Local dashboard server
-    ├── docs/                      ← Architecture documentation
-    └── config.json                ← Local framework config
+    ├── run                        ← POSIX launcher shim (sets PYTHONPATH, execs `python -m engine`)
+    ├── run.cmd                    ← Windows launcher shim
+    ├── config.json                ← Local framework config
+    ├── .dna/index.md              ← Module registry (framework-managed)
+    ├── logs/                      ← Engine logs (gitignored)
+    ├── memory/                    ← Memory store (gitignored)
+    │   ├── short/                 ← Short-term session memory
+    │   └── medium/                ← Medium-term distilled memory
+    └── kernel/                    ← Kernel install (downloaded by /cbim_install)
+        ├── engine/                ← Unified CLI dispatcher (memory / dna / agent / skill / hook / mcp / dashboard ...)
+        ├── cbi/                   ← Capability + business primitives + resources
+        ├── memory/                ← Memory engine
+        ├── hooks/                 ← SessionStart / Stop / UserPromptSubmit / PreToolUse hook scripts
+        ├── mcp_server/            ← FastMCP server + scheduler + built-in tasks
+        ├── dashboard/             ← Local dashboard server
+        ├── services/              ← Cross-cutting services (frontmatter, ids, ...)
+        ├── project/               ← Init / sync / templates
+        └── context.py             ← Shared root-resolution module
 ```
-
----
-
-## Version Pin & Upgrade
-
-Since 1.3.3, the project-pinned CBIM schema version lives in `.cbim/.pin` (plain text, single-line version number, trailing newline, gitignored). All reads/writes go through the sole accessor `project/pin.py` (`read_pin` / `write_pin`). `.cbim/config.json` no longer carries a `cbim_version` field.
-
-Upgrade and migrate:
-
-| Operation | Command |
-|---|---|
-| Upgrade the CBIM kernel | `cbim update -y` or `/cbim_update` |
-| Migrate the current project to a specific version | `cbim migrate --version <X>` |
 
 ---
 
@@ -157,12 +153,7 @@ The `.dna/` convention follows **minimal constraint + open extension**: the dire
 
 ## Dashboard
 
-```bash
-python -m dashboard.dashboard    # macOS / Linux  (run from .cbim/)
-dashboard\dashboard.bat          # Windows
-```
-
-Open http://127.0.0.1:8765 — Memory / Capability / Knowledge / Log tabs.
+Run `/cbim_dashboard` (or `.cbim/run dashboard`) — opens http://127.0.0.1:8765 with Memory / Capability / Knowledge / Log tabs. The dashboard is also auto-spawned in the background by the `auto_preview` hook when CC is idle.
 
 ---
 
