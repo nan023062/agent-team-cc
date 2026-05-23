@@ -17,6 +17,7 @@ Domains:
   log         show | tail
   init        Bootstrap a new CBIM project in cwd
   project     sync (refresh kernel-managed templates)
+  audit       run | index | memory | agents | dna | tree | list-checks
   mcp         Start the CBIM MCP server (stdio)
 """
 import argparse
@@ -297,6 +298,11 @@ def main() -> int:
     pinit.add_argument("--force", action="store_true",
                        help="Overwrite existing files (default: idempotent)")
 
+    # audit -------------------------------------------------------------------
+    audit_p = sub.add_parser("audit", help="Run governance drift checks (read-only)")
+    from .audit.cli import register_audit_subparser
+    register_audit_subparser(audit_p)
+
     # project -----------------------------------------------------------------
     pproj = sub.add_parser("project", help="Project-level template & layout maintenance")
     projsub = pproj.add_subparsers(dest="command")
@@ -351,6 +357,9 @@ def main() -> int:
         from mcp_server import server as mcp_server
         mcp_server.mcp.run()
         return 0
+    if domain == "audit":
+        from .audit.cli import dispatch as _audit_dispatch
+        return _audit_dispatch(args)
     if domain == "init":
         return _cmd_init(args)
     if domain == "project":

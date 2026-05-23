@@ -25,6 +25,7 @@ classDiagram
     class log_view
     class debug
     class config
+    class audit
 
     cli --> logger
     cli --> session_log
@@ -32,6 +33,7 @@ classDiagram
     cli --> log_view
     cli --> debug
     cli --> config
+    cli --> audit
 ```
 
 Dispatched domains (current surface, mirrors `engine/cli.py:main`):
@@ -47,13 +49,14 @@ Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 - `preview` → `dashboard` (deprecated alias)
 - `debug` → toggles `.cbim/.debug` flag (on / off / status)
 - `log` → `engine.log_view` (show / tail per-session logs)
+- `audit` → `engine.audit.cli` (run / index / memory / agents / dna / tree / list-checks — read-only drift checks across `.dna`, `.claude/agents`, `.cbim/memory`)
 - `mcp` → `mcp_server.server.mcp.run()` (stdio)
 - `init` → `project.init.init_project` (bootstrap cwd)
 - `project sync` → `project.sync.sync_templates` (refresh templated files)
 
 Hook events are NOT dispatched through this CLI — Claude Code invokes the in-process bridge scripts at `.claude/hooks/cbim_*.py` directly.
 
-Internal cross-cutting modules: `logger` + `session_log` (per-session text logs), `call_log` + `import_log` (PreToolUse/PostToolUse + import telemetry), `log_view` (read-back surface for `log show` / `log tail`), `debug` (.debug flag toggle), `config` (config get/set/show).
+Internal cross-cutting modules: `logger` + `session_log` (per-session text logs), `call_log` + `import_log` (PreToolUse/PostToolUse + import telemetry), `log_view` (read-back surface for `log show` / `log tail`), `debug` (.debug flag toggle), `config` (config get/set/show), `audit` (drift checks).
 
 ## Origin Context
 
@@ -72,6 +75,8 @@ Every CBIM operation that an LLM or human types is one CLI invocation. The kerne
 - **`init` does more than scaffold `.cbim/`.** Since Phase 3b, `init` also: (1) copies the 7 `cbim_*.py` hook scripts plus `_lib/` into `.claude/hooks/` with 0755 on the scripts; (2) writes the `hooks` section of `.claude/settings.json` to invoke those scripts directly; (3) extends `permissions.deny` to four entries (Write/Edit/Read on `.cbim/**`, plus `Bash(.cbim/run *)`); (4) appends missing kernel entries to `.claudeignore` (merge-only, never clobber); (5) verifies that `mcp` is importable from the managed venv (post-condition check; warn-only); (6) writes/merges `.mcp.json` at the project root with the `cbim` MCP server registration (Phase 7 split: previously `mcpServers.cbim` lived inside `.claude/settings.json`; it now lives in the project-root `.mcp.json` so Claude Code auto-discovers it, and the sync path drops any stale `mcpServers.cbim` from `.claude/settings.json` on upgrade); (7) builds and manages `.cbim/.venv/` — a project-local venv bootstrapped with the system `python3` — and installs the `mcp` SDK into it (Phase 8). The user's system Python is never modified; the `.cbim/run` shim invokes `.venv/bin/python` directly. Venv build is idempotent (skip if `import mcp` succeeds, repair if venv exists but mcp is missing, rebuild if venv is broken). Venv build failure is fatal with a clear hint about `python3-venv`; mcp install failure inside an otherwise-healthy venv is soft-fail (warn, keep going).
 - **`preview` is a deprecated alias for `dashboard`.** Kept for one release cycle. Emits a stderr deprecation line and forwards to `cmd_dashboard`.
 - **Debug flag is engine-scoped, not memory-scoped.** `.cbim/.debug` (a zero-byte file at the project root's `.cbim/` directory) gates the extra `[ENG]/[IMP]` log lines from `call_log` and `import_log`. Session-level signals (`[SESSION]/[USER]/[TOOL]/[RESULT]/[TURN]`) always log regardless of the flag.
+
+- **`audit/` is embedded inside `engine/`, not a sibling package.** The CLI surface is one more `cbim ...` sub-domain and the threshold config lives in `.cbim/config.json` under the `audit` section — both already first-class engine responsibilities. Making audit a top-level sibling would require an extra cross-package import dance for zero boundary win. Reversible if non-CLI consumers ever appear.
 
 ## Non-Goals
 
