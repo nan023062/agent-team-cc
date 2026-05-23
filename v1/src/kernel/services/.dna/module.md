@@ -40,5 +40,5 @@ classDiagram
 ## Key Decisions
 
 - **Services exist so the surface mcp_server / dashboard depend on stays stable across kernel refactors.** Without this layer, every renaming in `cbi/_primitives/modules.py` would break the MCP and dashboard tool surfaces.
-- **No service writes — services are read-mostly.** Mutations go through the kernel CLI (e.g. `engine dna write-doc`), not through a service method.
+- **Services own transactional write facades for all governance domains (agent / dna / memory).** Both CLI handlers (`engine/cli.py`) and MCP tools (`mcp_server/tools/*.py`) are thin shells over the service functions — this is the single source of truth for multi-file orchestration (e.g. init_module writes `.dna/module.md` + optional `contract.md` + registry update atomically). The previous "No service writes" rule was reversed in Phase 1 of the MCP-first surface migration.
 

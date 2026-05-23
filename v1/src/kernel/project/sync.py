@@ -30,6 +30,19 @@ _PKG_DIR = Path(__file__).resolve().parent
 _TEMPLATES = _PKG_DIR / "templates"
 _AGENTS = _PKG_DIR / "agents"
 _COMMANDS = _PKG_DIR / "commands"
+_HOOKS_SRC = _PKG_DIR / "hooks_src"
+
+# Kernel-managed hook script filenames installed into .claude/hooks/. Any other
+# *.py file under .claude/hooks/ is treated as user-owned and never touched.
+KERNEL_HOOK_SCRIPT_NAMES: tuple[str, ...] = (
+    "cbim_session_start.py",
+    "cbim_stop.py",
+    "cbim_session_end.py",
+    "cbim_user_prompt_submit.py",
+    "cbim_pre_tool_use.py",
+    "cbim_post_tool_use.py",
+    "cbim_auto_preview.py",
+)
 
 # The four kernel-managed (built-in) agents. Any other agent directory under
 # .claude/agents/ is treated as user-owned and never touched.
@@ -87,18 +100,34 @@ def sync_claude_md(project_root: Path, dry_run: bool = False) -> str:
 
 
 def sync_claudeignore(project_root: Path, dry_run: bool = False) -> str:
-    """OWNED file. Overwrite from template on every sync."""
-    dst = project_root / ".claudeignore"
-    content = _read_template("claudeignore.tmpl")
-    rel = _rel(dst, project_root)
+    """Append missing kernel entries to .claudeignore; never remove or reorder.
 
-    if dst.exists() and dst.read_text(encoding="utf-8") == content:
-        return f"unchanged {rel}"
-    verb = "would overwrite" if dry_run else "overwrote"
+    Mirrors the .gitignore policy: if the file does not exist, create it from
+    the template wholesale; otherwise only append entries that are not already
+    present (line-equality match).
+    """
+    dst = project_root / ".claudeignore"
+    rel = _rel(dst, project_root)
+    template_text = _read_template("claudeignore.tmpl")
+    entries = [line.strip() for line in template_text.splitlines() if line.strip()]
+
     if not dst.exists():
         verb = "would create" if dry_run else "created"
+        if not dry_run:
+            dst.write_text(template_text, encoding="utf-8")
+        return f"{verb} {rel}"
+
+    existing_text = dst.read_text(encoding="utf-8")
+    existing_lines = {line.strip() for line in existing_text.splitlines()}
+    missing = [e for e in entries if e not in existing_lines]
+    if not missing:
+        return f"unchanged {rel}"
+
+    verb = "would patch" if dry_run else "patched"
     if not dry_run:
-        dst.write_text(content, encoding="utf-8")
+        suffix = "" if existing_text.endswith("\n") or not existing_text else "\n"
+        addition = suffix + "\n".join(missing) + "\n"
+        dst.write_text(existing_text + addition, encoding="utf-8")
     return f"{verb} {rel}"
 
 
@@ -143,6 +172,60 @@ def sync_command(project_root: Path, name: str, dry_run: bool = False) -> str:
 
 def sync_commands(project_root: Path, dry_run: bool = False) -> list[str]:
     return [sync_command(project_root, name, dry_run) for name in KERNEL_COMMAND_NAMES]
+
+
+def sync_hook_scripts(project_root: Path, dry_run: bool = False) -> list[str]:
+    """Refresh .claude/hooks/ with the kernel-managed hook scripts + _lib/.
+
+    Identification of "kernel-owned" hook artifacts:
+      - top-level files in .claude/hooks/ matching KERNEL_HOOK_SCRIPT_NAMES
+      - the entire .claude/hooks/_lib/ subdirectory
+
+    Anything else under .claude/hooks/ is treated as user-owned and left alone.
+    Existing kernel-owned artifacts are removed before re-copy (clean slate),
+    so the result is byte-identical to the bundled hooks_src/ tree.
+
+    Returns one action string per artifact touched, plus one summary line.
+    """
+    import os
+    import shutil
+
+    hooks_dir = project_root / ".claude" / "hooks"
+    rel_dir = _rel(hooks_dir, project_root)
+    actions: list[str] = []
+
+    if dry_run:
+        actions.append(f"would refresh {rel_dir}/ (7 scripts + _lib/)")
+        return actions
+
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Remove only kernel-owned artifacts (preserve user-added .py files).
+    for name in KERNEL_HOOK_SCRIPT_NAMES:
+        p = hooks_dir / name
+        if p.exists():
+            p.unlink()
+    lib_dst = hooks_dir / "_lib"
+    if lib_dst.exists():
+        shutil.rmtree(lib_dst)
+
+    # 2. Copy 7 cbim_*.py scripts; chmod 0755.
+    for name in KERNEL_HOOK_SCRIPT_NAMES:
+        src = _HOOKS_SRC / name
+        dst = hooks_dir / name
+        shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
+        actions.append(f"installed {_rel(dst, project_root)}")
+
+    # 3. Copy _lib/ subdir (filter __pycache__ at any depth).
+    lib_src = _HOOKS_SRC / "_lib"
+
+    def _ignore(_dir: str, names: list[str]) -> list[str]:
+        return [n for n in names if n == "__pycache__"]
+
+    shutil.copytree(lib_src, lib_dst, ignore=_ignore)
+    actions.append(f"installed {_rel(lib_dst, project_root)}/")
+    return actions
 
 
 def sync_settings(project_root: Path, dry_run: bool = False) -> str:
@@ -239,8 +322,9 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
       2. .claudeignore
       3. .claude/agents/<name>/<name>.md  (architect, auditor, hr, programmer)
       4. .claude/commands/<name>.md       (6 built-in slash commands)
-      5. .claude/settings.json
-      6. .gitignore
+      5. .claude/hooks/cbim_*.py + _lib/  (7 hook scripts + shared library)
+      6. .claude/settings.json
+      7. .gitignore
     """
     project_root = Path(project_root).resolve()
     actions: list[str] = []
@@ -248,6 +332,7 @@ def sync_templates(project_root: Path, dry_run: bool = False) -> list[str]:
     actions.append(sync_claudeignore(project_root, dry_run=dry_run))
     actions.extend(sync_agents(project_root, dry_run=dry_run))
     actions.extend(sync_commands(project_root, dry_run=dry_run))
+    actions.extend(sync_hook_scripts(project_root, dry_run=dry_run))
     actions.append(sync_settings(project_root, dry_run=dry_run))
     actions.append(sync_gitignore(project_root, dry_run=dry_run))
     return actions

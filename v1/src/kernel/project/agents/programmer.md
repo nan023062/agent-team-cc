@@ -91,10 +91,10 @@ Physical workspace (code, art assets, all project content): read/write. `.dna/` 
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, assets, configs, docs) only. They may **never** be used against any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/` — these are governance state and belong to the architect / HR via the kernel:
+My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, assets, configs, docs) only. They may **never** be used against any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/` — these are governance state owned by the architect / HR and routed through the `cbim` MCP server:
 
 - Knowledge changes I need: stop, report to the assistant, request architect dispatch.
 - Agent changes I need: stop, report to the assistant, request HR dispatch.
 - Memory writes I want: stop, report to the assistant, let memory skills handle it.
 
-Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted and expected — I read knowledge to implement against it. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted and expected — I read knowledge to implement against it. **`.cbim/` is off-limits to my tools entirely** — do not `Read`, `Glob`, `Grep`, `cat`, or `ls` paths inside it. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.

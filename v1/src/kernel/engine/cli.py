@@ -79,6 +79,9 @@ def main() -> int:
                     metavar="ITEM",
                     help="Frontmatter list value (one or more items, space-separated); "
                          "mutually exclusive with --value")
+    _p.add_argument("--clear", dest="clear", action="store_true",
+                    help="Clear a list-typed frontmatter field (set to []). "
+                         "Only valid with --target frontmatter and a list-typed --field.")
     _p.add_argument("--content", default=None, help="Inline markdown content")
     _p.add_argument("--content-file", dest="content_file", default=None, help="Read content from this path")
     _p.add_argument("--stdin", action="store_true", help="Read content from stdin")
@@ -89,6 +92,13 @@ def main() -> int:
     _p.add_argument("--name", default=None, help="Workflow slug (for --target workflow)")
     _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
                     help="For section replace/append: if heading absent, append a new section at EOF")
+    _pos = _p.add_mutually_exclusive_group()
+    _pos.add_argument("--insert-after", dest="insert_after", default=None,
+                      metavar="HEADING",
+                      help="When creating a new section, insert it after the section with this heading.")
+    _pos.add_argument("--insert-at-top", dest="insert_at_top", action="store_true",
+                      help="When creating a new section, insert it at the top of the body "
+                           "(after frontmatter, before first section).")
     _p.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="Print rendered result to stdout; do not write to disk")
 
@@ -111,6 +121,13 @@ def main() -> int:
     _p.add_argument("--stdin", action="store_true", help="Read content from stdin")
     _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
                     help="For replace/append: if heading absent, append a new section at EOF")
+    _pos = _p.add_mutually_exclusive_group()
+    _pos.add_argument("--insert-after", dest="insert_after", default=None,
+                      metavar="HEADING",
+                      help="When creating a new section, insert it after the section with this heading.")
+    _pos.add_argument("--insert-at-top", dest="insert_at_top", action="store_true",
+                      help="When creating a new section, insert it at the top of the body "
+                           "(after frontmatter, before first section).")
     _p.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="Print resulting file to stdout; do not write")
     _p = dsub.add_parser(
@@ -175,6 +192,9 @@ def main() -> int:
     _p.add_argument("--value-list", dest="value_list", nargs="+", default=None,
                     metavar="ITEM",
                     help="Frontmatter list value (one or more items)")
+    _p.add_argument("--clear", dest="clear", action="store_true",
+                    help="Clear a list-typed frontmatter field (set to []). "
+                         "Only valid with --target frontmatter and a list-typed --field.")
     _p.add_argument("--content", default=None, help="Inline markdown content (body/section)")
     _p.add_argument("--content-file", dest="content_file", default=None,
                     help="Read content from this path (body/section)")
@@ -187,6 +207,13 @@ def main() -> int:
                     help="Section edit mode (default: replace; section only)")
     _p.add_argument("--create-if-missing", dest="create_if_missing", action="store_true",
                     help="For section replace/append: if heading absent, append at EOF")
+    _pos = _p.add_mutually_exclusive_group()
+    _pos.add_argument("--insert-after", dest="insert_after", default=None,
+                      metavar="HEADING",
+                      help="When creating a new section, insert it after the section with this heading.")
+    _pos.add_argument("--insert-at-top", dest="insert_at_top", action="store_true",
+                      help="When creating a new section, insert it at the top of the body "
+                           "(after frontmatter, before first section).")
     _p.add_argument("--dry-run", dest="dry_run", action="store_true",
                     help="Print rendered result to stdout; do not write to disk")
 
@@ -574,14 +601,14 @@ def _handle_agent_show(args: argparse.Namespace) -> int:
 
 
 def _handle_agent_scaffold(args: argparse.Namespace) -> int:
-    from cbi.resources import Agent
+    from services import scaffold_agent
     try:
-        agent = Agent.create(
+        path = scaffold_agent(
             args.name,
             description=args.description,
             model=args.model,
         )
-        print(f"Created: {agent.path}")
+        print(f"Created: {path}")
     except FileExistsError as e:
         print(str(e), file=sys.stderr)
         return 1
@@ -589,10 +616,9 @@ def _handle_agent_scaffold(args: argparse.Namespace) -> int:
 
 
 def _handle_agent_archive(args: argparse.Namespace) -> int:
-    from cbi.resources import Agent
+    from services import archive_agent
     try:
-        agent = Agent.load(args.name)
-        archived = agent.archive()
+        archived = archive_agent(args.name)
         print(f"Archived: {archived}")
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
@@ -644,74 +670,118 @@ def _handle_agent_update(args: argparse.Namespace) -> int:
     rendered file to stdout and never touches disk.
     """
     from cbi.resources import Agent
+    from services import update_agent
 
     target = args.target
     dry_run = bool(getattr(args, "dry_run", False))
 
     try:
-        agent = Agent.load(args.name)
-    except FileNotFoundError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-    try:
-        if target == "frontmatter":
-            if args.field is None:
-                raise ValueError("--field is required for --target frontmatter")
-            if args.field not in _AGENT_FM_EDITABLE:
-                raise ValueError(
-                    f"field {args.field!r} is not editable; "
-                    f"allowed: {', '.join(_AGENT_FM_EDITABLE)} "
-                    f"(rename is a separate operation, not handled here)"
-                )
-            value_given = args.value is not None
-            list_given = getattr(args, "value_list", None) is not None
-            if value_given and list_given:
-                raise ValueError("--value and --value-list are mutually exclusive")
-            if not value_given and not list_given:
-                raise ValueError(
-                    "one of --value or --value-list is required for --target frontmatter"
-                )
-            new_value = args.value_list if list_given else args.value
-            agent.frontmatter.set(args.field, new_value)
-
-        elif target == "body":
-            content = _read_content_arg(args)
-            if content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            agent.body.write(content)
-
-        elif target == "section":
-            if args.heading is None:
-                raise ValueError("--heading is required for --target section")
-            mode = args.mode or "replace"
-            needs_content = mode != "delete"
-            content = _read_content_arg(args)
-            if needs_content and content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            if not needs_content and content is not None:
-                raise ValueError("content sources are forbidden with --mode delete")
-            agent.body.write_section(
-                args.heading, content,
-                level=args.level, mode=mode,
-                create_if_missing=bool(args.create_if_missing),
-            )
-
-        else:
-            raise ValueError(f"unknown --target: {target!r}")
-
-    except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
+        payload = _build_agent_update_payload(args, target)
+    except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
     if dry_run:
+        try:
+            agent = Agent.load(args.name)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        try:
+            _apply_agent_update_in_memory(agent, target, payload)
+        except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
         sys.stdout.write(_render_agent(agent))
         return 0
 
+    try:
+        path = update_agent(args.name, target, payload)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except (ValueError, LookupError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     _warn_if_kernel_managed(args.name)
-    agent.save()
-    print(str(agent.path.resolve()))
+    print(path)
     return 0
+
+
+def _build_agent_update_payload(args: argparse.Namespace, target: str) -> dict:
+    """Convert argparse Namespace into the dict shape expected by services.update_agent."""
+    if target == "frontmatter":
+        if args.field is None:
+            raise ValueError("--field is required for --target frontmatter")
+        value_given = args.value is not None
+        list_given = getattr(args, "value_list", None) is not None
+        clear_given = bool(getattr(args, "clear", False))
+        if sum([value_given, list_given, clear_given]) > 1:
+            raise ValueError("--value, --value-list, --clear are mutually exclusive")
+        if not (value_given or list_given or clear_given):
+            raise ValueError(
+                "one of --value / --value-list / --clear is required for --target frontmatter"
+            )
+        payload = {"field": args.field}
+        if clear_given:
+            payload["value_list"] = []
+        elif list_given:
+            payload["value_list"] = args.value_list
+        else:
+            payload["value"] = args.value
+        return payload
+
+    if target == "body":
+        content = _read_content_arg(args)
+        if content is None:
+            raise ValueError("one of --content / --content-file / --stdin is required")
+        return {"content": content}
+
+    if target == "section":
+        if args.heading is None:
+            raise ValueError("--heading is required for --target section")
+        mode = args.mode or "replace"
+        needs_content = mode != "delete"
+        content = _read_content_arg(args)
+        if needs_content and content is None:
+            raise ValueError("one of --content / --content-file / --stdin is required")
+        if not needs_content and content is not None:
+            raise ValueError("content sources are forbidden with --mode delete")
+        return {
+            "heading": args.heading,
+            "content": content,
+            "mode": mode,
+            "level": args.level,
+            "create_if_missing": bool(args.create_if_missing),
+            "insert_after": getattr(args, "insert_after", None),
+            "insert_at_top": bool(getattr(args, "insert_at_top", False)),
+        }
+
+    raise ValueError(f"unknown --target: {target!r}")
+
+
+def _apply_agent_update_in_memory(agent, target: str, payload: dict) -> None:
+    """Dry-run helper: apply the same mutations the service would, without saving."""
+    if target == "frontmatter":
+        if payload["field"] not in _AGENT_FM_EDITABLE:
+            raise ValueError(
+                f"field {payload['field']!r} is not editable; "
+                f"allowed: {', '.join(_AGENT_FM_EDITABLE)} "
+                f"(rename is a separate operation, not handled here)"
+            )
+        new_value = payload.get("value_list", payload.get("value"))
+        agent.frontmatter.set(payload["field"], new_value)
+    elif target == "body":
+        agent.body.write(payload["content"])
+    elif target == "section":
+        agent.body.write_section(
+            payload["heading"], payload.get("content"),
+            level=int(payload.get("level", 2)),
+            mode=payload.get("mode", "replace"),
+            create_if_missing=bool(payload.get("create_if_missing", False)),
+            insert_after=payload.get("insert_after"),
+            insert_at_top=bool(payload.get("insert_at_top", False)),
+        )
 
 
 def _handle_agent_add_skill(args: argparse.Namespace) -> int:
@@ -721,7 +791,7 @@ def _handle_agent_add_skill(args: argparse.Namespace) -> int:
     existing skill, a future `cbim agent edit-skill` is planned but not yet
     implemented.
     """
-    from cbi.resources import Agent
+    from services import add_skill_to_agent
 
     try:
         content = _read_content_arg(args)
@@ -740,14 +810,13 @@ def _handle_agent_add_skill(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        agent = Agent.load(args.agent_name)
+        path = add_skill_to_agent(args.agent_name, args.skill_name, content)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
-
-    if args.skill_name in agent.skills:
+    except FileExistsError as e:
         print(
-            f"Error: skill already exists: {args.skill_name} "
+            f"Error: {e} "
             f"(modifying an existing skill is not yet supported; "
             f"edit the file directly via the kernel in a future release)",
             file=sys.stderr,
@@ -755,8 +824,7 @@ def _handle_agent_add_skill(args: argparse.Namespace) -> int:
         return 2
 
     _warn_if_kernel_managed(args.agent_name)
-    skill = agent.skills.add(args.skill_name, content)
-    print(str(skill.path.resolve()))
+    print(path)
     return 0
 
 
@@ -850,19 +918,19 @@ def _handle_dna_show(args: argparse.Namespace) -> int:
 
 
 def _handle_dna_init(args: argparse.Namespace) -> int:
-    from cbi.resources import DNAModule
+    from services import init_module
     try:
-        m = DNAModule.create(
-            Path(args.dir),
+        aimod_dir = init_module(
+            args.dir,
+            kind=args.type,
             name=args.name,
             owner=args.owner,
             description=args.description,
             with_contract=args.with_contract,
-            type=args.type,
             status=args.status,
         )
-        aimod = m.path.parent  # <mod_dir>/.dna
-        print(f"Initialized [{args.type}]: {aimod}/")
+        # init_module returns the absolute path to .dna/ (the directory containing module.md).
+        print(f"Initialized [{args.type}]: {aimod_dir}/")
         files = ".dna/module.md"
         if args.type == "root":
             files += ", index.md"
@@ -889,7 +957,7 @@ def _handle_dna_reindex(args: argparse.Namespace) -> int:
 
 def _handle_dna_write_doc(args: argparse.Namespace) -> int:
     """[DEPRECATED] Write body into <module-path>/.dna/<file>, preserving frontmatter."""
-    from cbi._primitives.modules import write_module_doc
+    from services import write_doc
     print(
         "DeprecationWarning: 'dna write-doc' is deprecated, "
         "use 'dna edit --target body' instead.",
@@ -912,23 +980,29 @@ def _handle_dna_write_doc(args: argparse.Namespace) -> int:
         body = src.read_text(encoding="utf-8")
 
     try:
-        written = write_module_doc(Path(args.module_path), args.file, body)
+        path = write_doc(args.module_path, args.file, body)
     except (ValueError, FileNotFoundError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    print(str(written.resolve()))
+    print(path)
     return 0
 
 
 def _handle_dna_write_section(args: argparse.Namespace) -> int:
     """[DEPRECATED] Section-level surgical edit of .dna/{module.md,contract.md}."""
-    from cbi._primitives.modules import write_module_section
     print(
         "DeprecationWarning: 'dna write-section' is deprecated, "
         "use 'dna edit --target section' instead.",
         file=sys.stderr,
     )
+    if getattr(args, "insert_after", None) or getattr(args, "insert_at_top", False):
+        print(
+            "Error: --insert-after / --insert-at-top are not supported by the "
+            "deprecated 'dna write-section'; use 'dna edit --target section' instead.",
+            file=sys.stderr,
+        )
+        return 1
     needs_content = args.mode != "delete"
     sources = [
         ("--content", args.content is not None),
@@ -969,28 +1043,45 @@ def _handle_dna_write_section(args: argparse.Namespace) -> int:
             return 1
         body = None
 
-    try:
-        result = write_module_section(
-            Path(args.module_path),
-            args.file,
-            args.heading,
-            args.level,
-            args.mode,
-            body,
-            create_if_missing=bool(getattr(args, "create_if_missing", False)),
-            dry_run=bool(getattr(args, "dry_run", False)),
-        )
-    except (ValueError, FileNotFoundError, LookupError, RuntimeError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-    if args.dry_run:
+    # Dry-run preserves the primitive-layer rendering (returns the would-be
+    # file text as a string); the service is commit-only and cannot do this.
+    if bool(getattr(args, "dry_run", False)):
+        from cbi._primitives.modules import write_module_section
+        try:
+            result = write_module_section(
+                Path(args.module_path),
+                args.file,
+                args.heading,
+                args.level,
+                args.mode,
+                body,
+                create_if_missing=bool(getattr(args, "create_if_missing", False)),
+                dry_run=True,
+            )
+        except (ValueError, FileNotFoundError, LookupError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
         sys.stdout.write(result if isinstance(result, str) else str(result))
         if isinstance(result, str) and not result.endswith("\n"):
             sys.stdout.write("\n")
         return 0
 
-    print(str(Path(result).resolve()))
+    from services import write_section
+    try:
+        path = write_section(
+            args.module_path,
+            args.file,
+            args.heading,
+            body,
+            args.mode,
+            level=args.level,
+            create_if_missing=bool(getattr(args, "create_if_missing", False)),
+        )
+    except (ValueError, FileNotFoundError, LookupError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+    print(path)
     return 0
 
 
@@ -1004,125 +1095,33 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
     Dry-run prints the rendered result to stdout and does NOT touch disk.
     """
     from cbi.resources import DNAModule
+    from services import edit_module
 
     target = args.target
     dry_run = bool(getattr(args, "dry_run", False))
 
     try:
-        m = DNAModule.load(Path(args.module_path))
-    except FileNotFoundError as e:
+        payload = _build_dna_edit_payload(args, target)
+    except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    try:
-        if target == "frontmatter":
-            from cbi._primitives.modules import (
-                _MODULE_FM_LIST_FIELDS,
-                _MODULE_FM_STATUS_VALUES,
-            )
-
-            if args.field is None:
-                raise ValueError("--field is required for --target frontmatter")
-            value_given = args.value is not None
-            list_given = getattr(args, "value_list", None) is not None
-            if value_given and list_given:
-                raise ValueError("--value and --value-list are mutually exclusive")
-            if not value_given and not list_given:
-                raise ValueError(
-                    "one of --value or --value-list is required for --target frontmatter"
-                )
-            if args.field in _MODULE_FM_LIST_FIELDS and value_given:
-                raise ValueError(
-                    f"field {args.field!r} is a list-typed field; "
-                    f"use --value-list instead of --value\n"
-                    f"       example: cbim dna edit ... --field {args.field} "
-                    f"--value-list item_a item_b"
-                )
-            new_value = args.value_list if list_given else args.value
-            # Enum-typed scalar fields: validate the value set lives in the
-            # primitive layer (single source of truth). Reject unknown values
-            # before they hit disk.
-            if args.field == "status":
-                if list_given:
-                    raise ValueError(
-                        "field 'status' is a scalar enum; use --value, not --value-list"
-                    )
-                if new_value not in _MODULE_FM_STATUS_VALUES:
-                    raise ValueError(
-                        f"status must be one of {_MODULE_FM_STATUS_VALUES}, "
-                        f"got: {new_value!r}"
-                    )
-            m.frontmatter.set(args.field, new_value)
-
-        elif target == "body":
-            content = _read_content_arg(args)
-            if content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            m.body.write(content)
-
-        elif target == "section":
-            if args.heading is None:
-                raise ValueError("--heading is required for --target section")
-            mode = args.mode or "replace"
-            needs_content = mode != "delete"
-            content = _read_content_arg(args)
-            if needs_content and content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            if not needs_content and content is not None:
-                raise ValueError("content sources are forbidden with --mode delete")
-            m.body.write_section(
-                args.heading, content,
-                level=args.level, mode=mode,
-                create_if_missing=bool(args.create_if_missing),
-            )
-
-        elif target == "contract":
-            content = _read_content_arg(args)
-            if content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            if not dry_run:
-                m.contract.ensure()
-            m.contract.body.write(content)
-
-        elif target == "contract-section":
-            if args.heading is None:
-                raise ValueError("--heading is required for --target contract-section")
-            mode = args.mode or "replace"
-            needs_content = mode != "delete"
-            content = _read_content_arg(args)
-            if needs_content and content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            if not needs_content and content is not None:
-                raise ValueError("content sources are forbidden with --mode delete")
-            if not dry_run:
-                m.contract.ensure()
-            m.contract.body.write_section(
-                args.heading, content,
-                level=args.level, mode=mode,
-                create_if_missing=bool(args.create_if_missing),
-            )
-
-        elif target == "workflow":
-            if not args.name:
-                raise ValueError("--name is required for --target workflow")
-            content = _read_content_arg(args)
-            if content is None:
-                raise ValueError("one of --content / --content-file / --stdin is required")
-            if dry_run:
-                sys.stdout.write(content if content.endswith("\n") else content + "\n")
-                return 0
-            m.workflows.add(args.name, content)
-            print(str((m.path.parent / "workflows" / args.name / "workflow.md").resolve()))
-            return 0
-
-        else:
-            raise ValueError(f"unknown --target: {target!r}")
-
-    except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+    if target == "workflow" and dry_run:
+        sys.stdout.write(payload["content"] if payload["content"].endswith("\n")
+                         else payload["content"] + "\n")
+        return 0
 
     if dry_run:
+        try:
+            m = DNAModule.load(Path(args.module_path))
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        try:
+            _apply_dna_edit_in_memory(m, target, payload)
+        except (ValueError, LookupError, FileNotFoundError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
         if target in ("contract", "contract-section"):
             out = m.contract.body.read()
         else:
@@ -1132,12 +1131,122 @@ def _handle_dna_edit(args: argparse.Namespace) -> int:
             sys.stdout.write("\n")
         return 0
 
-    m.save()
-    if target in ("contract", "contract-section"):
-        print(str(m.contract.path.resolve()))
-    else:
-        print(str(m.path.resolve()))
+    try:
+        path = edit_module(args.module_path, target, payload)
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    except (ValueError, LookupError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    print(path)
     return 0
+
+
+def _build_dna_edit_payload(args: argparse.Namespace, target: str) -> dict:
+    """Convert argparse Namespace into the dict shape expected by services.edit_module."""
+    if target == "frontmatter":
+        if args.field is None:
+            raise ValueError("--field is required for --target frontmatter")
+        value_given = args.value is not None
+        list_given = getattr(args, "value_list", None) is not None
+        clear_given = bool(getattr(args, "clear", False))
+        if sum([value_given, list_given, clear_given]) > 1:
+            raise ValueError("--value, --value-list, --clear are mutually exclusive")
+        if not (value_given or list_given or clear_given):
+            raise ValueError(
+                "one of --value / --value-list / --clear is required for --target frontmatter"
+            )
+        from cbi._primitives.modules import _MODULE_FM_LIST_FIELDS
+        if args.field in _MODULE_FM_LIST_FIELDS and value_given:
+            raise ValueError(
+                f"field {args.field!r} is a list-typed field; "
+                f"use --value-list instead of --value\n"
+                f"       example: cbim dna edit ... --field {args.field} "
+                f"--value-list item_a item_b"
+            )
+        if args.field == "status" and (list_given or clear_given):
+            raise ValueError(
+                "field 'status' is a scalar enum; use --value, not --value-list / --clear"
+            )
+        payload = {"field": args.field}
+        if clear_given:
+            payload["value_list"] = []
+        elif list_given:
+            payload["value_list"] = args.value_list
+        else:
+            payload["value"] = args.value
+        return payload
+
+    if target in ("body", "contract"):
+        content = _read_content_arg(args)
+        if content is None:
+            raise ValueError("one of --content / --content-file / --stdin is required")
+        return {"content": content}
+
+    if target in ("section", "contract-section"):
+        if args.heading is None:
+            raise ValueError(f"--heading is required for --target {target}")
+        mode = args.mode or "replace"
+        needs_content = mode != "delete"
+        content = _read_content_arg(args)
+        if needs_content and content is None:
+            raise ValueError("one of --content / --content-file / --stdin is required")
+        if not needs_content and content is not None:
+            raise ValueError("content sources are forbidden with --mode delete")
+        return {
+            "heading": args.heading,
+            "content": content,
+            "mode": mode,
+            "level": args.level,
+            "create_if_missing": bool(args.create_if_missing),
+            "insert_after": getattr(args, "insert_after", None),
+            "insert_at_top": bool(getattr(args, "insert_at_top", False)),
+        }
+
+    if target == "workflow":
+        if not args.name:
+            raise ValueError("--name is required for --target workflow")
+        content = _read_content_arg(args)
+        if content is None:
+            raise ValueError("one of --content / --content-file / --stdin is required")
+        return {"name": args.name, "content": content}
+
+    raise ValueError(f"unknown --target: {target!r}")
+
+
+def _apply_dna_edit_in_memory(m, target: str, payload: dict) -> None:
+    """Dry-run helper: apply the same mutations the service would, without saving."""
+    if target == "frontmatter":
+        from cbi._primitives.modules import _MODULE_FM_STATUS_VALUES
+        new_value = payload.get("value_list", payload.get("value"))
+        if payload["field"] == "status" and new_value not in _MODULE_FM_STATUS_VALUES:
+            raise ValueError(
+                f"status must be one of {_MODULE_FM_STATUS_VALUES}, got: {new_value!r}"
+            )
+        m.frontmatter.set(payload["field"], new_value)
+    elif target == "body":
+        m.body.write(payload["content"])
+    elif target == "section":
+        m.body.write_section(
+            payload["heading"], payload.get("content"),
+            level=int(payload.get("level", 2)),
+            mode=payload.get("mode", "replace"),
+            create_if_missing=bool(payload.get("create_if_missing", False)),
+            insert_after=payload.get("insert_after"),
+            insert_at_top=bool(payload.get("insert_at_top", False)),
+        )
+    elif target == "contract":
+        m.contract.body.write(payload["content"])
+    elif target == "contract-section":
+        m.contract.body.write_section(
+            payload["heading"], payload.get("content"),
+            level=int(payload.get("level", 2)),
+            mode=payload.get("mode", "replace"),
+            create_if_missing=bool(payload.get("create_if_missing", False)),
+            insert_after=payload.get("insert_after"),
+            insert_at_top=bool(payload.get("insert_at_top", False)),
+        )
 
 
 def _parse_into_spec(spec: str) -> dict:
@@ -1195,28 +1304,46 @@ def _handle_dna_split(args: argparse.Namespace) -> int:
         for s in splits:
             s["owner"] = args.owner_override
 
-    try:
-        result = DNAModule.split(
-            Path(args.source),
-            splits,
-            dry_run=bool(args.dry_run),
-            keep_source=bool(args.keep_source),
-        )
-    except (ValueError, LookupError, FileNotFoundError, FileExistsError, RuntimeError) as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
     if args.dry_run:
+        try:
+            result = DNAModule.split(
+                Path(args.source),
+                splits,
+                dry_run=True,
+                keep_source=bool(args.keep_source),
+            )
+        except (ValueError, LookupError, FileNotFoundError, FileExistsError, RuntimeError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
         print("[dry-run] Would create:")
         for s in splits:
             print(f"  - {s['path']}/.dna/module.md  (name={s['name']}, "
                   f"sections={s['headings']})")
-    else:
-        print("Created:")
-        for m in result.created_modules:
-            print(f"  - {m.path.resolve()}")
+        refs = result.dependency_refs_report
+        if refs:
+            print(
+                f"\nWARNING: {len(refs)} module(s) have `dependencies:` entries "
+                f"pointing at the source. These are NOT rewritten automatically "
+                f"(out of scope for `dna split`):"
+            )
+            for r in refs:
+                print(f"  - {r['module']}: {r['action_required']}")
+        return 0
 
-    refs = result.dependency_refs_report
+    from services import split_module as _split_module
+    try:
+        result = _split_module(
+            args.source,
+            splits,
+            strategy="comment" if args.keep_source else "move",
+        )
+    except (ValueError, LookupError, FileNotFoundError, FileExistsError, RuntimeError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    print("Created:")
+    for p in result["created"]:
+        print(f"  - {p}")
+    refs = result.get("dependency_refs") or []
     if refs:
         print(
             f"\nWARNING: {len(refs)} module(s) have `dependencies:` entries "

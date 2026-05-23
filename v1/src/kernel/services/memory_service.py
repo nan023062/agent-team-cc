@@ -1,14 +1,17 @@
 """
-services/memory_service.py — read-only memory store service.
+services/memory_service.py — memory store read + transactional write facade.
 
-Exposes pure functions returning structured dicts. The dashboard HTTP
-adapter and the MCP `memory_*` tools both depend on these.
+Read side (`list_entries`) is unchanged from the historical service shape.
 
-Why a service layer:
-  - dashboard/server.py used to glob the store and parse frontmatter inline,
-    duplicating logic that the engine/MCP layer also needs.
-  - Centralising the loader here means a single canonical shape for an
-    "entry" record — schema changes happen in one place.
+Write side (`reindex`, `cleanup`) is the single implementation shared by:
+  - engine/cli.py `cmd_reindex` / `cmd_cleanup` (CLI surface)
+  - mcp_server/tools/memory.py (MCP surface)
+
+Phase 1 design note: previously this layer was read-only. The "No service
+writes" rule was reversed so we don't duplicate the MemoryEngine wiring on
+every surface. Entry creation / deletion still flow through
+`cbi.resources.Memory` directly (those are single-step and already shared
+between CLI and MCP).
 """
 
 from __future__ import annotations
@@ -102,3 +105,49 @@ def _extract_title(body: str, fallback: str) -> str:
 def _date_from_name(name: str) -> str:
     m = re.match(r"(\d{4}-\d{2}-\d{2})", name)
     return m.group(1) if m else ""
+
+
+# ---------------------------------------------------------------------------
+# Write facade — shared by engine/cli.py and mcp_server/tools/memory.py
+# ---------------------------------------------------------------------------
+
+def _build_engine(cwd: str = ""):
+    """Construct the default FileBackend-backed MemoryEngine for `<project>/.cbim/memory/`."""
+    from memory.engine.engine import MemoryEngine
+    from memory.engine.file_backend import FileBackend
+
+    root = Path(find_project_root(cwd or None))
+    store_dir = root / ".cbim" / "memory"
+    store_dir.mkdir(parents=True, exist_ok=True)
+    return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir), store_dir
+
+
+def reindex(tier: str = "", cwd: str = "") -> str:
+    """Rescan the memory store and rebuild backend indices.
+
+    Args:
+        tier: "short" | "medium" | "" (both, default).
+        cwd:  Project search base.
+
+    Returns a human-readable summary string like
+    "reindexed 12 entries (tier=short)".
+    """
+    if tier not in ("", "short", "medium"):
+        raise ValueError(f"tier must be 'short', 'medium', or '' (both), got: {tier!r}")
+    engine, _ = _build_engine(cwd)
+    tier_arg = tier or None
+    count = engine.reindex(tier=tier_arg)
+    return f"reindexed {count} entries (tier={tier_arg or 'all'})"
+
+
+def cleanup(keep_days: int, cwd: str = "") -> str:
+    """Delete short-term entries older than `keep_days` days.
+
+    Returns a human-readable summary like
+    "deleted 4 short-term entries older than 7 days".
+    """
+    if keep_days < 0:
+        raise ValueError(f"keep_days must be >= 0, got: {keep_days!r}")
+    engine, _ = _build_engine(cwd)
+    count = engine.cleanup_short(keep_days=keep_days)
+    return f"deleted {count} short-term entries older than {keep_days} days"

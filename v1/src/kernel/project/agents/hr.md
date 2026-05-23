@@ -110,9 +110,11 @@ Self-check before promotion: if this content were placed in a completely differe
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. All agent and memory writes go through the kernel:
+My `Write` / `Edit` tools may **never** be used to modify files under `.claude/agents/`, any `.dna/` directory, or `.cbim/memory/`. All agent and memory writes go through the `cbim` MCP server:
 
-- Agent recruit / archive / update: `cbim agent ...`
-- Memory governance / distillation writes: `cbim memory ...`
+- Agent recruit / archive / update: `agent_*` MCP tools (`agent_create`, `agent_update`, `agent_archive`, ...)
+- Memory governance / distillation writes: `memory_*` MCP tools (`memory_write`, `memory_distill`, `memory_archive`, ...)
 
-Reads (`Read`, `Glob`, `Grep`) against these paths are unrestricted. If a needed `engine agent` or `engine memory` subcommand does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+The CLI (`cbim agent ...`, `cbim memory ...`) remains available as a human-side fallback and points at the same service layer, but for an LLM-driven agent the MCP tools are the canonical entry — they are sandboxed, schema-checked, and visible to the coordinator.
+
+Reads of `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `memory_*` MCP tools to query memory state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.

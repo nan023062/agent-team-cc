@@ -3,17 +3,27 @@ name: hooks
 owner: architect
 description: Claude Code lifecycle hooks: session start/end, prompt/tool logging, auto-preview
 keywords: []
-dependencies:
-  - v1/src/kernel/memory
-  - v1/src/kernel/cbi
-  - v1/src/kernel/engine
+dependencies: []
 ---
+
+## Deprecation
+
+**Status: deprecated after Phase 3a (CBIM v1).** The hook scripts in this directory are no longer the runtime hook surface. Phase 3a moved the live hook scripts to `v1/src/kernel/project/hooks_src/cbim_*.py` — pure stdlib MCP clients that reach the server over the UDS socket at `~/.cache/cbim/<project-hash>/mcp.sock`. Phase 3b's `project/init.py` will copy those scripts into the user project's `.claude/hooks/` directory and point `.claude/settings.json` at them; the kernel's `hooks/` package is no longer invoked.
+
+This directory is kept intact for two reasons:
+
+1. **Rollback safety during the transition window** — existing user installations still wired through `.cbim/run hook <event>` keep working until they re-run `cbim project sync`.
+2. **Reference for the new MCP server-side handlers** — the in-process logic that used to live here (`load_memory`, `write_memory`, `end_session`, `log_*`) was moved into `mcp_server/tools/hook.py`. Comparing the two side by side documents the lift-and-shift.
+
+**Removal target: CBIM v1.1.** Once `sync` no longer wires `.cbim/run hook` and at least one minor release has passed, this directory will be deleted. Until then: do not extend, do not add new hooks here, do not import from elsewhere in the kernel.
 
 ## Positioning
 
-The bridge between Claude Code's hook contract and the kernel. Each Claude Code lifecycle event (`SessionStart`, `Stop`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`) fires a short-lived subprocess via the shim — `.cbim/run hook <event-name>` — which `python -m engine` routes to `hooks.dispatch`. Dispatch reads the JSON event payload from stdin and invokes the matching handler in this module.
+**This package is the legacy in-process hook surface (Phase 0 — pre-MCP).** The live hook surface in Phase 3a+ lives at `v1/src/kernel/project/hooks_src/cbim_*.py` and runs out of `.claude/hooks/` after install. Those scripts are pure stdlib MCP clients; they talk to `mcp_server/tools/hook.py` over a Unix domain socket. They do **not** import `memory.*`, `cbi.*`, `engine.*`, or any other kernel package.
 
-Hooks live inside the kernel package so they import kernel internals **in-process**. Memory load, memory write, snapshot build, session-log open — all called as Python functions, no second subprocess hop. The only outbound subprocess in this module is `auto_preview`, which spawns the long-lived dashboard server (process supervision, a different concern from one-shot computation).
+The directory you are reading is retained only as a transition-window fallback (see Deprecation) and will be removed in v1.1.
+
+Historically, Claude Code's hook contract spawned a short-lived subprocess via `.cbim/run hook <event-name>`; `python -m engine` routed it into `hooks.dispatch`, which read the JSON event payload from stdin and invoked the matching handler in this module. Handlers imported kernel internals in-process for hot-path work (memory load/write, snapshot build, session-log open). The Phase 3a redesign collapses both halves of that pipeline (the routing shim and the in-process handlers) onto the MCP transport: hook scripts speak only MCP, and the equivalent in-process logic now lives behind `mcp_server/tools/hook.py`.
 
 ## Sub-module Relationships
 
@@ -97,15 +107,17 @@ One handler per event family. Handlers are siblings — none imports another. Sh
 
 ## Key Decisions
 
-- **Hooks import kernel internals in-process; they do NOT shell out to the CLI for hot-path work.** Memory load (`memory.engine.loader.load_context`), memory write (`memory.engine.writer.write_session`), and snapshot build (`cbi._primitives.snapshot.build_snapshot`) are called as Python functions inside the hook process. SessionStart and Stop fire on every turn; a subprocess hop adds ~150-300 ms of Python startup latency per fire, and these functions were never CLI-only. The hook IS already a Python process with the kernel importable — direct imports are strictly cheaper and equally stable, since hooks ship in the same kernel drop as the engines they call.
-- **`auto_preview` is the exception, and it is the right exception.** It does `subprocess.Popen([python, "-m", "engine", "dashboard"], env={"PYTHONPATH": kernel_root, ...})` with detached process flags — not because it needs the CLI surface, but because it needs to spawn a **detached long-lived server** that outlives the hook. That is process supervision, not API invocation; subprocess is the correct primitive. Note the `-m engine` form (not `-m cbim_kernel`); the kernel root is on `PYTHONPATH` via the shim, so `engine` is the top-level package name.
-- **SessionStart runs two handlers under one dispatch slot.** `dispatch.run_session_start` calls `load_memory.main(event)` then `auto_preview.main(event)` in sequence under one try/except per handler. This avoids racing two separate SessionStart hook registrations and keeps stdout ordering predictable for the assistant's `additionalContext`.
-- **No hook ever writes to `.cbim/config.json` or `.cbim/index.md` or `.dna/`.** Hooks read project state and write to memory/log tiers only. Governance-state mutations (config, dna, agent) go through the kernel CLI from the LLM side. This preserves the kernel-only-writes invariant for governed directories.
-- **Every hook swallows exceptions.** A hook MUST NOT break the assistant turn. Failures surface on stderr (visible in `.cbim/logs/`) but `dispatch` always returns 0. `dispatch` itself catches handler exceptions; each handler also catches its own internal errors as a defense-in-depth measure.
-- **Hook event names use kebab-case at the dispatch boundary.** `EVENT_MAP` maps `session-start`, `session-end`, `stop`, `log-prompt`, `log-pre-tool`, `log-post-tool` → `run_*` handler functions. Claude Code's settings.json wires its native event names (e.g. `SessionStart`, `UserPromptSubmit`) to the corresponding `.cbim/run hook <kebab-name>` invocation; the mapping is the kernel's stable contract.
+- **Hook scripts are install-time snapshots living at `.claude/hooks/`, written as pure stdlib + `_lib/` MCP clients.** They reach the kernel only through MCP tool calls over UDS (`~/.cache/cbim/<project-hash>/mcp.sock`) — never via Python import. Main source of truth: `v1/src/kernel/project/hooks_src/cbim_*.py`. Phase 3b's `project/init.py` copies them (with `_lib/`) into the user project's `.claude/hooks/`. This is the inversion of the original "import kernel internals in-process" decision and the reason `dependencies:` in this module's frontmatter must be empty.
+- **B-plan pure: MCP unreachable → hook is a no-op + stderr warn.** No spool, no client-side retry beyond the 4-attempt backoff already baked into `_lib/mcp_client.py` (~1.75 s total). If the server cannot be reached after that, the hook exits 0, writes one `[CBIM:hook] mcp unreachable …` line to stderr, and the session keeps going. This is intentional: hot-path correctness lives server-side; if the server is down, the user is degraded but not blocked.
+- **Server-side aggregation, client-side dispatch only.** Composite events (especially SessionStart, which used to compose `session_log start + load_context + build_snapshot + threshold banner`) are aggregated inside `mcp_server/tools/hook.py:snapshot_for_session_start`. Hook scripts never compose two business calls themselves — they fan out to one MCP tool per logical step, and that tool encapsulates the composition. This keeps the hook scripts trivial and lets us change the composition without re-installing client snapshots.
+- **`auto_preview` stays a separate hook script even though it is also wired to SessionStart.** It calls one MCP tool (`dashboard_ensure_running`) which itself spawns the detached dashboard process server-side. Keeping it as a sibling script preserves the existing `.claude/settings.json` registration pattern (one script per SessionStart slot) and lets dashboard auto-launch be disabled independently of the main SessionStart payload.
+- **No hook ever touches `.cbim/` directly.** Every file under `.cbim/` (session logs, `.cc-status`, memory entries, dashboard pid) is mutated exclusively by MCP tools server-side. Hook scripts neither read nor write `.cbim/` paths. This preserves the kernel-only-writes invariant for governance state and gives the dashboard one consistent writer.
+- **Always exit 0.** A hook MUST NOT break the assistant turn. `_lib/mcp_client.py` converts every failure mode (unreachable, transport error, server returning `ok=false`) into a `None` return + a one-line stderr warning. Each hook's `main()` simply does `if result is None: return 0` and moves on.
+- **No third-party imports, no `cbim.*` imports, no kernel imports.** Hook scripts depend on the Python stdlib and on the sibling `_lib/` package only. This is enforced by static reading; there is no runtime check. If a hook ever needs a kernel-side capability, the answer is to add an MCP tool, not to import.
 
 ## Non-Goals
 
 - No upgrade-availability notifier. There is no upgrade flow; `load_memory` does not import any `updater.upgrade.notify` module (none exists).
 - No `cbim_kernel.*` import paths. Imports use the flattened package roots: `context`, `memory.engine.*`, `cbi._primitives.snapshot`, `engine.session_log`, `engine.logger`.
 - No subprocess invocation of `python -m cbim_kernel` anywhere in this module. `auto_preview` uses `python -m engine dashboard`.
+

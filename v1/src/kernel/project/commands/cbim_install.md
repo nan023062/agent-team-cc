@@ -26,6 +26,8 @@ This command runs in two situations:
 
 In both cases the entry point is `python3 -m engine init` with `PYTHONPATH=<project>/.cbim/kernel`. The launcher shim at `.cbim/run` is regenerated every time (it encodes the absolute Python interpreter path and the kernel install path, both of which can change between machines / installs).
 
+**After `init` completes, do NOT re-read anything under `.cbim/`** — not `cat .cbim/config.json`, not `ls -la .cbim/...`, not `Read` on any `.cbim/*` path. The install writes `permissions.deny` entries that block LLM access to `.cbim/`, and `.claudeignore` hides it from indexing. Attempting to verify install state by reading inside `.cbim/` will trigger permission-denial prompts and confuse the user. To confirm a successful install, check only the artefacts outside `.cbim/`: the four files under `.claude/hooks/cbim_*.py`, the `mcpServers.cbim` block in `.claude/settings.json`, and the four agents under `.claude/agents/{architect,auditor,hr,programmer}/`. Anything you need to know about kernel state goes through `cbim` MCP tools, not raw file reads.
+
 ## Idempotency
 
 Re-running `/cbim_install` is safe. Existing project files are preserved unless `--force` is passed. `.cbim/run` and `.cbim/run.cmd` are always rewritten (they encode the kernel install path).

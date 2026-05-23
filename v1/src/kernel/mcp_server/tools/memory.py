@@ -111,6 +111,34 @@ def register(mcp) -> None:
         return str(entry.path.relative_to(store))
 
     @mcp.tool()
+    def memory_reindex(tier: str = "", cwd: str = "") -> str:
+        """Rescan the memory store and rebuild backend indices.
+
+        Args:
+            tier: "short" | "medium" | "" (both, default).
+            cwd:  Project directory (default: current working dir).
+        """
+        from services import memory_reindex as _reindex
+        try:
+            return _reindex(tier=tier, cwd=cwd)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            return f"ERROR: {e}"
+
+    @mcp.tool()
+    def memory_cleanup(keep_days: int, cwd: str = "") -> str:
+        """Delete short-term memory entries older than `keep_days` days.
+
+        Args:
+            keep_days: Retention window in days (must be >= 0).
+            cwd:       Project directory (default: current working dir).
+        """
+        from services import memory_cleanup as _cleanup
+        try:
+            return _cleanup(keep_days=keep_days, cwd=cwd)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            return f"ERROR: {e}"
+
+    @mcp.tool()
     def memory_delete(path: str, cwd: str = "") -> str:
         """Delete a memory entry by relative path (e.g. 'short/2026-05-21-manual-foo.md').
 

@@ -122,6 +122,64 @@ def _install_commands(project_root: Path, force: bool) -> None:
         print(f"[cbim] {action}")
 
 
+def _install_hook_scripts(project_root: Path, force: bool) -> None:
+    """Install (or refresh) the 7 cbim_*.py hook scripts + _lib/ into .claude/hooks/.
+
+    Always refreshes from source — `force` has no effect. Rationale: the hook
+    scripts are derivatives of the kernel under .cbim/kernel/ and must stay in
+    lockstep with it. Idempotent (re-running yields byte-identical output).
+    """
+    actions = _sync.sync_hook_scripts(project_root, dry_run=False)
+    for action in actions:
+        print(f"[cbim] {action}")
+
+
+def _check_mcp_sdk(project_root: Path) -> None:
+    """Probe the install-time Python interpreter for the `mcp` SDK.
+
+    Decision: detect-and-warn (option c). Auto-`pip install` (a) is blocked by
+    PEP 668 on system-managed Pythons; a built-in venv (b) violates the README
+    contract ("no virtualenv, no pip install step"). Detect-and-warn keeps the
+    contract intact and surfaces the missing system dependency loudly so the
+    user fixes it once.
+
+    Failure mode if `mcp` is missing: every hook script silently degrades (the
+    UDS connection errors are swallowed and hooks `exit 0`), which is hard to
+    debug after the fact. Catching it at install time is the cheapest fix.
+    """
+    import shutil
+    import subprocess
+    import sys
+
+    python_exe = shutil.which("python3") or shutil.which("python") or sys.executable
+    try:
+        res = subprocess.run(
+            [python_exe, "-c", "import mcp"],
+            capture_output=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(
+            f"[cbim] WARNING: could not probe `mcp` SDK availability ({exc}); "
+            f"if MCP hooks do not fire, run: {python_exe} -m pip install mcp",
+            file=sys.stderr,
+        )
+        return
+
+    if res.returncode == 0:
+        print(f"[cbim] verified `mcp` SDK present in {python_exe}")
+        return
+
+    print(
+        f"[cbim] WARNING: the `mcp` Python SDK is not importable from {python_exe}.\n"
+        f"        CBIM hook scripts and the MCP server require it. Install it with:\n"
+        f"            {python_exe} -m pip install mcp\n"
+        f"        (on PEP 668-managed systems you may need --user or --break-system-packages,\n"
+        f"         or a system package manager equivalent such as `pipx install mcp`.)",
+        file=sys.stderr,
+    )
+
+
 def _install_settings(project_root: Path, force: bool) -> None:
     # sync_settings already merges idempotently; force has no effect on merge
     # semantics (the merge is always safe).
@@ -146,11 +204,14 @@ def _install_claude_md(project_root: Path, force: bool) -> None:
 
 
 def _install_claudeignore(project_root: Path, force: bool) -> None:
-    dst = project_root / ".claudeignore"
-    if dst.exists() and not force:
-        _print("skipped (exists)", dst, project_root)
-        return
+    # sync_claudeignore is now append-missing-only (like .gitignore); the merge
+    # is always safe so `force` has no effect.
+    ci_path = project_root / ".claudeignore"
+    pre_existed = ci_path.exists()
     action = _sync.sync_claudeignore(project_root, dry_run=False)
+    if pre_existed and action.startswith("unchanged"):
+        _print("skipped (already up to date)", ci_path, project_root)
+        return
     print(f"[cbim] {action}")
 
 
@@ -181,9 +242,11 @@ def init_project(project_root: Path, force: bool = False) -> None:
     _install_run_shim(project_root, force)
     _install_agents(project_root, force)
     _install_commands(project_root, force)
+    _install_hook_scripts(project_root, force)
     _install_settings(project_root, force)
     _install_claude_md(project_root, force)
     _install_claudeignore(project_root, force)
     _patch_gitignore(project_root)
+    _check_mcp_sdk(project_root)
 
     print("[cbim] Done! Start Claude Code in this directory.")

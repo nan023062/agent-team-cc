@@ -80,12 +80,21 @@ class Body:
         level: int = 2,
         mode: str = "replace",
         create_if_missing: bool = False,
+        insert_after: str | None = None,
+        insert_at_top: bool = False,
     ) -> None:
         """Surgically edit a section of the body.
 
         See cli.write_module_section for the full semantics; this method is
         the in-memory equivalent (no filesystem touch, just mutates self._text
         and notifies on_change).
+
+        Position kwargs (only honoured on the create-if-missing path; when the
+        heading already exists they are ignored):
+          - insert_after:    heading text (level=2) to insert after
+          - insert_at_top:   insert at the very top of the body
+          - neither given:   append at EOF (legacy behaviour)
+        Both being set is a programming error.
         """
         if mode not in self._MODES:
             raise ValueError(
@@ -93,6 +102,10 @@ class Body:
             )
         if level not in (2, 3):
             raise ValueError(f"level must be 2 or 3, got: {level!r}")
+        if insert_after is not None and insert_at_top:
+            raise ValueError(
+                "insert_after and insert_at_top are mutually exclusive"
+            )
         if mode == "delete":
             if content is not None:
                 raise ValueError("content is forbidden when mode='delete'")
@@ -123,14 +136,30 @@ class Body:
                     f"heading not found: '{heading}' at level {level}"
                 )
             content_lines = _normalize_content_lines(content or "")
+            new_section_lines = [f"{'#' * level} {heading}", ""] + content_lines
             new_lines = list(body_lines)
-            while new_lines and new_lines[-1].strip() == "":
-                new_lines.pop()
-            if new_lines:
-                new_lines.append("")
-            new_lines.append(f"{'#' * level} {heading}")
-            new_lines.append("")
-            new_lines.extend(content_lines)
+            insert_idx = self._resolve_insert_index(
+                sections, insert_after=insert_after, insert_at_top=insert_at_top,
+                body_len=len(new_lines),
+            )
+            if insert_idx is None:
+                while new_lines and new_lines[-1].strip() == "":
+                    new_lines.pop()
+                if new_lines:
+                    new_lines.append("")
+                new_lines.extend(new_section_lines)
+            else:
+                prefix = new_lines[:insert_idx]
+                suffix = new_lines[insert_idx:]
+                while prefix and prefix[-1].strip() == "":
+                    prefix.pop()
+                block: list[str] = []
+                if prefix:
+                    block.append("")
+                block.extend(new_section_lines)
+                if suffix and suffix[0].strip() != "":
+                    block.append("")
+                new_lines = prefix + block + suffix
         else:
             sec = matches[0]
             content_lines = (
@@ -174,6 +203,33 @@ class Body:
     def _notify(self) -> None:
         if self._on_change is not None:
             self._on_change()
+
+    @staticmethod
+    def _resolve_insert_index(
+        sections,
+        *,
+        insert_after: str | None,
+        insert_at_top: bool,
+        body_len: int,
+    ) -> int | None:
+        """Return the line index where a new section should be inserted, or
+        None to fall back to EOF-append.
+
+        - insert_at_top: index of the first existing heading, or 0 when none.
+        - insert_after:  index AFTER the named H2 section ends; raises
+                         ValueError when the heading is not present.
+        - neither:       None (caller uses EOF-append).
+        """
+        if insert_at_top:
+            return sections[0].start if sections else 0
+        if insert_after is not None:
+            for s in sections:
+                if s.level == 2 and s.heading == insert_after:
+                    return s.end
+            raise ValueError(
+                f"--insert-after target heading not found at H2: {insert_after!r}"
+            )
+        return None
 
 
 # Re-export the heading/fence regexes and section type at module level for

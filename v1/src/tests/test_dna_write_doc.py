@@ -265,7 +265,7 @@ def test_cli_rejects_bad_file_name(tmp_path, capsys):
         content="x",
     ))
     assert rc == 1
-    assert "must be one of" in capsys.readouterr().err
+    assert "must be 'module.md' or 'contract.md'" in capsys.readouterr().err
 
 
 def test_cli_rejects_uninitialized_module(tmp_path, capsys):

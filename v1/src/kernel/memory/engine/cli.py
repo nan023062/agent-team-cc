@@ -100,18 +100,31 @@ def cmd_delete(args: argparse.Namespace) -> int:
 
 
 def cmd_reindex(args: argparse.Namespace) -> int:
-    engine = _build_engine(args)
-    tier = args.tier or None
-    count = engine.reindex(tier=tier)
-    print(f"[memory] reindexed {count} entries (tier={tier or 'all'})", file=sys.stderr)
+    # When --store-dir is given, the user is targeting a non-default store and
+    # the service (which always resolves <project>/.cbim/memory/) doesn't fit;
+    # fall back to driving the engine locally to keep that escape hatch alive.
+    if getattr(args, "store_dir", None):
+        engine = _build_engine(args)
+        tier = args.tier or None
+        count = engine.reindex(tier=tier)
+        print(f"[memory] reindexed {count} entries (tier={tier or 'all'})", file=sys.stderr)
+        return 0
+    from services import memory_reindex
+    summary = memory_reindex(tier=args.tier or "")
+    print(f"[memory] {summary}", file=sys.stderr)
     return 0
 
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
-    engine = _build_engine(args)
-    count = engine.cleanup_short(keep_days=args.keep_days)
-    print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
-          file=sys.stderr)
+    if getattr(args, "store_dir", None):
+        engine = _build_engine(args)
+        count = engine.cleanup_short(keep_days=args.keep_days)
+        print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
+              file=sys.stderr)
+        return 0
+    from services import memory_cleanup
+    summary = memory_cleanup(keep_days=args.keep_days)
+    print(f"[memory] {summary}", file=sys.stderr)
     return 0
 
 

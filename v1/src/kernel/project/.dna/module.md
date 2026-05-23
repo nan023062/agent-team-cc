@@ -16,21 +16,33 @@ Not runtime. Not memory. Not hooks. Once init is done, `project/` plays no role 
 
 ```mermaid
 graph TD
-    init["init.py (file)<br/>python -m engine init: bootstrap .cbim/, agents, commands, settings"]
-    sync["sync.py (file)<br/>python -m engine project sync: refresh templated files"]
+    init["init.py (file)<br/>python -m engine init: bootstrap .cbim/, agents, commands, hooks, settings"]
+    sync["sync.py (file)<br/>python -m engine project sync: refresh templated files + hook scripts"]
     tpl["templates/<br/>settings.json.tmpl, CLAUDE.md.tmpl, config.json.tmpl, gitignore_entries.txt, claudeignore.tmpl"]
     agt["agents/<br/>architect.md, auditor.md, hr.md, programmer.md (source of truth for .claude/agents/)"]
     cmd["commands/<br/>cbim_install.md, cbim_help.md, cbim_dashboard.md, cbim_log.md, cbim_debug.md, cbim_sched.md (source of truth for .claude/commands/)"]
+    hsr["hooks_src/<br/>cbim_session_start.py, cbim_stop.py, cbim_session_end.py, cbim_user_prompt_submit.py, cbim_pre_tool_use.py, cbim_post_tool_use.py, cbim_auto_preview.py + _lib/ (source of truth for .claude/hooks/)"]
 
     init --> tpl
     init --> agt
     init --> cmd
+    init --> hsr
     sync --> tpl
     sync --> agt
     sync --> cmd
+    sync --> hsr
 ```
 
-`init.py` and `sync.py` are siblings; neither imports the other. They share `templates/`, `agents/`, and `commands/` as read-only source data — `init` writes them at bootstrap, `sync` refreshes them later. No sub-packages besides those three resource directories.
+`init.py` and `sync.py` are siblings; neither imports the other. They share `templates/`, `agents/`, `commands/`, and `hooks_src/` as read-only source data — `init` writes them at bootstrap, `sync` refreshes them later.
+
+Four resource subdirectories, each playing the same role (source-of-truth for a kernel-managed slice of the user's workspace):
+
+- `templates/` — text templates dropped at `.cbim/config.json`, `CLAUDE.md`, `.claude/settings.json`, `.claudeignore`, and patched into `.gitignore`.
+- `agents/` — the 4 built-in agent Markdown files copied to `.claude/agents/<name>/<name>.md`.
+- `commands/` — the 6 built-in slash command Markdown files copied to `.claude/commands/cbim_*.md`.
+- `hooks_src/` — the 7 thin-client hook scripts (`cbim_*.py`, executable, stdlib-only + `_lib/`) copied to `.claude/hooks/` with 0755 on the scripts. The hook scripts speak MCP over UDS to `.cbim/run mcp`; settings.json points Claude Code's hook events directly at these files (no more `.cbim/run hook ...` indirection). The companion `_lib/` package (`paths.py` / `mcp_client.py` / `event_io.py` / `__init__.py`) is the stdlib-only MCP client library the scripts import — copied alongside the scripts as a sibling directory under `.claude/hooks/`.
+
+No other sub-packages exist here; everything `project/` does decomposes into "copy one of these four directories into the user's workspace".
 
 ## Origin Context
 
@@ -63,3 +75,4 @@ Two trigger events write this layout: first-use bootstrap (`init`) and explicit 
 - No `migrate.py`, no `upgrade/` sub-package, no `pin.py`, no `.cbim/.pin` accessor, no `versions.json` reader.
 - No installer subprocess. No multi-version kernel staging under `<install_root>/kernel/<ver>/`.
 - No diagnostic 7-scenario matrix. There are no scenarios — install is binary (the kernel is either present at `.cbim/kernel/` or it isn't).
+
