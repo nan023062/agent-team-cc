@@ -1,5 +1,7 @@
 # CBIM vs Plain Agent Benchmark
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 A controlled A/B comparison: the exact same set of coding tasks run twice — once
 against **plain `claude -p`** (no CBIM, no agents, no MCP, no hooks) and once
 against a **CBIM-installed** copy of the same project. Produces a side-by-side
@@ -15,7 +17,7 @@ same fixture, two configurations.
 ## Quick start
 
 ```bash
-ANTHROPIC_API_KEY=sk-... ./v1/benchmark/cbim_vs_plain/run-bench.sh
+ANTHROPIC_API_KEY=sk-... ./v1/tests/cbim_vs_plain/run-bench.sh
 ```
 
 Output:
@@ -46,7 +48,7 @@ fixture copy); CBIM mode shows whatever the installed agents actually do.
 ## Repo layout
 
 ```
-v1/benchmark/cbim_vs_plain/
+v1/tests/cbim_vs_plain/
 ├── README.md          (this file)
 ├── run-bench.sh       one-shot driver
 ├── runner.py          A/B orchestration (plain + cbim modes per task)

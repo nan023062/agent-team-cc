@@ -1,5 +1,7 @@
 # Workflow Tests
 
+[English](README.md) | [中文](README.zh-CN.md)
+
 Architecture-verification tests for CBIM's four design loops — EXECUTION /
 ARCHITECT / HR / MEMORY (see `design/WORKFLOW-*.zh-CN.md`). **Not a benchmark**:
 the goal is to assert the coordinator drives the right loop on each prompt,

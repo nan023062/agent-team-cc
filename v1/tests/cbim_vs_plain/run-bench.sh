@@ -5,7 +5,7 @@
 # fixture/, then writes results/report-NNN.md with a side-by-side data table.
 #
 # Usage (from anywhere; this script resolves the repo root itself):
-#   ANTHROPIC_API_KEY=sk-... ./v1/benchmark/cbim_vs_plain/run-bench.sh
+#   ANTHROPIC_API_KEY=sk-... ./v1/tests/cbim_vs_plain/run-bench.sh
 #
 # Cost: ~$5-$20 per full run, ~5-15 minutes wall time.
 
@@ -43,7 +43,7 @@ TASK_COUNT=$(ls "$SCRIPT_DIR/tasks"/task_*.py 2>/dev/null | wc -l | tr -d ' ')
 echo "[bench] running ${TASK_COUNT} task(s) x 2 modes = $((TASK_COUNT * 2)) claude calls"
 echo "[bench] (estimated 5-15 min, ~\$5-\$20 in API cost)"
 
-"$REPO_ROOT/.venv/bin/python" -m v1.benchmark.cbim_vs_plain.runner_cli \
+"$REPO_ROOT/.venv/bin/python" -m v1.tests.cbim_vs_plain.runner_cli \
   --fixture   "$SCRIPT_DIR/fixture" \
   --tasks-dir "$SCRIPT_DIR/tasks" \
   --logs-dir  "$LOGS_DIR" \
