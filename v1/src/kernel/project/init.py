@@ -160,23 +160,22 @@ def _install_run_shim(project_root: Path, force: bool) -> None:
 
 
 def _install_agents(project_root: Path, force: bool) -> None:
+    """Install (or refresh) the built-in cbim agents. Always overwrites — these
+    are kernel-managed source-of-truth. User-created agents (any name not in
+    _AGENT_NAMES) are untouched. `force` is retained for signature parity with
+    sibling installers but has no effect.
+    """
     for name in _AGENT_NAMES:
-        dst = project_root / ".claude" / "agents" / name / f"{name}.md"
-        if dst.exists() and not force:
-            _print("skipped (exists)", dst, project_root)
-            continue
-        # Delegate to sync's always-overwrite primitive.
         action = _sync.sync_agent(project_root, name, dry_run=False)
         print(f"[cbim] {action}")
 
 
 def _install_commands(project_root: Path, force: bool) -> None:
+    """Install (or refresh) the built-in cbim slash commands. Always overwrites
+    — kernel-managed source-of-truth. User-created commands (any name not in
+    _COMMAND_NAMES) are untouched. `force` is retained for signature parity.
+    """
     for name in _COMMAND_NAMES:
-        dst = project_root / ".claude" / "commands" / f"{name}.md"
-        if dst.exists() and not force:
-            _print("skipped (exists)", dst, project_root)
-            continue
-        # Delegate to sync's always-overwrite primitive.
         action = _sync.sync_command(project_root, name, dry_run=False)
         print(f"[cbim] {action}")
 

@@ -10,9 +10,11 @@ command. The rules per file:
 | .claude/commands/<name>.md (x6)         | Always overwrite (only the 6 built-in slash commands:          |
 |                                         | cbim_dashboard, cbim_debug, cbim_help, cbim_install,           |
 |                                         | cbim_log, cbim_sched)                                          |
-| .claude/settings.json                   | Merge: only `hooks`, `permissions.deny`, `permissions.default- |
-|                                         | Mode` — preserve everything else. Also strips any legacy        |
-|                                         | `mcpServers.cbim` key (registration moved to `.mcp.json`).      |
+| .claude/settings.json                   | Surgical merge: per-event refresh of cbim hook entries (cmd     |
+|                                         | starts with `.claude/hooks/cbim_`); ensure 4 cbim deny patterns |
+|                                         | present; replace `permissions.defaultMode`. User events / user  |
+|                                         | hook entries / user deny entries preserved. Also strips any     |
+|                                         | legacy `mcpServers.cbim` key.                                   |
 | .mcp.json (project root)                | Merge `mcpServers.cbim` only — preserve other servers          |
 | .gitignore                              | Append missing entries only                                    |
 
@@ -230,22 +232,115 @@ def sync_hook_scripts(project_root: Path, dry_run: bool = False) -> list[str]:
     return actions
 
 
+_CBIM_HOOK_CMD_PREFIX = ".claude/hooks/cbim_"
+_CBIM_DENY_PATTERNS: tuple[str, ...] = (
+    "Write(.cbim/**)",
+    "Edit(.cbim/**)",
+    "Read(.cbim/**)",
+    "Bash(.cbim/run *)",
+)
+
+
+def _is_cbim_hook_entry(entry: object) -> bool:
+    """A single hook entry is 'cbim-owned' iff its command starts with the
+    canonical cbim hook path prefix. Non-dict / non-command entries are not
+    cbim-owned (user-defined or future-shape — leave untouched).
+    """
+    if not isinstance(entry, dict):
+        return False
+    cmd = entry.get("command")
+    return isinstance(cmd, str) and cmd.startswith(_CBIM_HOOK_CMD_PREFIX)
+
+
+def _merge_cbim_hooks(user_hooks: object, template_hooks: dict) -> dict:
+    """Per-event, per-entry merge of cbim hook entries into the user's hooks tree.
+
+    Contract:
+      - For every event the TEMPLATE declares: strip all cbim-owned entries
+        from every group in the user's matching event array (preserving the
+        user's non-cbim entries in place); drop any group whose `hooks` array
+        becomes empty; then append a single trailing group containing all of
+        the template's cbim entries for that event, in template order.
+      - Events the template does NOT declare (e.g. user's `OnSave`) are left
+        completely untouched.
+      - If user_hooks is missing or malformed, start from `{}` and just install
+        the template events fresh.
+
+    Result is a fresh dict; callers replace user_hooks with it.
+    """
+    if not isinstance(user_hooks, dict):
+        user_hooks = {}
+    out: dict = {k: v for k, v in user_hooks.items()}
+
+    for event, tmpl_groups in template_hooks.items():
+        # Collect the template's cbim entries for this event, in declared order.
+        tmpl_cbim_entries: list[dict] = []
+        for g in tmpl_groups:
+            if not isinstance(g, dict):
+                continue
+            for e in g.get("hooks", []):
+                if _is_cbim_hook_entry(e):
+                    tmpl_cbim_entries.append(e)
+
+        user_event = out.get(event)
+        if not isinstance(user_event, list):
+            user_event = []
+
+        # Strip cbim-owned entries from every user group; drop emptied groups.
+        new_groups: list[dict] = []
+        for g in user_event:
+            if not isinstance(g, dict):
+                new_groups.append(g)
+                continue
+            kept = [e for e in g.get("hooks", []) if not _is_cbim_hook_entry(e)]
+            if kept:
+                ng = {k: v for k, v in g.items()}
+                ng["hooks"] = kept
+                new_groups.append(ng)
+
+        if tmpl_cbim_entries:
+            new_groups.append({"hooks": tmpl_cbim_entries})
+
+        out[event] = new_groups
+
+    return out
+
+
+def _merge_cbim_deny(user_deny: object) -> list:
+    """Ensure the 4 cbim deny patterns are present; preserve all user entries
+    and their order; do not deduplicate user entries.
+
+    Missing cbim patterns are appended (in template order) after the user's
+    existing entries. If user_deny is missing or malformed, return the 4 cbim
+    patterns alone.
+    """
+    if not isinstance(user_deny, list):
+        return list(_CBIM_DENY_PATTERNS)
+    out = list(user_deny)
+    for pat in _CBIM_DENY_PATTERNS:
+        if pat not in out:
+            out.append(pat)
+    return out
+
+
 def sync_settings(project_root: Path, dry_run: bool = False) -> str:
-    """Merge kernel-managed keys into .claude/settings.json.
+    """Merge kernel-managed keys into .claude/settings.json with surgical precision.
 
-    Only these keys are touched:
-      - hooks                       (replace)
-      - permissions.deny            (replace)
-      - permissions.defaultMode     (replace)
+    Surfaces actually touched:
+      - hooks[<event>] for every event the TEMPLATE declares: cbim-owned
+        entries (command starting with `.claude/hooks/cbim_`) are refreshed
+        from template; user entries (any other command) are preserved in
+        place. Events the template doesn't declare (e.g. user `OnSave`) are
+        not touched.
+      - permissions.deny: the 4 cbim patterns (Write/Edit/Read on `.cbim/**`,
+        Bash on `.cbim/run *`) are ensured present; user entries are preserved
+        in original order.
+      - permissions.defaultMode: replaced with template value (kernel-owned).
 
-    Legacy cleanup: if a `mcpServers.cbim` entry survives from a pre-Phase-7
-    install (when CBIM erroneously registered the MCP server here — Claude
-    Code does not read `mcpServers` from `.claude/settings.json`), the `cbim`
-    key is removed. Other `mcpServers.<name>` entries are preserved. An
-    `mcpServers` object that becomes empty after the strip is removed entirely.
+    Legacy cleanup: strip pre-Phase-7 `mcpServers.cbim` (registration moved to
+    project-root `.mcp.json`); other `mcpServers.<name>` entries are preserved.
 
-    Everything else in the file is preserved verbatim. If the file does not
-    exist, it is created from the template wholesale.
+    All other keys are preserved verbatim. Missing file → wholesale create.
     """
     settings_path = project_root / ".claude" / "settings.json"
     rel = _rel(settings_path, project_root)
@@ -267,9 +362,11 @@ def sync_settings(project_root: Path, dry_run: bool = False) -> str:
         return f"skipped (invalid JSON) {rel}"
 
     before = json.dumps(existing, sort_keys=True, ensure_ascii=False)
-    existing["hooks"] = template["hooks"]
+    existing["hooks"] = _merge_cbim_hooks(existing.get("hooks"), template["hooks"])
     existing.setdefault("permissions", {})
-    existing["permissions"]["deny"] = template["permissions"]["deny"]
+    existing["permissions"]["deny"] = _merge_cbim_deny(
+        existing["permissions"].get("deny")
+    )
     existing["permissions"]["defaultMode"] = template["permissions"]["defaultMode"]
     mcp = existing.get("mcpServers")
     if isinstance(mcp, dict) and "cbim" in mcp:
