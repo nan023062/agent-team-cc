@@ -17,18 +17,17 @@ Everything below describes **V1**.
 
 ## Install
 
-1. Open your project root in Claude Code.
-2. Paste the following bootstrap paragraph into the Claude prompt:
+1. Open your project root (cd into it; this is the directory where CBIM will live).
+2. From the project root, run:
 
-   > Please bootstrap CBIM in this project. Steps:
-   > 1. Confirm the current working directory is the project root I want CBIM in.
-   > 2. Clone or download `https://github.com/nan023062/cbim` to a temp directory.
-   > 3. Copy `v1/src/kernel/*` from the clone into `<project>/.cbim/kernel/` (flat — `engine/`, `cbi/`, `memory/`, `project/`, etc. should be direct children of `.cbim/kernel/`; no extra `cbim_kernel/` wrapper).
-   > 4. From the project root, run `PYTHONPATH=<project>/.cbim/kernel python3 -m engine init`. This generates `.cbim/run`, `.cbim/run.cmd`, `.cbim/config.json`, `.cbim/logs/`, `.cbim/memory/{short,medium}/`, installs the 4 agents and 6 slash commands, merges hooks + the `mcpServers.cbim` entry into `.claude/settings.json`, writes `CLAUDE.md` from template, and appends `.cbim/` to `.gitignore`.
-   > 5. Tell me to restart Claude Code so the `SessionStart` hook fires.
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash
+   ```
 
-3. Claude downloads the kernel from https://github.com/nan023062/cbim into `<project>/.cbim/kernel/`, then runs `python3 -m engine init` from inside it to populate the project (launcher shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`).
+3. The script clones the repo into a temp directory, copies `v1/src/kernel/` into `<project>/.cbim/kernel/` (flat — `engine/`, `cbi/`, `memory/`, `project/` are direct children), then runs `python3 -m engine init` to populate the project (launcher shims, agents, slash commands, hooks, MCP server, `CLAUDE.md`, `.gitignore`). Requires `git` and `python3` ≥ 3.10 on PATH; no virtualenv, no global `pip install`.
 4. **Restart Claude Code** so the `SessionStart` hook fires.
+
+Native Windows is not supported by `install.sh` (POSIX bash); use WSL.
 
 After install, the project root contains:
 
@@ -42,7 +41,7 @@ After install, the project root contains:
 - `.claudeignore` — paths Claude Code excludes from its read scope
 - `.gitignore` — appends `.cbim/`
 
-**Refresh / upgrade.** Once the first install has completed, the `/cbim_install` slash command is registered in `.claude/commands/`. From then on, re-run it from the Claude prompt — it's idempotent. The shim and kernel are regenerated; your `.dna/` and `.cbim/memory/` are preserved. There is no `cbim update` CLI; the slash command is the only refresh path. (The bootstrap paragraph above also remains valid as a refresh path — it runs the same `python3 -m engine init` flow.)
+**Refresh / upgrade.** Once the first install has completed, the `/cbim_install` slash command is registered in `.claude/commands/`. From then on, re-run it from the Claude prompt — it's idempotent. The shim and kernel are regenerated; your `.dna/` and `.cbim/memory/` are preserved. There is no `cbim update` CLI; the slash command is the canonical refresh path. (Re-running the `install.sh` curl command from step 2 is also a valid refresh — it overwrites `.cbim/kernel/` and re-runs `engine init`, preserving `.cbim/memory/`, `.cbim/scheduler/`, `.cbim/config.json`, and `.dna/`.)
 
 **Uninstall.** `rm -rf .cbim/`, then remove `.claude/agents/{architect,auditor,hr,programmer}/`, the 6 `.claude/commands/cbim_*.md` files, the `mcpServers.cbim` + hook entries in `.claude/settings.json`, the CBIM block from `CLAUDE.md`, and the `.cbim/` line in `.gitignore`. There is no uninstall CLI.
 

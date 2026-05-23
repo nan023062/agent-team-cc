@@ -17,18 +17,17 @@
 
 ## 安装
 
-1. 在项目根目录打开 Claude Code。
-2. 把以下引导段落粘贴到 Claude 输入框：
+1. 进入你要装 CBIM 的项目根目录（`cd` 到那里）。
+2. 在项目根执行：
 
-   > 请帮我在本项目里引导 CBIM。步骤：
-   > 1. 确认当前工作目录就是我要装 CBIM 的项目根。
-   > 2. 把 `https://github.com/nan023062/cbim` clone 或下载到临时目录。
-   > 3. 把 clone 里的 `v1/src/kernel/*` 拷贝到 `<project>/.cbim/kernel/`（保持扁平 —— `engine/`、`cbi/`、`memory/`、`project/` 等应是 `.cbim/kernel/` 的直接子目录，不要再套一层 `cbim_kernel/`）。
-   > 4. 在项目根运行 `PYTHONPATH=<project>/.cbim/kernel python3 -m engine init`。这会生成 `.cbim/run`、`.cbim/run.cmd`、`.cbim/config.json`、`.cbim/logs/`、`.cbim/memory/{short,medium}/`，安装 4 个 agent 与 6 个 slash 命令，把钩子 + `mcpServers.cbim` 合并进 `.claude/settings.json`，按模板写 `CLAUDE.md`，并在 `.gitignore` 追加 `.cbim/`。
-   > 5. 告诉我重启 Claude Code，让 `SessionStart` 钩子触发。
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/nan023062/cbim/master/install.sh | bash
+   ```
 
-3. Claude 会从 https://github.com/nan023062/cbim 下载内核到 `<project>/.cbim/kernel/`，然后在该目录内运行 `python3 -m engine init`，完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。
+3. 脚本会把仓库 clone 到临时目录，把 `v1/src/kernel/` 拷贝到 `<project>/.cbim/kernel/`（扁平布局 —— `engine/`、`cbi/`、`memory/`、`project/` 是直接子目录），然后跑 `python3 -m engine init` 完成项目落地（启动 shim、agents、slash 命令、钩子、MCP server、`CLAUDE.md`、`.gitignore`）。要求 PATH 上有 `git` 与 `python3` ≥ 3.10；不创建 virtualenv，不做全局 `pip install`。
 4. **重启 Claude Code**，让 `SessionStart` 钩子触发。
+
+Windows 原生不支持 `install.sh`（POSIX bash），请用 WSL。
 
 安装完成后，项目根目录会出现：
 
@@ -42,7 +41,7 @@
 - `.claudeignore` —— Claude Code 读取范围排除清单
 - `.gitignore` —— 追加 `.cbim/`
 
-**刷新 / 升级**：首次安装完成后，`/cbim_install` slash 命令已注册到 `.claude/commands/`。后续直接在 Claude 输入框重跑该命令即可 —— 幂等操作。shim 与内核会被重新生成；`.dna/` 与 `.cbim/memory/` 会被保留。没有 `cbim update` CLI；slash 命令是唯一的刷新路径。（上面那段引导段落也仍然可以用来刷新 —— 它跑的是同一份 `python3 -m engine init` 流程。）
+**刷新 / 升级**：首次安装完成后，`/cbim_install` slash 命令已注册到 `.claude/commands/`。后续直接在 Claude 输入框重跑该命令即可 —— 幂等操作。shim 与内核会被重新生成；`.dna/` 与 `.cbim/memory/` 会被保留。没有 `cbim update` CLI；slash 命令是规范刷新路径。（重跑步骤 2 的 `install.sh` curl 命令也合法 —— 它会覆盖 `.cbim/kernel/` 并重跑 `engine init`，`.cbim/memory/`、`.cbim/scheduler/`、`.cbim/config.json` 与 `.dna/` 都会被保留。）
 
 **卸载**：`rm -rf .cbim/`，然后删除 `.claude/agents/{architect,auditor,hr,programmer}/`、6 个 `.claude/commands/cbim_*.md`、`.claude/settings.json` 里的 `mcpServers.cbim` + 钩子注册、`CLAUDE.md` 里的 CBIM 段，以及 `.gitignore` 里的 `.cbim/` 行。没有卸载 CLI。
 
