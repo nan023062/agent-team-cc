@@ -18,7 +18,7 @@ classDiagram
         +agent.py
         +skills/arch_modules
         +skills/arch_governance
-        +skills/arch_upgrade
+        +skills/arch_upgrade : knowledge promotion (memory then .dna), not kernel version upgrade
     }
     class auditor {
         +agent.py
