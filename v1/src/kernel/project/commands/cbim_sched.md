@@ -10,4 +10,4 @@ Dispatch on `$ARGUMENTS`:
 - `trigger <name>` → call `scheduler_trigger` with the given task name
 - Anything else → print usage: `/cbim_sched status | trigger <task-name>`
 
-The scheduler lives inside the CBIM MCP server (`.cbim/mcp_server/server.py`) and ticks every 30s. Tasks come from `.cbim/mcp_server/tasks/*.py`. Lifetime is tied to the MCP server — Claude Code starts it on session start, kills it on exit.
+The scheduler lives inside the CBIM MCP server (`.cbim/kernel/mcp_server/server.py`) and ticks every 30s. Tasks come from `.cbim/kernel/mcp_server/tasks/*.py`. Lifetime is tied to the MCP server — Claude Code starts it on session start, kills it on exit.

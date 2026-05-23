@@ -1,7 +1,7 @@
 ---
 name: mcp-server
 owner: architect
-description: MCP tool/task server: exposes kernel ops to MCP clients (dna, agent, skill, snapshot, scheduler)
+description: MCP tool/task server: exposes kernel ops to MCP clients (dna, agent, skill, snapshot, scheduler, runtime)
 keywords: []
 dependencies: []
 ---
@@ -15,7 +15,8 @@ MCP (Model Context Protocol) server exposing kernel ops as MCP tools over stdio 
 - **memory** — `memory_query`, `memory_list`, `memory_create`, `memory_delete`, `memory_reindex`, `memory_cleanup`
 - **skill** — `skill_list`, `skill_show` (read-only)
 - **snapshot** — `project_snapshot` (read-only)
-- **scheduler** — task scheduler control surface
+- **scheduler** — task scheduler control surface (`scheduler_status`, `scheduler_trigger`)
+- **runtime** — slash-command back-end: `dashboard_ensure_running`, `debug_get`, `debug_set`, `log_show`
 
 Background tasks under `tasks/` (heartbeat).
 
@@ -52,8 +53,8 @@ classDiagram
 
 - **All tools talk to `services/`, not to `cbi/` or `memory/` directly.** Preserves the facade boundary.
 - **MCP server is the LLM write path only.** Hook subprocesses (Claude Code lifecycle callbacks) bypass MCP entirely and import kernel modules in-process; `mcp` SDK is therefore a soft dependency, required only when the LLM wants to call governance tools.
+- **Slash commands talk to MCP tools, never to a Bash CLI.** Project-side `.claude/commands/cbim_*.md` invoke `mcp__cbim__*` tools (e.g. `dashboard_ensure_running`, `debug_set`, `log_show`). Shelling out to `cbim ...` from a slash command is a regression — it bypasses MCP logging, ignores `.cbim/` read-permission denials, and routes through whatever `cbim` binary the user's PATH happens to find (often a stale global pin-launcher, not the project kernel).
 
 ## Non-Goals
 
 - **No hook transport.** Hook subprocesses do not connect to this server (no UDS listener, no hook-facing MCP tools). Hook reliability is decoupled from server liveness.
-

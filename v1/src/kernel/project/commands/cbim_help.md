@@ -21,7 +21,7 @@ Display the following overview to the user verbatim (in Chinese):
          │
          ├─ 写记忆 → .cbim/memory/short/  (Stop hook 自动)
          ├─ 蒸馏  → .cbim/memory/medium/ (architect 周期)
-         └─ 知识  → .dna/ + .cbim/cbi/skills/   (architect 提升)
+         └─ 知识  → .dna/ + .cbim/kernel/cbi/skills/   (architect 提升)
 ```
 
 ## Slash Commands（本地）
@@ -29,8 +29,11 @@ Display the following overview to the user verbatim (in Chinese):
 | 命令 | 作用 |
 |---|---|
 | `/cbim_help` | 本帮助 |
+| `/cbim_install` | 安装/刷新 CBIM cc-prompt-pack |
+| `/cbim_dashboard` | 启动（或重新打开）本地仪表盘 |
 | `/cbim_debug on\|off\|status` | 控制 `.cbim/.debug` 标志——开启/关闭额外的 `[ENG]`/`[IMP]` 引擎内部日志（基础信号永远开启） |
 | `/cbim_log [N]` | 查看当前会话日志最近 N 条（默认 50，所有信号类型在同一文件） |
+| `/cbim_sched status\|trigger <name>` | 查看/触发 MCP scheduler 任务 |
 
 ## CBIM Engine 命令 (`cbim <domain> <cmd>`)
 
@@ -52,7 +55,7 @@ Display the following overview to the user verbatim (in Chinese):
 - `.cbim/` — 框架代码（read-only，由 `.claudeignore` + deny 保护）
 - `.cbim/memory/short/` — 原始会话记录（3 天后清理）
 - `.cbim/memory/medium/` — 蒸馏后的模式
-- `.cbim/index.md` — 模块注册表（architect 维护）
+- `.dna/index.md` — 模块注册表（architect 维护）
 - `.claude/agents/` — agent 定义（架构师/审计/HR/程序员 + 自定义）
 - `.claude/commands/` — slash command 定义
 - `.claude/settings.json` — hooks + permissions

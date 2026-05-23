@@ -72,6 +72,7 @@ from .tools import agent as _agent         # noqa: E402
 from .tools import skill as _skill         # noqa: E402
 from .tools import snapshot as _snap       # noqa: E402
 from .tools import scheduler as _sched_t   # noqa: E402
+from .tools import runtime as _runtime     # noqa: E402
 
 _memory.register(mcp)
 _dna.register(mcp)
@@ -79,6 +80,7 @@ _agent.register(mcp)
 _skill.register(mcp)
 _snap.register(mcp)
 _sched_t.register(mcp)
+_runtime.register(mcp)
 
 
 if __name__ == "__main__":

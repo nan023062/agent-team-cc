@@ -18,6 +18,8 @@ tools:
   - mcp__cbim__skill_list
   - mcp__cbim__skill_show
   - mcp__cbim__project_snapshot
+  - mcp__cbim__log_show
+  - mcp__cbim__debug_get
 ---
 
 # Programmer
