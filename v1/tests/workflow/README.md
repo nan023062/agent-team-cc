@@ -1,57 +1,120 @@
-# Workflow End-to-End Tests
+# Workflow Tests
 
-End-to-end tests for CBIM's four design loops, defined in `design/WORKFLOW-*.zh-CN.md`:
+Architecture-verification tests for CBIM's four design loops — EXECUTION /
+ARCHITECT / HR / MEMORY (see `design/WORKFLOW-*.zh-CN.md`). **Not a benchmark**:
+the goal is to assert the coordinator drives the right loop on each prompt,
+not to score model performance.
 
-| Loop       | Positive case                                  | Negative case                          |
-|------------|------------------------------------------------|----------------------------------------|
-| EXECUTION  | implement `greet(name)` + unit test            | one-sentence read of CLAUDE.md         |
-| ARCHITECT  | `cbim dna init` a new `combat` leaf module     | list existing DNA modules (read-only)  |
-| HR         | recruit a `frontend` agent                     | list existing agents (read-only)       |
-| MEMORY     | "remember: hooks go in-process, not MCP"       | "你好" greeting                        |
+| Loop       | Positive                                       | Negative                                |
+|------------|------------------------------------------------|-----------------------------------------|
+| EXECUTION  | implement `greet(name)` + unit test            | one-sentence read of CLAUDE.md          |
+| ARCHITECT  | `cbim dna init` a new `combat` leaf module     | list existing DNA modules (read-only)   |
+| HR         | recruit a `frontend` agent                     | list existing agents (read-only)        |
+| MEMORY     | "remember: hooks go in-process, not MCP"       | "你好" greeting                         |
 
-## How it works
+Each case is a real `claude` invocation against the real Anthropic API.
+**A full 8-case run costs roughly $1–$10** and takes 3–10 minutes. CI does
+not run them.
 
-Each test:
+## Framework architecture
 
-1. Copies a freshly-installed CBIM project (`engine init` + `.cbim/kernel/` copy) from a session-scoped template into a per-test tempdir.
-2. Runs `claude -p '<prompt>'` in that tempdir; the project's `.claude/settings.json` carries `defaultMode = bypassPermissions`, so no extra flags are needed.
-3. Reads the latest `.cbim/logs/session_*.log` and asserts the right `[CBIM:agent]` / `[CBIM:dna|agent|memory]` / `[CALL]` patterns appeared (or, for negative cases, did not appear).
+`framework/` is a reusable harness; the 8 static tests are its first user,
+Phase 14b's A/B benchmark will be its second.
 
-The assertion DSL lives in `log_assert.py`.
+```
+framework/
+  target.py        TestTarget (Protocol) + TmpProject + ExternalProject
+  runner.py        run(target, prompt, timeout) -> Result
+  result.py        Result dataclass (exit, wall, tokens, session log, ...)
+  log_assert.py    parse_log + Verdict + 4 assert_*_loop
+  stats.py         CaseStats + AggregateStats + aggregate(cases, group_fn)
+  reporter.py      render_markdown / render_markdown_single / render_stdout
+  generators/      PromptGenerator Protocol + registry (default: `static`)
+```
 
-## Why these are off by default
+Two target modes (anything implementing the `TestTarget` Protocol works):
 
-Each case is a real `claude` invocation against a real Anthropic API, ~$0.10 – $1.00 per case and 1–10 minutes wall time. CI does not run them.
+- `TmpProject` — fresh CBIM install in a tempdir; setup/teardown per call
+- `ExternalProject` — points at an existing project; setup/teardown are no-ops
 
-Auto-skip conditions (set in `conftest.py`):
+Two prompt sources (anything implementing `PromptGenerator` works):
 
-- `ANTHROPIC_API_KEY` not in env → skip
-- `claude` CLI not on `PATH`     → skip
-- pytest invoked without `-m workflow` → not collected by selection
+- `static` (default) — read a `.md` file
+- *future* — dynamic generators registered the same way
 
-## Run it
+## How to run
+
+### 1. pytest (the 8 static cases)
 
 ```bash
-# all 8 cases
 ANTHROPIC_API_KEY=sk-... pytest v1/tests/workflow/ -m workflow -v
 
-# just one loop
+# one loop only
 pytest v1/tests/workflow/test_loop_memory.py -m workflow -v
 
-# just one case
+# one case only
 pytest v1/tests/workflow/test_loop_memory.py::test_loop_memory_negative -m workflow -v
 ```
 
-Collection-only sanity check (no spend):
+Auto-skip when `ANTHROPIC_API_KEY` is unset or `claude` is not on `PATH`.
+Without `-m workflow`, no case is selected.
+
+### 2. run-bench.sh (one-shot batch + report)
 
 ```bash
-pytest v1/tests/workflow/ --collect-only
+ANTHROPIC_API_KEY=sk-... ./v1/tests/workflow/run-bench.sh
 ```
+
+Allocates the next `results/report-NNN.md` slot, runs all 8 cases, copies
+each session log to `results/report-NNN/logs/`, and writes the markdown
+report via `framework.reporter`.
+
+### 3. CLI (one prompt against any project)
+
+```bash
+# Fresh tmp install + a prompt file
+python -m v1.tests.workflow.cli run --prompt my-prompt.md
+
+# Existing project on disk
+python -m v1.tests.workflow.cli run \
+  --project /path/to/some-cbim-project \
+  --prompt my-prompt.md \
+  --output run-report.md
+
+# List registered prompt generators
+python -m v1.tests.workflow.cli list-generators
+
+# Just print a generated prompt (no claude call)
+python -m v1.tests.workflow.cli generate --project /path --generator static --prompt foo.md
+```
+
+Use `--project` to skip the fresh-install path and point at an existing
+on-disk CBIM project; nothing is cleaned up afterwards.
+
+## Results & history
+
+- `results/report-NNN.md` — committed to git (history is a project asset).
+- `results/report-NNN/` — per-case session logs + raw pytest output;
+  **gitignored** (volume + noise). See `.gitignore`.
+
+Report numbering is monotonically increasing; never reused.
 
 ## Adding a new case
 
 1. Drop a new prompt under `prompts/<loop>_<flavor>.md`.
 2. Add a test function in `test_loop_<loop>.py` modeled after the existing two.
-3. If the assertion shape is new, extend the matching `assert_<loop>_loop` in `log_assert.py`.
+   Take the `workflow_target: TmpProject` fixture and call
+   `framework.run(target, prompt)`.
+3. If the assertion shape is new, extend the matching `assert_<loop>_loop`
+   in `framework/log_assert.py`.
 
-Keep prompts narrow: one verifiable behavior per case. Wide prompts produce wide logs and flaky asserts.
+Keep prompts narrow: one verifiable behavior per case.
+
+## Adding a new prompt generator
+
+1. Write a class implementing the `PromptGenerator` Protocol (a `name`,
+   `description`, and `generate(target) -> str`).
+2. Call `framework.generators.register(my_generator)` at module import time
+   (mirror `framework/generators/static.py`).
+3. Surface it from `list-generators` automatically; the CLI `run --generator`
+   path picks it up by name.

@@ -1,0 +1,12 @@
+# Workflow Loops Benchmark — git policy
+#
+# Keep `results/report-NNN.md` (history of benchmark runs is a project asset).
+# Drop `results/report-NNN/` artefact directories (per-case session logs + raw
+# pytest stdout: high volume, low signal-per-byte).
+
+results/report-*/
+!results/report-*.md
+
+# Local pytest cache
+__pycache__/
+.pytest_cache/

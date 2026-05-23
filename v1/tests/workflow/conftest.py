@@ -1,29 +1,26 @@
-"""End-to-end workflow test fixtures.
+"""Pytest config for v1/tests/workflow/.
 
-These tests run the real `claude` CLI in headless mode (`-p`) against a
-freshly-installed CBIM project, then inspect `.cbim/logs/session_*.log` to
-verify which loops the coordinator drove. Each test costs a real Anthropic
-API call.
+Wires the framework into pytest:
 
-Pytest is configured to:
-  - register the `workflow` marker
-  - auto-skip workflow tests when ANTHROPIC_API_KEY is unset
-  - auto-skip workflow tests when the `claude` CLI is not on PATH
+  * `workflow` marker — opt-in; auto-skipped without ANTHROPIC_API_KEY or
+    `claude` on PATH.
+  * `cbim_template_project` (session) — one-shot CBIM install template.
+  * `workflow_target` (per test)      — a TmpProject bound to a fresh copy of
+    the template; the framework runner takes it from there.
+  * Per-test log-copy + sidecar meta JSON (when BENCH_LOGS_DIR is set) for
+    run-bench.sh to build the markdown report afterwards.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 import pytest
 
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-KERNEL_SRC = REPO_ROOT / "v1" / "kernel"
+from .framework.target import TmpProject, build_template
 
 
 def pytest_configure(config):
@@ -36,62 +33,85 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     skip_no_key = pytest.mark.skip(reason="ANTHROPIC_API_KEY not set")
     skip_no_cli = pytest.mark.skip(reason="`claude` CLI not on PATH")
+    skip_opt_in = pytest.mark.skip(reason="workflow tests are opt-in; pass `-m workflow` to run")
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY"))
     has_cli = shutil.which("claude") is not None
+    # `-m workflow` (or any expression containing `workflow`) opts in; otherwise
+    # the case is auto-skipped even when API key + CLI are present.
+    markexpr = (config.getoption("markexpr") or config.getini("markers") or "")
+    opted_in = "workflow" in (markexpr if isinstance(markexpr, str) else "")
     for item in items:
         if "workflow" not in item.keywords:
             continue
-        if not has_key:
+        if not opted_in:
+            item.add_marker(skip_opt_in)
+        elif not has_key:
             item.add_marker(skip_no_key)
         elif not has_cli:
             item.add_marker(skip_no_cli)
 
 
-def _run_engine_init(project_dir: Path) -> None:
-    """Run `python3 -m engine init` against project_dir as cwd."""
-    env = os.environ.copy()
-    env["PYTHONPATH"] = f"{KERNEL_SRC}{os.pathsep}{env.get('PYTHONPATH', '')}"
-    subprocess.run(
-        [sys.executable, "-m", "engine", "init"],
-        cwd=project_dir,
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-
-def _install_kernel(project_dir: Path) -> None:
-    """Copy this repo's v1/kernel into <project>/.cbim/kernel/ so hooks can bootstrap."""
-    dst = project_dir / ".cbim" / "kernel"
-    if dst.exists():
-        shutil.rmtree(dst)
-    dst.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(KERNEL_SRC, dst, dirs_exist_ok=True)
-
-
 @pytest.fixture(scope="session")
 def cbim_template_project(tmp_path_factory) -> Path:
-    """One-shot CBIM install in a session-scoped tempdir.
-
-    Per-test isolation is provided by `test_project`, which copies this
-    template fresh for each test.
-    """
+    """One-shot CBIM install; per-test isolation comes from `workflow_target`."""
     template = tmp_path_factory.mktemp("cbim_template")
-    _run_engine_init(template)
-    _install_kernel(template)
-    return template
+    return build_template(template)
 
 
 @pytest.fixture
-def test_project(cbim_template_project: Path, tmp_path: Path) -> Path:
-    """Per-test fresh copy of the template with logs/short memory cleared."""
-    dst = tmp_path / "proj"
-    shutil.copytree(cbim_template_project, dst, symlinks=True)
-    # Wipe any state that may have leaked from prior fixture usage
-    for sub in ("logs", "memory/short"):
-        p = dst / ".cbim" / sub
-        if p.exists():
-            shutil.rmtree(p, ignore_errors=True)
-        p.mkdir(parents=True, exist_ok=True)
-    return dst
+def workflow_target(cbim_template_project: Path, request):
+    """Per-test TmpProject bound to the shared template.
+
+    Yields the TmpProject (not the path) so tests can pass it straight to
+    `framework.run(target, prompt)`. We override `template_root` on a fresh
+    instance so we don't re-install per test; setup() does the per-test copy.
+
+    Finalizer: if BENCH_LOGS_DIR env var is set, copy the latest
+    .cbim/logs/session_*.log out of the tmp project into
+    <BENCH_LOGS_DIR>/<test_name>.log before the dir is removed.
+    """
+    target = TmpProject(template_root=cbim_template_project)
+    target.setup()
+    try:
+        yield target
+        bench_logs_dir = os.environ.get("BENCH_LOGS_DIR")
+        if bench_logs_dir:
+            logs_dir = target.project_root / ".cbim" / "logs"
+            if logs_dir.is_dir():
+                sessions = sorted(
+                    logs_dir.glob("session_*.log"), key=lambda p: p.stat().st_mtime
+                )
+                if sessions:
+                    out_dir = Path(bench_logs_dir)
+                    out_dir.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(sessions[-1], out_dir / f"{request.node.name}.log")
+    finally:
+        target.teardown()
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    """Sidecar a JSON file per test (call phase) with outcome / duration / longrepr.
+
+    Only writes when BENCH_LOGS_DIR is set. Used by framework.reporter to
+    build the per-case results table without re-parsing pytest stdout.
+    """
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call":
+        return
+    bench_logs_dir = os.environ.get("BENCH_LOGS_DIR")
+    if not bench_logs_dir:
+        return
+    out_dir = Path(bench_logs_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    meta = {
+        "nodeid": report.nodeid,
+        "test_name": item.name,
+        "outcome": report.outcome,
+        "duration_s": round(getattr(report, "duration", 0.0), 2),
+        "longrepr": str(report.longrepr) if report.failed else "",
+    }
+    (out_dir / f"{item.name}.meta.json").write_text(
+        json.dumps(meta, indent=2), encoding="utf-8"
+    )

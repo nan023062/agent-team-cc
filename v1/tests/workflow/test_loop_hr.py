@@ -6,32 +6,40 @@ from pathlib import Path
 
 import pytest
 
-from .log_assert import assert_hr_loop, parse_log
-from .runner import run_claude
+from .framework import assert_hr_loop, parse_log, run
+from .framework.target import TmpProject
 
 
 PROMPTS = Path(__file__).parent / "prompts"
 
 
 @pytest.mark.workflow
-def test_loop_hr_positive(test_project: Path) -> None:
+def test_loop_hr_positive(workflow_target: TmpProject) -> None:
     prompt = (PROMPTS / "hr_positive.md").read_text(encoding="utf-8")
-    run = run_claude(test_project, prompt, timeout=600)
-    events = parse_log(run.session_log)
-    verdict = assert_hr_loop(events, test_project, positive=True)
+    result = run(workflow_target, prompt, timeout=600)
+    events = parse_log(result.session_log)
+    verdict = assert_hr_loop(events, workflow_target.project_root, positive=True)
     assert verdict.passed, "\n".join(
         verdict.diagnostics
-        + [f"log={run.session_log_path}", f"exit={run.exit_code}", f"wall={run.wall_time_s:.1f}s"]
+        + [
+            f"log={result.session_log_path}",
+            f"exit={result.exit_code}",
+            f"wall={result.wall_time_s:.1f}s",
+        ]
     )
 
 
 @pytest.mark.workflow
-def test_loop_hr_negative(test_project: Path) -> None:
+def test_loop_hr_negative(workflow_target: TmpProject) -> None:
     prompt = (PROMPTS / "hr_negative.md").read_text(encoding="utf-8")
-    run = run_claude(test_project, prompt, timeout=300)
-    events = parse_log(run.session_log)
-    verdict = assert_hr_loop(events, test_project, positive=False)
+    result = run(workflow_target, prompt, timeout=300)
+    events = parse_log(result.session_log)
+    verdict = assert_hr_loop(events, workflow_target.project_root, positive=False)
     assert verdict.passed, "\n".join(
         verdict.diagnostics
-        + [f"log={run.session_log_path}", f"exit={run.exit_code}", f"wall={run.wall_time_s:.1f}s"]
+        + [
+            f"log={result.session_log_path}",
+            f"exit={result.exit_code}",
+            f"wall={result.wall_time_s:.1f}s",
+        ]
     )
