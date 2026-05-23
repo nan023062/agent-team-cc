@@ -2,7 +2,7 @@
 name: auditor
 description: Independent adversarial reviewer with read-only access. Performs adversarial review of architecture designs and code implementations. Use when the assistant directs review of a specific module or implementation quality — not invoked by other agents directly.
 model: claude-opus-4-7
-tools: Read, Glob, Grep, Bash, mcp__cbim__dna_list, mcp__cbim__dna_show, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__skill_list, mcp__cbim__skill_show, mcp__cbim__project_snapshot, mcp__cbim__log_show, mcp__cbim__debug_get
+tools: Read, Glob, Grep, Bash, mcp__cbim__dna_list, mcp__cbim__dna_show, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__skill_list, mcp__cbim__skill_show, mcp__cbim__project_snapshot, mcp__cbim__log_show, mcp__cbim__debug_get, mcp__cbim__audit_run, mcp__cbim__audit_list_checks
 ---
 
 # Auditor

@@ -22,6 +22,8 @@ tools:
   - mcp__cbim__memory_cleanup
   - mcp__cbim__skill_list
   - mcp__cbim__skill_show
+  - mcp__cbim__audit_run
+  - mcp__cbim__audit_list_checks
 ---
 
 # HR

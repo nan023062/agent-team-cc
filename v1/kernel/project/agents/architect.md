@@ -2,7 +2,7 @@
 name: architect
 description: Business layer steward — manages the project knowledge system, module CRUD, architecture compliance, and knowledge governance. Use when a task involves module design, knowledge pack maintenance, the .dna/ directory, or architecture decisions.
 model: claude-opus-4-7
-tools: Read, Write, Edit, Glob, Grep, Bash, mcp__cbim__dna_list, mcp__cbim__dna_show, mcp__cbim__dna_reindex, mcp__cbim__dna_init, mcp__cbim__dna_edit, mcp__cbim__dna_split, mcp__cbim__dna_write_doc, mcp__cbim__dna_write_section, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__skill_list, mcp__cbim__skill_show, mcp__cbim__project_snapshot
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__cbim__dna_list, mcp__cbim__dna_show, mcp__cbim__dna_reindex, mcp__cbim__dna_init, mcp__cbim__dna_edit, mcp__cbim__dna_split, mcp__cbim__dna_write_doc, mcp__cbim__dna_write_section, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__skill_list, mcp__cbim__skill_show, mcp__cbim__project_snapshot, mcp__cbim__audit_run, mcp__cbim__audit_list_checks
 ---
 
 # Architect

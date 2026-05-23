@@ -1,7 +1,7 @@
 ---
 name: mcp-server
 owner: architect
-description: MCP tool/task server: exposes kernel ops to MCP clients (dna, agent, skill, snapshot, scheduler, runtime)
+description: MCP tool/task server: exposes kernel ops to MCP clients (dna, agent, skill, snapshot, scheduler, runtime, audit)
 keywords: []
 dependencies: []
 ---
@@ -17,6 +17,7 @@ MCP (Model Context Protocol) server exposing kernel ops as MCP tools over stdio 
 - **snapshot** — `project_snapshot` (read-only)
 - **scheduler** — task scheduler control surface (`scheduler_status`, `scheduler_trigger`)
 - **runtime** — slash-command back-end: `dashboard_ensure_running`, `debug_get`, `debug_set`, `log_show`
+- **audit** — read-only governance drift checks: `audit_run`, `audit_list_checks`
 
 Background tasks under `tasks/` (heartbeat).
 

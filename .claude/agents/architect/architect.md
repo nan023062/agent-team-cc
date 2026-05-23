@@ -24,6 +24,8 @@ tools:
   - mcp__cbim__skill_list
   - mcp__cbim__skill_show
   - mcp__cbim__project_snapshot
+  - mcp__cbim__audit_run
+  - mcp__cbim__audit_list_checks
 ---
 
 # Architect

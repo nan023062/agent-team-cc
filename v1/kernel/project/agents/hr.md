@@ -2,7 +2,7 @@
 name: hr
 description: Capability layer steward — manages the full work agent lifecycle (recruit / train / assess / archive), maintaining the .claude/agents/ directory. Use when agent management or capability promotion is involved.
 model: claude-opus-4-7
-tools: Read, Write, Edit, Glob, Grep, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__agent_scaffold, mcp__cbim__agent_update, mcp__cbim__agent_add_skill, mcp__cbim__agent_archive, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__memory_create, mcp__cbim__memory_delete, mcp__cbim__memory_reindex, mcp__cbim__memory_cleanup, mcp__cbim__skill_list, mcp__cbim__skill_show
+tools: Read, Write, Edit, Glob, Grep, mcp__cbim__agent_list, mcp__cbim__agent_show, mcp__cbim__agent_scaffold, mcp__cbim__agent_update, mcp__cbim__agent_add_skill, mcp__cbim__agent_archive, mcp__cbim__memory_query, mcp__cbim__memory_list, mcp__cbim__memory_create, mcp__cbim__memory_delete, mcp__cbim__memory_reindex, mcp__cbim__memory_cleanup, mcp__cbim__skill_list, mcp__cbim__skill_show, mcp__cbim__audit_run, mcp__cbim__audit_list_checks
 ---
 
 # HR

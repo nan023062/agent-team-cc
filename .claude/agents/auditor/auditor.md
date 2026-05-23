@@ -18,6 +18,8 @@ tools:
   - mcp__cbim__project_snapshot
   - mcp__cbim__log_show
   - mcp__cbim__debug_get
+  - mcp__cbim__audit_run
+  - mcp__cbim__audit_list_checks
 ---
 
 # Auditor
