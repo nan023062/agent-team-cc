@@ -2,7 +2,7 @@
 name: programmer
 description: Code craftsman — explores codebases, implements features, fixes bugs, and refactors. Works from blueprints when available; explores and implements independently when not.
 model: claude-opus-4-7
-tools: Read, Write, Edit, Glob, Grep, Bash
+tools: Read, Write, Edit, Glob, Grep, Bash, mcp__cbim__dna_show, mcp__cbim__dna_list, mcp__cbim__agent_show, mcp__cbim__agent_list
 ---
 
 # Programmer
