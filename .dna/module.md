@@ -15,9 +15,12 @@ Cbim-CC kernel monorepo. Develops and packages the CC kernel; `install.sh` clone
 ```mermaid
 graph TD
     kernel["v1/kernel/<br/>single kernel module: CLI dispatch + cbi + memory + hooks + project(init) + services + dashboard + mcp_server"]
+    tests["v1/tests/<br/>automated test harness layer:<br/>framework + workflow + benchmark"]
+
+    tests -.->|exercises via<br/>claude -p subprocess| kernel
 ```
 
-`kernel` is the only module under this repo's `.dna/` tree. The earlier three-module design (`bin` launcher + `installer`/`updater` + `kernel`) targeted a globally-installed multi-version layout; that design was abandoned in favour of the current per-project flat-copy install (`install.sh` → `<project>/.cbim/kernel/`). No launcher binary, no version registry, no cross-version migrator exists on disk.
+`kernel` is the production artifact: `install.sh` copies `v1/kernel/` into each project's `.cbim/kernel/`. `tests` is a sibling harness that exercises the kernel end-to-end through a real `claude -p` subprocess; it is **not** packaged or shipped — it stays in the monorepo for CI and local validation. The earlier three-module design (`bin` launcher + `installer`/`updater` + `kernel`) targeted a globally-installed multi-version layout; that design was abandoned in favour of the current per-project flat-copy install (`install.sh` → `<project>/.cbim/kernel/`). No launcher binary, no version registry, no cross-version migrator exists on disk.
 
 ## Origin Context
 
