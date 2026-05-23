@@ -13,6 +13,11 @@ tools:
   - mcp__cbim__dna_list
   - mcp__cbim__agent_show
   - mcp__cbim__agent_list
+  - mcp__cbim__memory_query
+  - mcp__cbim__memory_list
+  - mcp__cbim__skill_list
+  - mcp__cbim__skill_show
+  - mcp__cbim__project_snapshot
 ---
 
 # Programmer
