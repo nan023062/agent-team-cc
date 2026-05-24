@@ -1,16 +1,19 @@
 """
-cli.py — Memory engine command implementations.
+cli.py — Memory command implementations.
 
 These cmd_* functions are dispatched by the unified `engine` CLI
-(see .cbim/engine/cli.py). This module no longer exposes a `main()`
-or `__main__` block — invoke via `python .cbim/engine memory <command>`.
+(see kernel/engine/cli.py). This module no longer exposes a `main()`
+or `__main__` block — invoke via `cbim memory <command>`.
+
+Phase 4C: routes directly through crud.primitives / compaction.* and the
+parent facade's `query`. The legacy MemoryEngine adapter is gone.
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-from .config import load_config
+from ._config import load_config
 
 
 def _default_store() -> Path:
@@ -19,24 +22,12 @@ def _default_store() -> Path:
     return cbim_dir() / "memory"
 
 
-def _build_engine(args: argparse.Namespace):
-    """Build MemoryEngine with the default FileBackend.
-
-    To swap backends: replace FileBackend with any MemoryBackend subclass
-    (e.g. ChromaBackend from .chroma_backend) — callers above are unaffected.
-    """
-    from engine import MemoryEngine
-    from .file_backend import FileBackend
+def _build_backend(args: argparse.Namespace):
+    """Build the default FileBackend + resolved store dir."""
+    from memory.crud.file_backend import FileBackend
 
     store_dir = Path(getattr(args, "store_dir", None) or _default_store())
-    return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
-
-
-# ---------------------------------------------------------------------------
-# Hook-facing entry points (write_session / load_context) are no longer
-# exposed through this CLI. The Stop / SessionStart hooks now import them
-# directly from memory.engine.{writer,loader}; see hooks/{write,load}_memory.py.
-# ---------------------------------------------------------------------------
+    return FileBackend(store_dir), store_dir
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +38,10 @@ def cmd_create(args: argparse.Namespace) -> int:
     """Create a new memory entry file and index it."""
     from datetime import datetime
 
-    cfg = load_config()
-    store_dir = Path(getattr(args, "store_dir", None) or _default_store())
+    from memory.crud.primitives import write as _crud_write
+
+    load_config()  # currently unused here but kept to surface config errors early
+    backend, store_dir = _build_backend(args)
     tier = args.tier
     slug = args.slug.strip().replace(" ", "-")
     ts = datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -57,27 +50,31 @@ def cmd_create(args: argparse.Namespace) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(args.content, encoding="utf-8")
 
-    engine = _build_engine(args)
-    engine.add(path, tier)
+    _crud_write(path, tier, backend)
     print(path)
     return 0
 
 
 def cmd_add(args: argparse.Namespace) -> int:
-    engine = _build_engine(args)
+    from memory.crud.primitives import write as _crud_write
+
+    backend, _ = _build_backend(args)
     path = Path(args.path)
     if not path.exists():
         print(f"error: file not found: {path}", file=sys.stderr)
         return 1
-    engine.add(path, args.tier)
+    _crud_write(path, args.tier, backend)
     print(f"[memory] indexed {path.name} (tier={args.tier})", file=sys.stderr)
     return 0
 
 
 def cmd_query(args: argparse.Namespace) -> int:
-    engine = _build_engine(args)
+    from memory import query as _q
+
+    backend, store = _build_backend(args)
     tier = args.tier or None
-    results = engine.query_verbose(args.text, tier=tier, top_k=args.top_k)
+    results = _q(args.text, tier=tier, limit=args.top_k,
+                 backend=backend, store_dir=store)
     for r in results:
         meta = r["metadata"]
         if args.verbose:
@@ -93,8 +90,10 @@ def cmd_query(args: argparse.Namespace) -> int:
 
 
 def cmd_delete(args: argparse.Namespace) -> int:
-    engine = _build_engine(args)
-    engine.delete(Path(args.path))
+    from memory.crud.primitives import delete as _crud_delete
+
+    backend, _ = _build_backend(args)
+    _crud_delete(Path(args.path), backend)
     print(f"[memory] deleted {args.path}", file=sys.stderr)
     return 0
 
@@ -102,11 +101,13 @@ def cmd_delete(args: argparse.Namespace) -> int:
 def cmd_reindex(args: argparse.Namespace) -> int:
     # When --store-dir is given, the user is targeting a non-default store and
     # the service (which always resolves <project>/.cbim/memory/) doesn't fit;
-    # fall back to driving the engine locally to keep that escape hatch alive.
+    # fall back to driving compaction.rebuild locally to keep that escape hatch alive.
     if getattr(args, "store_dir", None):
-        engine = _build_engine(args)
+        from memory.compaction import rebuild
+
+        backend, store_dir = _build_backend(args)
         tier = args.tier or None
-        count = engine.reindex(tier=tier)
+        count = rebuild(store_dir, backend, tier=tier)
         print(f"[memory] reindexed {count} entries (tier={tier or 'all'})", file=sys.stderr)
         return 0
     from services import memory_reindex
@@ -117,8 +118,10 @@ def cmd_reindex(args: argparse.Namespace) -> int:
 
 def cmd_cleanup(args: argparse.Namespace) -> int:
     if getattr(args, "store_dir", None):
-        engine = _build_engine(args)
-        count = engine.cleanup_short(keep_days=args.keep_days)
+        from memory.compaction import sweep_expired
+
+        backend, store_dir = _build_backend(args)
+        count = sweep_expired(store_dir, backend, keep_days=args.keep_days)
         print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
               file=sys.stderr)
         return 0
@@ -126,5 +129,3 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     summary = memory_cleanup(keep_days=args.keep_days)
     print(f"[memory] {summary}", file=sys.stderr)
     return 0
-
-

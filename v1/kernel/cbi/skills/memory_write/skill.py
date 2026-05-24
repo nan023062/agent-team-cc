@@ -26,7 +26,7 @@ When the user explicitly says to remember something:
 
 3. **Pick a slug** — short kebab-case, ≤30 chars, describes the topic (not the date). Examples: `v2-phase1-start`, `combat-damage-formula`, `auth-token-policy`.
 
-4. **Create the entry** using the kernel command (creates the file and indexes it in one step):
+4. **Create the entry** using the kernel command. Per memory module Key Decision #1, create is a single primitive in two ordered steps — the command writes the file to short/, then synchronously calls compaction.identify to stage any promotion candidates. Both happen as one call:
    ```bash
    cbim memory create --slug <slug> --tier short --content "..."
    ```

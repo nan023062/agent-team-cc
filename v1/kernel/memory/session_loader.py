@@ -1,20 +1,24 @@
 """
-loader.py — Session context loader.
+memory/session_loader.py — Session context loader.
 
 Encapsulates querying recent memory and building the additionalContext payload
-for Claude Code's SessionStart hook. Hooks are not aware of this logic.
+for Claude Code's SessionStart hook. Hooks are not aware of this logic — they
+just construct a backend and call into here.
 
 Session recovery is done by reading .cbim/logs/session_*.log directly —
 the last-session.md file is no longer used.
+
+Phase 4C: the loader uses the parent facade's `query` directly; the legacy
+MemoryEngine adapter has been removed.
 """
 
 import json
 from pathlib import Path
 
-from .engine import MemoryEngine
+from memory.crud.backend import MemoryBackend
 
 
-def load_context(store_dir: Path, engine: MemoryEngine, cfg: dict) -> str | None:
+def load_context(store_dir: Path, backend: MemoryBackend, cfg: dict) -> str | None:
     """Build session context from recent memory entries.
 
     Returns JSON string '{"additionalContext": "..."}' on success, None if empty.
@@ -30,7 +34,9 @@ def load_context(store_dir: Path, engine: MemoryEngine, cfg: dict) -> str | None
             preview_chars = cfg["query"]["entry_preview_chars"]
             # FileBackend: recency order, text arg ignored.
             # SemanticBackend: cosine similarity to this query text.
-            results = engine.query_verbose("最近任务 决策 问题 阻塞", top_k=top_k)
+            from memory import query as _q
+            results = _q("最近任务 决策 问题 阻塞", limit=top_k,
+                         store_dir=store_dir, backend=backend)
             entries = []
             for r in results:
                 # doc_id is always an absolute path produced by the backend.

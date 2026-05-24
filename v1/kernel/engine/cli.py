@@ -36,8 +36,8 @@ def main() -> int:
     sub = parser.add_subparsers(dest="domain")
 
     # memory ------------------------------------------------------------------
-    from memory.engine import cli as mcli
-    from memory.engine.config import load_config
+    from memory import cli as mcli
+    from memory._config import load_config
     cfg = load_config()
     pm = sub.add_parser("memory", help="Memory engine commands")
     msub = pm.add_subparsers(dest="command")

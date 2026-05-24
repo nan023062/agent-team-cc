@@ -111,15 +111,19 @@ def _date_from_name(name: str) -> str:
 # Write facade — shared by engine/cli.py and mcp_server/tools/memory.py
 # ---------------------------------------------------------------------------
 
-def _build_engine(cwd: str = ""):
-    """Construct the default FileBackend-backed MemoryEngine for `<project>/.cbim/memory/`."""
-    from memory.engine.engine import MemoryEngine
-    from memory.engine.file_backend import FileBackend
+def _build_backend(cwd: str = ""):
+    """Construct the default FileBackend for `<project>/.cbim/memory/`.
+
+    Returns (backend, store_dir). Both `compaction.rebuild` and
+    `compaction.sweep_expired` need the store dir as a separate arg.
+    """
+    from memory.crud.backend import MemoryBackend  # noqa: F401  (typing)
+    from memory.crud.file_backend import FileBackend
 
     root = Path(find_project_root(cwd or None))
     store_dir = root / ".cbim" / "memory"
     store_dir.mkdir(parents=True, exist_ok=True)
-    return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir), store_dir
+    return FileBackend(store_dir), store_dir
 
 
 def reindex(tier: str = "", cwd: str = "") -> str:
@@ -134,9 +138,10 @@ def reindex(tier: str = "", cwd: str = "") -> str:
     """
     if tier not in ("", "short", "medium"):
         raise ValueError(f"tier must be 'short', 'medium', or '' (both), got: {tier!r}")
-    engine, _ = _build_engine(cwd)
+    from memory.compaction import rebuild
+    backend, store_dir = _build_backend(cwd)
     tier_arg = tier or None
-    count = engine.reindex(tier=tier_arg)
+    count = rebuild(store_dir, backend, tier=tier_arg)
     return f"reindexed {count} entries (tier={tier_arg or 'all'})"
 
 
@@ -148,6 +153,7 @@ def cleanup(keep_days: int, cwd: str = "") -> str:
     """
     if keep_days < 0:
         raise ValueError(f"keep_days must be >= 0, got: {keep_days!r}")
-    engine, _ = _build_engine(cwd)
-    count = engine.cleanup_short(keep_days=keep_days)
+    from memory.compaction import sweep_expired
+    backend, store_dir = _build_backend(cwd)
+    count = sweep_expired(store_dir, backend, keep_days=keep_days)
     return f"deleted {count} short-term entries older than {keep_days} days"

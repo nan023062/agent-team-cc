@@ -1,12 +1,12 @@
 """
-config.py — Load memory config from memory/config.py with built-in defaults.
+_config.py — Load memory config from memory/config.py with built-in defaults.
 
 Call load_config() from anywhere; missing keys fall back to _DEFAULTS.
 """
 
 import copy
 
-from ..config import CONFIG as _USER_CONFIG
+from .config import CONFIG as _USER_CONFIG
 
 _DEFAULTS: dict = {
     "short_term": {

@@ -6,6 +6,8 @@ SKILL: str = """\
 Compress short-term session records into medium-term pattern summaries, providing raw material for HR capability governance and architect business governance.
 Medium-term memory is organized by **four quadrants**, each determining where information ultimately flows in the governance structure.
 
+Distillation produces analytical material only; promotion decisions belong to the governance loops, not to this skill.
+
 ---
 
 ## Trigger Timing
@@ -101,12 +103,6 @@ Has established a dry-run prerequisite habit; zero errors in the past 8 write-op
 | Date | Source Entry | Content |
 |------|-------------|---------|
 | 2026-05-12 | 2026-05-12-main-yyy.md | Contract first then architecture; interface is more stable |
-
-## Governance Recommendations
-
-- [ ] Distill to Skill (HOW pattern appeared ≥`how_to_skill_threshold` times, see `memory/config.json`)
-- [ ] Internalize to Soul (MUST principle validated as stable, appeared ≥`must_review_threshold` times)
-- [ ] Trigger HR assessment (capability gap repeated ≥`must_review_threshold` times)
 ```
 
 ### Decision Medium Entry (WANT)
@@ -141,10 +137,6 @@ to achieve install-ready, no network dependency,
 accepting that retrieval does not support semantic similarity — sorted by time only.
 
 Decision by: linan, date: 2026-05-18
-
-## Governance Recommendations
-
-- [ ] Write to `.dna/module.md` (decision is stable, no further changes needed)
 ```
 
 ### Business Medium Entry (business-oriented HOW + IS)
@@ -176,12 +168,6 @@ Overall description of this module's current state and key patterns (rewrite on 
 | Date | Source Entry | Content | Count |
 |------|-------------|---------|-------|
 | 2026-05-12 | 2026-05-12-main-bbb.md | Damage calculation: receive → validate → calculate → broadcast, no skipping | 3 |
-
-## Governance Recommendations
-
-- [ ] IS changes written to `.dna/contract.md` or `module.md` (interface signature updated)
-- [ ] HOW flow distilled to `.dna/workflows/` (appeared ≥`how_to_workflow_threshold` times, see `memory/config.json`)
-- [ ] Notify architect for review (interface changed)
 ```
 
 ---
@@ -192,7 +178,6 @@ Overall description of this module's current state and key patterns (rewrite on 
 2. Increment `sources` count by the number of new entries
 3. Update `updated` to today's date
 4. **Rewrite `## Summary`** to reflect the latest signals — do not append and accumulate
-5. Update `## Governance Recommendations` checkbox states based on new signals
 
 ---
 

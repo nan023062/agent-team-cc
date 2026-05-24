@@ -1,8 +1,10 @@
 """
-base.py — MemoryBackend abstract interface.
+crud/backend.py — MemoryBackend abstract interface.
 
-Swap the backend by subclassing MemoryBackend and passing an instance
-to MemoryEngine. The rest of the system stays untouched.
+Storage abstraction for the 3 CRUD primitives. Swap by subclassing
+MemoryBackend and passing an instance to `crud.primitives` (or to the
+session writer / parent facade helpers, all of which accept a backend
+parameter directly).
 """
 
 from abc import ABC, abstractmethod

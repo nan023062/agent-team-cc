@@ -22,15 +22,14 @@ def _build_context(root: Path, session_id: str) -> str:
 
     memory_out = ""
     try:
-        from memory.engine.config import load_config
-        from memory.engine.engine import MemoryEngine
-        from memory.engine.file_backend import FileBackend
-        from memory.engine.loader import load_context
+        from memory._config import load_config
+        from memory.crud.file_backend import FileBackend
+        from memory.session_loader import load_context
 
         store_dir = cbim / "memory"
-        engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+        backend = FileBackend(store_dir)
         cfg = load_config()
-        memory_out = load_context(store_dir, engine, cfg) or ""
+        memory_out = load_context(store_dir, backend, cfg) or ""
     except Exception:
         memory_out = ""
 
@@ -43,7 +42,7 @@ def _build_context(root: Path, session_id: str) -> str:
 
     threshold_banner = None
     try:
-        from memory.engine.config import load_config
+        from memory._config import load_config
         short_dir = cbim / "memory" / "short"
         if short_dir.exists():
             count = sum(1 for p in short_dir.glob("*.md") if p.is_file())

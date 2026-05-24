@@ -13,15 +13,14 @@ from _lib.bridge import bootstrap_kernel, safe_run
 
 def _distill(root: Path, transcript_path: str) -> None:
     cbim = root / ".cbim"
-    from memory.engine.config import load_config
-    from memory.engine.engine import MemoryEngine
-    from memory.engine.file_backend import FileBackend
-    from memory.engine.writer import write_session
+    from memory._config import load_config
+    from memory.crud.file_backend import FileBackend
+    from memory.crud.session_writer import write_session
 
     store_dir = cbim / "memory"
-    engine = MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+    backend = FileBackend(store_dir)
     cfg = load_config()
-    write_session(transcript_path, store_dir, engine, cfg)
+    write_session(transcript_path, store_dir, backend, cfg)
 
 
 def _mark_idle(root: Path) -> None:

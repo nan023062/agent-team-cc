@@ -79,31 +79,39 @@ def test_stale_entry_emits_warn(tmp_path):
     stale = [f for f in findings if f.code == "MEMORY_STALE"]
     assert len(stale) == 1
     assert stale[0].severity == "warn"
+    assert stale[0].target == "short"
+    assert "oldest_age_days" in stale[0].metadata
 
 
-def test_medium_overflow_emits_two_promotion_findings(tmp_path):
+def test_promotion_findings_removed(tmp_path):
+    """Phase 4B: promotion findings are no longer emitted (architecture rule)."""
     _, medium = _seed_mem(tmp_path)
-    for i in range(10):
+    for i in range(50):
         _write_entry(medium, f"2026-05-22-m{i}.md")
     findings = check(tmp_path, {"memory": {
         "short_max_entries": 80, "short_max_age_days": 7,
         "short_max_total_kb": 9999, "medium_max_entries": 10,
     }})
     codes = {f.code for f in findings}
-    assert "MEMORY_PROMOTE_TO_AGENT_SKILL" in codes
-    assert "MEMORY_PROMOTE_TO_DNA_KNOWLEDGE" in codes
-    agent_f = next(f for f in findings if f.code == "MEMORY_PROMOTE_TO_AGENT_SKILL")
-    assert agent_f.severity == "warn"
+    assert "MEMORY_PROMOTE_TO_AGENT_SKILL" not in codes
+    assert "MEMORY_PROMOTE_TO_DNA_KNOWLEDGE" not in codes
 
 
-def test_medium_overflow_error_band(tmp_path):
-    _, medium = _seed_mem(tmp_path)
-    for i in range(16):
-        _write_entry(medium, f"2026-05-22-m{i}.md")
-    findings = check(tmp_path, {"memory": {
-        "short_max_entries": 80, "short_max_age_days": 7,
-        "short_max_total_kb": 9999, "medium_max_entries": 10,
-    }})
-    promotes = [f for f in findings if f.code.startswith("MEMORY_PROMOTE_TO_")]
-    assert len(promotes) == 2
-    assert all(f.severity == "error" for f in promotes)
+def test_audit_does_not_read_memory_files_directly():
+    """Phase 4B: source-level grep — audit must reach memory only via stats()."""
+    src = (
+        Path(__file__).resolve().parents[1]
+        / "kernel/engine/audit/checks/memory_threshold.py"
+    )
+    text = src.read_text(encoding="utf-8")
+    forbidden = [
+        ".cbim/memory",
+        "memory/short",
+        "memory/medium",
+        "memory/candidates",
+        "glob(",
+        "rglob(",
+        "iterdir(",
+    ]
+    hits = [tok for tok in forbidden if tok in text]
+    assert not hits, f"forbidden raw-memory access tokens: {hits}"

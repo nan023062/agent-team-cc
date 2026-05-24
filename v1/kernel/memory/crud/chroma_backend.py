@@ -1,15 +1,17 @@
 """
-chroma_backend.py — ChromaDB implementation of MemoryBackend.
+crud/chroma_backend.py — ChromaDB implementation of MemoryBackend.
 
-Single collection "memory" with a `tier` metadata field ("short"|"medium")
-to separate the two memory layers within one ChromaDB collection.
+Single collection "memory" with a `tier` metadata field ("short"|"medium").
 
-Replace this file to swap the storage backend without touching anything else.
+Optional dependency — install with:
+    pip install chromadb>=0.6.0
+The class only imports `chromadb` inside `__init__`, so module import never
+fails if the package isn't installed.
 """
 
 from pathlib import Path
 
-from .base import MemoryBackend
+from .backend import MemoryBackend
 
 _DEFAULT_DB_PATH = Path("memory/.chroma")
 

@@ -11,6 +11,8 @@
 - v1/kernel/engine/audit
 - v1/kernel/mcp_server
 - v1/kernel/memory
+- v1/kernel/memory/compaction
+- v1/kernel/memory/crud
 - v1/kernel/project
 - v1/kernel/services
 - v1/tests

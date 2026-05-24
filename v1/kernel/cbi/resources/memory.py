@@ -1,10 +1,10 @@
 """
 memory.py — Memory resource.
 
-Thin object facade over memory/engine/engine.py:MemoryEngine. A Memory
-instance is one markdown entry file under .cbim/memory/<tier>/. The
-class-level helpers (create, query, list_all, cleanup) wrap the engine's
-write / search / maintenance APIs.
+Thin object facade over the memory module. A Memory instance is one
+markdown entry file under .cbim/memory/<tier>/. The class-level helpers
+(create, query, list_all, cleanup) wrap the crud / compaction / facade
+APIs directly — no MemoryEngine adapter in between.
 """
 
 from __future__ import annotations
@@ -30,14 +30,13 @@ def _default_store(root: Path | None = None) -> Path:
     return cbim_dir() / "memory"
 
 
-def _build_engine(store_dir: Path):
-    """Construct a MemoryEngine with the default FileBackend.
+def _build_backend(store_dir: Path):
+    """Construct a FileBackend at `store_dir`.
 
-    Mirrors memory/engine/cli.py:_build_engine so behaviour stays in lockstep.
+    Mirrors memory/cli.py:_build_backend so behaviour stays in lockstep.
     """
-    from memory.engine.engine import MemoryEngine
-    from memory.engine.file_backend import FileBackend
-    return MemoryEngine(backend=FileBackend(store_dir), store_dir=store_dir)
+    from memory.crud.file_backend import FileBackend
+    return FileBackend(store_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -83,7 +82,9 @@ class Memory(Resource):
         kind: str = "manual",
         root: Path | None = None,
     ) -> "Memory":
-        """Write a new memory entry file and register it with the engine."""
+        """Write a new memory entry file and index it through crud.primitives."""
+        from memory.crud.primitives import write as _crud_write
+
         store = _default_store(root)
         slug_clean = slug.strip().replace(" ", "-")
         ts = datetime.now().strftime("%Y-%m-%d-%H%M%S")
@@ -92,8 +93,8 @@ class Memory(Resource):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
-        engine = _build_engine(store)
-        engine.add(path, tier)
+        backend = _build_backend(store)
+        _crud_write(path, tier, backend)
         return cls.load(path)
 
     @classmethod
@@ -110,14 +111,16 @@ class Memory(Resource):
         verbose: bool = False,
         root: Path | None = None,
     ) -> list[dict]:
-        """Return query_verbose result dicts (doc_id, score, metadata).
+        """Return result dicts (doc_id, score, metadata) from the parent facade.
 
         The `verbose` flag is accepted for interface symmetry; callers can
         inspect each dict regardless.
         """
+        from memory import query as _q
+
         store = _default_store(root)
-        engine = _build_engine(store)
-        return engine.query_verbose(text, tier=tier, top_k=top_k)
+        backend = _build_backend(store)
+        return _q(text, tier=tier, limit=top_k, store_dir=store, backend=backend)
 
     @classmethod
     def list_all(
@@ -147,15 +150,19 @@ class Memory(Resource):
         keep_days: int = 3,
         root: Path | None = None,
     ) -> int:
+        from memory.compaction import sweep_expired
+
         store = _default_store(root)
-        engine = _build_engine(store)
-        return engine.cleanup_short(keep_days=keep_days)
+        backend = _build_backend(store)
+        return sweep_expired(store, backend, keep_days=keep_days)
 
     # ------------------------------------------------------------------
     # Save / Promote
     # ------------------------------------------------------------------
 
     def save(self) -> None:
+        from memory.crud.primitives import write as _crud_write
+
         fm = self.frontmatter.render() if self.frontmatter.to_dict() else ""
         body = self.body.read()
         if fm:
@@ -165,37 +172,41 @@ class Memory(Resource):
         if not text.endswith("\n"):
             text += "\n"
         atomic_write_text(self._path, text)
-        # Re-index so the engine picks up the new content.
+        # Re-index so the backend picks up the new content.
         tier = self.frontmatter.get("tier") or self._path.parent.name
-        engine = _build_engine(self._store_dir)
-        engine.add(self._path, tier)
+        backend = _build_backend(self._store_dir)
+        _crud_write(self._path, tier, backend)
         self._mark_clean()
 
     def delete(self, *, force: bool = False) -> None:
-        """Remove this entry from the engine index and unlink the file.
+        """Remove this entry from the backend index and unlink the file.
 
         Overrides the base default (which only unlinks) so the backend index
         stays consistent — leaving a stale doc_id behind would surface as a
         phantom hit in `Memory.query`.
         """
-        engine = _build_engine(self._store_dir)
-        engine.delete(self._path)
+        from memory.crud.primitives import delete as _crud_delete
+
+        backend = _build_backend(self._store_dir)
+        _crud_delete(self._path, backend)
         if self._path.is_file():
             self._path.unlink()
 
     def promote(self, to_tier: str) -> None:
         """Move this entry from its current tier directory to <to_tier>/.
 
-        Updates the engine index (delete old doc_id, re-add at new path) and
-        rewrites the in-memory `tier` field in frontmatter.
+        Updates the backend index (delete old doc_id, re-add at new path via
+        save()) and rewrites the in-memory `tier` field in frontmatter.
         """
+        from memory.crud.primitives import delete as _crud_delete
+
         if to_tier not in ("short", "medium"):
             raise ValueError(f"tier must be 'short' or 'medium', got {to_tier!r}")
         new_path = self._store_dir / to_tier / self._path.name
         new_path.parent.mkdir(parents=True, exist_ok=True)
 
-        engine = _build_engine(self._store_dir)
-        engine.delete(self._path)
+        backend = _build_backend(self._store_dir)
+        _crud_delete(self._path, backend)
         self._path.rename(new_path)
         self._path = new_path
         self.frontmatter.set("tier", to_tier)

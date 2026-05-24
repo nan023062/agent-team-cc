@@ -1,8 +1,13 @@
 """
-writer.py — Session entry writer.
+crud/session_writer.py — Session entry writer.
 
 Encapsulates transcript parsing, entry formatting, file writing, and signal filling.
-Called by CLI write-session command; hooks are not aware of this logic.
+Called by Stop hook; hooks are not aware of this logic — they just construct a
+backend and hand it in.
+
+Phase 4C: backend is the only dependency. `write_session` calls
+`crud.primitives.write` directly; the legacy MemoryEngine adapter has
+been removed.
 
 Signal filling strategy (two-tier):
   A. Heuristic: deterministic patterns from transcript structure (zero latency, no API)
@@ -14,7 +19,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-from .engine import MemoryEngine, SHORT
+from .backend import MemoryBackend
+from .primitives import SHORT, write as _crud_write
 
 # Four-quadrant signal checklist template.
 # Emitted into every fresh entry's `## 信号` section as a fallback so the user
@@ -112,7 +118,7 @@ def _should_write(info: dict, short_dir: Path) -> bool:
 # ---------------------------------------------------------------------------
 
 def write_session(transcript_path: str, store_dir: Path,
-                  engine: MemoryEngine, cfg: dict) -> Path | None:
+                  backend: MemoryBackend, cfg: dict) -> Path | None:
     """Parse transcript, write short-term entry, auto-fill signals.
 
     Returns the entry path on success, None if session is trivial or unreadable.
@@ -153,7 +159,7 @@ def write_session(transcript_path: str, store_dir: Path,
         distill = _llm_session_distill(messages, info, distill_cfg)
 
     entry_path.write_text(_build_entry(info, distill=distill), encoding="utf-8")
-    engine.add(entry_path, SHORT)
+    _crud_write(entry_path, SHORT, backend)
 
     # Fill ## 信号 index: prefer signals regex-extracted from the distillation
     # (which already capture the four quadrants with full reasoning), falling

@@ -1,14 +1,13 @@
 """
-file_backend.py — File-based MemoryBackend (default, zero external dependencies).
+crud/file_backend.py — File-based MemoryBackend (default, zero external dependencies).
 
 Retrieval is recency-based (modification time), not semantic.
-To enable semantic search, swap in a vector backend (e.g. ChromaBackend)
-by subclassing MemoryBackend and passing an instance to MemoryEngine.
+To enable semantic search, swap in a vector backend (e.g. ChromaBackend).
 """
 
 from pathlib import Path
 
-from .base import MemoryBackend
+from .backend import MemoryBackend
 
 
 class FileBackend(MemoryBackend):

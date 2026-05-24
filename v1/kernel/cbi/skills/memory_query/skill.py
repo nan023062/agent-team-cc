@@ -5,6 +5,12 @@ SKILL: str = """\
 
 ---
 
+## Read-only Contract
+
+This skill drives the 4 read-only interfaces (query / scan / get / stats) exposed by the memory module's contract.md. Querying never mutates state — no side effects, no event emission, no caller-id discrimination. Same filter, same result, regardless of who asks.
+
+---
+
 ## Command Format
 
 Run from the CBIM root directory (where `memory/` package lives):

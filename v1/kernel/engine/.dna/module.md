@@ -38,7 +38,7 @@ classDiagram
 
 Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 
-- `memory` → `memory.engine.cli` (create / add / query / delete / reindex / cleanup)
+- `memory` → `memory.cli` (create / add / query / delete / reindex / cleanup)
 - `dna` → in-process handlers driving `cbi.resources.DNAModule` and `cbi._primitives.modules` (list / show / init / reindex / edit / write-doc[deprecated] / write-section[deprecated] / split)
 - `agent` → in-process handlers driving `cbi.resources.Agent` (list / show / scaffold / archive / update / add-skill)
 - `snapshot` → `cbi._primitives.snapshot.build_snapshot`
@@ -80,7 +80,7 @@ Every CBIM operation that an LLM or human types is one CLI invocation. The kerne
 
 ## Non-Goals
 
-- No `cbim_kernel.*` import paths. The kernel root is now the package root (after flatten); imports are `from engine ...`, `from memory.engine ...`, `from cbi.resources ...`, never `from cbim_kernel.engine ...`.
+- No `cbim_kernel.*` import paths. The kernel root is now the package root (after flatten); imports are `from engine ...`, `from memory ...`, `from cbi.resources ...`, never `from cbim_kernel.engine ...`.
 - No `migrate` or `upgrade` subcommands. Project lifecycle = `init` + `project sync` only.
 - No `pin` subcommand, no `versions.json` reader, no installer-side subprocess.
 
