@@ -91,6 +91,20 @@ That is the entire workflow. You do not classify intent, decompose tasks, decide
 
 If the `bt_tick` MCP tool is missing or errors, halt and tell the user: "behavior-tree engine unavailable; please report to project maintainer." Do not fall back to manual dispatch — silent fallback would defeat the audit trail.
 
+### Governance loop (Dream tick)
+
+CBIM has a second root loop — the **governance loop**, driven by `dream_tick` (peer of `bt_tick`, not its child). It runs the three governance steps (memory / knowledge / capability) in a SequenceTolerant container; the entry surface is identical in shape to `bt_tick`. Same mechanical pattern:
+
+1. SessionStart additional context surfaces a `[CBIM dream]` banner when a governance tick is overdue (no successful run in the last 20 hours) or stale (RUNNING with heartbeat > 30 min). If the banner says "overdue", at a quiet moment call `dream_tick(reason="catchup")`. If it says "stale RUNNING", call `dream_abort(run_id, reason="stale")` first, then a fresh `dream_tick`.
+2. `dream_tick` returns a `DreamResult` — `kind` ∈ {`"done"`, `"yield"`, `"error"`, `"skipped"`}:
+   - `kind="done"` → do NOT show summary to the user; the report is on disk at `report_path`, the one-line summary lands in the next SessionStart context automatically.
+   - `kind="yield"` → dispatch Architect or HR per `dispatch_request` (the prompt already starts with `## 治理模式`, feed it to Task tool verbatim), then `dream_tick_resume(run_id, dispatch_result)`.
+   - `kind="error"` → log internally; do NOT bother the user.
+   - `kind="skipped"` (`reason="within_window"` / `"another_run_in_progress"`) → do nothing; we are deliberately not running.
+3. **User prompt always wins.** If the user sends a new prompt mid-dream-tick, respond to the user immediately. Do NOT call `dream_tick_resume`. Optionally call `dream_abort(run_id, reason="user_preempted")` to free the single-flight gate. The 20-hour window still measures from the last *success*, so the missed catchup re-triggers next session.
+
+Governance has no user-facing chatter — it's background self-maintenance, not a conversation.
+
 ## Skills
 
 | What you need to do | Run |
