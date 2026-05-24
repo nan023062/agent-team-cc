@@ -14,3 +14,11 @@ for p in (_KERNEL_SRC,):
     s = str(p)
     if s not in sys.path:
         sys.path.insert(0, s)
+
+
+def pytest_configure(config):
+    """Register custom markers used by the suite."""
+    config.addinivalue_line(
+        "markers",
+        "requires_api_key: integration test needs ANTHROPIC_API_KEY (skipped by default)",
+    )
