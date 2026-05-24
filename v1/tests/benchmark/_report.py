@@ -85,30 +85,30 @@ def render_ab_markdown(
     lines: list[str] = []
     lines.append(f"# {title}")
     lines.append("")
-    lines.append("## Run")
+    lines.append("## 运行")
     lines.append("")
     for k, v in metadata.items():
-        lines.append(f"- **{k}**: {v}")
+        lines.append(f"- **{k}**：{v}")
 
     plain_modes = [ab.plain for ab in ab_results]
     cbim_modes = [ab.cbim for ab in ab_results]
     plain_agg = _aggregate(plain_modes)
     cbim_agg = _aggregate(cbim_modes)
     lines.append(
-        f"- **Tasks**: {len(ab_results)} × 2 modes = {len(ab_results) * 2} runs"
+        f"- **Task**：{len(ab_results)} × 2 模式 = {len(ab_results) * 2} 次运行"
     )
     lines.append(
-        f"- **Outcome**: plain {plain_agg.passed}/{plain_agg.n} pass, "
-        f"cbim {cbim_agg.passed}/{cbim_agg.n} pass"
+        f"- **结果**：plain 通过 {plain_agg.passed}/{plain_agg.n}，"
+        f"cbim 通过 {cbim_agg.passed}/{cbim_agg.n}"
     )
     lines.append("")
 
     # Per-task side-by-side
-    lines.append("## Per-task side-by-side")
+    lines.append("## 逐 task 对比")
     lines.append("")
     header = [
-        "Task", "Mode", "Success", "Wall", "In tok", "Out tok",
-        "Lines +", "Lines -", "Dispatch", "DNA reads", "Turns",
+        "Task", "模式", "成功", "耗时", "输入 token", "输出 token",
+        "代码 +", "代码 -", "Dispatch 数", ".dna 读取数", "Turn 数",
     ]
     lines.append("| " + " | ".join(header) + " |")
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
@@ -117,7 +117,7 @@ def render_ab_markdown(
             row = [
                 f"`{ab.task_name}`",
                 m.mode,
-                "pass" if m.success else "fail",
+                "通过" if m.success else "失败",
                 _wall(m.result.wall_time_s),
                 _tok(m.result.input_tokens),
                 _tok(m.result.output_tokens),
@@ -131,53 +131,53 @@ def render_ab_markdown(
     lines.append("")
 
     # Summary
-    lines.append("## Summary (averages across all tasks)")
+    lines.append("## 汇总（所有 task 平均）")
     lines.append("")
-    lines.append("| Metric | Plain | CBIM | Delta |")
+    lines.append("| 指标 | Plain | CBIM | Delta |")
     lines.append("|---|---|---|---|")
     lines.append(
-        f"| Success rate | {plain_agg.passed}/{plain_agg.n} "
+        f"| 成功率 | {plain_agg.passed}/{plain_agg.n} "
         f"({plain_agg.passed / max(plain_agg.n, 1) * 100:.0f}%) | "
         f"{cbim_agg.passed}/{cbim_agg.n} "
         f"({cbim_agg.passed / max(cbim_agg.n, 1) * 100:.0f}%) | "
-        f"{(cbim_agg.passed - plain_agg.passed):+d} task(s) |"
+        f"{(cbim_agg.passed - plain_agg.passed):+d} task |"
     )
     lines.append(
-        f"| Avg wall time | {_wall(plain_agg.avg_wall)} | {_wall(cbim_agg.avg_wall)} | "
+        f"| 平均耗时 | {_wall(plain_agg.avg_wall)} | {_wall(cbim_agg.avg_wall)} | "
         f"{cbim_agg.avg_wall - plain_agg.avg_wall:+.1f}s ({_pct(plain_agg.avg_wall, cbim_agg.avg_wall)}) |"
     )
     lines.append(
-        f"| Avg input tokens | {_tok(plain_agg.avg_in)} | {_tok(cbim_agg.avg_in)} | "
+        f"| 平均输入 token | {_tok(plain_agg.avg_in)} | {_tok(cbim_agg.avg_in)} | "
         f"{_delta(plain_agg.avg_in, cbim_agg.avg_in)} |"
     )
     lines.append(
-        f"| Avg output tokens | {_tok(plain_agg.avg_out)} | {_tok(cbim_agg.avg_out)} | "
+        f"| 平均输出 token | {_tok(plain_agg.avg_out)} | {_tok(cbim_agg.avg_out)} | "
         f"{_delta(plain_agg.avg_out, cbim_agg.avg_out)} |"
     )
     lines.append(
-        f"| Avg code lines added | {plain_agg.avg_added:.1f} | {cbim_agg.avg_added:.1f} | "
+        f"| 平均新增代码行 | {plain_agg.avg_added:.1f} | {cbim_agg.avg_added:.1f} | "
         f"{cbim_agg.avg_added - plain_agg.avg_added:+.1f} |"
     )
     lines.append(
-        f"| Avg code lines removed | {plain_agg.avg_removed:.1f} | {cbim_agg.avg_removed:.1f} | "
+        f"| 平均删除代码行 | {plain_agg.avg_removed:.1f} | {cbim_agg.avg_removed:.1f} | "
         f"{cbim_agg.avg_removed - plain_agg.avg_removed:+.1f} |"
     )
     lines.append(
-        f"| Avg dispatch count | {plain_agg.avg_dispatch:.1f} | {cbim_agg.avg_dispatch:.1f} | "
+        f"| 平均 Dispatch 数 | {plain_agg.avg_dispatch:.1f} | {cbim_agg.avg_dispatch:.1f} | "
         f"{cbim_agg.avg_dispatch - plain_agg.avg_dispatch:+.1f} |"
     )
     lines.append(
-        f"| Avg .dna reads | {plain_agg.avg_dna:.1f} | {cbim_agg.avg_dna:.1f} | "
+        f"| 平均 .dna 读取数 | {plain_agg.avg_dna:.1f} | {cbim_agg.avg_dna:.1f} | "
         f"{cbim_agg.avg_dna - plain_agg.avg_dna:+.1f} |"
     )
     lines.append(
-        f"| Avg turn count | {plain_agg.avg_turns:.1f} | {cbim_agg.avg_turns:.1f} | "
+        f"| 平均 Turn 数 | {plain_agg.avg_turns:.1f} | {cbim_agg.avg_turns:.1f} | "
         f"{cbim_agg.avg_turns - plain_agg.avg_turns:+.1f} |"
     )
     lines.append("")
 
     # Diagnostics
-    lines.append("## Diagnostics")
+    lines.append("## 诊断")
     lines.append("")
     failed = [
         (ab.task_name, mode)
@@ -186,15 +186,15 @@ def render_ab_markdown(
         if not mode.success
     ]
     if not failed:
-        lines.append("All runs passed their success_check.")
+        lines.append("全部运行均通过 success_check。")
     else:
         for name, mode in failed:
-            lines.append(f"### `{name}` — {mode.mode}: FAIL")
+            lines.append(f"### `{name}` —— {mode.mode}：失败")
             lines.append("")
-            lines.append(f"- exit code: {mode.result.exit_code}")
-            lines.append(f"- wall: {_wall(mode.result.wall_time_s)}")
+            lines.append(f"- 退出码：{mode.result.exit_code}")
+            lines.append(f"- 耗时：{_wall(mode.result.wall_time_s)}")
             stderr = (mode.result.stderr or "").strip().splitlines()
             if stderr:
-                lines.append(f"- stderr head: {stderr[0][:160]}")
+                lines.append(f"- stderr 首行：{stderr[0][:160]}")
             lines.append("")
     return "\n".join(lines)

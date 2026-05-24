@@ -65,11 +65,13 @@ v1/tests/benchmark/
 
 ## 怎么读报告
 
+报告以**中文**渲染（section 标题、表头、状态词）。代码标识符、文件路径、agent 名、MCP 工具名、mode 名（`plain` / `cbim`）、git hash 保持英文。
+
 每份报告 3 段：
 
-1. **Run** —— 何时、跑了什么、几个 task
-2. **Per-task side-by-side** —— 每个 (task, mode) 对一行，能看每 task 的方差，不只是平均
-3. **Summary** —— 跨所有 task 的均值 + `Delta` 列
+1. **运行** —— 何时、跑了什么、几个 task
+2. **逐 task 对比** —— 每个 (task, mode) 对一行，能看每 task 的方差，不只是平均
+3. **汇总** —— 跨所有 task 的均值 + `Delta` 列
 
 一个有意思的 CBIM 故事大致长这样：
 - 成功率列：CBIM ≥ plain（特别是跨模块的 task D 上）

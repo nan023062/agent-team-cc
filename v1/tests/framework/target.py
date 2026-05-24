@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Protocol
 
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 KERNEL_SRC = REPO_ROOT / "v1" / "kernel"
 
 

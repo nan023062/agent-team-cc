@@ -108,12 +108,12 @@ def main() -> int:
         ab_results.append(ab)
 
     metadata = {
-        "Start": args.ts_start or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "End": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "开始": args.ts_start or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "结束": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "Fixture": str(fixture),
-        "Logs": str(args.logs_dir),
+        "日志": str(args.logs_dir),
     }
-    title = f"CBIM vs Plain Agent Benchmark — {args.report.stem}"
+    title = f"CBIM vs Plain Agent 基准测试 —— {args.report.stem}"
     md = render_ab_markdown(ab_results, title=title, metadata=metadata)
     args.report.write_text(md, encoding="utf-8")
     print(f"[runner_cli] wrote {args.report}", flush=True)

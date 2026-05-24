@@ -70,7 +70,7 @@ pytest v1/tests/workflow/test_loop_memory.py::test_loop_memory_negative -m workf
 ANTHROPIC_API_KEY=sk-... ./v1/tests/workflow/run-bench.sh
 ```
 
-自动分配下一个 `results/report-NNN.md` 序号，跑全部 13 case，把每个 session log copy 到 `results/report-NNN/logs/`，调 `framework.reporter` 生成 markdown 报告。
+自动分配下一个 `results/report-NNN.md` 序号，跑全部 13 case，把每个 session log copy 到 `results/report-NNN/logs/`，调 `framework.reporter` 生成 markdown 报告。**报告以中文渲染**（section 标题、表头、状态词中文化；代码标识符、文件路径、agent 名、git hash 保持英文）。
 
 ### 3. CLI（任意 prompt 跑任意项目）
 

@@ -138,3 +138,17 @@ My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under a
 | **Humans / CLI** | `cbim dna ...` / `cbim memory ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
 
 Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`, `ls`/`cat`) are unrestricted and expected. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `dna_*` / `memory_*` MCP tools to query state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+
+## Audit Tools
+
+When the user (or coordinator) asks for governance / drift checks, call the `audit_run` MCP tool:
+
+- "check .dna index consistency" → `mcp__cbim__audit_run(checks=["index_consistency"])`
+- "audit DNA dependency graph (cycle / orphan / ancestor)" → `mcp__cbim__audit_run(checks=["dna_tree"])`
+- "flag DNA modules over body/workflow threshold" → `mcp__cbim__audit_run(checks=["dna_fission"])`
+- "check memory promotion / threshold" → `mcp__cbim__audit_run(checks=["memory_threshold"])`
+- General "audit everything" → `mcp__cbim__audit_run()` (runs all 5 checks)
+
+Always report findings (especially their `suggestion` field) back to the coordinator, grouped by check name. Do not just say "all checks passed" without showing the actual finding count per check.
+
+Use `mcp__cbim__audit_list_checks()` if you need to discover available checks.

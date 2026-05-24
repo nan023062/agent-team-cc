@@ -140,3 +140,14 @@ My `Write` / `Edit` tools may **never** be used to modify files under `.claude/a
 | **Humans / CLI** | `cbim agent ...` / `cbim memory ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
 
 Reads of `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `memory_*` MCP tools to query memory state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+
+## Audit Tools
+
+When the user (or coordinator) asks to check agent capability state or memory promotion needs, call:
+
+- "check agent overload / fission" → `mcp__cbim__audit_run(checks=["agent_fission"])`
+- "check memory promotion to agent skills" → `mcp__cbim__audit_run(checks=["memory_threshold"])` (look for `MEMORY_PROMOTE_TO_AGENT_SKILL` findings)
+
+Findings of type `MEMORY_PROMOTE_TO_AGENT_SKILL` are your responsibility — they signal medium-tier memory has accumulated patterns that should be distilled into agent skills. Architect handles `MEMORY_PROMOTE_TO_DNA_KNOWLEDGE`; you handle the agent-side promotion.
+
+Report findings (including `suggestion` field) back to coordinator.

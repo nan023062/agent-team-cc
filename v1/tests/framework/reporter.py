@@ -79,14 +79,14 @@ def _verdict_to_case(name: str, verdict, result) -> CaseStats:
 
 def _case_table(cases: list[CaseStats], log_dir_rel: str | None) -> str:
     has_log_col = log_dir_rel is not None
-    header = ["Case", "Status", "Sub", "Wall", "In tok", "Out tok"]
+    header = ["Case", "状态", "Sub", "耗时", "输入 token", "输出 token"]
     if has_log_col:
-        header.append("Log")
+        header.append("日志")
     sep = ["---"] * len(header)
     lines = ["| " + " | ".join(header) + " |", "| " + " | ".join(sep) + " |"]
     for c in cases:
         sub = f"{c.sub_checks_passed}/{c.sub_checks_total}"
-        status = "pass" if c.passed else "fail"
+        status = "通过" if c.passed else "失败"
         row = [
             f"`{c.name}`",
             status,
@@ -104,13 +104,13 @@ def _case_table(cases: list[CaseStats], log_dir_rel: str | None) -> str:
 def _diagnostics_section(cases: list[CaseStats]) -> str:
     failed = [c for c in cases if not c.passed]
     if not failed:
-        return "All checks passed."
+        return "全部检查通过。"
     parts: list[str] = []
     for c in failed:
         parts.append(f"### `{c.name}`\n")
         if c.top_failure:
-            parts.append(f"- top failure: {c.top_failure}")
-        parts.append(f"- sub-checks: {c.sub_checks_passed}/{c.sub_checks_total}")
+            parts.append(f"- 主要失败：{c.top_failure}")
+        parts.append(f"- 子检查：{c.sub_checks_passed}/{c.sub_checks_total}")
         parts.append("")
     return "\n".join(parts)
 
@@ -134,32 +134,32 @@ def render_markdown(
     lines: list[str] = []
     lines.append(f"# {title}")
     lines.append("")
-    lines.append("## Run")
+    lines.append("## 运行")
     lines.append("")
     for k, v in metadata.items():
-        lines.append(f"- **{k}**: {v}")
+        lines.append(f"- **{k}**：{v}")
     lines.append(
-        f"- **Cases**: {aggregate.total} total — {aggregate.passed} pass, "
-        f"{aggregate.failed} fail (pass rate {aggregate.pass_rate * 100:.0f}%)"
+        f"- **Case**：共 {aggregate.total} —— 通过 {aggregate.passed}，"
+        f"失败 {aggregate.failed}（通过率 {aggregate.pass_rate * 100:.0f}%）"
     )
     lines.append(
-        f"- **Wall**: {_wall(aggregate.total_wall_time_s)} total, "
-        f"avg {_wall(aggregate.avg_wall_time_s)}/case"
+        f"- **耗时**：总 {_wall(aggregate.total_wall_time_s)}，"
+        f"平均 {_wall(aggregate.avg_wall_time_s)}/case"
     )
     lines.append(
-        f"- **Tokens**: in {_tok(aggregate.total_input_tokens)}, "
-        f"out {_tok(aggregate.total_output_tokens)}"
+        f"- **Token**：输入 {_tok(aggregate.total_input_tokens)}，"
+        f"输出 {_tok(aggregate.total_output_tokens)}"
     )
     lines.append("")
-    lines.append("## Per-case results")
+    lines.append("## 逐 case 结果")
     lines.append("")
     lines.append(_case_table(sorted_cases, log_dir_rel))
     lines.append("")
 
     if aggregate.by_group:
-        lines.append("## Per-group summary")
+        lines.append("## 分组汇总")
         lines.append("")
-        lines.append("| Group | Pass / Total | Wall | In tok | Out tok |")
+        lines.append("| 分组 | 通过 / 总数 | 耗时 | 输入 token | 输出 token |")
         lines.append("|---|---|---|---|---|")
         for g, sub in aggregate.by_group.items():
             lines.append(
@@ -168,7 +168,7 @@ def render_markdown(
             )
         lines.append("")
 
-    lines.append("## Diagnostics")
+    lines.append("## 诊断")
     lines.append("")
     lines.append(_diagnostics_section(sorted_cases))
     lines.append("")
@@ -178,15 +178,16 @@ def render_markdown(
 def render_markdown_single(result, verdict=None) -> str:
     """Single-case markdown report — used by CLI `run --output`."""
     parts: list[str] = []
-    parts.append("# Workflow run")
+    parts.append("# Workflow 运行")
     parts.append("")
-    parts.append(f"- **Project**: `{result.target_root}`")
-    parts.append(f"- **Started**: {result.started_at}")
-    parts.append(f"- **Wall**: {_wall(result.wall_time_s)}")
-    parts.append(f"- **Exit**: {result.exit_code}")
-    parts.append(f"- **Tokens**: in {_tok(result.input_tokens)}, out {_tok(result.output_tokens)}")
+    parts.append(f"- **项目**：`{result.target_root}`")
+    parts.append(f"- **开始**：{result.started_at}")
+    parts.append(f"- **耗时**：{_wall(result.wall_time_s)}")
+    parts.append(f"- **退出码**：{result.exit_code}")
+    parts.append(f"- **Token**：输入 {_tok(result.input_tokens)}，"
+                 f"输出 {_tok(result.output_tokens)}")
     if result.session_log_path:
-        parts.append(f"- **Session log**: `{result.session_log_path}`")
+        parts.append(f"- **Session 日志**：`{result.session_log_path}`")
     parts.append("")
     parts.append("## Prompt")
     parts.append("")
@@ -195,17 +196,17 @@ def render_markdown_single(result, verdict=None) -> str:
     parts.append("```")
     parts.append("")
     if verdict is not None:
-        parts.append("## Verdict")
+        parts.append("## 判定")
         parts.append("")
-        parts.append(f"- **Passed**: {verdict.passed}")
+        parts.append(f"- **通过**：{verdict.passed}")
         parts.append(
-            f"- **Sub-checks**: {verdict.sub_checks_passed}/{verdict.sub_checks_total}"
+            f"- **子检查**：{verdict.sub_checks_passed}/{verdict.sub_checks_total}"
         )
         if verdict.top_failure:
-            parts.append(f"- **Top failure**: {verdict.top_failure}")
+            parts.append(f"- **主要失败**：{verdict.top_failure}")
         if verdict.diagnostics:
             parts.append("")
-            parts.append("### Diagnostics")
+            parts.append("### 诊断")
             parts.append("")
             for d in verdict.diagnostics:
                 parts.append(f"- {d}")
@@ -216,17 +217,17 @@ def render_markdown_single(result, verdict=None) -> str:
 def render_stdout(result, verdict=None) -> str:
     """Compact single-line-ish summary for CLI stdout."""
     head = (
-        f"exit={result.exit_code} wall={_wall(result.wall_time_s)} "
-        f"in={_tok(result.input_tokens)} out={_tok(result.output_tokens)} "
-        f"log={result.session_log_path}"
+        f"退出码={result.exit_code} 耗时={_wall(result.wall_time_s)} "
+        f"输入={_tok(result.input_tokens)} 输出={_tok(result.output_tokens)} "
+        f"日志={result.session_log_path}"
     )
     if verdict is None:
         return head
-    status = "PASS" if verdict.passed else "FAIL"
+    status = "通过" if verdict.passed else "失败"
     sub = f"{verdict.sub_checks_passed}/{verdict.sub_checks_total}"
-    tail = f"\n[{status}] sub={sub}"
+    tail = f"\n[{status}] 子检查={sub}"
     if not verdict.passed and verdict.top_failure:
-        tail += f" top_failure={verdict.top_failure!r}"
+        tail += f" 主要失败={verdict.top_failure!r}"
     return head + tail
 
 
@@ -277,12 +278,12 @@ def build_bench_report(args: argparse.Namespace) -> str:
     agg = aggregate(cases, group_fn=_group_fn)
 
     metadata = {
-        "Start": args.ts_start,
-        "End": args.ts_end,
+        "开始": args.ts_start,
+        "结束": args.ts_end,
         "Git": f"{args.git_branch} @ {args.git_commit}",
-        "Pytest exit": args.pytest_exit,
+        "Pytest 退出码": args.pytest_exit,
     }
-    title = f"Workflow tests — Report {args.report_id}"
+    title = f"Workflow 测试 —— 报告 {args.report_id}"
     return render_markdown(
         agg,
         cases,

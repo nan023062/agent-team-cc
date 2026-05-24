@@ -73,12 +73,16 @@ v1/tests/benchmark/
 
 ## How to read the report
 
+Reports are rendered in **Chinese** (section titles, table headers, status
+words). Code identifiers, file paths, agent names, MCP tool names, mode
+names (`plain` / `cbim`), and git hashes stay in English.
+
 Each report has three sections:
 
-1. **Run** — when, what, how many tasks
-2. **Per-task side-by-side** — every (task, mode) pair on its own row, so you
+1. **运行** — when, what, how many tasks
+2. **逐 task 对比** — every (task, mode) pair on its own row, so you
    can see per-task variance, not just averages
-3. **Summary** — averages across all tasks with a `Delta` column
+3. **汇总** — averages across all tasks with a `Delta` column
 
 A useful CBIM story looks like:
 - Success column: CBIM ≥ plain (especially on cross-module tasks D)

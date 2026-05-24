@@ -81,7 +81,9 @@ ANTHROPIC_API_KEY=sk-... ./v1/tests/workflow/run-bench.sh
 
 Allocates the next `results/report-NNN.md` slot, runs all 13 cases, copies
 each session log to `results/report-NNN/logs/`, and writes the markdown
-report via `framework.reporter`.
+report via `framework.reporter`. **Reports are rendered in Chinese**
+(section titles, table headers, status words); code identifiers, file
+paths, agent names, and git hashes stay in English.
 
 ### 3. CLI (one prompt against any project)
 
