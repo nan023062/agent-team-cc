@@ -8,6 +8,11 @@ Two-path policy mirrors IntentAnalyze:
     "arch_context" (so ArchGate will yield first).
 
 NEVER wrap this Action in @Retry — non-idempotent (bumps iteration).
+
+NOTE (v2.1): Decompose does NOT populate target_agent_file. Agent file
+resolution is HR's responsibility (capability axis) via the CallHR node,
+which writes bb.agent_list. WorkAgentLeaf looks up agent_file from
+bb.agent_list first, falling back to subtask.target_agent_file (None here).
 """
 
 from __future__ import annotations
@@ -16,20 +21,6 @@ from typing import Any
 
 from ..api.result import Subtask
 from ..core.node import Node, Status
-
-
-_AGENT_FILES = {
-    "programmer": ".claude/agents/programmer/programmer.md",
-    "architect": ".claude/agents/architect/architect.md",
-    "auditor": ".claude/agents/auditor/auditor.md",
-    "hr": ".claude/agents/hr/hr.md",
-}
-
-
-def _agent_file_for(role: str | None) -> str | None:
-    if not role:
-        return None
-    return _AGENT_FILES.get(role)
 
 
 class Decompose(Node):
@@ -56,7 +47,7 @@ class Decompose(Node):
                 id="t1",
                 kind=kind,
                 target_agent=target,
-                target_agent_file=_agent_file_for(target),
+                target_agent_file=None,
                 prompt=bb.user_request or "",
                 depends_on=[],
             ).to_dict()]
@@ -79,7 +70,7 @@ class Decompose(Node):
             id=f"t{bb.iteration}",
             kind="execution",
             target_agent=target,
-            target_agent_file=_agent_file_for(target),
+            target_agent_file=None,
             prompt=bb.user_request or "",
             depends_on=["arch_context"],
         ).to_dict()]

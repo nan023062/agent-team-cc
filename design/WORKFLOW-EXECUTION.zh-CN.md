@@ -51,6 +51,7 @@
 | 15 | `trace` | list[TraceEntry] | 所有节点 | 引擎落盘 | 节点级 trace：进入/退出/状态/耗时/异常 |
 | 16 | `memory_flush_queue` | list[MemoryEntry] | 各阶段 | FlushMemory | 待落 `.cbim/memory/` 的条目缓冲，避免每节点都打开记忆服务 |
 | 17 | `audit_report` | dict\|None | Audit 节点 | Aggregate | 可选叶节点（Audit）的结果，仅当树拓扑里挂了 Audit 节点时存在 |
+| 18 | `agent_list` | list[dict]\|None | CallHR | DispatchParallel / WorkAgentLeaf | HR 返回的"子任务 → agent_file"分配清单：`[{subtask_id, target_agent_file, agent_capability}]`。WorkAgentLeaf 派工前先按 `subtask_id` 查这里，回退到 `subtask.target_agent_file`。 |
 
 ### 2.2 访问规则
 
@@ -87,6 +88,7 @@ flowchart TD
 
     LoopSeq --> Decompose["Decompose<br/>(Action)"]
     LoopSeq --> ArchGate["ArchGate<br/>(Action) @Retry"]
+    LoopSeq --> CallHR["CallHR<br/>(Action) @Retry"]
     LoopSeq --> Dispatch["DispatchParallel<br/>(Parallel: for each subtask)"]
     Dispatch --> WA["WorkAgentLeaf<br/>(Action) @Timeout @Catch"]
     LoopSeq --> Aggregate["Aggregate<br/>(Action)"]
@@ -106,6 +108,19 @@ flowchart TD
 
 详细装饰器语义见 §5。
 
+### LoopSeq 六节点顺序（v2.1 修订）
+
+LoopSeq 是顺序节点（Sequence），子节点严格按顺序执行：
+
+1. `Decompose` —— 拆解，生成 `dispatch_plan`（**不**填 agent_file）
+2. `ArchGate` —— 知识轴：yield Architect，回填 `arch_context`
+3. `CallHR` —— 能力轴：yield HR，回填 `agent_list`（`subtask_id → agent_file`）
+4. `DispatchParallel` —— 业务轴：按 `agent_list` 派 Work Agent
+5. `Aggregate` —— 整合结果，检测冲突
+6. `ConvergeJudge` —— 判定 done / loop / interrupt
+
+**ArchGate（知识轴）与 CallHR（能力轴）平行**，分别管"业务模块知识"与"agent 能力匹配"两个正交维度——前者决定"做什么"，后者决定"派给谁"。两者都必须先于 Work Agent 派工完成。
+
 ---
 
 ## 4. 五阶段 = 五个 Action 的契约
@@ -115,9 +130,10 @@ flowchart TD
 | Action | 读 `bb` | 写 `bb` | 调谁 | 返回语义 |
 |--------|---------|---------|------|----------|
 | `IntentAnalyze` | `user_request` | `intent` | 规则引擎优先；歧义时 LLM 兜底（L8） | SUCCESS = 已分析（含 clarification_needed=true）；FAILURE = 规则与 LLM 均无法分析 |
-| `Decompose` | `user_request`, `intent`, `subtask_results`（如有，用于二次拆解） | `dispatch_plan`, `iteration += 1` | 主 agent（LLM 决策）；规则可拦截"无需拆解"的简单 case | SUCCESS = 已拆解出 ≥1 个子任务；FAILURE = 无法拆解 |
+| `Decompose` | `user_request`, `intent`, `subtask_results`（如有，用于二次拆解） | `dispatch_plan`（不含 `target_agent_file`，HR 在 CallHR 阶段统一填）, `iteration += 1` | 主 agent（LLM 决策）；规则可拦截"无需拆解"的简单 case | SUCCESS = 已拆解出 ≥1 个子任务；FAILURE = 无法拆解 |
 | `ArchGate` | `dispatch_plan` | `arch_context` | 通过 `pending_dispatch` yield 给主 agent 派 Architect | SUCCESS = 已拿到 ContextPack；RUNNING = 等待 Architect resume；FAILURE = Architect 报错 |
-| `DispatchParallel` (内含 `WorkAgentLeaf`) | `dispatch_plan`, `arch_context` | `subtask_results[id]`, `pending_dispatch`（逐个派工） | 通过 `pending_dispatch` yield 给主 agent 派 Work Agent | 全部子任务 SUCCESS → SUCCESS；任一 FAILURE 且无 fallback → FAILURE；任一携带 `NEEDS_ARCH_DECISION` → 回到 ArchGate（树拓扑层面通过 Aggregate 写 `converge_signal=loop` 实现） |
+| `CallHR` | `dispatch_plan`, `arch_context`, `agent_list`（去重检查） | `agent_list`（subtask_id → agent_file 清单） | 通过 `pending_dispatch` yield 给主 agent 派 HR | SUCCESS = 已有覆盖所有 `arch_context`-依赖子任务的 agent_list（或本轮无需求）；RUNNING = 等待 HR resume；FAILURE = HR 报 `agent_gap`（无可用 agent） |
+| `DispatchParallel` (内含 `WorkAgentLeaf`) | `dispatch_plan`, `arch_context`, `agent_list` | `subtask_results[id]`, `pending_dispatch`（逐个派工） | 通过 `pending_dispatch` yield 给主 agent 派 Work Agent；agent_file 优先取自 `bb.agent_list`，回退到 `subtask.target_agent_file` | 全部子任务 SUCCESS → SUCCESS；任一 FAILURE 且无 fallback → FAILURE；任一携带 `NEEDS_ARCH_DECISION` → 回到 ArchGate（树拓扑层面通过 Aggregate 写 `converge_signal=loop` 实现） |
 | `Aggregate` | `subtask_results` | `subtask_results`（合并视图）、可能写 `interrupt_reason`（如检测到冲突） | 纯本地，无外调 | SUCCESS = 整合完成；FAILURE = 检测到不可调和冲突（写 `interrupt_reason`） |
 | `ConvergeJudge` | `subtask_results`, `iteration`, `iteration_cap` | `converge_signal` | 规则优先（无新子任务且无 `NEEDS_ARCH_DECISION` → done；有新增任务 → loop；冲突/超 cap → interrupt）；歧义时 LLM 兜底（L8） | SUCCESS = 已判定（信号在 `converge_signal`）；FAILURE = 判定异常（罕见） |
 
@@ -138,7 +154,7 @@ flowchart TD
 |--------|------|------|--------|
 | `@Trace` | Root | 记录每个被装饰节点的 enter/exit/status/duration_ms 到 `bb.trace`；引擎落 `trace.jsonl` | 永不失败（trace 本身异常吞掉，写一条 `trace_self_error` 条目） |
 | `@Timeout(seconds)` | 全局 Root + 单个长 Action（WorkAgentLeaf） | 到时返回 FAILURE 给父节点，**不强杀子进程**——只标记超时，子进程（Work Agent）由其自身管理或被 OS 回收。引擎在 trace 上记 `timeout_fired`。 | 父节点收到 FAILURE 按正常拓扑处理 |
-| `@Retry(n, only=idempotent)` | IntentAnalyze, ArchGate, ConvergeJudge | 节点返回 FAILURE 时重跑，最多 n 次。**仅可包幂等节点**——五阶段 Action 中只有这三个被标注为幂等（无副作用、无外部状态改动）。Decompose / Dispatch / Aggregate 严禁包 Retry。 | n 次仍 FAILURE → 抛给父节点 |
+| `@Retry(n, only=idempotent)` | IntentAnalyze, ArchGate, CallHR, ConvergeJudge | 节点返回 FAILURE 时重跑，最多 n 次。**仅可包幂等节点**——LoopSeq 六节点中只有这四个被标注为幂等（无副作用、无外部状态改动）。Decompose / Dispatch / Aggregate 严禁包 Retry。 | n 次仍 FAILURE → 抛给父节点 |
 | `@Catch(fallback)` | WorkAgentLeaf, FlushMemory | 子节点抛异常时不向上传播，按 fallback 策略（写 `subtask_results[id].status=error` 或写 trace 后吞掉） | 一定不抛——这是熔断 |
 | `@IterationGuard` | LoopSeq | 每进入一次 LoopSeq，校验 `iteration ≤ iteration_cap`；超出直接写 `converge_signal=interrupt`、`interrupt_reason="iteration_cap_exceeded"` 并跳出 LoopRoot | 不抛，写信号 |
 
@@ -178,7 +194,12 @@ sequenceDiagram
     M->>W: Task(Architect, ...)
     W-->>M: ContextPack
     M->>E: bt_tick_resume(tick_id, ContextPack)
-    E->>E: ArchGate.success → Dispatch
+    E->>E: ArchGate.success → CallHR
+    E-->>M: Yield(dispatch=HR)
+    M->>W: Task(HR, ...)
+    W-->>M: agent_list
+    M->>E: bt_tick_resume(tick_id, agent_list)
+    E->>E: CallHR.success → Dispatch
     E-->>M: Yield(dispatch=WorkAgent A)
     M->>W: Task(WorkAgent A, ...)
     W-->>M: result
@@ -198,7 +219,7 @@ sequenceDiagram
 
 - **全局根** —— L4 锁定：主循环 = 唯一根。没有平级树，没有备份根。所有用户 prompt 都从同一个根节点入口进入。
 - **触发源** —— 用户每一次 prompt 触发一次 `bt_tick`。**不存在定时触发、不存在外部事件触发、不存在 Agent 自驱触发**。这与游戏引擎"每帧 tick"形成根本差异：CBIM 是用户驱动的反应式系统。
-- **子循环（记忆压缩、HR 招募、Auditor 评审）暂不行为树化**（L5）。它们保持当前实现（CLI/Hook/独立 agent 自闭环）。若未来需要纳入，会作为本树的子树挂载——但不在 v2 范围内。
+- **HR 调用以 `CallHR` 节点纳入主循环（v2.1 修订）**，与 `ArchGate` 平行——HR 是能力轴的执行 agent，与 Architect（知识轴）地位对等。HR **内部子循环**（招募/培训/匹配的自闭环）仍保持黑盒，不行为树化（L5 决议保留）。其余子循环（记忆压缩、Auditor 评审）暂不行为树化，保持当前实现（CLI/Hook/独立 agent 自闭环）。
 - **单 tick 边界** —— 一次 `bt_tick` + 若干 `bt_tick_resume` 构成一次"逻辑 tick"，对应一次用户 prompt。逻辑 tick 内黑板持久；逻辑 tick 结束（Done / Interrupt）黑板归档，不影响下一个 tick。
 
 ---

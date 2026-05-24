@@ -38,12 +38,20 @@ class WorkAgentLeaf(Node):
             return Status.FAILURE
         bb.pending_dispatch = DispatchRequest(
             agent_type="work",
-            agent_file=subtask.get("target_agent_file"),
+            agent_file=self._lookup_agent_file(bb, subtask),
             prompt=self._compose_prompt(bb, subtask),
             subtask_id=self.subtask_id,
             timeout_hint_s=subtask.get("timeout_hint_s"),
         )
         return Status.RUNNING
+
+    def _lookup_agent_file(self, bb, subtask) -> str | None:
+        """HR's bb.agent_list (capability axis) wins; fall back to the
+        subtask's own target_agent_file for backward-compat tests."""
+        for a in (bb.agent_list or []):
+            if a.get("subtask_id") == self.subtask_id:
+                return a.get("target_agent_file")
+        return subtask.get("target_agent_file")
 
     def on_resume(self, bb, payload) -> None:
         text = payload if isinstance(payload, str) else (

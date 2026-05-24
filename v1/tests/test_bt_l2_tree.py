@@ -28,11 +28,30 @@ def test_root_structure_matches_design():
         "ClarifyBranch", "AskClarify",
         "MainBody", "LoopRoot", "LoopSeqGuard", "LoopSeq",
         "Decompose", "RetryArchGate", "ArchGate",
+        "RetryCallHR", "CallHR",
         "DispatchParallel", "Aggregate", "RetryConverge", "ConvergeJudge",
         "Respond", "CatchFlush", "FlushMemory",
     ]
     for ex in expected:
         assert ex in names, f"Missing node {ex} in tree"
+
+
+def test_loop_seq_has_six_nodes_in_order():
+    """LoopSeq children = [Decompose, RetryArchGate, RetryCallHR,
+    DispatchParallel, Aggregate, RetryConverge]. Order is load-bearing:
+    Architect (knowledge) must produce ContextPack before HR (capability)
+    can assign agents; HR must finish before WorkAgentLeaf dispatches."""
+    loop_seq = None
+    for n in _walk(ROOT):
+        if n.name == "LoopSeq":
+            loop_seq = n
+            break
+    assert loop_seq is not None, "LoopSeq not found"
+    child_names = [c.name for c in loop_seq.children()]
+    assert child_names == [
+        "Decompose", "RetryArchGate", "RetryCallHR",
+        "DispatchParallel", "Aggregate", "RetryConverge",
+    ], f"unexpected LoopSeq children: {child_names}"
 
 
 def test_decorator_stack_outermost_is_trace_then_timeout():

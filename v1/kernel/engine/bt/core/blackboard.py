@@ -1,6 +1,6 @@
 """core/blackboard.py — Blackboard: the single carrier of cross-node state.
 
-The 17 fields from WORKFLOW-EXECUTION §2.1 are declared as dataclass-style
+The 18 fields from WORKFLOW-EXECUTION §2.1 are declared as dataclass-style
 attributes. Dirty tracking: any explicit attribute assignment marks the bb
 dirty; the Runner consults `bb._dirty` to decide whether to rewrite bb.json
 on node exit.
@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-# Canonical field set per WORKFLOW-EXECUTION §2.1 (17 fields).
+# Canonical field set per WORKFLOW-EXECUTION §2.1 (18 fields).
 FIELDS: tuple[str, ...] = (
     "tick_id",
     "user_request",
@@ -34,6 +34,7 @@ FIELDS: tuple[str, ...] = (
     "trace",
     "memory_flush_queue",
     "audit_report",
+    "agent_list",
 )
 
 

@@ -10,6 +10,7 @@ import pytest
 from engine.bt.actions.aggregate import Aggregate
 from engine.bt.actions.arch_gate import ArchGate
 from engine.bt.actions.ask_clarify import AskClarify
+from engine.bt.actions.call_hr import CallHR
 from engine.bt.actions.converge_judge import ConvergeJudge
 from engine.bt.actions.decompose import Decompose
 from engine.bt.actions.dispatch_parallel import DispatchParallel, WorkAgentLeaf
@@ -163,6 +164,52 @@ def test_arch_gate_skips_when_plan_doesnt_need_it():
 
 
 # ---------------------------------------------------------------------------
+# CallHR
+# ---------------------------------------------------------------------------
+
+def test_call_hr_yields_then_resumes():
+    bb = _bb(user_request="x",
+             dispatch_plan=[{"id": "t1", "depends_on": ["arch_context"],
+                             "module_path": "engine/foo", "prompt": "do it"}],
+             arch_context={"output": "ContextPack-A", "kind": "context_pack_raw"})
+    node = CallHR()
+    assert node.tick(bb) is Status.RUNNING
+    assert bb.pending_dispatch is not None
+    assert bb.pending_dispatch.agent_type == "hr"
+    assert bb.pending_dispatch.agent_file == ".claude/agents/hr/hr.md"
+    reply = "subtask_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py"
+    node.on_resume(bb, reply)
+    assert bb.agent_list == [{
+        "subtask_id": "t1",
+        "target_agent_file": ".claude/agents/programmer/programmer.md",
+        "agent_capability": "py",
+    }]
+    assert bb.pending_dispatch is None
+    # Second tick — required subset of existing → SUCCESS without re-dispatch.
+    assert node.tick(bb) is Status.SUCCESS
+
+
+def test_call_hr_skips_when_no_execution_subtasks():
+    # All subtasks are pure_query (no arch_context dep) → HR not consulted.
+    bb = _bb(dispatch_plan=[{"id": "t1", "depends_on": []}])
+    node = CallHR()
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.pending_dispatch is None
+    assert bb.agent_list is None
+
+
+def test_call_hr_gap_sets_interrupt():
+    bb = _bb(dispatch_plan=[{"id": "t1", "depends_on": ["arch_context"],
+                             "prompt": "p"}])
+    node = CallHR()
+    assert node.tick(bb) is Status.RUNNING
+    node.on_resume(bb, "agent_gap: no agent for engine/foo\nplease recruit")
+    assert bb.interrupt_reason and "agent_gap" in bb.interrupt_reason
+    # Next tick sees the interrupt token → FAILURE (LoopSeq Sequence stops).
+    assert node.tick(bb) is Status.FAILURE
+
+
+# ---------------------------------------------------------------------------
 # WorkAgentLeaf + DispatchParallel
 # ---------------------------------------------------------------------------
 
@@ -175,6 +222,20 @@ def test_work_agent_leaf_yields_with_subtask_id():
     assert leaf.tick(bb) is Status.RUNNING
     assert bb.pending_dispatch.subtask_id == "t1"
     assert bb.pending_dispatch.agent_type == "work"
+
+
+def test_work_agent_leaf_prefers_agent_list_over_subtask_file():
+    """HR's bb.agent_list wins over the subtask's own target_agent_file."""
+    bb = _bb(dispatch_plan=[
+        {"id": "t1", "target_agent_file": ".claude/agents/old/old.md",
+         "prompt": "p", "depends_on": ["arch_context"]}
+    ])
+    bb.agent_list = [{"subtask_id": "t1",
+                      "target_agent_file": ".claude/agents/hr-picked/x.md",
+                      "agent_capability": "py"}]
+    leaf = WorkAgentLeaf(subtask_id="t1")
+    assert leaf.tick(bb) is Status.RUNNING
+    assert bb.pending_dispatch.agent_file == ".claude/agents/hr-picked/x.md"
 
 
 def test_work_agent_leaf_parses_needs_arch_marker():

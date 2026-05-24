@@ -41,16 +41,21 @@ def _drive(user_request: str, *replies: str, max_steps: int = 20):
 
 # ---------------------------------------------------------------------------
 
+_HR_REPLY = "subtask_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py"
+
+
 def test_e2e_simple_execution_yields_arch_then_work_then_done(isolated_scheduler_root):
     r, log = _drive(
         "实现 login API 模块",
         "ContextPack: modules=[login]",
+        _HR_REPLY,
         "Implemented in src/login.py",
     )
     assert r.kind == "done"
     assert "Implemented in src/login.py" in r.user_message
     assert log[0][0] == "architect"
-    assert log[1][0] == "work"
+    assert log[1][0] == "hr"
+    assert log[2][0] == "work"
 
 
 def test_e2e_pure_query_skips_arch_gate(isolated_scheduler_root):
@@ -61,28 +66,37 @@ def test_e2e_pure_query_skips_arch_gate(isolated_scheduler_root):
     assert r.kind == "done"
     assert log[0][0] == "work"  # straight to work agent (architect role)
     assert all(entry[0] != "architect" for entry in log)
+    # pure_query has no arch_context dep → CallHR also skips
+    assert all(entry[0] != "hr" for entry in log)
 
 
 def test_e2e_escalation_loops_back_to_arch(isolated_scheduler_root):
+    # Iteration 1 subtask id = t1, iteration 2 subtask id = t2 → HR called
+    # both iterations (CallHR's required-vs-existing set check).
     r, log = _drive(
         "实现 login API 模块",
         "CTX-PACK-v1",
+        "subtask_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py",
         "NEEDS_ARCH_DECISION: dep conflict\n- context: blocked",
         "CTX-PACK-v2-updated",
+        "subtask_id=t2 agent_file=.claude/agents/programmer/programmer.md capability=py",
         "Implemented after rework.",
     )
     assert r.kind == "done"
-    # arch -> work -> arch -> work
+    # arch -> hr -> work -> arch -> hr -> work
     agent_types = [a for a, _ in log]
-    assert agent_types == ["architect", "work", "architect", "work"]
+    assert agent_types == ["architect", "hr", "work", "architect", "hr", "work"]
 
 
 def test_e2e_iteration_cap_interrupts(isolated_scheduler_root):
     # Keep escalating forever; cap=5 should interrupt.
-    r, log = _drive(
-        "实现 login API 模块",
-        *(["CTX", "NEEDS_ARCH_DECISION: stuck"] * 10),
-    )
+    # Each iteration: architect → hr → work; subtask ids t1, t2, ... so HR
+    # runs each loop. Need enough replies to outlast the cap (5 loops).
+    hr_n = lambda n: f"subtask_id=t{n} agent_file=.claude/agents/programmer/programmer.md capability=py"
+    replies: list[str] = []
+    for n in range(1, 11):
+        replies += ["CTX", hr_n(n), "NEEDS_ARCH_DECISION: stuck"]
+    r, log = _drive("实现 login API 模块", *replies, max_steps=60)
     assert r.kind == "error"
     assert r.error_code == "interrupt"
     assert "iteration_cap_exceeded" in (r.interrupt_reason or "")

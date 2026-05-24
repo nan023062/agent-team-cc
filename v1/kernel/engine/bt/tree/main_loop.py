@@ -18,6 +18,7 @@ from ..core.decorator import Catch, IterationGuard, LoopUntilConverge, Retry, Ti
 from ..actions.aggregate import Aggregate
 from ..actions.arch_gate import ArchGate
 from ..actions.ask_clarify import AskClarify
+from ..actions.call_hr import CallHR
 from ..actions.converge_judge import ConvergeJudge
 from ..actions.decompose import Decompose
 from ..actions.dispatch_parallel import DispatchParallel
@@ -39,6 +40,7 @@ def build_root(*, llm: Any = None, intent_rules: IntentRules | None = None,
 
     decompose = Decompose(llm=llm, name="Decompose")
     arch_gate = Retry(ArchGate(name="ArchGate"), n=2, only="idempotent", name="RetryArchGate")
+    call_hr = Retry(CallHR(name="CallHR"), n=2, only="idempotent", name="RetryCallHR")
     dispatch = DispatchParallel(name="DispatchParallel")
     aggregate = Aggregate(name="Aggregate")
     converge = Retry(ConvergeJudge(llm=llm, name="ConvergeJudge"),
@@ -46,7 +48,7 @@ def build_root(*, llm: Any = None, intent_rules: IntentRules | None = None,
 
     loop_seq = IterationGuard(
         Sequence(
-            [decompose, arch_gate, dispatch, aggregate, converge],
+            [decompose, arch_gate, call_hr, dispatch, aggregate, converge],
             name="LoopSeq",
         ),
         name="LoopSeqGuard",

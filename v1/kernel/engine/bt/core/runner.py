@@ -181,6 +181,7 @@ def _build_resume_path(root: Node, bb) -> list[str]:
             target_names.append(f"WorkAgentLeaf#{pd.subtask_id}")
         target_names.append({
             "architect": "ArchGate",
+            "hr": "CallHR",
             "auditor": "Audit",
             "work": "WorkAgentLeaf",
         }.get(pd.agent_type, ""))
