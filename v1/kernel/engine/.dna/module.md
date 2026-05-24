@@ -1,7 +1,7 @@
 ---
 name: kernel-engine
 owner: architect
-description: Kernel engine — twin role; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree driver bt/ (MCP-exposed bt_tick / bt_tick_resume) that runs CBIM's main execution loop
+description: Kernel engine — home of the CLI dispatcher and CBIM's twin behavior-tree roots; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree execution root bt/ (MCP-exposed bt_tick / bt_tick_resume) and the governance root dream/ (MCP-exposed dream_tick / dream_tick_resume), both driven by shared bt/core primitives
 keywords: []
 dependencies: []
 ---
@@ -34,6 +34,12 @@ classDiagram
         +bt_tick_resume()
         +bt_list_running_ticks()
     }
+    class dream {
+        +dream_tick()
+        +dream_tick_resume()
+        +dream_list_runs()
+        +dream_abort()
+    }
 
     cli --> logger
     cli --> session_log
@@ -43,9 +49,11 @@ classDiagram
     cli --> config
     cli --> audit
     cli --> bt : audit-only inspect
+    cli --> dream : audit-only inspect
+    dream --> bt : reuses bt/core primitives
 ```
 
-Note: `bt/` is NOT routed through `cli`. It is exposed to the main agent via the `mcp_server` container as MCP tools. The CLI dispatcher only inspects `bt/` for audit / debug purposes (e.g. listing `.cbim/scheduler/bt/<tick_id>/` directories); the execution loop itself is driven by `bt_tick` / `bt_tick_resume` MCP calls.
+Note: `bt/` and `dream/` are NOT routed through `cli`. They are exposed to the main agent via the `mcp_server` container as MCP tools. The CLI dispatcher only inspects them for audit / debug purposes (e.g. listing `.cbim/scheduler/bt/<tick_id>/` and `.cbim/scheduler/dream/<run_id>/` directories); the loops themselves are driven by `bt_tick` / `bt_tick_resume` and `dream_tick` / `dream_tick_resume` MCP calls.
 
 Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 
@@ -71,7 +79,8 @@ Internal cross-cutting modules: `logger` + `session_log` (per-session text logs)
 
 Non-CLI sub-modules (driven through other surfaces):
 
-- `bt/` — behavior-tree driver for the execution loop. Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. See `engine/bt/.dna/module.md` and `engine/bt/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}`.
+- `bt/` — behavior-tree driver for the **execution loop** (user-driven root). Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. See `engine/bt/.dna/module.md` and `engine/bt/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}`.
+- `dream/` — behavior-tree driver for the **governance loop** (SessionStart-catchup-driven root, CBIM's second root, peer to `bt/`). Exposes `dream_tick(reason, run_id=None)` / `dream_tick_resume(run_id, dispatch_result)` / `dream_list_runs(limit=10)` / `dream_abort(run_id, reason)` as MCP tools. Triggered by SessionStart hook when ≥20 hours since last successful run. Drives three governance steps (memory / knowledge / capability) via `SequenceTolerant`; memory step calls `memory/` internal maintenance interfaces in-process (no LLM); knowledge / capability steps yield to dispatch Architect / HR in governance mode. Reuses `bt/core` primitives (Node ABC, Composite, Decorator, Runner, persistence, trace) but holds an independent root tree, independent blackboard schema (8 fields), independent trace, independent entry tools. Dependency direction is `dream → bt/core`; `bt` does NOT depend on `dream`. See `engine/dream/.dna/module.md` and `engine/dream/.dna/contract.md`. Persistence at `.cbim/scheduler/dream/<run_id>/{bb.json, trace.jsonl, resume.json, report.md, current.json, last_success.json, abandoned.json}` — physically isolated from `bt/`.
 
 ## Origin Context
 

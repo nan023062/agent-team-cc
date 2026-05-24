@@ -65,6 +65,8 @@ flowchart TB
 
 **无循环依赖**——单向自顶向下：`api → tree → {core, actions} → persistence`。`actions` 与 `core` 同级（actions 实现 core 的 ABC，不形成环）。
 
+**注：`bt/core` 同时被 `engine/dream/` 复用**——治理循环复用本模块的 Node ABC / Composite / Decorator / Runner / Blackboard / 持久化机制 / trace 文件格式，但持有独立根树、独立黑板、独立入口工具。依赖方向 `dream → bt/core`，**bt 不依赖 dream**（单向铁律）。`bt/` 模块本身只承载执行根树拓扑（`tree/main_loop.py`）；治理根树拓扑（DreamRoot）归 `engine/dream/tree/` 承载。
+
 ## Origin Context
 
 CBIM v1 的执行循环是主 agent 在 CLAUDE.md 提示词内自驱：主 agent 同时是控制流（"现在该做什么"）与执行手（"用 Task tool 派谁"）。这导致：
@@ -74,6 +76,8 @@ CBIM v1 的执行循环是主 agent 在 CLAUDE.md 提示词内自驱：主 agent
 - **恢复语义模糊**——一次任务的状态混在对话历史里，无法精确"从中断点继续"。
 
 v2 把控制流抽到引擎，主 agent 退化为执行手。树拓扑可读、装饰器统一异常、状态全在黑板 + `.cbim/scheduler/bt/<tick_id>/`，与对话历史解耦。这就是本模块存在的全部理由。
+
+**双根架构的引擎载体**：BT 引擎不止驱动一棵根树。CBIM 有两个根循环——执行循环（用户驱动，本模块的 `tree/main_loop.py`）和治理循环（SessionStart 补跑驱动，`engine/dream/tree/dream_root.py`）——都跑在本模块的 `core/` 之上。共享行为树引擎本体而黑板 / 根树 / trace / 入口工具各自独立，是 CBIM 双根架构的工程实现方式。
 
 ## Key Decisions
 
