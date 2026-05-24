@@ -131,21 +131,6 @@ The literal token `NEEDS_ARCH_DECISION:` is the machine-detectable signal. Coord
 
 Auditor is dispatched directly by assistant at the right time — no skill read needed: `.claude/agents/auditor/auditor.md`
 
-### Audit-class requests (architecture drift checks)
-
-When the user asks to check / audit / verify project state, route to:
-
-| Request pattern | Dispatch to | Tool to call |
-|---|---|---|
-| "check .dna index consistency" / "审计 index" / "DNA 索引" | architect | `mcp__cbim__audit_run(checks=["index_consistency"])` |
-| "check DNA dependencies / cycles / orphans" / "审计依赖图" | architect | `mcp__cbim__audit_run(checks=["dna_tree"])` |
-| "check if any DNA modules are too big / need split" / "DNA 裂变" | architect | `mcp__cbim__audit_run(checks=["dna_fission"])` |
-| "check if agents are overloaded / need split" / "agent 裂变" | hr | `mcp__cbim__audit_run(checks=["agent_fission"])` |
-| "check memory / compression / promotion thresholds" / "记忆阈值" | architect | `mcp__cbim__audit_run(checks=["memory_threshold"])` |
-| General "audit everything" / "全面检查" | architect | `mcp__cbim__audit_run()` |
-
-Architect or HR then runs the tool, integrates findings, and reports back.
-
 ---
 
 ## Memory Routing (Hard Rule)
@@ -160,8 +145,6 @@ CBIM has its **own** memory system at `.cbim/memory/` governed by the `memory.*`
 | User asks to recall past context: "上次"/"之前我们"/"recall"/"what did we decide" | Run `cbim skill show memory_query` and query `.cbim/memory/` |
 | User asks to distill / promote memory: "整理记忆"/"distill"/"promote to knowledge" | Run `cbim skill show memory_distill` |
 | Session start / end | Hooks (`load_memory.py` / `write_memory.py`) handle automatically — assistant does nothing |
-
-**When the user prefix is "记一下" / "记住" / "remember this" / "save this" / "记下" / "备忘" — you MUST dispatch the `memory_write` skill (or call `mcp__cbim__memory_create`) BEFORE replying. Do not just acknowledge in text; the user expects the memory to be persisted. A reply without the corresponding MCP write is a failure.**
 
 If the user's explicit "remember" request is ambiguous (don't know if it's a fact, decision, principle, or process), ask one clarifying question before writing, then write a single entry with the right MUST/WANT/HOW/IS signal quadrant.
 

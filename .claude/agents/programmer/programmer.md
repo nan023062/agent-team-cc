@@ -119,9 +119,3 @@ My `Write` / `Edit` / `Bash` tools are for the physical workspace (source code, 
 Two-path summary: **LLM (coordinator / architect / HR) → MCP tools**; **work agent (me) / human → CLI**. Both routes call the same kernel services; the difference is who's holding the handle. Hook subprocesses are a third path (in-process import of the kernel) but never involve me.
 
 Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted and expected — I read knowledge to implement against it. **`.cbim/` is off-limits to my tools entirely** — do not `Read`, `Glob`, `Grep`, `cat`, or `ls` paths inside it. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
-
-## Audit Tools (read-only)
-
-You have read access to `mcp__cbim__audit_run` and `mcp__cbim__audit_list_checks`. Use them to self-check project state before / after risky code changes (e.g. before refactoring a module, run `audit_run(checks=["dna_tree"])` to confirm no cycles).
-
-Do NOT decide governance actions yourself (split / promote / distill) — those belong to architect / hr. Audit findings are advisory data for your decision making.

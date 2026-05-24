@@ -143,22 +143,6 @@ def has_mcp_call(events: list[LogEvent], tool_name: str) -> bool:
     return False
 
 
-def has_audit_call(events: list[LogEvent], *, check: str | None = None) -> bool:
-    """Whether `mcp__cbim__audit_run` was invoked.
-
-    When `check` is given, also require that the check name appears in the
-    same event's message (the MCP/CALL tag prints the full args payload).
-    """
-    for e in events:
-        if e.tag not in ("MCP", "CALL"):
-            continue
-        if "audit_run" not in e.message:
-            continue
-        if check is None or check in e.message:
-            return True
-    return False
-
-
 def has_cbim_call(events: list[LogEvent], domain: str, verb: str | None = None) -> bool:
     tag = f"CBIM:{domain}"
     for e in events:
@@ -293,54 +277,6 @@ def assert_hr_loop(
         ]
         c.check(not offenders, f"unexpected agent write verbs on read-only prompt: {offenders[:3]}")
 
-    return c.verdict()
-
-
-def assert_audit_loop(
-    events: list[LogEvent],
-    project_root: Path,
-    *,
-    check_name: str,
-    expected_agent: str,
-) -> Verdict:
-    """Verdict for an audit-loop case.
-
-    Sub-checks:
-      1. [USER] event present
-      2. coordinator dispatched `expected_agent`
-      3. that agent (or auditor) invoked `mcp__cbim__audit_run`
-      4. the invocation referenced `check_name` (best-effort; only required
-         when the helper can prove either a check arg or an empty-args
-         all-checks call — empty-args is accepted as a superset)
-    """
-    c = _Checks()
-    c.note(_diag_summary(events, project_root))
-    c.check(has_user_event(events), "missing [USER] event")
-    c.check(
-        has_dispatch(events, expected_agent),
-        f"expected {expected_agent!r} dispatch — none seen",
-    )
-    c.check(
-        has_audit_call(events),
-        "expected `mcp__cbim__audit_run` call — none seen",
-    )
-    # The model may call audit_run with no `checks` arg (= run all) which is a
-    # valid superset; only fail if it called audit_run with a *different*
-    # explicit check and never included `check_name`.
-    audit_msgs = [
-        e.message for e in events
-        if e.tag in ("MCP", "CALL") and "audit_run" in e.message
-    ]
-    if audit_msgs:
-        any_with_check = any(check_name in m for m in audit_msgs)
-        any_all_checks = any(
-            "checks" not in m or "checks=None" in m or "checks=[]" in m
-            for m in audit_msgs
-        )
-        c.check(
-            any_with_check or any_all_checks,
-            f"audit_run never targeted {check_name!r} and never ran the full set; calls={audit_msgs[:3]}",
-        )
     return c.verdict()
 
 
