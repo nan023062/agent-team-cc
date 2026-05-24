@@ -13,7 +13,25 @@ duplicate static review). Reads are unrestricted.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class IdentifiableBB(Protocol):
+    """Minimal contract a Runner needs of any blackboard.
+
+    Lets the bt Runner drive non-bt blackboards (e.g. dream's) without an
+    import-time coupling. The Runner uses `identifier` to name the tick
+    directory and `dirty` / `clear_dirty` to gate snapshot writes.
+    """
+
+    @property
+    def identifier(self) -> str | None: ...
+
+    @property
+    def dirty(self) -> bool: ...
+
+    def clear_dirty(self) -> None: ...
 
 # Canonical field set per WORKFLOW-EXECUTION §2.1 (18 fields).
 FIELDS: tuple[str, ...] = (
@@ -114,3 +132,13 @@ class Blackboard:
     @property
     def dirty(self) -> bool:
         return self._dirty
+
+    @property
+    def identifier(self) -> str | None:
+        """Stable identifier for scheduler tick directory naming.
+
+        Satisfies the IdentifiableBB Protocol so the bt Runner can drive
+        either this Blackboard or a foreign one (e.g. DreamBlackboard)
+        without branching on type.
+        """
+        return self.tick_id

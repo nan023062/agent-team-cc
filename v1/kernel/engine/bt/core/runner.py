@@ -35,10 +35,38 @@ class RunResult:
         self.error_message = kw.get("error_message")
 
 
+DEFAULT_AGENT_TYPE_TO_LEAF: dict[str, str] = {
+    "architect": "ArchGate",
+    "hr": "CallHR",
+    "auditor": "Audit",
+    "work": "WorkAgentLeaf",
+}
+
+
 class Runner:
-    def __init__(self, root: Node, *, scheduler_root: Path) -> None:
+    def __init__(
+        self,
+        root: Node,
+        *,
+        scheduler_root: Path,
+        subdir: str = "bt",
+        agent_type_to_leaf: dict[str, str] | None = None,
+    ) -> None:
+        """Drive `root` through ticks, persisting under `scheduler_root/<subdir>/`.
+
+        `agent_type_to_leaf` maps `pending_dispatch.agent_type` strings to
+        the leaf node name the resume path should target. Defaults to the
+        bt main-loop mapping (ArchGate/CallHR/Audit/WorkAgentLeaf). Foreign
+        trees (e.g. dream governance loop) pass their own mapping.
+        """
         self._root = root
         self._scheduler_root = scheduler_root
+        self._subdir = subdir
+        self._agent_type_to_leaf = (
+            agent_type_to_leaf
+            if agent_type_to_leaf is not None
+            else DEFAULT_AGENT_TYPE_TO_LEAF
+        )
 
     # ------------------------------------------------------------------
     # Tick driver
@@ -47,7 +75,7 @@ class Runner:
     def run(self, bb: Blackboard) -> RunResult:
         """Drive the root to its next yield or terminal state, persisting bb
         + trace + resume.json appropriately."""
-        tick_dir = self._scheduler_root / "bt" / (bb.tick_id or "_unset")
+        tick_dir = self._scheduler_root / self._subdir / (bb.identifier or "_unset")
         tick_dir.mkdir(parents=True, exist_ok=True)
 
         # Clear stale pending_dispatch from prior tick (resume sets results
@@ -68,7 +96,7 @@ class Runner:
         if status is Status.RUNNING and bb.pending_dispatch is not None:
             # Yield path. Compute resume_path first so it lands in bb.json.
             bb.bb_status = "running"
-            bb.runner_resume_path = _build_resume_path(self._root, bb)
+            bb.runner_resume_path = self._build_resume_path(self._root, bb)
             self._persist(bb, tick_dir)
             self._persist_resume(bb, tick_dir)
             self._append_trace(bb, tick_dir, {
@@ -155,46 +183,39 @@ class Runner:
     def _append_trace(self, bb: Blackboard, tick_dir: Path, entry: dict) -> None:
         trace_mod.append(tick_dir, entry)
 
+    # ------------------------------------------------------------------
+    # Resume-path construction
+    # ------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Resume-path construction
-# ---------------------------------------------------------------------------
+    def _build_resume_path(self, root: Node, bb) -> list[str]:
+        """Walk the tree and find the path to the deepest RUNNING leaf —
+        identified by `bb.pending_dispatch.subtask_id` (if set) for Parallel
+        cases (e.g. WorkAgentLeaf#t1), then by the leaf-name registered for
+        `pending_dispatch.agent_type` in `self._agent_type_to_leaf`.
 
-def _build_resume_path(root: Node, bb) -> list[str]:
-    """Walk the tree and find the path to the deepest RUNNING leaf —
-    identified by `bb.pending_dispatch.subtask_id` (if set) for Parallel/
-    WorkAgentLeaf cases, or by being the only leaf that set pending_dispatch.
+        Leaf names are tree-specific; the mapping is injected at Runner
+        construction so foreign trees (dream's governance loop) can plug
+        their own dispatch leaves without modifying this code.
+        """
+        pd = bb.pending_dispatch
+        target_names: list[str] = []
+        if pd is not None:
+            if pd.subtask_id:
+                base = self._agent_type_to_leaf.get("work", "WorkAgentLeaf")
+                target_names.append(f"{base}#{pd.subtask_id}")
+            mapped = self._agent_type_to_leaf.get(pd.agent_type, "")
+            if mapped:
+                target_names.append(mapped)
 
-    Strategy: prefer the subtask_id annotation when present; else find the
-    leaf whose name appears in the most-recent yield-bearing call. To keep
-    things simple and correct, we record paths via tree traversal looking
-    for a leaf node whose name matches `bb.pending_dispatch.subtask_id`'s
-    associated work-agent leaf, or fall back to deepest single-RUNNING leaf.
-
-    Our concrete leaves (ArchGate, WorkAgentLeaf#id, IntentAnalyze) use
-    distinct names; we search by direct name match against the dispatch.
-    """
-    pd = bb.pending_dispatch
-    target_names: list[str] = []
-    if pd is not None:
-        if pd.subtask_id:
-            target_names.append(f"WorkAgentLeaf#{pd.subtask_id}")
-        target_names.append({
-            "architect": "ArchGate",
-            "hr": "CallHR",
-            "auditor": "Audit",
-            "work": "WorkAgentLeaf",
-        }.get(pd.agent_type, ""))
-
-    for tname in target_names:
-        if not tname:
-            continue
-        path = _find_path_to_name(root, tname)
-        if path:
-            return path
-    # Fallback: empty path means "restart from root" — Runner will re-tick
-    # cleanly because Actions check bb state to short-circuit.
-    return []
+        for tname in target_names:
+            if not tname:
+                continue
+            path = _find_path_to_name(root, tname)
+            if path:
+                return path
+        # Fallback: empty path means "restart from root" — Runner will re-tick
+        # cleanly because Actions check bb state to short-circuit.
+        return []
 
 
 def _prime_bb_dependent_composites(root: Node, bb) -> None:
