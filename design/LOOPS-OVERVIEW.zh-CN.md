@@ -69,8 +69,8 @@ flowchart TB
 | 角色 | 类型 | 一句话定位 | 详细设计文档 |
 |------|------|------------|--------------|
 | **Coordinator (主 agent)** | actor · 双子循环 | 唯一对外接口；调 `bt_tick` 启动执行根、调 `dream_tick` 启动治理根；按引擎 yield 出的 DispatchRequest 用 Task tool 派工；自身持有记忆 CRUD 子循环（执行根触发）+ 记忆治理子循环（治理根触发）。 | [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) + [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md) + [`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md) |
-| **Architect** | actor · 双子循环 | 业务知识轴（`.dna/`）的管理者和执行者；执行子循环负责"接 yield 产 ContextPack"（必经门），治理子循环负责"扫 `.dna/` 找问题、安全动作自主、危险动作只产建议"。 | [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) |
-| **HR** | actor · 双子循环 | 能力轴（`.claude/agents/`）的管理者和执行者；执行子循环负责"按 ContextPack 匹配 / 招募 agent 返回 agent_list"，治理子循环负责"扫 `.claude/agents/` 找问题"。 | [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) |
+| **Architect** | actor · 双子循环 | 业务知识轴（`.dna/`）的管理者和执行者；执行子循环负责"接 yield 产 ContextPack"（必经门，**含懒式创建新模块的前向式造新**，只看与当前任务相关的模块）；治理子循环负责"扫已有 `.dna/` 模块做裂变 / 归档 / 合并 / 重组依赖的回头式重构"，安全动作自主、危险动作只产建议。 | [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) |
+| **HR** | actor · 双子循环 | 能力轴（`.claude/agents/`）的管理者和执行者；执行子循环负责"按 ContextPack 匹配 agent 返回 agent_list"（**含懒式招募新 agent 的前向式造新**，只看与当前任务相关的能力）；治理子循环负责"扫已有 `.claude/agents/` 做归档 / 促训 / 漂移检测 / 裂变拆分 / 合并的回头式重构"。 | [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) |
 | **Auditor** | Claude Code subagent | 仅提示词配置，CBIM 不设计循环；执行根的可选叶节点 yield 它做独立评审，行为完全由 prompt 约束。 | `.claude/agents/auditor/auditor.md`（提示词配置） |
 | **Work Agents** | Claude Code subagent | 仅提示词配置，CBIM 不设计循环；执行根 `DispatchParallel` yield 派工，每个 agent 的行为完全由其各自的 `.claude/agents/<dir>/<name>.md` 约束。 | `.claude/agents/<各 agent>/...`（提示词配置） |
 | **记忆服务** | 被动数据层 | 不是 actor，没有主动性；项目本地的嵌入式数据库式服务；主 agent 通过 CRUD / 治理两个子循环使用它，其他 agent 通过对外只读 4 接口查询。 | [`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md) |

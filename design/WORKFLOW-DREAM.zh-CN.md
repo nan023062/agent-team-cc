@@ -145,6 +145,8 @@ flowchart TD
 
 本步骤对应 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) 第二部分（Architect 治理子循环）。yield 主 agent 用 Task tool 派 Architect，prompt 头部带 `## 治理模式` 标识。
 
+**Architect 治理子循环只做"回头式重构"**：扫已有 `.dna/` 模块注册表，找孤立 / 过期 / 依赖冲突 / 漂移 / 记忆提升候选 / **模块裂变 / 模块合并 / 依赖重组**这八类问题。所有"为满足当前任务而懒式创建新模块"的工作归 Architect 执行子循环（执行根 ArchGate 节点触发），不在治理这里。
+
 
 | 子节点 | 读 | 写 | 调谁 | 返回语义 |
 |--------|----|----|------|----------|
@@ -154,6 +156,8 @@ flowchart TD
 ### 能力治理步骤（HRGovernanceStep）—— 派 HR 进入治理子循环
 
 本步骤对应 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) 第二部分（HR 治理子循环）。yield 主 agent 用 Task tool 派 HR，prompt 头部带 `## 治理模式` 标识。
+
+**HR 治理子循环只做"回头式重构"**：扫已有 `.claude/agents/` agent 注册表，找闲置 / 失能 / 累计能力缺口（补漏招募） / 漂移 / 重复 / **agent 裂变（职责过宽该拆分）**这六类问题。所有"为满足当前任务而懒式招募新 agent"的工作归 HR 执行子循环（执行根 CallHR 节点触发），不在治理这里。
 
 
 | 子节点 | 读 | 写 | 调谁 | 返回语义 |
@@ -268,8 +272,8 @@ sequenceDiagram
 | 角色 / 服务 | 治理循环如何调用 | 调用方式 | 治理子循环 |
 |-------------|----------------|---------|-----------|
 | 主 agent（记忆能力宿主） | `MemoryGovernanceStep` 各子节点 | 直接 in-process Python 调用内部维护接口（compact / sweep_expired / rebuild_index / HealthChecker.check） | 主 agent 跑[记忆治理子循环](./WORKFLOW-MEMORY.zh-CN.md)（第二部分）——纯确定性流程，无 LLM |
-| Architect | `ArchitectGovernanceStep` 派工 | yield → 主 agent 用 Task tool 调起 Architect，prompt 含治理模式标识 | Architect 进入[治理子循环](./WORKFLOW-ARCHITECT.zh-CN.md)（第二部分）：不接用户对话，扫 `.dna/` 找问题，安全动作自主、危险动作只产建议 |
-| HR | `HRGovernanceStep` 派工 | 同上 | HR 进入[治理子循环](./WORKFLOW-HR.zh-CN.md)（第二部分）：扫 `.claude/agents/` 找问题 |
+| Architect | `ArchitectGovernanceStep` 派工 | yield → 主 agent 用 Task tool 调起 Architect，prompt 含治理模式标识 | Architect 进入[治理子循环](./WORKFLOW-ARCHITECT.zh-CN.md)（第二部分）：不接用户对话，**回头式**扫已有 `.dna/` 找裂变 / 归档 / 合并 / 重组需求，安全动作自主、危险动作只产建议；**不做"为当前任务造新模块"——那归执行子循环** |
+| HR | `HRGovernanceStep` 派工 | 同上 | HR 进入[治理子循环](./WORKFLOW-HR.zh-CN.md)（第二部分）：**回头式**扫已有 `.claude/agents/` 找闲置 / 失能 / 漂移 / 裂变 / 合并需求；**不做"为当前任务招新 agent"——那归执行子循环** |
 | Auditor | 不参与 | — | Auditor 是 Claude Code 提示词配置 agent，CBIM 不为它设计任何循环（含治理） |
 | Work Agents | 不参与 | — | Work Agents 是 Claude Code 提示词配置 agent，CBIM 不为它们设计任何循环；治理循环管的是元结构，不是业务执行 |
 | 记忆服务 | 被主 agent 记忆治理子循环调用 | 被动数据层，不是 actor；通过内部维护接口被调一次执行一次 | 无（不是 actor） |
