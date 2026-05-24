@@ -64,7 +64,13 @@ class DreamBlackboard:
     this blackboard without bt importing dream.
     """
 
-    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at")
+    # `interrupt_reason` and `final_response` are NOT dream-loop fields but
+    # are read by bt.core.runner.Runner.run() (Runner is shared with bt; it
+    # doesn't know which blackboard it's driving). Default both to None and
+    # leave them outside the dirty-tracking FIELDS set so Runner sees safe
+    # falsy values without polluting bb.to_dict().
+    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at",
+                 "interrupt_reason", "final_response")
 
     def __init__(self) -> None:
         object.__setattr__(self, "_dirty", False)
@@ -76,6 +82,9 @@ class DreamBlackboard:
         # Sensible empty containers.
         object.__setattr__(self, "step_results", {})
         object.__setattr__(self, "trace", [])
+        # bt.Runner reads these — keep them as inert None.
+        object.__setattr__(self, "interrupt_reason", None)
+        object.__setattr__(self, "final_response", None)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in FIELDS:
