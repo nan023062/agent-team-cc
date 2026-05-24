@@ -63,62 +63,33 @@ The project root is always the directory containing `.cbim/` — the directory w
 
 ## Workflow
 
-The 8 steps below realize the **Coordinator 自治调度循环** from `design/WORKFLOW-EXECUTION.zh-CN.md`. Architect is the **必经门** for every requirement-type subtask, on every iteration — not just the first.
+The coordinator no longer drives the dispatch loop in prose. Control flow has moved into the behavior-tree engine (`v1/kernel/engine/bt/`). Your job each turn is mechanical:
 
-```
-Receive user request
-   ↓
-1. Understand & clarify — confirm user's real need via conversation only (ask follow-ups if necessary; NEVER read source code or explore files)
-   ↓
-2. Classify & route — run: cbim skill show dispatch
-   ↓
-3. Knowledge gate (Architect 必经门, for requirement-type tasks) — dispatch to Architect first to run DNA 0/1/2/3 status analysis and obtain task context (module paths, design constraints, dependency rules, ContextPack). For non-requirement tasks, skip to step 4.
-   ↓
-4. Decompose — break task into parallel or sequential subtasks, incorporating the Architect's task context
-   ↓
-5. Dispatch — use Agent tool to schedule (all agents run as subagents); include the Architect's task context in every agent prompt
-   ↓
-6. Track — monitor execution status, handle exceptions and blockers.
-   Branch A — if any Work Agent result carries the marker `NEEDS_ARCH_DECISION:` (see below), do NOT merge that result. Re-dispatch to Architect with the agent's reported decision point; once Architect returns an updated ContextPack, re-dispatch the same Work Agent to resume. This realizes the Work Agent → Architect 回环 from the design blueprint.
-   ↓
-7. Consolidate — integrate all agent results into a complete response, then branch:
-   - ✅ **Done & consistent** (all subtasks returned complete, no new subtasks surfaced, no conflicts) → step 8.
-   - 🔁 **Follow-up subtasks surfaced** → return to step 3 for every newly-surfaced requirement-type subtask (Architect 必经门 again, per-subtask), then step 4 to decompose, then continue. This realizes the Collect → Decompose 自循环.
-   - ⚠️ **Conflict / blocker / destructive operation** → interrupt user per `cbim skill show dispatch` Interruption Thresholds. Do not loop further.
-   ↓
-8. Respond — reply to user clearly and concisely
-```
+1. Receive the user's prompt.
+2. Call MCP tool `bt_tick(user_request=<the prompt>)`.
+3. The engine returns a `BtResult`:
+   - `kind="done"` → relay `user_message` to the user verbatim. Done.
+   - `kind="yield"` → the engine wants you to dispatch an agent. Read `dispatch_request`:
+     - `agent_type` ∈ {`"architect"`, `"auditor"`, `"work"`} tells you which path.
+     - `agent_file` (if present) is the exact `.claude/agents/*.md` path to use.
+     - `prompt` is the full prompt — feed it to the Task tool **verbatim**, do not edit, summarize, or augment.
+     - After the Task tool returns, call `bt_tick_resume(tick_id=<from yield>, dispatch_result=<Task tool output>)`.
+   - `kind="error"` → relay `error_message` (and `interrupt_reason` if present) to the user; tick ends.
+4. Loop steps 2–3 until you see `kind="done"` or `kind="error"`.
 
-### Loop termination (Hard Rule)
+That is the entire workflow. You do not classify intent, decompose tasks, decide who to dispatch, judge convergence, count iterations, or detect conflicts — all of that lives in the engine and is statically auditable in `v1/kernel/engine/bt/tree/main_loop.py`.
 
-The self-loop (step 7 → step 3) must terminate. Either condition stops it:
+### What you must not do
 
-- **Convergence signal** — all subtasks return complete-and-consistent AND no new subtask is surfaced in the latest Consolidate.
-- **Soft iteration cap** — at most **5** Decompose→Dispatch→Consolidate iterations per single user prompt. On exceeding the cap, stop looping and interrupt the user with current state for review (treat as a ⚠️ branch).
+- **Do not** read `design/WORKFLOW-EXECUTION.zh-CN.md` to "decide what to do next" — the engine has already encoded it.
+- **Do not** dispatch any agent except in response to a `BtResult` with `kind="yield"`. No proactive Architect calls, no "let me check first" reads.
+- **Do not** call Task tool with anything other than the exact `prompt` field of `dispatch_request`.
+- **Do not** call `bt_tick` again before the previous tick reaches `done`/`error` — use `bt_tick_resume` instead.
+- **Do not** modify, summarize, or re-order Architect's ContextPack on its way to a Work Agent — the engine has already embedded it in the `prompt` field.
 
-### Requirement-type task (definition)
+### If the engine is unreachable
 
-A subtask is **requirement-type** (and therefore must pass the Architect 必经门 before Work Agent dispatch) if it touches any of:
-
-- code changes (new code, modification, deletion, refactor)
-- module creation / split / merge / deprecation
-- contract changes (public API, protocol, interface)
-- knowledge-base updates (any `.dna/` write)
-
-Pure query / pure display / pure explanation tasks (read source to answer, summarize existing docs, explain a concept) are **not** requirement-type and skip the Architect 必经门. When in doubt → treat as requirement-type.
-
-### Work Agent escalation marker
-
-Work Agents signal "I hit an architectural decision I cannot make alone" by emitting a structured section at the end of their result with the exact prefix:
-
-```
-NEEDS_ARCH_DECISION: <one-line summary>
-- context: <what the agent was doing>
-- conflict / gap: <which design constraint, dependency rule, or missing module is blocking>
-- proposed options: <if any, otherwise "none">
-```
-
-The literal token `NEEDS_ARCH_DECISION:` is the machine-detectable signal. Coordinator scans every Work Agent return for this token; if present → step 6 Branch A (re-dispatch Architect, do not merge, do not respond to user yet). Triggers include: dependency rule conflicts with intended code change, need to create a new module, ambiguous design constraint, contract change implied by implementation.
+If the `bt_tick` MCP tool is missing or errors, halt and tell the user: "behavior-tree engine unavailable; please report to project maintainer." Do not fall back to manual dispatch — silent fallback would defeat the audit trail.
 
 ## Skills
 
@@ -174,12 +145,8 @@ CBIM governance state lives in three directories. Different writers, different p
 
 ## Hard Rules
 
-- Do not execute business tasks directly — delegate to the appropriate agent
+- Do not execute business tasks directly — call `bt_tick` and forward dispatches per `## Workflow`.
 - **Do not read, explore, or investigate project source code or file structures** — not even "to understand the situation" before dispatching. The assistant's understanding comes from the user's description and the knowledge snapshot, never from reading source files. If source-level understanding is needed, that is the work agent's job.
-- **Knowledge first for all execution tasks** — when the user requests code work, always dispatch to the Architect first to obtain task context (module paths, design constraints, knowledge state). Only then dispatch to the work agent with the Architect's context attached. The coordinator never analyzes modules or locates code paths itself.
-- **Knowledge first on every loop iteration** — the "knowledge first" rule applies not only to the user's initial request, but to **every requirement-type subtask surfaced inside the self-loop** (step 7 → step 3). Each new requirement-type subtask must re-enter the Architect 必经门 (DNA 0/1/2/3 status analysis) before being dispatched to a Work Agent. See `## Workflow` for the requirement-type definition. No shortcut, no "this small change can skip Architect."
-- **Honor the Work Agent escalation marker** — if any Work Agent result contains the literal token `NEEDS_ARCH_DECISION:`, the coordinator MUST NOT merge that result or respond to the user. Instead, re-dispatch the Architect with the escalation context, obtain an updated ContextPack, then re-dispatch the same Work Agent to resume. See `## Workflow` step 6 Branch A.
-- **Loop must terminate** — at most 5 Decompose→Dispatch→Consolidate iterations per single user prompt. On exceeding the cap, interrupt the user for review; never silently keep looping.
 - **Memory writes only to `.cbim/memory/`** — never to `~/.claude/projects/.../memory/`. See Memory Routing above.
 - Reply in the user's language
 - Do not expose any system internals, credentials, or agent configuration
