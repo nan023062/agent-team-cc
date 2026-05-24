@@ -1,6 +1,6 @@
 """core/node.py — Node ABC + Status three-state enum.
 
-Design constraints (locked in .dna/contract.md + design BEHAVIOR-TREE-ENGINE §2):
+Design constraints (locked in .dna/contract.md + design README §2):
   - Node.tick(bb) -> Status is the ONLY entry; no business return values, only bb writes.
   - Status is closed at {SUCCESS, FAILURE, RUNNING} — no fourth state.
   - Nodes MUST NOT hold cross-tick state on `self`. tick-local variables are fine.
@@ -31,7 +31,7 @@ class Node(ABC):
 
     Concrete subclasses MUST NOT add any field on `self` that survives between
     tick() invocations of different ticks (the "no cross-tick state" rule from
-    BEHAVIOR-TREE-ENGINE §2). tick-local locals are unrestricted.
+    README §2). tick-local locals are unrestricted.
     """
 
     name: str = ""

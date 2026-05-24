@@ -2,7 +2,7 @@
 
 > CBIM 所有运行时角色与循环的**位置图**。
 > 本文档只画位置，不画内部；每个循环/服务的内部设计在各自专门文档中。
-> 关联文档：[`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md)（执行循环 + 主循环行为树）、[`BEHAVIOR-TREE-ENGINE.zh-CN.md`](./BEHAVIOR-TREE-ENGINE.zh-CN.md)（行为树引擎实现）、[`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md)（记忆服务）。
+> 关联文档：[`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md)（执行循环 + 主循环行为树）、[`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md)（记忆服务）。引擎实现技术文档见 [`v1/kernel/engine/bt/README.md`](../v1/kernel/engine/bt/README.md)。
 
 ---
 
@@ -73,7 +73,7 @@ flowchart TB
 | 模块 | 设计状态 | 文档 |
 |------|----------|------|
 | 记忆服务 | ✅ 已设计（v3 定稿） | [`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md) |
-| Coordinator 调度循环 | ✅ 已设计（行为树引擎驱动） | [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) + [`BEHAVIOR-TREE-ENGINE.zh-CN.md`](./BEHAVIOR-TREE-ENGINE.zh-CN.md) |
+| Coordinator 调度循环 | ✅ 已设计（行为树引擎驱动） | [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md)；引擎实现 [`v1/kernel/engine/bt/README.md`](../v1/kernel/engine/bt/README.md) |
 | Architect 知识治理循环 | 🚧 设计中 | [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) |
 | HR 能力治理循环 | 🚧 设计中 | [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) |
 | Auditor 独立评审循环 | ⏳ 待设计 | — |
@@ -92,4 +92,4 @@ flowchart TB
 - **平级关系：** BT 引擎与五角色不是上下级。BT 调度五角色完成任务，五角色不感知 BT 的存在（它们只看到"被 Coordinator 用 Task tool 派工了"）。这一层解耦保证了：未来若把 BT 换成其他调度器（或反过来），五角色无需修改。
 - **驱动者只有一个：** L4 锁定——CBIM 主循环 = 唯一的全局根。没有平级的第二棵树。
 
-引擎实现细节、节点契约、协程式 yield/resume 协议详见 [`BEHAVIOR-TREE-ENGINE.zh-CN.md`](./BEHAVIOR-TREE-ENGINE.zh-CN.md)。
+引擎实现细节、节点契约、协程式 yield/resume 协议详见 [`v1/kernel/engine/bt/README.md`](../v1/kernel/engine/bt/README.md)。

@@ -2,7 +2,7 @@
 
 > 本契约定义行为树引擎对外暴露的全部接口。**只有 3 个接口**：2 个驱动入口（`bt_tick` / `bt_tick_resume`）+ 1 个观测辅助（`bt_list_running_ticks`）。任何"派 agent / 写黑板 / 读节点内部"的路径都不在本契约——它们要么经协程式 yield/resume 回路、要么归子模块内部。
 
-签名细节以 [`design/BEHAVIOR-TREE-ENGINE.zh-CN.md §6`](../../../../design/BEHAVIOR-TREE-ENGINE.zh-CN.md#6-l7-协程式-yieldresume-协议细节) 为准；本文档固化这些签名为公共契约级稳定承诺。
+签名细节以 [`../README.md §6`](../README.md#6-l7-协程式-yieldresume-协议细节) 为准；本文档固化这些签名为公共契约级稳定承诺。
 
 ---
 

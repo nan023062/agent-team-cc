@@ -1,7 +1,7 @@
 """persistence/snapshot.py — bb.json + resume.json atomic writers + readers.
 
 Atomic write via temp file + rename. bb.json is rewritten in full on dirty
-(no diff patches — by design, simpler recovery, per BEHAVIOR-TREE-ENGINE §3).
+(no diff patches — by design, simpler recovery, per README §3).
 """
 
 from __future__ import annotations

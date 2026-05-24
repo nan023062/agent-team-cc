@@ -2,7 +2,7 @@
 
 > **v2 设计稿（行为树驱动）**。v1（基于 Claude Code CLAUDE.md 提示词驱动）已废弃为参考实现。
 > 网页版：`design/web/loops.html` → 执行任务循环标签。
-> 关联文档：[`BEHAVIOR-TREE-ENGINE.zh-CN.md`](./BEHAVIOR-TREE-ENGINE.zh-CN.md)（引擎实现）、[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（全景图）。
+> 关联文档：[行为树引擎实现 README](../v1/kernel/engine/bt/README.md)、[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（全景图）。
 
 ---
 
@@ -45,7 +45,7 @@
 | 9 | `converge_signal` | enum | Converge | Root | `done` / `loop` / `interrupt` 三态 |
 | 10 | `final_response` | str\|None | Respond | Root | 最终回复用户的消息 |
 | 11 | `interrupt_reason` | str\|None | Converge / 装饰器 | Root | 触发 Interrupt 的原因（冲突/超 cap/破坏性操作/装饰器熔断） |
-| 12 | `runner_resume_path` | list[NodeId]\|None | 引擎 | 引擎 | RUNNING 节点的栈路径，跨 tick 恢复用（详见 §6 与 [`BEHAVIOR-TREE-ENGINE.zh-CN.md §3`](./BEHAVIOR-TREE-ENGINE.zh-CN.md#3-持久化与-trace-格式)） |
+| 12 | `runner_resume_path` | list[NodeId]\|None | 引擎 | 引擎 | RUNNING 节点的栈路径，跨 tick 恢复用（详见 §6 与 [引擎 README §3](../v1/kernel/engine/bt/README.md#3-持久化与-trace-格式)） |
 | 13 | `bb_status` | enum | 引擎 | 引擎 / 主 agent | `running` / `done` / `error`；与 `runner_resume_path` 配合判定是否需 resume |
 | 14 | `pending_dispatch` | DispatchRequest\|None | Dispatch | 主 agent | 当 tick yield 时，告诉主 agent 要派哪个 Work Agent，参数是什么 |
 | 15 | `trace` | list[TraceEntry] | 所有节点 | 引擎落盘 | 节点级 trace：进入/退出/状态/耗时/异常 |
@@ -64,7 +64,7 @@
 - **持久化范围：** 跨 tick 的同一用户请求内全程持久化（同一 `tick_id` 链）。用户开启下一个 prompt 即开新 `tick_id`，旧黑板归档。
 - **持久化形式：** JSON 快照。每次黑板 dirty（任一字段被显式赋值）后，引擎在节点退出时落盘一次：`.cbim/scheduler/bt/<tick_id>/bb.json`。
 - **trace 同址：** 同目录下 `trace.jsonl`，每行一条 TraceEntry，append-only。
-- **恢复入口：** 主 agent 重启或 tick yield 后回调 `bt_tick_resume(tick_id, ...)` 时，引擎读 `bb.json` + `runner_resume_path` 还原现场（详见 §6 与 [`BEHAVIOR-TREE-ENGINE.zh-CN.md §3`](./BEHAVIOR-TREE-ENGINE.zh-CN.md#3-持久化与-trace-格式)）。
+- **恢复入口：** 主 agent 重启或 tick yield 后回调 `bt_tick_resume(tick_id, ...)` 时，引擎读 `bb.json` + `runner_resume_path` 还原现场（详见 §6 与 [引擎 README §3](../v1/kernel/engine/bt/README.md#3-持久化与-trace-格式)）。
 
 ---
 
@@ -190,7 +190,7 @@ sequenceDiagram
 
 **为什么是协程式而非主 agent 自驱动**：行为树的拓扑、装饰器、迭代上限、收敛判定等控制逻辑全部在引擎里——主 agent 只是"具备 Task 工具的执行手"。如果让主 agent 也持有控制流，相当于把树拷贝一份到 prompt 里，违反单一来源原则。
 
-`bt_tick` / `bt_tick_resume` 的 MCP 工具签名与 `BtResult` 三态详见 [`BEHAVIOR-TREE-ENGINE.zh-CN.md §6`](./BEHAVIOR-TREE-ENGINE.zh-CN.md#6-l7-协程式-yieldresume-协议细节)。
+`bt_tick` / `bt_tick_resume` 的 MCP 工具签名与 `BtResult` 三态详见 [引擎 README §6](../v1/kernel/engine/bt/README.md#6-l7-协程式-yieldresume-协议细节)。
 
 ---
 

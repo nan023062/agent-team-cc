@@ -1,6 +1,6 @@
 """core/composite.py — Composite nodes: Sequence / Selector / Parallel.
 
-All composites are stateless across ticks (BEHAVIOR-TREE-ENGINE §2 iron rule).
+All composites are stateless across ticks (README §2 iron rule).
 Per-tick walk state (current child index, branch RUNNING set) is reconstructed
 each tick by the Runner from `bb.runner_resume_path`; composites themselves
 never store it.
