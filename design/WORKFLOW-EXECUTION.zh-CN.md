@@ -2,7 +2,13 @@
 
 > **v2 设计稿（行为树驱动）**。v1（基于 Claude Code CLAUDE.md 提示词驱动）已废弃为参考实现。
 > 网页版：`design/web/loops.html` → 执行任务循环标签。
-> 关联文档：[行为树引擎实现 README](../v1/kernel/engine/bt/README.md)、[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（全景图）。
+> 关联文档：[行为树引擎实现 README](../v1/kernel/engine/bt/README.md)、[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（全景图）、[`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)（另一棵平级根：治理循环）。
+> 执行根上挂的三个 actor 执行子循环详细设计：
+> - 主 agent 记忆 CRUD 子循环 → [`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md) 第一部分
+> - Architect 执行子循环（ArchGate 节点触发） → [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) 第一部分
+> - HR 执行子循环（CallHR 节点触发） → [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) 第一部分
+
+> **架构提示：** CBIM 采用**双根架构**。本文档描述其中一棵——执行任务循环（用户驱动），另一棵是 [治理循环](./WORKFLOW-DREAM.zh-CN.md)（scheduler 驱动）。两根平级共存、共用同一个 BT 引擎、互不依赖。执行根与治理根并存的来由详见 §7。
 
 ---
 
@@ -60,7 +66,7 @@
 - **读者无限制，但只读副本。** 节点取出 `bb.xxx` 后不得就地修改可变结构；如需修改，写回必须显式赋值 `bb.xxx = new_value`，引擎据此判定 dirty 触发快照。
 - **空值语义。** `None` = 该阶段尚未运行；空列表/空 dict = 该阶段已运行但产出为空。两者不可互换。
 
-### 2.3 持久化策略（L1 锁定）
+### 2.3 持久化策略
 
 - **持久化范围：** 跨 tick 的同一用户请求内全程持久化（同一 `tick_id` 链）。用户开启下一个 prompt 即开新 `tick_id`，旧黑板归档。
 - **持久化形式：** JSON 快照。每次黑板 dirty（任一字段被显式赋值）后，引擎在节点退出时落盘一次：`.cbim/scheduler/bt/<tick_id>/bb.json`。
@@ -71,7 +77,7 @@
 
 ## 3. 主循环行为树拓扑
 
-下图是**完整全局根**——L4 锁定结果：CBIM 主循环 = 唯一根，无其他平级根。
+下图是**执行任务循环的完整根**——此前"唯一根"决议已升级为"双根并存"（详见 §7）：CBIM 现有两棵平级根，本文档描述其中之一（执行根），另一棵（治理根）见 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)。两根共用 BT 引擎，本节图是执行根自身的完整拓扑，不包含治理根。
 
 ```mermaid
 flowchart TD
@@ -108,7 +114,7 @@ flowchart TD
 
 详细装饰器语义见 §5。
 
-### LoopSeq 六节点顺序（v2.1 修订）
+### LoopSeq 六节点顺序
 
 LoopSeq 是顺序节点（Sequence），子节点严格按顺序执行：
 
@@ -129,20 +135,20 @@ LoopSeq 是顺序节点（Sequence），子节点严格按顺序执行：
 
 | Action | 读 `bb` | 写 `bb` | 调谁 | 返回语义 |
 |--------|---------|---------|------|----------|
-| `IntentAnalyze` | `user_request` | `intent` | 规则引擎优先；歧义时 LLM 兜底（L8） | SUCCESS = 已分析（含 clarification_needed=true）；FAILURE = 规则与 LLM 均无法分析 |
+| `IntentAnalyze` | `user_request` | `intent` | 规则引擎优先；歧义时 LLM 兜底 | SUCCESS = 已分析（含 clarification_needed=true）；FAILURE = 规则与 LLM 均无法分析 |
 | `Decompose` | `user_request`, `intent`, `subtask_results`（如有，用于二次拆解） | `dispatch_plan`（不含 `target_agent_file`，HR 在 CallHR 阶段统一填）, `iteration += 1` | 主 agent（LLM 决策）；规则可拦截"无需拆解"的简单 case | SUCCESS = 已拆解出 ≥1 个子任务；FAILURE = 无法拆解 |
-| `ArchGate` | `dispatch_plan` | `arch_context` | 通过 `pending_dispatch` yield 给主 agent 派 Architect | SUCCESS = 已拿到 ContextPack；RUNNING = 等待 Architect resume；FAILURE = Architect 报错 |
-| `CallHR` | `dispatch_plan`, `arch_context`, `agent_list`（去重检查） | `agent_list`（subtask_id → agent_file 清单） | 通过 `pending_dispatch` yield 给主 agent 派 HR | SUCCESS = 已有覆盖所有 `arch_context`-依赖子任务的 agent_list（或本轮无需求）；RUNNING = 等待 HR resume；FAILURE = HR 报 `agent_gap`（无可用 agent） |
+| `ArchGate` | `dispatch_plan` | `arch_context` | 通过 `pending_dispatch` yield 给主 agent 派 Architect，**Architect 进入执行子循环**（详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md) 第一部分） | SUCCESS = 已拿到 ContextPack；RUNNING = 等待 Architect resume；FAILURE = Architect 报错 |
+| `CallHR` | `dispatch_plan`, `arch_context`, `agent_list`（去重检查） | `agent_list`（subtask_id → agent_file 清单） | 通过 `pending_dispatch` yield 给主 agent 派 HR，**HR 进入执行子循环**（详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) 第一部分） | SUCCESS = 已有覆盖所有 `arch_context`-依赖子任务的 agent_list（或本轮无需求）；RUNNING = 等待 HR resume；FAILURE = HR 报 `agent_gap`（无可用 agent） |
 | `DispatchParallel` (内含 `WorkAgentLeaf`) | `dispatch_plan`, `arch_context`, `agent_list` | `subtask_results[id]`, `pending_dispatch`（逐个派工） | 通过 `pending_dispatch` yield 给主 agent 派 Work Agent；agent_file 优先取自 `bb.agent_list`，回退到 `subtask.target_agent_file` | 全部子任务 SUCCESS → SUCCESS；任一 FAILURE 且无 fallback → FAILURE；任一携带 `NEEDS_ARCH_DECISION` → 回到 ArchGate（树拓扑层面通过 Aggregate 写 `converge_signal=loop` 实现） |
 | `Aggregate` | `subtask_results` | `subtask_results`（合并视图）、可能写 `interrupt_reason`（如检测到冲突） | 纯本地，无外调 | SUCCESS = 整合完成；FAILURE = 检测到不可调和冲突（写 `interrupt_reason`） |
-| `ConvergeJudge` | `subtask_results`, `iteration`, `iteration_cap` | `converge_signal` | 规则优先（无新子任务且无 `NEEDS_ARCH_DECISION` → done；有新增任务 → loop；冲突/超 cap → interrupt）；歧义时 LLM 兜底（L8） | SUCCESS = 已判定（信号在 `converge_signal`）；FAILURE = 判定异常（罕见） |
+| `ConvergeJudge` | `subtask_results`, `iteration`, `iteration_cap` | `converge_signal` | 规则优先（无新子任务且无 `NEEDS_ARCH_DECISION` → done；有新增任务 → loop；冲突/超 cap → interrupt）；歧义时 LLM 兜底 | SUCCESS = 已判定（信号在 `converge_signal`）；FAILURE = 判定异常（罕见） |
 
 辅助 Action：
 
 - **`InitTick`** — 写入 `tick_id`、`user_request`、`iteration=0`、`iteration_cap=5`，初始化 `subtask_results = {}`。
 - **`AskClarify`** — 把 `intent.clarifying_question` 写入 `final_response`，置 `converge_signal=done`，结束本 tick。
 - **`Respond`** — 把 `Aggregate` 整合产物渲染成用户可读消息，写 `final_response`。如果 `interrupt_reason` 非空，渲染为"打断说明 + 当前状态"。
-- **`FlushMemory`** — 把 `memory_flush_queue` 落到 `.cbim/memory/short/`（一次性批写）。失败被 `@Catch` 吞掉但记 trace（记忆故障不应阻塞用户回复）。
+- **`FlushMemory`** — 把 `memory_flush_queue` 落到 `.cbim/memory/short/`（一次性批写）。**这是主 agent 触发自己的记忆 CRUD 子循环**——具体写入流程详见 [`WORKFLOW-MEMORY.zh-CN.md`](./WORKFLOW-MEMORY.zh-CN.md) 第一部分。失败被 `@Catch` 吞掉但记 trace（记忆故障不应阻塞用户回复）。
 
 ---
 
@@ -167,7 +173,7 @@ LoopSeq 是顺序节点（Sequence），子节点严格按顺序执行：
 
 ## 6. 主 agent 与引擎的协作模型
 
-L6 + L7 锁定：**主 agent = Action implementer + 调度回环参与者**。主 agent 自身不再执行 CLAUDE.md 那段散文式"理解 → 路由 → 拆解 → 派工 → 汇总"流程——那段已废弃。主 agent 的工作是：
+**主 agent = Action implementer + 调度回环参与者**。主 agent 自身不再执行 CLAUDE.md 那段散文式"理解 → 路由 → 拆解 → 派工 → 汇总"流程——那段已废弃。主 agent 的工作是：
 
 1. 收到用户 prompt 后调 `bt_tick(user_request)`；
 2. 引擎在内部驱动行为树到第一个 yield 点（通常是 ArchGate 或 WorkAgentLeaf 要派工）；
@@ -217,10 +223,31 @@ sequenceDiagram
 
 ## 7. 全局 tick 入口与触发源
 
-- **全局根** —— L4 锁定：主循环 = 唯一根。没有平级树，没有备份根。所有用户 prompt 都从同一个根节点入口进入。
-- **触发源** —— 用户每一次 prompt 触发一次 `bt_tick`。**不存在定时触发、不存在外部事件触发、不存在 Agent 自驱触发**。这与游戏引擎"每帧 tick"形成根本差异：CBIM 是用户驱动的反应式系统。
-- **HR 调用以 `CallHR` 节点纳入主循环（v2.1 修订）**，与 `ArchGate` 平行——HR 是能力轴的执行 agent，与 Architect（知识轴）地位对等。HR **内部子循环**（招募/培训/匹配的自闭环）仍保持黑盒，不行为树化（L5 决议保留）。其余子循环（记忆压缩、Auditor 评审）暂不行为树化，保持当前实现（CLI/Hook/独立 agent 自闭环）。
-- **单 tick 边界** —— 一次 `bt_tick` + 若干 `bt_tick_resume` 构成一次"逻辑 tick"，对应一次用户 prompt。逻辑 tick 内黑板持久；逻辑 tick 结束（Done / Interrupt）黑板归档，不影响下一个 tick。
+### 双根架构
+
+CBIM 此前的"唯一根"决议是为了禁止"主 agent 自己再开一棵决策树"这种混乱模式——这条收窄至今仍然有效。但随着 CBIM 引入**夜间治理**（记忆压缩、`.dna/` 孤立模块清理、闲置 agent 归档等后台自维护动作），单根模型出现了无法回避的张力：把治理硬塞进执行根会让黑板膨胀且语义混乱（用户驱动 vs scheduler 驱动是两套完全不同的节奏），单独开第二个 agent 调度器又重复造轮。
+
+**当前方案：此前"唯一根"决议已升级为"双根并存"。**
+
+| 维度 | 执行根（本文档） | 治理根（[`WORKFLOW-DREAM`](./WORKFLOW-DREAM.zh-CN.md)） |
+|------|----------------|--------------------------------------------|
+| 驱动模型 | 用户 prompt 驱动，反应式 | SessionStart 补跑检测驱动，自维护式 |
+| 入口工具 | `bt_tick` / `bt_tick_resume` | `dream_tick` / `dream_tick_resume` |
+| 根节点 | Root（Sequence + LoopSeq） | DreamRoot（Sequence + SequenceTolerant） |
+| 黑板路径 | `.cbim/scheduler/bt/<tick_id>/` | `.cbim/scheduler/dream/<run_id>/` |
+| 冲突处理 | 用户优先，治理让位 | 同左（治理立即归档当前 RUNNING 节点） |
+| 共用 | BT 引擎本体（`engine/bt/core`）、被治理资源（`.cbim/memory/` / `.dna/` / `.claude/agents/`） | 同左 |
+| 不共用 | 黑板字段、节点定义、trace、入口工具、报告 | 同左 |
+
+**两根互不依赖**：执行根的代码不允许 import 治理根模块，反之亦然。
+
+### 执行根本身的触发与边界
+
+- **执行根的入口** —— 所有用户 prompt 都从执行根的根节点进入。本文档以下所有 Action / 装饰器 / 黑板字段都属于执行根。
+- **触发源** —— 用户每一次 prompt 触发一次 `bt_tick`。**执行根不存在定时触发、不存在外部事件触发、不存在 Agent 自驱触发**。SessionStart 补跑触发的是治理根 `dream_tick`，不进入本文档讨论范围。
+- **HR 调用以 `CallHR` 节点纳入执行根**，与 `ArchGate` 平行——HR 是能力轴的执行 agent，与 Architect（知识轴）地位对等。HR **执行子循环**（招募/培训/匹配的内部流程，详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) 第一部分）保持黑盒，不行为树化——这是刻意保留的边界：HR 子循环的内部决策属于 HR agent 自己的提示词领域，不进执行根的拓扑。Auditor 作为 Claude Code 提示词配置 agent，没有 CBIM 子循环设计，被 yield 时按其提示词跑完即返回。
+- **记忆压缩等维护动作**已从执行根剥离，归治理根管，详见 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md) §4 记忆治理步骤。
+- **单 tick 边界** —— 一次 `bt_tick` + 若干 `bt_tick_resume` 构成一次"逻辑 tick"，对应一次用户 prompt。逻辑 tick 内黑板持久；逻辑 tick 结束（Done / Interrupt）黑板归档，不影响下一个 tick。治理根的 dream tick 与执行根的逻辑 tick 完全隔离，互不影响彼此的边界判定。
 
 ---
 
