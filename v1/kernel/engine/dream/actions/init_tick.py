@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class InitDreamTick(Node):

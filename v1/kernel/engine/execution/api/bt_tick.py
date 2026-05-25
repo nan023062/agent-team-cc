@@ -17,9 +17,9 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from ..core.blackboard import Blackboard
-from ..core.runner import Runner
-from ..persistence import snapshot
+from engine.core.blackboard import Blackboard
+from engine.core.runner import Runner
+from engine.persistence import snapshot
 from ..tree.main_loop import ROOT
 from .result import BtResult, DispatchRequest, TickStatus
 

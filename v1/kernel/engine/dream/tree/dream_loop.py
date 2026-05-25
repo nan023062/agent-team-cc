@@ -27,8 +27,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from engine.execution.core.composite import Sequence
-from engine.execution.core.decorator import Catch, Timeout, Trace
+from engine.core.composite import Sequence
+from engine.core.decorator import Catch, Timeout, Trace
 from engine.dream.core.composite_tolerant import SequenceTolerant
 
 from memory.crud.backend import MemoryBackend

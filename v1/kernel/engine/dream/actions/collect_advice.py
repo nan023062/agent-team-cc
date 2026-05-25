@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class CollectArchAdvice(Node):

@@ -6,8 +6,8 @@ assignment list into bb.agent_assignments and merges agent_file back into
 the corresponding Task dicts in bb.arch_plan.
 
 Prompt scaffolding and JSON-response normalization are delegated to
-`engine.loops.hr_execution` — the design flowchart NodeSpec list is the
-single source of truth. This action only owns:
+`engine.execution.loops.hr_execution` — the design flowchart NodeSpec
+list is the single source of truth. This action only owns:
   - the yield gesture (DispatchRequest)
   - the agent_gap short-circuit
   - the merge of agent_file back into arch_plan
@@ -20,12 +20,12 @@ keep working unchanged.
 from __future__ import annotations
 
 from ..api.result import DispatchRequest
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 def _loop():
     # Lazy import to break the import cycle (see dispatch_architect.py).
-    import engine.loops.hr_execution as m
+    import engine.execution.loops.hr_execution as m
     return m
 
 

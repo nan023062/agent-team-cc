@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class EmitReport(Node):

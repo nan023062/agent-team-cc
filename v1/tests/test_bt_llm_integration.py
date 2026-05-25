@@ -18,8 +18,8 @@ import pytest
 
 from engine.execution.actions.direct_reply import DirectReply
 from engine.execution.actions.mode_classify import ModeClassify
-from engine.execution.core.blackboard import Blackboard
-from engine.execution.core.node import Status
+from engine.core.blackboard import Blackboard
+from engine.core.node import Status
 
 
 pytestmark = [

@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from engine.execution.core.composite import Sequence
-from engine.execution.core.node import Node
+from engine.core.composite import Sequence
+from engine.core.node import Node
 from engine.dream.actions.mem_steps import (
     MemCompact,
     MemHealthScan,

@@ -15,7 +15,7 @@ sinking the whole tree.
 from __future__ import annotations
 
 from ..api.result import DispatchRequest
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class WorkAgentLeaf(Node):

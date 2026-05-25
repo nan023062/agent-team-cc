@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ..persistence import snapshot, trace as trace_mod
+from engine.persistence import snapshot, trace as trace_mod
 from .blackboard import Blackboard
 from .node import Node, Status
 

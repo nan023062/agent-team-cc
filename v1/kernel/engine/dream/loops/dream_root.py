@@ -1,7 +1,7 @@
-"""loops/dream_root.py — Governance (dream) root loop, re-export only.
+"""dream/loops/dream_root.py — Governance (dream) root loop, re-export only.
 
 The governance root lives at engine.dream.tree.dream_loop. This module is
-its canonical entry under engine.loops.*; it adds no logic.
+its canonical entry under engine.dream.loops.*; it adds no logic.
 """
 from __future__ import annotations
 

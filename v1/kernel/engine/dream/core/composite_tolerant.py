@@ -21,7 +21,7 @@ schema does not carry `step_results` (a dream-only field).
 
 from __future__ import annotations
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 # bt.core.composite's base class is module-private (`_Composite`). Re-derive
 # the same minimal shape locally rather than reach into a private name —

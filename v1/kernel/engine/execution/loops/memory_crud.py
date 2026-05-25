@@ -27,8 +27,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from engine.execution.core.composite import Sequence, Selector
-from engine.execution.core.node import Node, Status
+from engine.core.composite import Sequence, Selector
+from engine.core.node import Node, Status
 
 
 # ---------------------------------------------------------------------------

@@ -5,9 +5,9 @@ on first tick when bb.arch_governance_dispatched is None. On resume the
 matching CollectArchAdvice node consumes the payload — this node only owns
 the yield gesture.
 
-Prompt scaffolding is delegated to `engine.loops.architect_governance` so
-the design flowchart (WORKFLOW-ARCHITECT.zh-CN.md §2) NodeSpec list is the
-single source of truth.
+Prompt scaffolding is delegated to `engine.dream.loops.architect_governance`
+so the design flowchart (WORKFLOW-ARCHITECT.zh-CN.md §2) NodeSpec list is
+the single source of truth.
 
 Per-tick idempotent: once dispatched (flag set), subsequent ticks are SUCCESS
 no-ops, so this node is safe under any composite that may re-enter it on
@@ -16,15 +16,15 @@ resume.
 
 from __future__ import annotations
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 from ..api.result import DispatchRequest
 
 
 def _loop():
-    # Lazy import to break the import cycle: engine.loops/__init__ eagerly
-    # imports dream_root → dream_loop → this module.
-    import engine.loops.architect_governance as m
+    # Lazy import to break the import cycle: engine.dream.loops/__init__
+    # eagerly imports dream_root → dream_loop → this module.
+    import engine.dream.loops.architect_governance as m
     return m
 
 

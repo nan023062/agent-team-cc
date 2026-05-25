@@ -20,7 +20,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 from .llm_hook import NullLLM
 
 

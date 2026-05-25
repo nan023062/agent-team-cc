@@ -11,7 +11,7 @@ failures never break the tick. NEVER raises.
 
 from __future__ import annotations
 
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class FlushMemory(Node):

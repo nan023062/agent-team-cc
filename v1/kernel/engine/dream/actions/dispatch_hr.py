@@ -3,21 +3,21 @@
 Yields a DispatchRequest(agent_type="hr", subtask_id="governance_capability")
 on first tick when bb.hr_governance_dispatched is None.
 
-Prompt scaffolding is delegated to `engine.loops.hr_governance` so the
-design flowchart (WORKFLOW-HR.zh-CN.md §2) NodeSpec list is the single
+Prompt scaffolding is delegated to `engine.dream.loops.hr_governance` so
+the design flowchart (WORKFLOW-HR.zh-CN.md §2) NodeSpec list is the single
 source of truth.
 """
 
 from __future__ import annotations
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 from ..api.result import DispatchRequest
 
 
 def _loop():
     # Lazy import to break the import cycle (see dispatch_arch.py).
-    import engine.loops.hr_governance as m
+    import engine.dream.loops.hr_governance as m
     return m
 
 

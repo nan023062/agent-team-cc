@@ -16,7 +16,7 @@ import logging
 import os
 from pathlib import Path
 
-from ..core.blackboard import SCHEMA_VERSION
+from engine.core.blackboard import SCHEMA_VERSION
 
 _log = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def write_bb(tick_dir: Path, bb) -> None:
 
 
 def read_bb(tick_dir: Path):
-    from ..core.blackboard import Blackboard
+    from engine.core.blackboard import Blackboard
     p = tick_dir / "bb.json"
     if not p.exists():
         return None

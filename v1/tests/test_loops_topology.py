@@ -1,4 +1,8 @@
-"""Topology assertions for engine.loops — the eight-loop catalog.
+"""Topology assertions for the eight-loop catalog.
+
+Loops now live under two scoped registries:
+  - engine.execution.loops (execution_root, architect_execution, hr_execution, memory_crud)
+  - engine.dream.loops    (dream_root, architect_governance, hr_governance, memory_governance)
 
 Pure structural checks: no LLM calls, no Runner ticks, no MCP roundtrips.
 Each test reads either a BT subtree's node names or a descriptor module's
@@ -12,52 +16,75 @@ from pathlib import Path
 
 import pytest
 
-from engine.execution.core.node import Node
-from engine.loops import (
-    NodeSpec,
+from engine.core.node import Node
+from engine.core.loop_spec import NodeSpec
+from engine.execution.loops import (
     architect_execution,
+    execution_root,
+    hr_execution,
+    memory_crud,
+)
+from engine.execution.loops import get_loop as get_exec_loop
+from engine.execution.loops import loop_names as exec_loop_names
+from engine.dream.loops import (
     architect_governance,
     dream_root,
-    execution_root,
-    get_loop,
-    hr_execution,
     hr_governance,
-    loop_names,
-    memory_crud,
     memory_governance,
 )
+from engine.dream.loops import get_loop as get_gov_loop
+from engine.dream.loops import loop_names as gov_loop_names
 
 
 # ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
-EXPECTED_LOOP_NAMES = {
+EXPECTED_EXEC_LOOP_NAMES = {
     "execution_root",
-    "dream_root",
-    "memory_crud",
-    "memory_governance",
     "architect_execution",
-    "architect_governance",
     "hr_execution",
+    "memory_crud",
+}
+
+EXPECTED_GOV_LOOP_NAMES = {
+    "dream_root",
+    "architect_governance",
     "hr_governance",
+    "memory_governance",
 }
 
 
-def test_registry_lists_all_eight_loops():
-    assert set(loop_names()) == EXPECTED_LOOP_NAMES
+def test_execution_registry_lists_all_four_loops():
+    assert set(exec_loop_names()) == EXPECTED_EXEC_LOOP_NAMES
+
+
+def test_governance_registry_lists_all_four_loops():
+    assert set(gov_loop_names()) == EXPECTED_GOV_LOOP_NAMES
 
 
 def test_get_loop_returns_modules_for_every_name():
-    for name in EXPECTED_LOOP_NAMES:
-        mod = get_loop(name)
+    for name in EXPECTED_EXEC_LOOP_NAMES:
+        mod = get_exec_loop(name)
+        assert mod is not None
+        assert hasattr(mod, "__name__")
+    for name in EXPECTED_GOV_LOOP_NAMES:
+        mod = get_gov_loop(name)
         assert mod is not None
         assert hasattr(mod, "__name__")
 
 
 def test_get_loop_unknown_raises():
     with pytest.raises(KeyError):
-        get_loop("not_a_loop")
+        get_exec_loop("not_a_loop")
+    with pytest.raises(KeyError):
+        get_gov_loop("not_a_loop")
+
+
+def test_scoped_registries_are_disjoint():
+    """Execution and governance registries must not share keys."""
+    assert EXPECTED_EXEC_LOOP_NAMES.isdisjoint(EXPECTED_GOV_LOOP_NAMES)
+    assert set(exec_loop_names()).isdisjoint(set(gov_loop_names()))
 
 
 # ---------------------------------------------------------------------------

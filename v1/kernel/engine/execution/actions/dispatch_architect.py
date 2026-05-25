@@ -5,8 +5,9 @@ Architect agent and returns RUNNING. on_resume parses the Architect reply
 into bb.arch_plan: list[Task].
 
 Prompt scaffolding and JSON-response normalization are delegated to
-`engine.loops.architect_execution` — the design flowchart NodeSpec list
-is the single source of truth for the prompt and the response shape.
+`engine.execution.loops.architect_execution` — the design flowchart
+NodeSpec list is the single source of truth for the prompt and the
+response shape.
 This action only owns:
   - the yield gesture (DispatchRequest)
   - the agent_error short-circuit (arch_error: token)
@@ -22,13 +23,14 @@ from __future__ import annotations
 import json
 
 from ..api.result import DispatchRequest, Task
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 def _loop():
-    # Lazy import to break the import cycle: engine.loops/__init__ eagerly
-    # imports execution_root → main_loop → this module. Resolved at call time.
-    import engine.loops.architect_execution as m
+    # Lazy import to break the import cycle: engine.execution.loops/__init__
+    # eagerly imports execution_root → main_loop → this module. Resolved at
+    # call time.
+    import engine.execution.loops.architect_execution as m
     return m
 
 

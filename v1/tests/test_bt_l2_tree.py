@@ -5,7 +5,7 @@ Static structural checks on the global ROOT to prevent silent topology drift.
 from __future__ import annotations
 
 from engine.execution.actions.dispatch_work import DispatchWork
-from engine.execution.core.decorator import Catch, Retry, Timeout, Trace
+from engine.core.decorator import Catch, Retry, Timeout, Trace
 from engine.execution.tree.main_loop import ROOT, build_root
 
 
@@ -83,7 +83,7 @@ def test_flush_memory_wrapped_in_catch():
 
 def test_mode_branch_present_with_two_children():
     """ModeBranch routes between conversation and execution paths."""
-    from engine.execution.core.composite import ModeBranch
+    from engine.core.composite import ModeBranch
     for n in _walk(ROOT):
         if isinstance(n, ModeBranch):
             kids = n.children()

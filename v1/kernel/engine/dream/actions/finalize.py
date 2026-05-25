@@ -17,7 +17,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from engine.execution.core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class FinalizeDreamTick(Node):

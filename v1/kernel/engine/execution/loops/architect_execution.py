@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from ._spec import NodeSpec
+from engine.core.loop_spec import NodeSpec
 
 
 NODE_SPECS: list[NodeSpec] = [

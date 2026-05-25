@@ -10,8 +10,8 @@ import json
 import pytest
 
 from engine.execution.api import bt_tick as api
-from engine.execution.core.blackboard import Blackboard, SCHEMA_VERSION
-from engine.execution.persistence import snapshot
+from engine.core.blackboard import Blackboard, SCHEMA_VERSION
+from engine.persistence import snapshot
 
 
 @pytest.fixture

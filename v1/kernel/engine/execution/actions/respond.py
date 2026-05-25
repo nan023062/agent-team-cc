@@ -8,7 +8,7 @@ concatenate work_results outputs into a single user-facing message.
 
 from __future__ import annotations
 
-from ..core.node import Node, Status
+from engine.core.node import Node, Status
 
 
 class Respond(Node):

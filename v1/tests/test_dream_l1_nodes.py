@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from engine.execution.core.node import Status
+from engine.core.node import Status
 from engine.dream.actions.collect_advice import CollectArchAdvice, CollectHRAdvice
 from engine.dream.actions.dispatch_arch import DispatchArchGovern
 from engine.dream.actions.dispatch_hr import DispatchHRGovern
