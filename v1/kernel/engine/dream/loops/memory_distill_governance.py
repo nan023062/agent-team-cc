@@ -2,21 +2,25 @@
 
 Topology source: ``cbim/skills/memory_distill/skill.py`` semantic compression
 contract. The MemDistill triad inside MemoryGovernanceStep yields to the
-HR agent so it can run the ``memory_distill`` skill — semantic short→medium
-compression is LLM-driven, not a deterministic in-process job.
+coordinator (main agent) — distillation is a memory-source responsibility
+and is not outsourced. Semantic short→medium compression is LLM-driven,
+but the canonical executor is the main agent itself (the ``memory_distill``
+skill explicitly declares "Main agent only", and HR's MCP surface lacks
+``memory_get`` so it cannot read short-term entry bodies).
 
-Runs inside the HR agent during governance mode with
-``subtask_id="governance_memory_distill"``. The agent reads the skill via
-``cbim skill show memory_distill`` and writes back a structured report the
-dream-root CollectMemDistill action consumes.
+Runs inside the coordinator during governance mode with
+``subtask_id="governance_memory_distill"``. The coordinator reads the
+skill via ``cbim skill show memory_distill`` and posts back a structured
+report the dream-root CollectMemDistill action consumes.
 
 This module owns:
   - ``compose_prompt(bb, store_dir)`` — renders the per-tick distill prompt
     embedding the current health snapshot;
-  - ``parse_response(payload)`` — normalizes the HR reply into
+  - ``parse_response(payload)`` — normalizes the reply into
     ``{"mem_distill_report": {...}}`` for CollectMemDistill.
 
-Pairs with ``loops/hr_governance.py`` (same agent, different subtask_id).
+Pairs with ``loops/hr_governance.py`` — same governance step container,
+different executor (HR for capability scans, main agent for distillation).
 """
 from __future__ import annotations
 
@@ -27,11 +31,12 @@ from typing import Any
 def compose_prompt(bb, store_dir: str) -> str:
     """Render the memory-distill governance prompt.
 
-    Header marker ``## 治理模式`` matches the dream-loop dispatch convention
-    so the HR agent enters governance mode (see hr.md 治理章节). The
-    ``subtask_id`` is checked downstream — this prompt instructs the agent
-    to invoke ONLY the ``memory_distill`` skill, not its capability-book
-    scans (which belong to the separate ``governance_capability`` subtask).
+    Header marker ``## 治理模式`` matches the dream-loop dispatch convention.
+    The coordinator (main agent) is the executor here — it reads the
+    ``memory_distill`` skill and runs the compression itself using its
+    ``memory_*`` MCP tools (including ``memory_get``, which HR does not
+    have). The ``subtask_id`` ``governance_memory_distill`` discriminates
+    this yield from the capability-governance yield routed to HR.
     """
     health = bb.mem_health or {}
     indicators = health.get("indicators") or {}
@@ -43,19 +48,20 @@ def compose_prompt(bb, store_dir: str) -> str:
     medium_count = indicators.get("medium_count")
 
     lines: list[str] = [
-        "## 治理模式（HR 记忆蒸馏子循环）",
+        "## 治理模式（主 agent 记忆蒸馏子循环）",
         "",
-        "你接到治理派工。**唯一任务**：执行 `memory_distill` skill —— ",
+        "你（主 agent）接到治理子任务。**唯一任务**：执行 `memory_distill` skill —— ",
         "把 `.cbim/memory/short/` 里达成蒸馏条件的条目压缩进 `.cbim/memory/medium/`。",
-        "**不要做能力册扫描**（那是 `governance_capability` 子任务的事）。",
-        "**不要调** `dna_*` / `agent_*` 工具；只动 `.cbim/memory/`。",
+        "**不要做能力册扫描**（那是 `governance_capability` 子任务，会派给 HR）。",
+        "**不要调** `dna_*` / `agent_*` 工具；只动 `.cbim/memory/`，全程走 `memory_*` MCP 工具。",
         "",
         "### 操作步骤（按序）",
-        "1. 运行 `cbim skill show memory_distill` 读完整 skill 指令。",
-        "2. 按 skill 规则扫描 short 候选，按语义分类蒸馏成 medium 条目。",
+        "1. 调 `skill_show` MCP 工具读 `memory_distill` 拿完整 skill 指令（等价旧 CLI `cbim skill show memory_distill`）。",
+        "2. 按 skill 规则用 `memory_list` / `memory_query` / `memory_get` 扫 short 候选并读取正文，",
+        "   按语义分类蒸馏成 medium 条目（用 `memory_create` 落盘）。",
         "3. 已蒸馏的 short 条目按 skill 规则在 frontmatter 打 `distilled: true` 标记，",
         "   等下一轮 compact / sweep 清理；不要直接 unlink。",
-        "4. 装配下方 schema 回执。",
+        "4. 装配下方 schema 回执，调 `dream_tick_resume(run_id, dispatch_result=<json>)` 回交。",
         "",
         "### 记忆库根目录（绝对路径，**只在此根下操作**）",
         f"`{store_dir}`",
@@ -95,7 +101,7 @@ def compose_prompt(bb, store_dir: str) -> str:
 
 
 def parse_response(payload: str | dict | None) -> dict:
-    """Normalize HR's distill response into ``{"mem_distill_report": ...}``.
+    """Normalize the distill response into ``{"mem_distill_report": ...}``.
 
     Same tolerance shape as ``architect_governance.parse_response`` /
     ``hr_governance.parse_response``:

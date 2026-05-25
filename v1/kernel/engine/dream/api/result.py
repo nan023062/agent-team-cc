@@ -6,8 +6,11 @@ Stability surface per .dna/contract.md:
     {"running", "done", "failed", "abandoned"}
   - Skipped.reason restricted to
     {"within_window", "another_run_in_progress", "recent_failure_cooldown"}
-  - DispatchRequest.agent_type restricted to {"architect", "hr"} per
-    governance contract (the dream loop never dispatches work / auditor)
+  - DispatchRequest.agent_type restricted to {"architect", "hr", "main"}
+    per governance contract (the dream loop never dispatches work /
+    auditor). "main" means yield back to the coordinator itself — used
+    only for governance subtasks whose input is the memory store and
+    whose canonical executor is the main agent (e.g. memory_distill).
 
 The governance loop yields for the Architect / HR governance sub-loops
 via the dispatch leaves under ``engine.dream.actions.dispatch_*``. The
@@ -33,6 +36,10 @@ from typing import Any
 DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
     "architect": "CollectArchAdvice",
     "hr":        "CollectHRAdvice",
+    # "main" intentionally absent from the single-level table — every
+    # main-agent yield carries a subtask_id and resolves through the
+    # two-level table below, so we don't want a single-level fallback
+    # that would silently mis-route a future main-agent subtask.
 }
 
 
@@ -40,9 +47,11 @@ DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
 # Runner BEFORE the single-level table above; falls back to it on miss.
 #
 # One agent_type can fan out to several Collect leaves — the dream loop uses
-# this so the HR agent can be driven by either the capability-governance step
-# (subtask_id="governance_capability" → CollectHRAdvice) or the memory-distill
-# step (subtask_id="governance_memory_distill" → CollectMemDistill).
+# this so e.g. the architect agent could in principle drive multiple
+# governance sub-jobs. Memory-distill yields to the main agent (the
+# coordinator) directly: distillation is a memory-source responsibility and
+# the HR agent lacks the memory_get tool needed to read short-term entries
+# (see prior run f1328bf4eb53 for the failure mode that motivated this).
 #
 # Subtask_ids registered here must also appear in the contract.md stable set
 # (see engine/dream/.dna/contract.md "subtask_id 稳定集合").
@@ -51,7 +60,9 @@ DREAM_AGENT_SUBTASK_TO_LEAF: dict[str, dict[str, str]] = {
         "governance_knowledge": "CollectArchAdvice",
     },
     "hr": {
-        "governance_capability":     "CollectHRAdvice",
+        "governance_capability": "CollectHRAdvice",
+    },
+    "main": {
         "governance_memory_distill": "CollectMemDistill",
     },
 }
@@ -66,11 +77,17 @@ class DispatchRequest:
     """Returned inside DreamResult.Yield to describe a Task-tool dispatch.
 
     Governance-context value constraints (per .dna/contract.md):
-      - ``agent_type`` ∈ {"architect", "hr"} (no work / no auditor)
-      - ``subtask_id`` ∈ {"governance_knowledge", "governance_capability"}
+      - ``agent_type`` ∈ {"architect", "hr", "main"} (no work / no auditor).
+        "main" means the coordinator executes the subtask itself instead
+        of spawning a sub-agent via the Task tool — used only for
+        memory-source governance jobs (currently ``governance_memory_distill``).
+      - ``subtask_id`` ∈ {"governance_knowledge", "governance_capability",
+        "governance_memory_distill"}
       - ``prompt`` must start with ``## 治理模式`` (or equivalent governance
-        marker) so the receiving agent enters governance mode rather than
-        executing a user task.
+        marker). For sub-agent dispatches the coordinator feeds it verbatim
+        into the Task tool; for ``agent_type="main"`` the coordinator
+        executes the prompt directly (no Task tool) and posts the result
+        back via ``dream_tick_resume``.
     """
 
     agent_type: str

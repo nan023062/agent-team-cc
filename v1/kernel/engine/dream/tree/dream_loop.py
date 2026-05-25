@@ -9,8 +9,9 @@ Topology (per WORKFLOW-DREAM §三 + MemDistill triad extension):
       │     │     ├── MemHealthScan
       │     │     ├── MemCompact
       │     │     ├── MemDistillGate
-      │     │     ├── DispatchMemDistill  (yields agent_type="hr",
-      │     │     │                        subtask_id="governance_memory_distill")
+      │     │     ├── DispatchMemDistill  (yields agent_type="main",
+      │     │     │                        subtask_id="governance_memory_distill"
+      │     │     │                        — coordinator executes the skill itself)
       │     │     ├── CollectMemDistill   (owns on_resume → bb.mem_distill_result)
       │     │     ├── MemSweepExpired
       │     │     └── MemRebuildIndex
@@ -29,13 +30,17 @@ so they ALWAYS run, even if every governance step failed.
 
 The memory governance step is now 7 nodes: 4 pure-Python structural nodes
 (Health / Compact / Sweep / Rebuild) plus the MemDistill triad
-(Gate / Dispatch / Collect) which yields to the HR agent for the
-``memory_distill`` skill — semantic short→medium compression is
-LLM-driven, not deterministic.
+(Gate / Dispatch / Collect) which yields to the **main agent** (the
+coordinator itself) for the ``memory_distill`` skill — semantic
+short→medium compression is LLM-driven, but distillation is a memory-source
+responsibility owned by the coordinator (HR lacks ``memory_get`` to read
+short-term entry bodies; see prior run f1328bf4eb53).
 
-Architect / HR governance steps remain yield-based dispatches; combined
-with the optional MemDistill yield, a single dream_tick can now yield up
-to **three** times before reaching Done.
+Architect / HR governance steps remain sub-agent dispatches via the Task
+tool; the MemDistill yield is a self-dispatch — on receiving a yield with
+``agent_type="main"`` the coordinator runs the prompt in-place instead of
+spawning a sub-agent. Combined with the optional MemDistill yield, a
+single dream_tick can still yield up to **three** times before reaching Done.
 """
 
 from __future__ import annotations
