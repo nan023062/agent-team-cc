@@ -7,7 +7,7 @@ dependencies:
   - v1/kernel/services
   - v1/kernel/cbi/_primitives
   - v1/kernel/memory
-status: spec
+status: implemented
 ---
 
 ## Positioning
@@ -79,4 +79,3 @@ Each `check_xxx(project_root: Path, config: dict) -> list[AuditFinding]` is regi
 - **No semantic judgment.** Audit does not decide whether a memory entry "should be promoted" to agent skills or `.dna/`. Promotion-candidate identification belongs to `kernel/memory/compaction/`; the architect's knowledge loop consumes those candidates via `scan(filter="promote_candidate")`. Same for fission: audit reports oversize, it does not propose how to split.
 - **No raw reads under `.cbim/memory/`.** `memory_threshold` reaches memory **only** through `kernel/memory`'s `stats()` interface. Direct file walks under `.cbim/memory/short/` / `medium/` / `candidates/` are forbidden — that would couple audit to memory's internal layout and re-introduce the threshold-judgment leak this collapse was meant to fix.
 - **No deep semantic import scan.** Dependency direction comes from `frontmatter.dependencies`. We do not parse Python imports, grep code references, or trace call graphs — that is a separate concern with very different cost/precision trade-offs.
-

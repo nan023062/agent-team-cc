@@ -8,7 +8,7 @@ dependencies:
   - v1/kernel/engine/persistence
   - v1/kernel/memory
   - v1/kernel/engine/audit
-status: spec
+status: implemented
 ---
 
 ## Positioning

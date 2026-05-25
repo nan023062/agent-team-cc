@@ -57,19 +57,21 @@ def test_catchup_outside_20h_window_runs(isolated_dirs):
     )
     res = api.dream_tick("catchup")
     # First yield is Architect dispatch (memory step runs in-process and
-    # succeeds; arch step's first action is the yield).
-    assert res.kind in ("yield", "done"), f"unexpected: {res.to_dict()}"
+    # succeeds; arch step's first action is the yield to the architect agent).
+    assert res.kind == "yield", f"unexpected: {res.to_dict()}"
+    assert res.dispatch_request is not None
+    assert res.dispatch_request.agent_type == "architect"
 
 
 # ---------------------------------------------------------------------------
 # Single-flight
 # ---------------------------------------------------------------------------
 #
-# Post-t6: arch_gov + hr_gov run in-process under NullLLM, so a tick that
-# is not gated drives straight to "done". Single-flight + abort + list_runs
-# semantics are now exercised by simulating a stuck RUNNING tick on disk
-# (the same shape SessionStart's "stale RUNNING" detector handles), since
-# we no longer have a natural mid-tick suspension point.
+# A fresh dream_tick yields at the architect-dispatch leaf; after that
+# yield the engine has written `current.json` and the persistent RUNNING
+# state we need to test single-flight / abort / list_runs against.
+# `_seed_running_tick` still synthesizes a stuck tick on disk so tests
+# don't depend on a real mid-tick suspension survival.
 
 
 def _seed_running_tick(scheduler_root, run_id: str = "stuck-run") -> None:
@@ -126,9 +128,20 @@ def test_dream_list_runs_includes_running_tick(isolated_dirs):
 
 
 def test_dream_list_runs_records_done_tick(isolated_dirs):
-    """A fully in-process tick drives to done; list_runs should pick it up."""
-    res = api.dream_tick("manual")
-    assert res.kind == "done"
+    """A full tick yields twice (architect → HR) then drives to done;
+    list_runs should pick up the done state."""
+    first = api.dream_tick("manual")
+    assert first.kind == "yield"
+    second = api.dream_tick_resume(
+        first.run_id,
+        json.dumps({"arch_governance_report": {"safe_actions_applied": [], "advice_pending": []}}),
+    )
+    assert second.kind == "yield"
+    third = api.dream_tick_resume(
+        second.run_id,
+        json.dumps({"hr_governance_report": {"safe_actions_applied": [], "advice_pending": []}}),
+    )
+    assert third.kind == "done", third.to_dict()
     runs = api.dream_list_runs()
     assert len(runs) == 1
     assert runs[0].status == "done"

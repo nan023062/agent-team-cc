@@ -6,21 +6,33 @@ Topology (per WORKFLOW-DREAM §三):
       ├── InitDreamTick
       ├── GovernanceSteps (SequenceTolerant)
       │     ├── MemoryGovernanceStep (Sequence) @Timeout(10min) @Catch
+      │     │     ├── MemHealthScan
+      │     │     ├── MemCompact
+      │     │     ├── MemSweepExpired
+      │     │     └── MemRebuildIndex
       │     ├── ArchitectGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │     │     └── ArchGovernanceSubtree (BT subtree)
+      │     │     ├── DispatchArchGovern   (yields agent_type="architect")
+      │     │     └── CollectArchAdvice    (owns on_resume → bb.arch_governance_report)
       │     └── HRGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │           └── HRGovernanceSubtree (BT subtree)
+      │           ├── DispatchHRGovern    (yields agent_type="hr")
+      │           └── CollectHRAdvice     (owns on_resume → bb.hr_governance_report)
       ├── EmitReport
       └── FinalizeDreamTick
 
 EmitReport + FinalizeDreamTick live OUTSIDE the SequenceTolerant container
 so they ALWAYS run, even if all three governance steps failed.
+
+Architect / HR governance steps are now yield-based dispatches to the main
+agent's Task tool — the per-step Sequence pairs DispatchXxxGovern (yields
+on first tick, no-op SUCCESS thereafter) with CollectXxxAdvice (owns
+``on_resume`` and stores the parsed report on the dream blackboard).
+A dream_tick that hits both steps yields up to two times before reaching
+Done.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from engine.core.composite import Sequence
 from engine.core.decorator import Catch, Timeout, Trace
@@ -29,10 +41,12 @@ from engine.dream.core.composite_tolerant import SequenceTolerant
 from memory.crud.backend import MemoryBackend
 from memory.crud.file_backend import FileBackend
 
-from ..actions.arch_gov import build_architect_governance_subtree
+from ..actions.collect_arch_advice import CollectArchAdvice
+from ..actions.collect_hr_advice import CollectHRAdvice
+from ..actions.dispatch_arch import DispatchArchGovern
+from ..actions.dispatch_hr import DispatchHRGovern
 from ..actions.emit_report import EmitReport
 from ..actions.finalize import FinalizeDreamTick
-from ..actions.hr_gov import build_hr_governance_subtree
 from ..actions.init_tick import InitDreamTick
 from ..actions.mem_steps import (
     MemCompact,
@@ -40,23 +54,6 @@ from ..actions.mem_steps import (
     MemRebuildIndex,
     MemSweepExpired,
 )
-from engine.execution.actions.llm_hook import NullLLM
-
-
-def _default_llm() -> Any:
-    """Pick the real Anthropic client when ANTHROPIC_API_KEY is set; fall back
-    to NullLLM otherwise. Mirrors execution/tree/main_loop._default_llm so the
-    two roots stay symmetric.
-    """
-    import os
-
-    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
-        return NullLLM()
-    try:
-        from engine.execution.actions.llm_client import AnthropicLLM
-        return AnthropicLLM()
-    except Exception:
-        return NullLLM()
 
 
 def build_dream_root(
@@ -66,7 +63,6 @@ def build_dream_root(
     memory_backend: MemoryBackend | None = None,
     global_timeout_s: int = 1800,
     step_timeout_s: int = 600,
-    llm: Any = None,
 ):
     """Construct the governance loop root.
 
@@ -83,12 +79,8 @@ def build_dream_root(
         Hard ceiling for the whole tick (default 30min).
     step_timeout_s : int
         Per-step ceiling (default 10min).
-    llm : Any, optional
-        In-process LLM client used by the arch_gov / hr_gov scan leaves.
-        Defaults to AnthropicLLM (when ANTHROPIC_API_KEY is set) or NullLLM.
     """
     backend = memory_backend or FileBackend(memory_store_dir)
-    llm = llm if llm is not None else _default_llm()
 
     init = InitDreamTick(name="InitDreamTick")
 
@@ -108,9 +100,12 @@ def build_dream_root(
         name="MemoryStepCatch",
     )
 
-    # ---- Knowledge governance step ----
+    # ---- Knowledge governance step (yield to architect agent) ----
     arch_seq = Sequence(
-        [build_architect_governance_subtree(llm)],
+        [
+            DispatchArchGovern(name="DispatchArchGovern"),
+            CollectArchAdvice(name="CollectArchAdvice"),
+        ],
         name="ArchitectGovernanceStep",
     )
     arch_step = Catch(
@@ -119,9 +114,12 @@ def build_dream_root(
         name="ArchStepCatch",
     )
 
-    # ---- Capability governance step ----
+    # ---- Capability governance step (yield to HR agent) ----
     hr_seq = Sequence(
-        [build_hr_governance_subtree(llm)],
+        [
+            DispatchHRGovern(name="DispatchHRGovern"),
+            CollectHRAdvice(name="CollectHRAdvice"),
+        ],
         name="HRGovernanceStep",
     )
     hr_step = Catch(

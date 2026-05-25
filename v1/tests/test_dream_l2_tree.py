@@ -90,17 +90,23 @@ def test_memory_step_has_four_action_children(root):
     ]
 
 
-def test_arch_and_hr_steps_wrap_in_process_subtrees(root):
-    """Post-t6: each governance step holds a single in-process BT subtree
-    (ArchGovernanceSubtree / HRGovernanceSubtree) instead of the legacy
-    Dispatch+Collect pair. The whole step now runs inside the same tick
-    with no yield to Claude."""
+def test_arch_and_hr_steps_pair_dispatch_with_collect(root):
+    """Each governance step is a 2-node Sequence: DispatchXxxGovern
+    (yields to the main agent's Task tool on first tick) + CollectXxxAdvice
+    (owns on_resume → bb.*_governance_report). The dispatch leaf records
+    the yield gesture; the collect leaf parses the returned payload."""
     body = root.children()[0].children()[0]
     steps = body.children()[1]
     arch_seq = steps.children()[1].children()[0].children()[0]
     hr_seq = steps.children()[2].children()[0].children()[0]
-    assert _names(arch_seq.children()) == ["ArchGovernanceSubtree"]
-    assert _names(hr_seq.children()) == ["HRGovernanceSubtree"]
+    assert _names(arch_seq.children()) == [
+        "DispatchArchGovern",
+        "CollectArchAdvice",
+    ]
+    assert _names(hr_seq.children()) == [
+        "DispatchHRGovern",
+        "CollectHRAdvice",
+    ]
 
 
 def test_emit_and_finalize_live_outside_governance_steps(root):

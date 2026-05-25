@@ -300,11 +300,12 @@ def test_hr_governance_six_scans_present():
 
 
 # ---------------------------------------------------------------------------
-# Descriptor contract — every agent-side loop exposes NODE_SPECS
-# (compose_prompt / parse_response were removed alongside the legacy
-# dispatch-architect / dispatch-hr leaves; sub-loops are now in-process
-# Python BT subtrees and the descriptor's prompt-rendering responsibility
-# moved into the subtree's leaves.)
+# Descriptor contract — every agent-side loop exposes NODE_SPECS.
+# Governance descriptors (architect_governance / hr_governance) also expose
+# compose_prompt + parse_response, consumed by the dream-loop dispatch /
+# collect leaves to render the architect / HR governance prompts and parse
+# the returned reports. architect_execution remains in-process subtree and
+# carries _NODE_GUIDE instead.
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mod", [
@@ -316,6 +317,17 @@ def test_descriptor_modules_expose_node_specs(mod):
     assert hasattr(mod, "NODE_SPECS"), f"{mod.__name__}: missing NODE_SPECS"
     assert isinstance(mod.NODE_SPECS, list) and mod.NODE_SPECS
     assert all(isinstance(s, NodeSpec) for s in mod.NODE_SPECS)
+
+
+@pytest.mark.parametrize("mod", [architect_governance, hr_governance])
+def test_governance_descriptors_expose_compose_and_parse(mod):
+    """Governance loops are yield-based: dispatch leaves render the prompt
+    through compose_prompt(bb); collect leaves parse the reply through
+    parse_response(payload). Both must exist as module-level callables."""
+    assert callable(getattr(mod, "compose_prompt", None)), \
+        f"{mod.__name__}: missing compose_prompt"
+    assert callable(getattr(mod, "parse_response", None)), \
+        f"{mod.__name__}: missing parse_response"
 
 
 # ---------------------------------------------------------------------------

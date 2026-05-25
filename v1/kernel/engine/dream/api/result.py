@@ -6,11 +6,13 @@ Stability surface per .dna/contract.md:
     {"running", "done", "failed", "abandoned"}
   - Skipped.reason restricted to
     {"within_window", "another_run_in_progress", "recent_failure_cooldown"}
+  - DispatchRequest.agent_type restricted to {"architect", "hr"} per
+    governance contract (the dream loop never dispatches work / auditor)
 
-Note: as of the nestable-BT refactor the governance loop no longer yields —
-the architect / hr governance sub-loops run as in-process subtrees inside
-DreamRoot. `DREAM_AGENT_TYPE_TO_LEAF` is therefore empty; `DispatchRequest`
-is retained as a reserved schema for any future dream-side yield path.
+The governance loop yields for the Architect / HR governance sub-loops
+via the dispatch leaves under ``engine.dream.actions.dispatch_*``. The
+Runner uses ``DREAM_AGENT_TYPE_TO_LEAF`` to resolve the on_resume target
+leaf name from ``pending_dispatch.agent_type``.
 """
 
 from __future__ import annotations
@@ -19,9 +21,19 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-# Reserved for future dream-side yields. Currently empty: the governance
-# loop runs entirely in-process (no DreamResult.Yield is produced).
-DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {}
+# Maps ``pending_dispatch.agent_type`` to the leaf-node name the Runner's
+# resume path should land on. Names must match the ``name`` attribute set
+# in the dispatch leaves' constructors (see ``DispatchArchGovern`` /
+# ``DispatchHRGovern``). The Runner finds the path-by-name and then
+# delivers ``dispatch_result`` via ``on_resume`` on the matching node;
+# but the on_resume implementation lives on the **paired Collect** sibling
+# inside the same Sequence — see ``collect_arch_advice`` /
+# ``collect_hr_advice``. We register the Collect leaf names here so the
+# resume target lands on the node that knows how to parse the payload.
+DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
+    "architect": "CollectArchAdvice",
+    "hr":        "CollectHRAdvice",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -32,13 +44,12 @@ DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {}
 class DispatchRequest:
     """Returned inside DreamResult.Yield to describe a Task-tool dispatch.
 
-    Currently unused: the governance loop runs entirely in-process and
-    does not yield. Kept as a reserved schema in case a future dream-side
-    path needs to round-trip through the coordinator's Task tool. If
-    revived, the previous convention was:
-      - agent_type ∈ {"architect", "hr"}
-      - subtask_id ∈ {"governance_knowledge", "governance_capability"}
-      - prompt must start with `## 治理模式`
+    Governance-context value constraints (per .dna/contract.md):
+      - ``agent_type`` ∈ {"architect", "hr"} (no work / no auditor)
+      - ``subtask_id`` ∈ {"governance_knowledge", "governance_capability"}
+      - ``prompt`` must start with ``## 治理模式`` (or equivalent governance
+        marker) so the receiving agent enters governance mode rather than
+        executing a user task.
     """
 
     agent_type: str

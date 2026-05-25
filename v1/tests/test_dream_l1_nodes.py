@@ -9,7 +9,13 @@ from pathlib import Path
 
 import pytest
 
+import json
+
 from engine.core.node import Status
+from engine.dream.actions.collect_arch_advice import CollectArchAdvice
+from engine.dream.actions.collect_hr_advice import CollectHRAdvice
+from engine.dream.actions.dispatch_arch import DispatchArchGovern
+from engine.dream.actions.dispatch_hr import DispatchHRGovern
 from engine.dream.actions.emit_report import EmitReport
 from engine.dream.actions.finalize import FinalizeDreamTick
 from engine.dream.actions.init_tick import InitDreamTick
@@ -138,3 +144,110 @@ def test_finalize_writes_last_success_json(bb, tmp_path):
     assert payload["summary_path"] == str(tmp_path / "report.md")
     assert payload["step_results"] == {"memory": "success"}
     assert bb.finished_at is not None
+
+
+# ---------------------------------------------------------------------------
+# Architect governance dispatch + collect
+# ---------------------------------------------------------------------------
+
+def test_dispatch_arch_yields_on_first_tick_then_succeeds(bb):
+    node = DispatchArchGovern()
+    # First tick → yield: fills bb.pending_dispatch and sets the flag.
+    assert node.tick(bb) is Status.RUNNING
+    assert bb.arch_governance_dispatched is True
+    pd = bb.pending_dispatch
+    assert pd is not None
+    assert pd.agent_type == "architect"
+    assert pd.subtask_id == "governance_knowledge"
+    assert pd.prompt.lstrip().startswith("## 治理模式")
+    # Second tick (idempotent path) → SUCCESS, no re-dispatch.
+    bb.pending_dispatch = None
+    assert node.tick(bb) is Status.SUCCESS
+
+
+def test_collect_arch_advice_parses_payload_on_resume(bb):
+    node = CollectArchAdvice()
+    bb.arch_governance_dispatched = True
+    payload = json.dumps({
+        "arch_governance_report": {
+            "safe_actions_applied": ["dna_edit src/foo 补 owner"],
+            "advice_pending": [],
+        }
+    })
+    node.on_resume(bb, payload)
+    assert bb.arch_governance_report == {
+        "safe_actions_applied": ["dna_edit src/foo 补 owner"],
+        "advice_pending": [],
+    }
+    assert bb.pending_dispatch is None
+    # Tick after resume is SUCCESS (report present).
+    assert node.tick(bb) is Status.SUCCESS
+
+
+def test_collect_arch_advice_no_dispatch_is_noop(bb):
+    node = CollectArchAdvice()
+    # Never dispatched → SUCCESS no-op, no error report written.
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.arch_governance_report is None
+
+
+def test_collect_arch_advice_dispatched_but_no_resume_is_failure(bb):
+    node = CollectArchAdvice()
+    bb.arch_governance_dispatched = True
+    # Tick without on_resume having been called → FAILURE with placeholder.
+    assert node.tick(bb) is Status.FAILURE
+    assert bb.arch_governance_report["error"] == "no_payload_received"
+
+
+# ---------------------------------------------------------------------------
+# HR governance dispatch + collect (mirror of arch)
+# ---------------------------------------------------------------------------
+
+def test_dispatch_hr_yields_on_first_tick_then_succeeds(bb):
+    node = DispatchHRGovern()
+    assert node.tick(bb) is Status.RUNNING
+    assert bb.hr_governance_dispatched is True
+    pd = bb.pending_dispatch
+    assert pd is not None
+    assert pd.agent_type == "hr"
+    assert pd.subtask_id == "governance_capability"
+    assert pd.prompt.lstrip().startswith("## 治理模式")
+    bb.pending_dispatch = None
+    assert node.tick(bb) is Status.SUCCESS
+
+
+def test_collect_hr_advice_parses_payload_on_resume(bb):
+    node = CollectHRAdvice()
+    bb.hr_governance_dispatched = True
+    payload = json.dumps({
+        "hr_governance_report": {
+            "safe_actions_applied": [],
+            "advice_pending": ["translator agent 14 天闲置，建议归档"],
+        }
+    })
+    node.on_resume(bb, payload)
+    assert bb.hr_governance_report == {
+        "safe_actions_applied": [],
+        "advice_pending": ["translator agent 14 天闲置，建议归档"],
+    }
+    assert bb.pending_dispatch is None
+    assert node.tick(bb) is Status.SUCCESS
+
+
+def test_collect_hr_advice_extracts_dict_payload_output(bb):
+    """on_resume should unwrap the Task-tool dict shape {status, output, ...}."""
+    node = CollectHRAdvice()
+    bb.hr_governance_dispatched = True
+    raw = {
+        "status": "ok",
+        "output": json.dumps({
+            "hr_governance_report": {
+                "safe_actions_applied": ["agent_edit translator 补 description"],
+                "advice_pending": [],
+            }
+        }),
+    }
+    node.on_resume(bb, raw)
+    assert bb.hr_governance_report["safe_actions_applied"] == [
+        "agent_edit translator 补 description"
+    ]
