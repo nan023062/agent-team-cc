@@ -1,6 +1,6 @@
 """core/blackboard.py — Blackboard: the single carrier of cross-node state.
 
-The 18 fields from WORKFLOW-EXECUTION §2.1 are declared as dataclass-style
+The 14 fields from WORKFLOW-EXECUTION §2.1 (v3) are declared as dataclass-style
 attributes. Dirty tracking: any explicit attribute assignment marks the bb
 dirty; the Runner consults `bb._dirty` to decide whether to rewrite bb.json
 on node exit.
@@ -8,6 +8,8 @@ on node exit.
 No write barriers are enforced here (the "single writer per field" rule
 is a design-time invariant; runtime enforcement would be ceremonious and
 duplicate static review). Reads are unrestricted.
+
+Schema version: 2 (v3 simplification — see WORKFLOW-EXECUTION §0).
 """
 
 from __future__ import annotations
@@ -33,17 +35,18 @@ class IdentifiableBB(Protocol):
 
     def clear_dirty(self) -> None: ...
 
-# Canonical field set per WORKFLOW-EXECUTION §2.1 (18 fields).
+
+SCHEMA_VERSION = 2
+
+
+# Canonical field set per WORKFLOW-EXECUTION §2.1 v3 (14 fields).
 FIELDS: tuple[str, ...] = (
     "tick_id",
     "user_request",
-    "intent",
-    "dispatch_plan",
-    "arch_context",
-    "subtask_results",
-    "iteration",
-    "iteration_cap",
-    "converge_signal",
+    "mode",
+    "arch_plan",
+    "agent_assignments",
+    "work_results",
     "final_response",
     "interrupt_reason",
     "runner_resume_path",
@@ -52,14 +55,13 @@ FIELDS: tuple[str, ...] = (
     "trace",
     "memory_flush_queue",
     "audit_report",
-    "agent_list",
 )
 
 
 class Blackboard:
     """Single in-memory carrier of all cross-node state for one tick.
 
-    Any direct attribute assignment (e.g. `bb.intent = {...}`) marks the
+    Any direct attribute assignment (e.g. `bb.mode = "execution"`) marks the
     bb dirty for the next Runner snapshot.
     """
 
@@ -74,10 +76,9 @@ class Blackboard:
         for f in FIELDS:
             object.__setattr__(self, f, None)
         # Sensible empty containers for the few list/dict-typed fields.
-        object.__setattr__(self, "subtask_results", {})
+        object.__setattr__(self, "work_results", {})
         object.__setattr__(self, "trace", [])
         object.__setattr__(self, "memory_flush_queue", [])
-        object.__setattr__(self, "iteration", 0)
 
     def __setattr__(self, name: str, value: Any) -> None:
         if name in FIELDS:
@@ -102,7 +103,7 @@ class Blackboard:
                 continue
             fields[f] = v
         return {
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "tick_id": self.tick_id,
             "created_at": self._created_at,
             "updated_at": self._updated_at,

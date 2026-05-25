@@ -14,45 +14,45 @@ kernel/engine/bt/                      # 行为树引擎根模块
 ├── .dna/                              # 模块知识（待 Architect 设计阶段产出）
 ├── core/
 │   ├── node.py                        # Node ABC + Status 三态枚举
-│   ├── composite.py                   # Sequence / Selector / Parallel 组合节点
-│   ├── decorator.py                   # Decorator ABC + 5 标准装饰器实现
-│   ├── blackboard.py                  # Blackboard 类 + dirty 跟踪 + 序列化
+│   ├── composite.py                   # Sequence / Selector / Parallel / ModeBranch 组合节点
+│   ├── decorator.py                   # Decorator ABC + 4 标准装饰器实现（Trace / Timeout / Retry / Catch）
+│   ├── blackboard.py                  # Blackboard 类（schema v2，14 字段） + dirty 跟踪 + 序列化
 │   └── runner.py                      # Runner：驱动遍历、yield/resume、快照/恢复
-├── actions/                           # 五阶段 + 辅助 Action 实现
-│   ├── init_tick.py
-│   ├── intent_analyze.py              # 规则 + LLM 兜底
-│   ├── decompose.py
-│   ├── arch_gate.py                   # yield 派 Architect
-│   ├── dispatch_parallel.py           # yield 派 Work Agent，含 WorkAgentLeaf
-│   ├── aggregate.py
-│   ├── converge_judge.py              # 规则 + LLM 兜底
-│   ├── ask_clarify.py
+├── actions/                           # v3 Action 实现
+│   ├── init_tick.py                   # 第一节点占位
+│   ├── mode_classify.py               # 两模式分类：conversation / execution（规则 + LLM 兜底）
+│   ├── direct_reply.py                # 对话模式直接回复
+│   ├── dispatch_architect.py          # yield 派 Architect，回填 arch_plan
+│   ├── dispatch_hr.py                 # yield 派 HR，回填 agent_assignments
+│   ├── dispatch_work.py               # yield 派 Work Agent，含 WorkAgentLeaf
 │   ├── respond.py
-│   └── flush_memory.py
+│   ├── flush_memory.py
+│   ├── llm_hook.py                    # NullLLM 协议占位
+│   └── llm_client.py                  # 真实 Anthropic 客户端（可选）
 ├── tree/
-│   └── main_loop.py                   # Python 构造器（L3）拼装全局根节点
+│   └── main_loop.py                   # Python 构造器拼装全局根节点
 ├── persistence/
 │   ├── snapshot.py                    # bb.json 落盘与恢复
 │   └── trace.py                       # trace.jsonl append-only writer
 ├── api/
 │   ├── bt_tick.py                     # 顶层入口：bt_tick / bt_tick_resume
-│   └── result.py                      # BtResult 三态 + DispatchRequest schema
+│   └── result.py                      # BtResult 三态 + DispatchRequest + Task schema
 └── tests/                             # 见 §4
 ```
 
 | 子模块 | 一句话职责 |
 |--------|------------|
 | `core/node.py` | 定义 Node 抽象基类与 `Status = {SUCCESS, FAILURE, RUNNING}` |
-| `core/composite.py` | Sequence（短路 AND）、Selector（短路 OR）、Parallel（全跑后汇总）三种组合节点 |
-| `core/decorator.py` | 装饰器基类 + Trace / Timeout / Retry / Catch / IterationGuard 五个实现 |
-| `core/blackboard.py` | 黑板的内存表示、dirty 标记、序列化 / 反序列化 |
+| `core/composite.py` | Sequence（短路 AND）、Selector（短路 OR）、Parallel（全跑后汇总）、ModeBranch（按 `bb.mode` 二路分流） |
+| `core/decorator.py` | 装饰器基类 + Trace / Timeout / Retry / Catch 四个实现（v3 已移除 LoopUntilConverge / IterationGuard） |
+| `core/blackboard.py` | 黑板的内存表示（schema v2，14 字段）、dirty 标记、序列化 / 反序列化 |
 | `core/runner.py` | 树遍历引擎；处理 yield/resume；调度快照与 trace 写入 |
-| `actions/*` | 五阶段 + 辅助 Action 的 Python 实现，每个文件一个 Action 类 |
-| `tree/main_loop.py` | L3 锁定的 Python 构造器：用 `Sequence(...)` `Decorator(...)` 拼出全局根，导出 `ROOT` 常量 |
-| `persistence/snapshot.py` | `bb.json` 的原子写、读回、schema 版本号管理 |
+| `actions/*` | v3 Action 的 Python 实现，每个文件一个 Action 类 |
+| `tree/main_loop.py` | Python 构造器：用 `Sequence(...)` `Decorator(...)` 拼出全局根，导出 `ROOT` 常量 |
+| `persistence/snapshot.py` | `bb.json` 的原子写、读回、schema 版本号管理（`schema_version != 2` 视为孤立 tick 丢弃） |
 | `persistence/trace.py` | `trace.jsonl` 的 append-only writer，含轮换/截断策略 |
 | `api/bt_tick.py` | 暴露给 MCP 的两个工具入口；负责 tick_id 生成、resume 时的 runner 重建 |
-| `api/result.py` | `BtResult` 联合类型、`DispatchRequest` 数据类，跨进程传输的 schema |
+| `api/result.py` | `BtResult` 联合类型、`DispatchRequest` 数据类、`Task` 数据类，跨进程传输的 schema |
 
 ---
 
@@ -117,16 +117,18 @@ class Node(ABC):
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "tick_id": "...",
   "created_at": "2026-05-24T...",
   "updated_at": "...",
   "bb_status": "running | done | error",
-  "fields": { /* §2.1 17 字段表，None 字段省略 */ }
+  "fields": { /* WORKFLOW-EXECUTION §2.1 v3 14 字段表，None 字段省略 */ }
 }
 ```
 
 写入策略：**节点退出时若 bb 被标记 dirty 则重写整个 `bb.json`**（不是增量 diff——简化恢复路径，避免补丁堆栈）。写入用临时文件 + rename 保证原子性。
+
+`schema_version` 不匹配（旧的 v1 快照、未来 v3+ 快照）时，`snapshot.read_bb()` log 一条 warning 并返回 `None`——孤立 tick 直接丢弃，避免引擎在不兼容 schema 上崩溃。
 
 ### `trace.jsonl` 条目
 
@@ -144,10 +146,10 @@ class Node(ABC):
 `runner_resume_path` 是节点名的列表，描述从根节点到 RUNNING 节点的完整路径：
 
 ```json
-["Root", "LoopRoot", "LoopSeq", "DispatchParallel", "WorkAgentLeaf#subtask-2"]
+["Root", "GlobalTimeout", "RootSeq", "ModeBranch", "ExecutionSeq", "DispatchWork", "WorkAgentLeaf#a1"]
 ```
 
-`#` 后缀用于 Parallel 节点内的子任务区分（subtask ID）。
+`#` 后缀用于 `DispatchWork` 内的 task 区分（task ID，对应 `bb.arch_plan[i].id`）。
 
 `bt_tick_resume` 被调用时，runner：
 
@@ -172,17 +174,17 @@ class Node(ABC):
 
 ### Mock Action 内部 LLM 的约定
 
-Action 内部如果要调 LLM（IntentAnalyze 兜底、ConvergeJudge 兜底、Decompose 主决策），必须把 LLM 客户端通过 **构造器注入**，而不是模块级 import。这样测试可以注入 `StubLLM` 返回固定 JSON；生产代码注入真实 client。
+v3 主拓扑里只有两个 Action 自己调 LLM：`ModeClassify`（rule miss 兜底）和 `DirectReply`（对话模式回复）。两者都必须把 LLM 客户端通过 **构造器注入**，而不是模块级 import。这样测试可以注入 `StubLLM` 返回固定值；生产代码注入真实 client。
 
 ```python
-class IntentAnalyze(Node):
-    def __init__(self, rules: IntentRules, llm: LLMClient):
-        self.rules = rules
-        self.llm = llm
+class ModeClassify(Node):
+    def __init__(self, *, llm, name="ModeClassify"):
+        self.name = name
+        self._llm = llm or NullLLM()
     def tick(self, bb): ...
 ```
 
-测试 fixtures 集中在 `tests/fixtures/`，包含 `StubLLM`、`FakeDispatcher`、`AlwaysFailNode`、`SlowNode`、`FlakyNode` 等通用件。
+`NullLLM`（`actions/llm_hook.py`）是默认 stub：`classify_mode` 返 `"execution"`、`reply_conversation` 返一段 passthrough 文本，永不抛异常。测试 fixtures 集中在 `tests/fixtures/`，包含 `StubLLM`、`FakeDispatcher`、`AlwaysFailNode`、`SlowNode`、`FlakyNode` 等通用件。
 
 ---
 
@@ -266,34 +268,33 @@ sequenceDiagram
 
     M->>E: bt_tick("用户需求 X")
     E->>FS: write bb.json (init)
-    E->>E: tick → IntentAnalyze → ArchGate
+    E->>E: tick → InitTick → ModeClassify(mode=execution) → DispatchArchitect
     E->>FS: write bb.json (dirty)
     E->>FS: write resume.json
     E-->>M: Yield(tick_id, dispatch=Architect)
 
     M->>M: Task(Architect, prompt)
-    M->>E: bt_tick_resume(tick_id, ContextPack)
+    M->>E: bt_tick_resume(tick_id, arch_plan)
     E->>FS: read bb.json + resume.json
-    E->>E: ArchGate.on_resume → SUCCESS → Dispatch
-    E->>E: WorkAgentLeaf#1.tick → yield
+    E->>E: DispatchArchitect.on_resume → SUCCESS → DispatchHR
     E->>FS: write bb.json + resume.json
-    E-->>M: Yield(tick_id, dispatch=WorkAgent#1)
+    E-->>M: Yield(tick_id, dispatch=HR)
+
+    M->>M: Task(HR, prompt)
+    M->>E: bt_tick_resume(tick_id, agent_assignments)
+    E->>E: DispatchHR.on_resume → SUCCESS → DispatchWork → WorkAgentLeaf#a1
+    E->>FS: write bb.json + resume.json
+    E-->>M: Yield(tick_id, dispatch=WorkAgent a1)
 
     M->>M: Task(WorkAgent, prompt)
     M->>E: bt_tick_resume(tick_id, result)
-    E->>E: WorkAgentLeaf#1.on_resume → SUCCESS
-    E->>E: 检测到 NEEDS_ARCH_DECISION
-    E->>E: Aggregate → ConvergeJudge(loop) → 回 ArchGate
-    E-->>M: Yield(tick_id, dispatch=Architect)
-
-    Note over M,E: ... 重复若干轮 ...
-
-    M->>E: bt_tick_resume(tick_id, last_result)
-    E->>E: ConvergeJudge(done) → Respond → FlushMemory
+    E->>E: WorkAgentLeaf#a1.on_resume → SUCCESS → Respond → FlushMemory
     E->>FS: write bb.json (final, bb_status=done)
     E->>FS: delete resume.json
     E-->>M: Done(user_message)
 ```
+
+对话通路更短——`ModeClassify` 把 `bb.mode` 写成 `"conversation"`，`ModeBranch` 直走 `DirectReply` 写 `final_response`，单次 tick 就 `Done`，从不 yield。
 
 ### 6.5 错误恢复与孤儿 tick
 

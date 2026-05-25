@@ -1,11 +1,13 @@
-"""core/decorator.py — Trace / Timeout / Retry / Catch / IterationGuard
-+ LoopUntilConverge.
+"""core/decorator.py — Trace / Timeout / Retry / Catch.
 
 Decorators wrap a single child and cross-cut concerns (observability,
-timeouts, idempotent retries, error swallowing, iteration capping).
+timeouts, idempotent retries, error swallowing).
 
-Locked stacking order outermost → innermost per WORKFLOW-EXECUTION §3:
-  Trace > Timeout > {Retry | IterationGuard | Catch}.
+Locked stacking order outermost → innermost per WORKFLOW-EXECUTION §5:
+  Trace > Timeout > {Retry | Catch}.
+
+v3 note: LoopUntilConverge and IterationGuard were removed alongside the
+iteration-loop topology — v3 has no main-loop iteration to cap or repeat.
 
 Iron rule: decorators are STATELESS across ticks (per-tick try counters
 are tick-local locals; no `self.tries` field surviving the tick).
@@ -168,82 +170,6 @@ class Catch(_Decorator):
             if self._fallback == "swallow":
                 return Status.FAILURE
             return Status.SUCCESS
-
-
-class IterationGuard(_Decorator):
-    """Increment-and-check iteration; on overrun, set converge_signal=interrupt
-    + interrupt_reason and return SUCCESS so the parent LoopUntilConverge
-    can exit cleanly on its next pass.
-
-    Counts entries to the wrapped sequence; child increments via Decompose's
-    own iteration += 1 (per the design write-side rule); this guard ONLY
-    checks the cap, it doesn't write iteration itself.
-    """
-
-    def __init__(self, child: Node, *, name: str = "IterationGuard") -> None:
-        super().__init__(child, name=name)
-
-    def tick(self, bb) -> Status:
-        cap = bb.iteration_cap or 5
-        cur = bb.iteration or 0
-        if cur >= cap:
-            bb.converge_signal = "interrupt"
-            bb.interrupt_reason = bb.interrupt_reason or "iteration_cap_exceeded"
-            try:
-                bb.trace = (bb.trace or []) + [{
-                    "ts": _now_iso(),
-                    "node": self.name,
-                    "event": "iteration_cap_exceeded",
-                    "iteration": cur, "cap": cap,
-                }]
-            except Exception:
-                pass
-            return Status.SUCCESS
-        return self._child.tick(bb)
-
-
-class LoopUntilConverge(_Decorator):
-    """Loop the child until bb.converge_signal in {'done','interrupt'} or
-    iteration_cap is exceeded.
-
-    Once child returns RUNNING, we propagate immediately (the engine
-    yields out to the main agent); on the next tick the Runner re-enters
-    via the resume path and re-evaluates the converge condition.
-    """
-
-    def __init__(self, child: Node, *, name: str = "LoopUntilConverge") -> None:
-        super().__init__(child, name=name)
-
-    def tick(self, bb) -> Status:
-        # Safety net to prevent infinite Python-level loops if a child
-        # forgets to set converge_signal. The real cap is iteration_cap;
-        # this is a defensive ceiling.
-        for _ in range(100):
-            if bb.converge_signal in ("done", "interrupt"):
-                return Status.SUCCESS
-            cap = bb.iteration_cap or 5
-            if (bb.iteration or 0) > cap:
-                bb.converge_signal = "interrupt"
-                bb.interrupt_reason = bb.interrupt_reason or "iteration_cap_exceeded"
-                return Status.SUCCESS
-            status = self._child.tick(bb)
-            if status is Status.RUNNING:
-                return Status.RUNNING
-            if status is Status.FAILURE:
-                # Aggregate / Converge write interrupt_reason themselves on
-                # FAILURE; treat as terminate.
-                bb.converge_signal = bb.converge_signal or "interrupt"
-                return Status.SUCCESS
-            # SUCCESS → re-check converge_signal at loop top.
-            # CRITICAL: a SUCCESS pass ends one iteration of the main loop;
-            # the resume_path (if any) was consumed during this pass, so
-            # the next iteration must start fresh from Decompose. Clear it
-            # before re-entering the child.
-            bb.runner_resume_path = None
-        # Defensive fallthrough
-        bb.converge_signal = "interrupt"
-        bb.interrupt_reason = bb.interrupt_reason or "loop_safety_cap_hit"
-        return Status.SUCCESS
 
 
 def _now_iso() -> str:

@@ -2,15 +2,23 @@
 
 Atomic write via temp file + rename. bb.json is rewritten in full on dirty
 (no diff patches — by design, simpler recovery, per README §3).
+
+Schema version is owned by core.blackboard.SCHEMA_VERSION (current: 2 after
+the v3 simplification). Snapshots written by a different schema version are
+treated as orphaned: read_bb() logs a warning and returns None so the engine
+can drop them without crashing.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+from ..core.blackboard import SCHEMA_VERSION
+
+_log = logging.getLogger(__name__)
 
 
 def write_bb(tick_dir: Path, bb) -> None:
@@ -30,10 +38,12 @@ def read_bb(tick_dir: Path):
         return None
     raw = json.loads(p.read_text(encoding="utf-8"))
     sv = raw.get("schema_version", 1)
-    if sv > SCHEMA_VERSION:
-        raise ValueError(
-            f"bb.json schema_version {sv} exceeds supported {SCHEMA_VERSION}"
+    if sv != SCHEMA_VERSION:
+        _log.warning(
+            "bb.json at %s has schema_version=%s (expected %s); dropping as orphaned",
+            p, sv, SCHEMA_VERSION,
         )
+        return None
     return Blackboard.from_dict(raw)
 
 

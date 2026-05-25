@@ -1,4 +1,4 @@
-"""L4 — end-to-end dry-runs through the global ROOT.
+"""L4 — end-to-end dry-runs through the global ROOT (v3).
 
 FakeDispatcher: pretends to be the main agent. Each scenario drives
 bt_tick → loop { yield → fake task result → bt_tick_resume } until done.
@@ -40,15 +40,47 @@ def _drive(user_request: str, *replies: str, max_steps: int = 20):
 
 
 # ---------------------------------------------------------------------------
+# Conversation path
+# ---------------------------------------------------------------------------
 
-_HR_REPLY = "subtask_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py"
+def test_e2e_conversation_short_circuits_to_done(isolated_scheduler_root):
+    r = api.bt_tick("什么是 CBIM？")
+    assert r.kind == "done"
+    assert r.user_message
+    # No dispatches at all — conversation mode bypasses ExecutionSeq.
 
 
-def test_e2e_simple_execution_yields_arch_then_work_then_done(isolated_scheduler_root):
+def test_e2e_empty_request_lands_in_conversation_mode(isolated_scheduler_root):
+    r = api.bt_tick("")
+    assert r.kind == "done"
+    assert "请描述你的需求" in (r.user_message or "")
+
+
+def test_e2e_english_question_is_conversation(isolated_scheduler_root):
+    r = api.bt_tick("what is the difference between L1 and L2 tests?")
+    assert r.kind == "done"
+    assert r.user_message
+
+
+# ---------------------------------------------------------------------------
+# Execution path
+# ---------------------------------------------------------------------------
+
+_ARCH_REPLY = (
+    '{"arch_plan":[{"id":"a1","description":"build login handler",'
+    '"required_capability":"programmer","arch_context":"ctx-pack-1"}]}'
+)
+
+_HR_REPLY_A1 = (
+    "task_id=a1 agent_file=.claude/agents/programmer/programmer.md capability=py"
+)
+
+
+def test_e2e_execution_three_step_dispatch(isolated_scheduler_root):
     r, log = _drive(
         "实现 login API 模块",
-        "ContextPack: modules=[login]",
-        _HR_REPLY,
+        _ARCH_REPLY,
+        _HR_REPLY_A1,
         "Implemented in src/login.py",
     )
     assert r.kind == "done"
@@ -56,61 +88,64 @@ def test_e2e_simple_execution_yields_arch_then_work_then_done(isolated_scheduler
     assert log[0][0] == "architect"
     assert log[1][0] == "hr"
     assert log[2][0] == "work"
+    assert log[2][1] == "a1"
 
 
-def test_e2e_pure_query_skips_arch_gate(isolated_scheduler_root):
+def test_e2e_execution_multi_task_plan(isolated_scheduler_root):
+    arch = (
+        '{"arch_plan":['
+        '{"id":"a1","description":"build handler","required_capability":"py"},'
+        '{"id":"a2","description":"write tests","required_capability":"py"}'
+        ']}'
+    )
+    hr = (
+        "task_id=a1 agent_file=.claude/agents/programmer/programmer.md capability=py\n"
+        "task_id=a2 agent_file=.claude/agents/programmer/programmer.md capability=py"
+    )
     r, log = _drive(
-        "查询模块 X 的历史决策",
-        "Module X owned by alice since 2026-04-01.",
+        "实现 login API 与测试",
+        arch, hr,
+        "handler done",
+        "tests done",
     )
     assert r.kind == "done"
-    assert log[0][0] == "work"  # straight to work agent (architect role)
-    assert all(entry[0] != "architect" for entry in log)
-    # pure_query has no arch_context dep → CallHR also skips
-    assert all(entry[0] != "hr" for entry in log)
-
-
-def test_e2e_escalation_loops_back_to_arch(isolated_scheduler_root):
-    # Iteration 1 subtask id = t1, iteration 2 subtask id = t2 → HR called
-    # both iterations (CallHR's required-vs-existing set check).
-    r, log = _drive(
-        "实现 login API 模块",
-        "CTX-PACK-v1",
-        "subtask_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py",
-        "NEEDS_ARCH_DECISION: dep conflict\n- context: blocked",
-        "CTX-PACK-v2-updated",
-        "subtask_id=t2 agent_file=.claude/agents/programmer/programmer.md capability=py",
-        "Implemented after rework.",
-    )
-    assert r.kind == "done"
-    # arch -> hr -> work -> arch -> hr -> work
+    assert "handler done" in r.user_message
+    assert "tests done" in r.user_message
     agent_types = [a for a, _ in log]
-    assert agent_types == ["architect", "hr", "work", "architect", "hr", "work"]
+    assert agent_types == ["architect", "hr", "work", "work"]
+    # task ids on the two work yields
+    work_ids = [sid for atype, sid in log if atype == "work"]
+    assert work_ids == ["a1", "a2"]
 
 
-def test_e2e_iteration_cap_interrupts(isolated_scheduler_root):
-    # Keep escalating forever; cap=5 should interrupt.
-    # Each iteration: architect → hr → work; subtask ids t1, t2, ... so HR
-    # runs each loop. Need enough replies to outlast the cap (5 loops).
-    hr_n = lambda n: f"subtask_id=t{n} agent_file=.claude/agents/programmer/programmer.md capability=py"
-    replies: list[str] = []
-    for n in range(1, 11):
-        replies += ["CTX", hr_n(n), "NEEDS_ARCH_DECISION: stuck"]
-    r, log = _drive("实现 login API 模块", *replies, max_steps=60)
-    assert r.kind == "error"
-    assert r.error_code == "interrupt"
-    assert "iteration_cap_exceeded" in (r.interrupt_reason or "")
-
-
-def test_e2e_empty_request_short_circuits_to_clarify(isolated_scheduler_root):
-    r = api.bt_tick("")
-    # AskClarify writes final_response immediately → done with the question.
+def test_e2e_architect_plain_text_reply_is_single_task(isolated_scheduler_root):
+    r, log = _drive(
+        "实现 login API",
+        "Just go put the handler in src/login.py and call it a day.",
+        "task_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py",
+        "Done.",
+    )
     assert r.kind == "done"
-    assert r.user_message  # the clarifying question
+    assert "Done." in r.user_message
+    assert [a for a, _ in log] == ["architect", "hr", "work"]
 
 
-def test_e2e_unrecognized_request_errors_via_llm_fallback(isolated_scheduler_root):
-    # No rule hit + NullLLM raises → IntentAnalyze FAILURE → tick error.
-    r = api.bt_tick("zzz qrx blarp 玳瑁")
+def test_e2e_hr_agent_gap_interrupts(isolated_scheduler_root):
+    r, log = _drive(
+        "实现 login API",
+        _ARCH_REPLY,
+        "agent_gap: no programmer agent available",
+    )
     assert r.kind == "error"
-    assert "llm_fallback_required_but_unavailable" in (r.error_message or "" + (r.interrupt_reason or ""))
+    # Retry will resend once → second HR yield with same agent_gap response →
+    # so we may see two HR yields before failure surfaces.
+    assert "agent_gap" in (r.interrupt_reason or "") or "agent_gap" in (r.error_message or "")
+
+
+def test_e2e_architect_error_interrupts(isolated_scheduler_root):
+    r, log = _drive(
+        "实现 login API",
+        "arch_error: blueprint missing",
+    )
+    assert r.kind == "error"
+    assert "arch_error" in (r.interrupt_reason or "") or "arch_error" in (r.error_message or "")

@@ -36,8 +36,8 @@ class RunResult:
 
 
 DEFAULT_AGENT_TYPE_TO_LEAF: dict[str, str] = {
-    "architect": "ArchGate",
-    "hr": "CallHR",
+    "architect": "DispatchArchitect",
+    "hr": "DispatchHR",
     "auditor": "Audit",
     "work": "WorkAgentLeaf",
 }

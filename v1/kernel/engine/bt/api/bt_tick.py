@@ -41,9 +41,10 @@ def bt_tick(user_request: str, context: dict | None = None) -> BtResult:
         bb = Blackboard()
         bb.tick_id = tick_id
         bb.user_request = user_request
-        bb.iteration = 0
-        bb.iteration_cap = 5
-        bb.subtask_results = {}
+        bb.mode = None
+        bb.arch_plan = None
+        bb.agent_assignments = None
+        bb.work_results = {}
         bb.bb_status = "running"
 
         runner = Runner(ROOT, scheduler_root=_scheduler_root())

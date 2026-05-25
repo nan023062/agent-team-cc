@@ -1,7 +1,13 @@
-"""api/result.py — Public dataclasses: BtResult, DispatchRequest, Subtask, TickStatus.
+"""api/result.py — Public dataclasses: BtResult, DispatchRequest, Task, TickStatus.
 
 These types appear at the MCP boundary; their field names and string
 literals are public contract surfaces (see .dna/contract.md).
+
+v3 note (WORKFLOW-EXECUTION §0): `Subtask` was the v2 element of
+`bb.dispatch_plan`. In v3 the plan is `bb.arch_plan: list[Task]`, produced
+in one shot by Architect. `Subtask` is retained as deprecated for any
+downstream serializer that still reads old snapshots; new code MUST use
+`Task`.
 """
 
 from __future__ import annotations
@@ -14,10 +20,10 @@ from typing import Any
 class DispatchRequest:
     """Returned inside BtResult.Yield to describe a Task-tool dispatch."""
 
-    agent_type: str                       # "architect" | "auditor" | "work"
+    agent_type: str                       # "architect" | "auditor" | "work" | "hr"
     agent_file: str | None
     prompt: str
-    subtask_id: str | None = None
+    subtask_id: str | None = None         # In v3, this carries the Task.id for WorkAgentLeaf dispatches.
     timeout_hint_s: int | None = None
 
     def to_dict(self) -> dict:
@@ -37,13 +43,50 @@ class DispatchRequest:
 
 
 @dataclass
-class Subtask:
-    """Element of bb.dispatch_plan."""
+class Task:
+    """Element of bb.arch_plan (v3).
+
+    Produced by Architect in one shot. HR fills in `agent_file` during the
+    DispatchHR step. Work Agent receives `description` + `params` +
+    `arch_context` in the dispatch prompt.
+    """
 
     id: str
-    kind: str                              # 'execution' | 'pure_query' | 'non_requirement'
-    target_agent: str                      # logical role: 'programmer' / 'auditor' / ...
-    target_agent_file: str | None          # absolute or repo-relative .claude/agents/*.md
+    description: str
+    required_capability: str = "generalist"
+    params: dict = field(default_factory=dict)
+    arch_context: str | None = None
+    agent_file: str | None = None
+    timeout_hint_s: int | None = None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Task":
+        return cls(
+            id=d["id"],
+            description=d.get("description", ""),
+            required_capability=d.get("required_capability", "generalist"),
+            params=dict(d.get("params") or {}),
+            arch_context=d.get("arch_context"),
+            agent_file=d.get("agent_file"),
+            timeout_hint_s=d.get("timeout_hint_s"),
+        )
+
+
+@dataclass
+class Subtask:
+    """DEPRECATED (v3): use Task instead.
+
+    Retained for backward compatibility with serializers reading v2 (schema
+    v1) snapshots. v3 main loop does not construct or read Subtask values.
+    """
+
+    id: str
+    kind: str
+    target_agent: str
+    target_agent_file: str | None
     prompt: str
     depends_on: list[str] = field(default_factory=list)
     timeout_hint_s: int | None = None

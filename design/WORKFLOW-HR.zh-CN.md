@@ -1,291 +1,129 @@
-# CBIM HR 的能力管理（执行 + 治理双子循环）
+# CBIM HR 的能力管理（执行子循环BT + 治理子循环BT）
 
-> **v1**（基于 Claude Code）与 **v2**（原生实现）共享的设计蓝图。
-> 网页版：`design/web/loops.html` → 能力管理标签。
-> 关联文档：[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（位置图）、[`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md)（执行根，触发执行子循环）、[`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)（治理根，触发治理子循环）。
-
----
-
-## 0. 顶部说明：HR 是能力轴的双重身份 actor
-
-HR 是能力轴（`.claude/agents/`）的**管理者和执行者**——既是这条轴的"匹配/招募人"（执行子循环），也是这条轴的"维护人"（治理子循环）。两个子循环共用同一份 agent 配置文件（`.claude/agents/hr/hr.md`），由派工 prompt 头部的标识 token 决定进入哪个子循环。
-
-| 子循环 | 触发根 | 工作内容 | 在哪一节 |
-|--------|--------|---------|---------|
-| **执行子循环** | 执行根（用户驱动） | 按 ContextPack 任务清单匹配 agent；**缺能力时懒式招募新 agent（前向式造新）**；不回头扫已有 agent | 第一部分 §1–§4 |
-| **治理子循环** | 治理根（scheduler 驱动） | 扫已有 `.claude/agents/` 找闲置 / 失能 / 漂移 / 裂变 / 合并需求（回头式重构）；安全动作自主、危险动作只产建议 | 第二部分 §5–§8 |
-
-**两个子循环的边界关键词**：
-- **执行 = 前向式造新** —— 招募新 agent 去满足当前任务，最小可用；只看与当前任务相关的能力匹配。
-- **治理 = 回头式重构** —— 扫描已有 agent 注册表，找该归档 / 该重训 / 该裂变拆分 / 该合并的；与当前任务无关。
-
-执行子循环**保留**招募新 agent 的能力（这是合理的懒式裂变）；**所有针对已有 agent 的扫描、归档、促训、漂移检测、裂变拆分、合并动作归治理子循环**。
-
-**对偶关系**：能力轴（`.claude/agents/`，HR 管）与业务轴（`.dna/`，Architect 管）互为镜像，详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。两轴各有自己的双子循环。
+> 全貌索引文档。父循环（执行根 / 治理根）见 [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) 与 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)，本文不展开。
+> 位置图见 [`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)；与业务轴的对偶关系见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。
 
 ---
 
-# 第一部分：HR 执行子循环
+## 一句话定位
 
-## 1. 触发源
+**HR持有执行子循环BT和治理子循环BT两棵子循环**——前者前向式造新（响应当前任务的能力匹配与懒式招募），后者回头式重构（扫已有能力册的健康度并产建议）。两棵子循环皆是BT，由派工 prompt 头部是否带治理模式标识决定进入哪一棵。
 
-执行子循环挂在执行根（[`WORKFLOW-EXECUTION`](./WORKFLOW-EXECUTION.zh-CN.md)）下，由以下入口触发：
+---
 
-| 触发源 | 场景 |
-|--------|------|
-| **执行根 `CallHR` 节点** | 每次 `ArchGate` 返回 ContextPack 后，`CallHR` yield 主 agent 派 HR，请求按子任务清单匹配 / 招募 agent |
-| **用户显式请求招募 / 训练 / 评估 / 归档** | 用户直接 prompt"训练一个 Y 专家 agent"，仍走执行子循环 |
+## 第一部分：HR执行子循环BT
 
-## 2. 节点流程图（执行子循环）
+### 1.1 触发与定位
+
+挂在执行根之下，由执行根的"派 HR"节点 yield 触发，目标是为当前任务的子任务清单逐一落实承接 agent。**前向式**：只看当前任务需要什么能力，不回头审视已有 agent 的健康度。
+
+### 1.2 HR执行子循环BT拓扑（Mermaid）
 
 ```mermaid
 flowchart TD
-    Yield(["接 yield<br/>主 agent 派来 HR<br/>prompt 不含治理模式标识<br/>携带 ContextPack 模块任务清单"])
-
-    Scan["扫描 .claude/agents/<br/>盘点现有 agent 能力清单"]
-    PerTask["按子任务逐一匹配<br/>(模块需求 + 能力描述)"]
+    Yield(["接 yield<br/>携带任务清单与模块上下文"])
+    Scan["盘点现有能力册"]
+    PerTask["逐子任务匹配"]
     Match{"匹配结果"}
 
-    HasFit["✅ 有且胜任"]
-    HasWeak["⚠️ 有但能力不足"]
-    NoAgent["❌ 无匹配 agent"]
+    Fit["有且胜任"]
+    Weak["有但能力不足"]
+    Miss["无匹配"]
 
-    AddToList["加入 agent_list<br/>(subtask_id → agent_file)"]
+    Decide{"训练 / 招募 / 临时兜底"}
+    Train["针对性训练已有 agent"]
+    Recruit["懒式招募新 agent"]
+    Temp["通用 agent 临时承接<br/>登记为能力缺口"]
 
-    TrainOrRecruit{"训练 or 招募?"}
-    Train["📚 训练<br/>cbim agent update<br/>更新技能 / 性格 / 行为规范"]
-    WorthNew{"复杂度足够<br/>值得专属 agent?"}
-    Scaffold["🌱 招募新 agent<br/>cbim agent scaffold<br/>定义角色 / 技能 / 性格 / 工具权限"]
-    Temporary["使用现有通用 agent<br/>临时处理"]
+    AddOne["登入承接清单"]
+    AllDone{"清单覆盖全部子任务?"}
+    Build["装配承接清单"]
+    Return(["回执行根<br/>下一步派 Work Agent"])
 
-    AllDone{"所有子任务<br/>都已分配?"}
-    BuildList["装配 agent_list 清单<br/>覆盖所有 ContextPack 子任务"]
-
-    Return(["返回 agent_list 给主 agent<br/>执行根 CallHR 续跑<br/>下一步 DispatchParallel 派 Work Agent"])
-
-    Yield --> Scan
-    Scan --> PerTask
-    PerTask --> Match
-    Match -->|有且胜任| HasFit
-    Match -->|有但弱| HasWeak
-    Match -->|无| NoAgent
-
-    HasFit --> AddToList
-
-    HasWeak --> TrainOrRecruit
-    TrainOrRecruit -->|训练| Train
-    TrainOrRecruit -->|招募| NoAgent
-    Train --> AddToList
-
-    NoAgent --> WorthNew
-    WorthNew -->|是| Scaffold
-    WorthNew -->|否| Temporary
-    Scaffold --> AddToList
-    Temporary --> AddToList
-
-    AddToList --> AllDone
-    AllDone -->|否，还有未分配子任务| PerTask
-    AllDone -->|是| BuildList
-    BuildList --> Return
+    Yield --> Scan --> PerTask --> Match
+    Match -->|胜任| Fit --> AddOne
+    Match -->|偏弱| Weak --> Decide
+    Match -->|缺失| Miss --> Decide
+    Decide -->|训练| Train --> AddOne
+    Decide -->|招募| Recruit --> AddOne
+    Decide -->|兜底| Temp --> AddOne
+    AddOne --> AllDone
+    AllDone -->|否| PerTask
+    AllDone -->|是| Build --> Return
 ```
 
-## 3. 与执行根的接口
+### 1.3 节点职责表（执行子循环）
 
-### 3.1 DispatchRequest 格式（主 agent → HR）
-
-```
-{
-  "target_agent": "hr",
-  "mode": "execution",                  # 不带 "## 治理模式"
-  "user_request": "<原始 prompt>",
-  "dispatch_plan": <bb.dispatch_plan>,
-  "arch_context": <bb.arch_context>     # 关键：ContextPack 决定每个子任务的能力需求
-}
-```
-
-### 3.2 agent_list 结构（HR → 主 agent → 执行根）
-
-执行子循环的产物，写回执行根 `bb.agent_list`：
-
-```
-[
-  {
-    "subtask_id": "<id from dispatch_plan>",
-    "target_agent_file": ".claude/agents/<dir>/<name>.md",
-    "agent_capability": "<capability summary>",
-    "match_kind": "fit|trained|scaffolded|temporary"
-  },
-  ...
-]
-```
-
-执行根 `DispatchParallel` 阶段会按 `agent_list[subtask_id]` 派 Work Agent，回退到 `subtask.target_agent_file`。
-
-## 4. 能力前向扩展 · Agent 生命周期（执行子循环的核心知识）
-
-> **范围声明**：执行子循环只处理当前任务必需的 agent 匹配——必要时招募新 agent；**不回头审视已有 agent 的健康度**。扫闲置 / 失能 / 漂移 / 裂变 / 合并这些"回头式重构"动作全部归治理子循环（第二部分），执行子循环不做。
-
-### 能力前向扩展路径（执行子循环范畴）
-
-- **专用 agent 孵化** → 能力图谱扩展，新的专项能力进入体系（响应当前任务的懒式招募）
-- **匹配现有 agent** → 优先复用，节制造新
-
-**不在执行子循环范畴**（归治理子循环）：
-- 扫已有 agent 判断是否该归档闲置 → 治理子循环的"闲置扫描"
-- 扫已有 agent 判断是否失能需重训 → 治理子循环的"失能扫描"
-- 扫已有 agent 判断声明与表现是否漂移 → 治理子循环的"漂移扫描"
-- 扫单个 agent 判断职责过宽是否该拆分 → 治理子循环的"裂变扫描"
-- 扫多个 agent 判断能力重叠是否该合并 → 治理子循环的"合并扫描"
-
-### Agent 生命周期（哪个子循环管哪段）
-
-| 阶段 | 操作 | 子循环归属 |
-|------|------|-----------|
-| 招募 | `cbim agent scaffold` | **执行子循环**（响应当前任务的懒式招募） |
-| 训练 | `cbim agent update` | **执行子循环**（当前任务发现已有 agent 能力不足，针对性微调）|
-| 评估 | HR 分析执行质量 | **治理子循环**（回头式扫所有 agent 的历史表现） |
-| 归档 | `cbim agent archive` | **治理子循环**（回头式扫闲置 / 失能 agent，产建议） |
-| 裂变 / 合并 | 拆分单个 agent / 合并重复 agent | **治理子循环**（回头式扫职责结构问题，产建议） |
-
-执行子循环只在 Work Agent 回环后顺便记录一次本次执行的表现数据，供治理子循环后续扫描参考。
+| 节点 | 职责 | 边界 |
+|------|------|------|
+| 盘点现有能力册 | 读取能力轴注册表，形成可匹配视图 | 不评估健康度 |
+| 逐子任务匹配 | 按模块上下文给出的能力需求逐一匹配 | 一次只看一个子任务 |
+| 训练 | 对已有 agent 做针对性微调，使其胜任当前任务 | 不做泛化重训 |
+| 懒式招募 | 当复杂度足够时孵化新专域 agent | 最小可用，不预造 |
+| 临时兜底 | 用通用 agent 承接，同时登记为能力缺口供治理回头扫 | 不掩盖缺口 |
+| 装配承接清单 | 保证清单覆盖全部子任务并交还父循环 | 不替父循环派工 |
 
 ---
 
-# 第二部分：HR 治理子循环
+## 第二部分：HR治理子循环BT
 
-## 5. 触发源
+### 2.1 触发与定位
 
-治理子循环挂在治理根（[`WORKFLOW-DREAM`](./WORKFLOW-DREAM.zh-CN.md)）下，**唯一触发源**：
+挂在治理根之下，由治理根的"派 HR 治理"节点 yield 触发，prompt 头部带治理模式标识。目标是对能力册做体检。**回头式**：不响应任何当前任务，只看已有 agent 的健康度与结构。
 
-| 触发源 | 场景 |
-|--------|------|
-| **治理根第三步 `HRGovernanceStep` 的 `DispatchHRGovern` 节点** | 治理根知识治理步骤完成后，yield 主 agent 派 HR，prompt 头部带 `## 治理模式` 标识 token |
-
-用户对话、执行根派工都**不会**进入治理子循环。
-
-## 6. 节点流程图（治理子循环）
+### 2.2 HR治理子循环BT拓扑（Mermaid）
 
 ```mermaid
 flowchart TD
-    Yield(["接 yield<br/>主 agent 派来 HR<br/>prompt 含 ## 治理模式 标识"])
+    Yield(["接 yield<br/>携带治理模式标识"])
+    Load["加载能力册与近期派工/评估痕迹"]
 
-    LoadAgents["加载 .claude/agents/ 全量<br/>读所有 agent.md 元数据"]
-    LoadLogs["读 .cbim/scheduler/ 近期派工日志<br/>读 .cbim/memory/medium/ 能力候选"]
-
-    Scan1["扫闲置 agent<br/>(last_dispatched_at>60天)<br/>→ 归档建议"]
-    Scan2["扫失能 agent<br/>(最近 N 次评估均需改进<br/>或失败率超阈值)<br/>→ 促训/归档建议"]
-    Scan3["扫能力缺口<br/>(近期 agent_gap 累计次数<br/>但执行子循环未招募)<br/>→ 补漏招募建议"]
-    Scan4["扫漂移 agent<br/>(声明 vs 真实能力分布不一致)<br/>→ 重训/重写 prompt 建议"]
-    Scan5["扫重复 agent<br/>(能力描述高度重合)<br/>→ 合并建议"]
-    Scan6["扫 agent 裂变需求<br/>(单 agent 职责过宽<br/>覆盖多个差异子领域)<br/>→ 拆分建议"]
+    S1["扫闲置"]
+    S2["扫失能"]
+    S3["扫累计能力缺口"]
+    S4["扫声明与表现漂移"]
+    S5["扫能力重复"]
+    S6["扫职责过宽"]
 
     Classify{"按动作类别归类"}
+    Safe["安全动作<br/>刷新评估字段 / 索引 / 治理日志"]
+    SafeDo["立即执行（幂等）"]
+    Risky["危险动作<br/>归档 / 补漏招募 / 合并 / 强制重训 / 拆分"]
+    Advise["只产建议，不执行"]
 
-    Safe["安全动作<br/>· 更新能力评估字段<br/>  (成功率/耗时/最近派工)<br/>· 刷新能力索引<br/>· 写治理日志"]
-    SafeApply["立即执行<br/>幂等<br/>写入 safe_actions_applied[]"]
+    Build["装配治理报告"]
+    Return(["回治理根<br/>由治理根汇总落盘"])
 
-    Risky["危险动作<br/>· 归档闲置 agent<br/>· 补漏招募新 agent<br/>· 合并重复 agent<br/>· 强制重训失能 agent<br/>· 拆分职责过宽 agent"]
-    RiskyAdvise["只产建议<br/>不执行<br/>写入 advice_pending[]"]
-
-    BuildReport["装配治理报告 JSON<br/>safe_actions_applied + advice_pending<br/>+ issues_blocking_governance"]
-
-    Return(["返回报告给主 agent<br/>治理根 CollectHRAdvice 接管"])
-
-    Yield --> LoadAgents
-    LoadAgents --> LoadLogs
-    LoadLogs --> Scan1
-    Scan1 --> Scan2
-    Scan2 --> Scan3
-    Scan3 --> Scan4
-    Scan4 --> Scan5
-    Scan5 --> Scan6
-    Scan6 --> Classify
-    Classify -->|安全| Safe
-    Classify -->|危险| Risky
-    Safe --> SafeApply
-    Risky --> RiskyAdvise
-    SafeApply --> BuildReport
-    RiskyAdvise --> BuildReport
-    BuildReport --> Return
+    Yield --> Load
+    Load --> S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> Classify
+    Classify -->|安全| Safe --> SafeDo --> Build
+    Classify -->|危险| Risky --> Advise --> Build
+    Build --> Return
 ```
 
-## 7. 治理模式的扫描清单与自主权边界
+### 2.3 节点职责表（治理子循环）
 
-> **范围声明**：治理子循环只做"回头式重构"——扫已有 agent 注册表，找该归档 / 该重训 / 该拆 / 该合并的；不响应任何当前任务。响应当前任务、为满足任务而懒式招募新 agent 的工作，归执行子循环（第一部分）。"补漏招募"是治理子循环唯一会触及"招新"的场景——指执行子循环已经累计上报了 `agent_gap` 但当时未招（如标记 `temporary` 兜底），治理回头扫这些累计缺口给出补漏建议。
-
-### 扫描清单（6 大检查项）
-
-| 检查项 | 检查内容 | 产物类型 |
-|--------|---------|---------|
-| 闲置 agent | `last_dispatched_at` 超过 60 天未被派工 | 归档建议 |
-| 失能 agent | 最近 N 次任务评估均为"需改进"或失败率高于阈值 | 促训 / 归档建议 |
-| 能力缺口（补漏） | 近期执行根日志中累计出现 `agent_gap` 但执行子循环未招募（如临时兜底处理）；治理回头扫这些缺口 | 补漏招募建议 |
-| 漂移 agent | `agent.md` 能力声明与实际执行表现长期不一致（声明 vs 真实能力分布） | 重训 / 重写 prompt 建议 |
-| 重复 agent | 多个 agent 能力描述高度重合，存在合并机会 | 合并建议 |
-| **agent 裂变需求** | 单个 agent 职责过宽（如能力描述覆盖多个差异较大的子领域，或执行日志显示其频繁处理跨领域任务） | 拆分建议 |
-
-### 自主权边界
-
-| 类别 | 动作 | 自主权 |
-|------|------|--------|
-| **安全动作** | 更新 `agent.md` 的能力评估字段（成功率、平均耗时、最近派工时间）；刷新能力索引；写入治理日志 | **可自主执行**（幂等） |
-| **危险动作** | 归档闲置 agent、补漏招募新 agent、合并重复 agent、强制重训失能 agent、**拆分职责过宽 agent** | **只产建议**，写入返回报告的 `advice_pending` 数组，由用户下次会话时决定是否采纳 |
-
-## 8. 与治理根的接口
-
-### 8.1 DispatchRequest 格式（主 agent → HR 治理模式）
-
-```
-{
-  "target_agent": "hr",
-  "mode": "governance",                # prompt 头部带 "## 治理模式"
-  "run_id": "<dream run_id>",
-  "scope_hint": "all" 或 ["<agent path>", ...]
-}
-```
-
-### 8.2 返回值结构（HR → 主 agent → 治理根）
-
-治理模式 HR 必须返回结构化 JSON 报告，由治理根 `CollectHRAdvice` 写入 `bb.hr_governance_report`：
-
-```
-{
-  "mode": "governance",
-  "scanned_at": "<ISO 8601>",
-  "scope": {
-    "agents_scanned": <int>,
-    "dispatch_logs_reviewed": <int>
-  },
-  "safe_actions_applied": [
-    {"action": "update_capability_stats", "agent": "<path>", "detail": "..."},
-    ...
-  ],
-  "advice_pending": [
-    {"severity": "warn|error", "kind": "idle|incompetent|capability_gap|drifted|duplicate|over_broad", "agent": "<path>", "summary": "...", "suggested_action": "archive|recruit|retrain|merge|split"},
-    ...
-  ],
-  "issues_blocking_governance": [...]
-}
-```
-
-### 8.3 执行子循环 vs 治理子循环 的关键差异
-
-| 维度 | 执行子循环 | 治理子循环 |
-|------|---------|---------|
-| 触发来源 | 执行根 `CallHR` 节点 / 用户对话 | 治理根 `DispatchHRGovern` 节点 |
-| 模式标识 | `mode=execution` | `mode=governance`，prompt 头部带 `## 治理模式` |
-| 输入 | ContextPack + dispatch_plan（少量子任务的能力需求） | 全 `.claude/agents/` 扫描请求 |
-| 与用户交互 | 间接（通过 Coordinator 派工） | 不交互（产物落报告，下次 SessionStart 摘要呈现） |
-| 招募 / 归档 | 允许（按生命周期表） | 只产建议，不直接执行 |
-| 写 `agent.md` | 允许（训练 / 评估） | 只写安全字段（统计数据、时间戳、日志） |
-| 返回 | agent_list 清单（subtask_id → agent_file） | 治理报告 JSON |
+| 节点 | 职责 | 边界 |
+|------|------|------|
+| 加载能力册与痕迹 | 读全量 agent 与近期派工 / 评估痕迹 | 只读，不修改 |
+| 六类扫描 | 闲置 / 失能 / 累计能力缺口 / 漂移 / 重复 / 职责过宽 | 不响应当前任务 |
+| 按动作类别归类 | 区分安全动作与危险动作 | 分类依据：是否幂等可回滚 |
+| 安全动作 | 评估字段、索引、治理日志这类幂等更新 | 立即执行 |
+| 危险动作 | 涉及结构调整或 agent 进出册的操作 | 仅写入建议，待用户决策 |
+| 装配治理报告 | 汇总已执行的安全动作与待决建议 | 不直接通知用户 |
 
 ---
 
-## 9. 与业务轴的对偶关系
+## 第三部分：两棵子循环对比
 
-能力轴（`.claude/agents/`）与业务轴（`.dna/`）互为镜像：
+| 维度 | 执行子循环BT | 治理子循环BT |
+|------|------------|------------|
+| 触发方 | 执行根派 HR | 治理根派 HR |
+| 产出物 | 承接清单（子任务到 agent 的映射） | 治理报告（安全动作 + 待决建议） |
+| 衔接 | 交还执行根继续派 Work Agent | 交还治理根汇总落盘并在下次 SessionStart 呈现 |
 
-- 业务轴新增模块 → 可能触发能力轴招募对应专域 agent
-- 能力轴新 agent 孵化 → 携带新的业务领域知识
-- 两轴各有双子循环（执行 + 治理），协同裂变，边界持续扩展
+---
+
+## 第四部分：与业务轴的对偶
+
+能力轴（HR 管）与业务轴（Architect 管）互为镜像：业务轴新增模块可触发能力轴招募对应专域 agent；新 agent 孵化反过来携带新的业务领域知识。两轴各自持有执行 + 治理两棵子循环BT，协同裂变，边界持续扩展。详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。

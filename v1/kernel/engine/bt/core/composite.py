@@ -100,26 +100,30 @@ class Parallel(_Composite):
         return Status.SUCCESS
 
 
-class ClarifyBranch(Node):
-    """Two-way branch on `bb.intent['clarification_needed']`.
+class ModeBranch(Node):
+    """Two-way branch on `bb.mode` (v3).
+
+    Routes to the `conversation` child when `bb.mode == "conversation"`,
+    to the `execution` child otherwise (default fallback: execution).
 
     Not a Selector — we don't route on child return values; we route on a
     bb predicate. This keeps Selector's "try until SUCCESS" semantics clean.
     """
 
-    def __init__(self, *, yes: Node, no: Node, name: str = "ClarifyBranch") -> None:
+    def __init__(self, *, conversation: Node, execution: Node,
+                 name: str = "ModeBranch") -> None:
         self.name = name
-        self._yes = yes
-        self._no = no
+        self._conversation = conversation
+        self._execution = execution
 
     def children(self) -> list[Node]:
-        return [self._yes, self._no]
+        return [self._conversation, self._execution]
 
     def tick(self, bb) -> Status:
-        intent = bb.intent or {}
-        if intent.get("clarification_needed"):
-            return self._yes.tick(bb)
-        return self._no.tick(bb)
+        mode = bb.mode or "execution"
+        if mode == "conversation":
+            return self._conversation.tick(bb)
+        return self._execution.tick(bb)
 
 
 # ---------------------------------------------------------------------------

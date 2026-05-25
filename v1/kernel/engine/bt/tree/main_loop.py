@@ -1,68 +1,87 @@
-"""tree/main_loop.py — Global ROOT for the CBIM main loop.
+"""tree/main_loop.py — Global ROOT for the CBIM main loop (v3).
 
 Static topology — auditable in one read. Stacking order locked per
-WORKFLOW-EXECUTION §3: Trace > Timeout > {Retry | IterationGuard | Catch}.
+WORKFLOW-EXECUTION §5: Trace > Timeout > {Retry | Catch}.
 
-Forbidden combinations (enforced by L2 test_no_retry_on_decompose_or_dispatch_or_aggregate):
-  - Retry around Decompose       — non-idempotent (bumps iteration)
-  - Retry around DispatchParallel — non-idempotent (sends agent calls)
-  - Retry around Aggregate       — would re-derive the same verdict
+Forbidden combinations (enforced by L2 tests):
+  - Retry around DispatchWork — non-idempotent (dispatches agent calls)
+
+Tree shape (see WORKFLOW-EXECUTION §3):
+  Root (Trace > Timeout > Sequence)
+    InitTick
+    ModeClassify
+    ModeBranch
+      conversation → DirectReply
+      execution    → ExecutionSeq (Sequence)
+          RetryDispatchArchitect
+          RetryDispatchHR
+          DispatchWork
+          Respond
+          CatchFlush(FlushMemory)
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ..core.composite import ClarifyBranch, Sequence
-from ..core.decorator import Catch, IterationGuard, LoopUntilConverge, Retry, Timeout, Trace
-from ..actions.aggregate import Aggregate
-from ..actions.arch_gate import ArchGate
-from ..actions.ask_clarify import AskClarify
-from ..actions.call_hr import CallHR
-from ..actions.converge_judge import ConvergeJudge
-from ..actions.decompose import Decompose
-from ..actions.dispatch_parallel import DispatchParallel
+from ..actions.direct_reply import DirectReply
+from ..actions.dispatch_architect import DispatchArchitect
+from ..actions.dispatch_hr import DispatchHR
+from ..actions.dispatch_work import DispatchWork
 from ..actions.flush_memory import FlushMemory
 from ..actions.init_tick import InitTick
-from ..actions.intent_analyze import IntentAnalyze, IntentRules, NullLLM
+from ..actions.llm_hook import NullLLM
+from ..actions.mode_classify import ModeClassify
 from ..actions.respond import Respond
+from ..core.composite import ModeBranch, Sequence
+from ..core.decorator import Catch, Retry, Timeout, Trace
 
 
-def build_root(*, llm: Any = None, intent_rules: IntentRules | None = None,
-               global_timeout_s: int = 1800):
-    llm = llm or NullLLM()
-    intent_rules = intent_rules or IntentRules.from_dispatch_skill()
+def _default_llm() -> Any:
+    """Pick the real Anthropic client when ANTHROPIC_API_KEY is set; fall back
+    to NullLLM otherwise. Isolated so tests can monkeypatch it cleanly.
+    """
+    import os
+
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        return NullLLM()
+    try:
+        from ..actions.llm_client import AnthropicLLM
+        return AnthropicLLM()
+    except Exception:
+        # SDK missing or client init failed — degrade silently to NullLLM
+        # so the engine remains importable and the rule path still works.
+        return NullLLM()
+
+
+def build_root(*, llm: Any = None, global_timeout_s: int = 1800):
+    llm = llm if llm is not None else _default_llm()
 
     init = InitTick(name="InitTick")
-    intent = Retry(IntentAnalyze(rules=intent_rules, llm=llm, name="IntentAnalyze"),
-                   n=2, only="idempotent", name="RetryIntent")
-    ask = AskClarify(name="AskClarify")
+    classify = ModeClassify(llm=llm, name="ModeClassify")
+    direct = DirectReply(llm=llm, name="DirectReply")
 
-    decompose = Decompose(llm=llm, name="Decompose")
-    arch_gate = Retry(ArchGate(name="ArchGate"), n=2, only="idempotent", name="RetryArchGate")
-    call_hr = Retry(CallHR(name="CallHR"), n=2, only="idempotent", name="RetryCallHR")
-    dispatch = DispatchParallel(name="DispatchParallel")
-    aggregate = Aggregate(name="Aggregate")
-    converge = Retry(ConvergeJudge(llm=llm, name="ConvergeJudge"),
-                     n=2, only="idempotent", name="RetryConverge")
-
-    loop_seq = IterationGuard(
-        Sequence(
-            [decompose, arch_gate, call_hr, dispatch, aggregate, converge],
-            name="LoopSeq",
-        ),
-        name="LoopSeqGuard",
-    )
-    loop = LoopUntilConverge(loop_seq, name="LoopRoot")
-
+    arch = Retry(DispatchArchitect(name="DispatchArchitect"),
+                 n=2, only="idempotent", name="RetryDispatchArchitect")
+    hr = Retry(DispatchHR(name="DispatchHR"),
+               n=2, only="idempotent", name="RetryDispatchHR")
+    work = DispatchWork(name="DispatchWork")
     respond = Respond(name="Respond")
-    flush = Catch(FlushMemory(name="FlushMemory"), fallback="swallow", name="CatchFlush")
+    flush = Catch(FlushMemory(name="FlushMemory"),
+                  fallback="swallow", name="CatchFlush")
 
-    main_body = Sequence([loop, respond, flush], name="MainBody")
+    execution_seq = Sequence(
+        [arch, hr, work, respond, flush],
+        name="ExecutionSeq",
+    )
 
-    clarify = ClarifyBranch(yes=ask, no=main_body, name="ClarifyBranch")
+    branch = ModeBranch(
+        conversation=direct,
+        execution=execution_seq,
+        name="ModeBranch",
+    )
 
-    body = Sequence([init, intent, clarify], name="RootSeq")
+    body = Sequence([init, classify, branch], name="RootSeq")
 
     return Trace(Timeout(body, seconds=global_timeout_s, name="GlobalTimeout"),
                  name="Root")
