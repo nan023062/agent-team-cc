@@ -1,8 +1,7 @@
 """arch_gov/report.py — Report deterministic leaf.
 
 Finalizes the subtree by writing the governance report onto the dream
-blackboard. Shape matches what CollectArchAdvice's parser expects (see
-engine.dream.loops.architect_governance.parse_response):
+blackboard. Shape:
 
     bb.arch_governance_report = {
         "safe_actions_applied": [str, ...],
@@ -10,7 +9,8 @@ engine.dream.loops.architect_governance.parse_response):
     }
 
 Both lists are required (empty allowed). Once written, the subtree's
-scratch state is dropped — it's purely intra-tick.
+scratch state is dropped — it's purely intra-tick. Downstream consumer
+is `emit_report.py`, which renders the dict into the dream-tick markdown.
 """
 from __future__ import annotations
 

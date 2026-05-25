@@ -1,23 +1,20 @@
 """loops/architect_execution.py — Architect execution sub-loop descriptor.
 
-The architect execution sub-loop runs inside the architect agent's mind,
-not the Python BT engine. We describe its topology as a flat NodeSpec
-list so:
+Topology source: WORKFLOW-ARCHITECT.zh-CN.md §2 (执行子循环).
 
-  - design-doc Mermaid labels are checked in (WORKFLOW-ARCHITECT §2);
-  - compose_prompt() renders the list into the prompt embedded in the
-    yielded DispatchRequest for agent_type="architect";
-  - parse_response() decodes whatever the agent returns into a normalized
-    dict the parent loop can put on bb (typically bb.arch_plan).
+The execution sub-loop now runs as an in-process Python BT subtree
+(`ArchitectExecSubtree`) mounted directly inside the execution root — no
+Architect agent yield is involved. This module retains:
 
-The Mermaid topology is a branching DAG (StateCheck splits into 4 states,
-Worth splits "build vs skip"), but for prompt scaffolding we keep the
-list flat — order matches the design doc's narrative flow.
+  - `NODE_SPECS` — the design-doc-aligned flat node list, pinned by topology
+    tests as the single source of truth for sub-loop shape;
+  - `_NODE_GUIDE` — per-node guidance text consumed by the live arch_exec
+    subtree's prompt-rendering helper (`actions/arch_exec/_helpers.py`);
+  - `build_architect_execution_subtree` — re-exported from
+    `engine.execution.actions.arch_exec` for convenient access alongside
+    the descriptor.
 """
 from __future__ import annotations
-
-import json
-from typing import Any
 
 from engine.core.loop_spec import NodeSpec
 
@@ -35,114 +32,12 @@ NODE_SPECS: list[NodeSpec] = [
 ]
 
 
-def compose_prompt(bb) -> str:
-    """Render the NodeSpec list into a step-by-step prompt for the architect.
-
-    Single source of truth for node semantics: `design/WORKFLOW-ARCHITECT.zh-CN.md`
-    §2 (执行子循环). Each of the nine NodeSpec entries gets an explicit
-    input / decision-basis / output / fallback paragraph so the agent does
-    not need to re-derive the flowchart from labels alone.
-
-    The receipt schema at the tail is the contract consumed by
-    `dispatch_architect.py::_extract_plan`. Do not drift from the field
-    names `id / description / required_capability / params / arch_context`
-    — those map 1:1 onto `Task.from_dict`.
-
-    Pure string construction. No I/O.
-    """
-    user_request = getattr(bb, "user_request", None) or ""
-    prior_plan = getattr(bb, "arch_plan", None)
-    knowledge_snapshot = getattr(bb, "knowledge_snapshot", None) or getattr(bb, "dna_snapshot", None)
-
-    lines: list[str] = [
-        "## 模式：执行（Architect 执行子循环）",
-        "",
-        "你接到执行根派来的一个 yield。本子循环只产出一份 ContextPack",
-        "（一组带模块上下文的子任务），不要在此阶段调用任何外部 agent。",
-        "把流程跑完，按文末「回执 schema」回一份 JSON——只回 JSON，不要散文。",
-        "",
-        "### 用户请求",
-        user_request.strip() or "(空)",
-        "",
-        "### 知识快照（bb.knowledge_snapshot）",
-        _format_snapshot(knowledge_snapshot),
-        "",
-    ]
-    if prior_plan:
-        lines += [
-            "### 已有 arch_plan（上一轮回执，若需修订请基于它增量更新）",
-            json.dumps(prior_plan, ensure_ascii=False)[:2000],
-            "",
-        ]
-
-    lines += ["### 流程节点（按序走，每节点心里走一遍即可，不必逐行汇报）", ""]
-    for i, spec in enumerate(NODE_SPECS, start=1):
-        marker = {"action": "·", "decision": "?", "terminal": "■"}[spec.role]
-        lines.append(f"#### {i}. [{marker}] {spec.label}")
-        guide = _NODE_GUIDE.get(spec.id)
-        if guide:
-            lines += guide
-        lines.append("")
-
-    lines += [
-        "### 回执 schema（写死，违反则下游解析失败）",
-        "",
-        "正常完成 → 返回任务清单：",
-        "```json",
-        "{",
-        '  "arch_plan": [',
-        "    {",
-        '      "id": "t1",',
-        '      "description": "一句话说明这个子任务要做什么（祈使句）",',
-        '      "required_capability": "programmer | tester | doc_writer | generalist",',
-        '      "params": {"file_path": "...", "其它参数": "..."},',
-        '      "arch_context": "相关模块 DNA 摘要 + 不能改的约束 + 依赖方向"',
-        "    }",
-        "  ]",
-        "}",
-        "```",
-        "",
-        "需要先澄清才能继续 → 返回单问句：",
-        "```json",
-        '{"need_clarify": true, "question": "唯一一个问句，不要罗列多个问题"}',
-        "```",
-        "",
-        "硬性失败（知识/代码冲突无法消解、超出 Architect 职责） → 返回错误：",
-        "```json",
-        '{"error": "一行原因"}',
-        "```",
-        "",
-        "### 字段约束",
-        "- `arch_plan` 必须是 list，元素是 dict；空 list 视为「没必要派工」由父循环兜底。",
-        "- `id` 在本回执内唯一，建议 `t1 / t2 / ...`。",
-        "- `description` 是给 Work Agent 看的祈使句，不要写「需要…」「应当…」。",
-        "- `required_capability` 用小写英文短串；未知能力写 `generalist`，HR 会再裁。",
-        "- `arch_context` 是字符串，把模块路径 + 约束 + 依赖方向写进来；不要塞结构化对象。",
-        "- 顶层不要混入额外键；`arch_plan` 与 `need_clarify` / `error` 三选一。",
-    ]
-    return "\n".join(lines)
-
-
-def _format_snapshot(snapshot) -> str:
-    """Render the knowledge snapshot into a short, prompt-friendly block.
-
-    Accepts whatever the execution root puts on bb (dict, list, str, None).
-    Truncated hard at ~2k chars so prior plan + snapshot together don't
-    blow the prompt budget.
-    """
-    if snapshot is None:
-        return "(无快照——按需走 scan 节点自行读取 .dna/)"
-    if isinstance(snapshot, str):
-        return snapshot.strip()[:2000] or "(空字符串)"
-    try:
-        return json.dumps(snapshot, ensure_ascii=False, indent=2)[:2000]
-    except (TypeError, ValueError):
-        return repr(snapshot)[:2000]
-
-
 # ---------------------------------------------------------------------------
 # Per-node guidance — keyed by NodeSpec.id, content sourced from
 # design/WORKFLOW-ARCHITECT.zh-CN.md §2 执行子循环.
+#
+# Consumed by `engine.execution.actions.arch_exec._helpers.render_guide`,
+# which builds the per-leaf prompt body inside the in-process subtree.
 # ---------------------------------------------------------------------------
 
 _NODE_GUIDE: dict[str, list[str]] = {
@@ -200,51 +95,17 @@ _NODE_GUIDE: dict[str, list[str]] = {
         "- 自检：依赖关系不能成环；每条 task 的 `arch_context` 必须非空；",
         "  required_capability 在 {programmer, tester, doc_writer, generalist} 之内（其它值会被 HR 兜底）。",
         "- 输出：把整张 `arch_plan` 按文末 schema 序列化为 JSON。",
-        "- 高风险提示：若涉及改公开契约 / 删模块 / 跨层依赖倒置，",
+        "- 高风险提示：若涉及改公开契约 / 删模块 / 跨层依赖倒置,",
         "  在对应 task 的 `arch_context` 里以「高风险:」开头点明，便于审计。",
     ],
 }
 
 
-def parse_response(payload: str | dict | None) -> dict:
-    """Normalize architect's response into a dict the parent loop can store.
-
-    Accepted shapes (in priority order):
-      - dict with "arch_plan" key  → return that subdict
-      - dict (any other shape)     → wrap as {"arch_plan": payload}
-      - JSON string                → parse, then re-route
-      - plain text                 → return {"arch_plan": {"raw": text}}
-      - None / empty               → return {"arch_plan": None, "error": "empty response"}
-    """
-    if payload is None or (isinstance(payload, str) and not payload.strip()):
-        return {"arch_plan": None, "error": "empty response"}
-
-    if isinstance(payload, str):
-        try:
-            payload = json.loads(payload)
-        except (ValueError, TypeError):
-            return {"arch_plan": {"raw": payload}}
-
-    if isinstance(payload, dict):
-        if "error" in payload and "arch_plan" not in payload:
-            return {"arch_plan": None, "error": str(payload["error"])}
-        if "arch_plan" in payload:
-            return {"arch_plan": payload["arch_plan"]}
-        return {"arch_plan": payload}
-
-    if isinstance(payload, list):
-        return {"arch_plan": {"items": payload}}
-
-    return {"arch_plan": {"raw": repr(payload)}}
+__all__ = ["NODE_SPECS", "build_architect_execution_subtree"]
 
 
-__all__ = ["NODE_SPECS", "compose_prompt", "parse_response"]
-
-
-# Python BT subtree (v4) — kept as a tail import so the compatibility shim above
-# (NODE_SPECS / compose_prompt / parse_response) loads even if the subtree's
-# imports drift. The Python tree is built via:
-#     from engine.execution.actions.arch_exec import build_architect_execution_subtree
-# and is the source of truth going forward; this prompt-scaffold file is kept
-# for the existing dispatch_architect path until t6 main_loop migration lands.
+# Python BT subtree — the source of truth going forward. Tail import so the
+# NODE_SPECS / _NODE_GUIDE module-level data above loads even if the
+# subtree's internal imports drift, and to break the circular import with
+# `arch_exec/_helpers.py` (which lazily imports `_NODE_GUIDE` from here).
 from engine.execution.actions.arch_exec import build_architect_execution_subtree  # noqa: E402, F401

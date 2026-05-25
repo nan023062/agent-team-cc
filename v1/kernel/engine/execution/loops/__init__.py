@@ -3,14 +3,14 @@
 Holds the four loops that run under the execution root (bt_tick):
 
   execution_root      → engine.execution.tree.main_loop      (re-export)
-  architect_execution → NodeSpec descriptor (compose_prompt + parse_response)
-  hr_execution        → NodeSpec descriptor (compose_prompt + parse_response)
+  architect_execution → NodeSpec descriptor + subtree builder re-export
+  hr_execution        → NodeSpec descriptor + subtree builder re-export
   memory_crud         → in-process BT built here (core primitives)
 
 `get_loop(name)` returns the module object — callers pick what they need
-from it (a builder, ROOT, NODE_SPECS, compose_prompt, etc.). Returning
-the module rather than a single artifact keeps the registry agnostic to
-the loop's category (Python BT vs in-agent descriptor).
+from it (a builder, ROOT, NODE_SPECS, etc.). Returning the module rather
+than a single artifact keeps the registry agnostic to the loop's category
+(Python BT vs in-agent descriptor).
 
 Scope is intentionally execution-only; governance-class loops live in
 `engine.dream.loops` and have their own registry.

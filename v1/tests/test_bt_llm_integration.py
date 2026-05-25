@@ -5,10 +5,12 @@ against the real Anthropic API when it is set. The `requires_api_key`
 marker is informational; the hard skip lives in the module-level fixture
 so the tests are safe to collect anywhere.
 
-v3 note: the only v3 action that calls into an LLM is ModeClassify (on rule
-miss) and DirectReply (always). DispatchArchitect/HR/Work don't call an LLM
-themselves — they yield to peer agents whose own implementation may or may
-not use LLMs internally. This file covers the two engine-internal LLM paths.
+Note: the only execution-root actions that call an LLM directly are
+ModeClassify (on rule miss) and DirectReply (always). DispatchWork yields
+to a Work Agent — the agent itself may or may not use an LLM internally,
+but that is outside this engine's surface. The Architect/HR execution
+sub-loops run as in-process Python BT subtrees; their LLM use is covered
+elsewhere. This file covers the two engine-internal LLM paths.
 """
 from __future__ import annotations
 

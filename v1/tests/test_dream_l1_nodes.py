@@ -10,9 +10,6 @@ from pathlib import Path
 import pytest
 
 from engine.core.node import Status
-from engine.dream.actions.collect_advice import CollectArchAdvice, CollectHRAdvice
-from engine.dream.actions.dispatch_arch import DispatchArchGovern
-from engine.dream.actions.dispatch_hr import DispatchHRGovern
 from engine.dream.actions.emit_report import EmitReport
 from engine.dream.actions.finalize import FinalizeDreamTick
 from engine.dream.actions.init_tick import InitDreamTick
@@ -108,77 +105,6 @@ def test_mem_rebuild_index_runs_when_drift_truthy(bb, store_dir, backend):
     node = MemRebuildIndex(store_dir=store_dir, backend=backend)
     assert node.tick(bb) is Status.SUCCESS
     assert "indexed" in bb.mem_index_result
-
-
-# ---------------------------------------------------------------------------
-# Dispatch actions
-# ---------------------------------------------------------------------------
-
-def test_dispatch_arch_govern_yields_on_first_tick(bb):
-    node = DispatchArchGovern()
-    assert node.tick(bb) is Status.RUNNING
-    assert bb.pending_dispatch is not None
-    assert bb.pending_dispatch.agent_type == "architect"
-    assert bb.pending_dispatch.subtask_id == "governance_knowledge"
-    assert bb.pending_dispatch.prompt.startswith("## 治理模式")
-    assert bb.arch_governance_dispatched is True
-
-
-def test_dispatch_arch_govern_idempotent_on_resume(bb):
-    node = DispatchArchGovern()
-    node.tick(bb)
-    bb.pending_dispatch = None
-    # Second tick should be SUCCESS, not another yield.
-    assert node.tick(bb) is Status.SUCCESS
-
-
-def test_dispatch_hr_govern_yields_governance_capability(bb):
-    node = DispatchHRGovern()
-    assert node.tick(bb) is Status.RUNNING
-    assert bb.pending_dispatch.agent_type == "hr"
-    assert bb.pending_dispatch.subtask_id == "governance_capability"
-    assert bb.pending_dispatch.prompt.startswith("## 治理模式")
-
-
-# ---------------------------------------------------------------------------
-# Collect actions
-# ---------------------------------------------------------------------------
-
-def test_collect_arch_advice_parses_yaml_block(bb):
-    node = CollectArchAdvice()
-    payload = (
-        "safe_actions_applied:\n"
-        "  - refreshed mtime on .dna/orphan.md\n"
-        "  - filled missing keywords\n"
-        "advice_pending:\n"
-        "  - archive .dna/legacy-module (last touched 90d ago)\n"
-    )
-    node.on_resume(bb, payload)
-    assert bb.arch_governance_report["safe_actions_applied"] == [
-        "refreshed mtime on .dna/orphan.md",
-        "filled missing keywords",
-    ]
-    assert bb.arch_governance_report["advice_pending"] == [
-        "archive .dna/legacy-module (last touched 90d ago)",
-    ]
-    assert node.tick(bb) is Status.SUCCESS
-
-
-def test_collect_hr_advice_passes_through_dict_payload(bb):
-    node = CollectHRAdvice()
-    node.on_resume(bb, {
-        "safe_actions_applied": ["touched agent.last_seen"],
-        "advice_pending": ["consider archiving idle programmer"],
-    })
-    assert bb.hr_governance_report["safe_actions_applied"] == ["touched agent.last_seen"]
-    assert bb.hr_governance_report["advice_pending"] == ["consider archiving idle programmer"]
-
-
-def test_collect_advice_failure_when_dispatched_but_no_payload(bb):
-    bb.arch_governance_dispatched = True
-    node = CollectArchAdvice()
-    assert node.tick(bb) is Status.FAILURE
-    assert bb.arch_governance_report["error"] == "no_payload_received"
 
 
 # ---------------------------------------------------------------------------

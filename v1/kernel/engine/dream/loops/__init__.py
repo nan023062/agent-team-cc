@@ -3,14 +3,14 @@
 Holds the four loops that run under the governance root (dream_tick):
 
   dream_root           → engine.dream.tree.dream_loop  (re-export)
-  architect_governance → NodeSpec descriptor (compose_prompt + parse_response)
-  hr_governance        → NodeSpec descriptor (compose_prompt + parse_response)
+  architect_governance → NodeSpec descriptor + subtree builder re-export
+  hr_governance        → NodeSpec descriptor + subtree builder re-export
   memory_governance    → engine.dream.actions.mem_steps (re-export + builder)
 
 `get_loop(name)` returns the module object — callers pick what they need
-from it (a builder, ROOT, NODE_SPECS, compose_prompt, etc.). Returning
-the module rather than a single artifact keeps the registry agnostic to
-the loop's category (Python BT vs in-agent descriptor).
+from it (a builder, ROOT, NODE_SPECS, etc.). Returning the module rather
+than a single artifact keeps the registry agnostic to the loop's category
+(Python BT vs in-agent descriptor).
 
 Scope is intentionally governance-only; execution-class loops live in
 `engine.execution.loops` and have their own registry.

@@ -36,8 +36,6 @@ class RunResult:
 
 
 DEFAULT_AGENT_TYPE_TO_LEAF: dict[str, str] = {
-    "architect": "DispatchArchitect",
-    "hr": "DispatchHR",
     "auditor": "Audit",
     "work": "WorkAgentLeaf",
 }
@@ -56,8 +54,10 @@ class Runner:
 
         `agent_type_to_leaf` maps `pending_dispatch.agent_type` strings to
         the leaf node name the resume path should target. Defaults to the
-        bt main-loop mapping (ArchGate/CallHR/Audit/WorkAgentLeaf). Foreign
-        trees (e.g. dream governance loop) pass their own mapping.
+        bt main-loop mapping (Audit/WorkAgentLeaf only — architect/hr are
+        in-process subtrees now and no longer yield). Foreign trees may
+        pass their own mapping; an empty mapping is legal and means
+        "this tree never yields beyond `work`".
         """
         self._root = root
         self._scheduler_root = scheduler_root

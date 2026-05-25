@@ -2,17 +2,15 @@
 
 Stability surface per .dna/contract.md:
   - 4 kind strings on DreamResult: "done" / "yield" / "error" / "skipped"
-  - DispatchRequest.agent_type restricted to {"architect", "hr"} in governance
-  - DispatchRequest.subtask_id restricted to
-    {"governance_knowledge", "governance_capability"}
   - DreamRunSummary.status restricted to
     {"running", "done", "failed", "abandoned"}
   - Skipped.reason restricted to
     {"within_window", "another_run_in_progress", "recent_failure_cooldown"}
 
-Maps `pending_dispatch.agent_type` to the leaf-node name the bt Runner
-should use when constructing the resume path — injected into Runner via
-the `agent_type_to_leaf` parameter introduced in d78b039.
+Note: as of the nestable-BT refactor the governance loop no longer yields —
+the architect / hr governance sub-loops run as in-process subtrees inside
+DreamRoot. `DREAM_AGENT_TYPE_TO_LEAF` is therefore empty; `DispatchRequest`
+is retained as a reserved schema for any future dream-side yield path.
 """
 
 from __future__ import annotations
@@ -21,11 +19,9 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
-# Used by Runner to find the resume path for a dream-loop yield.
-DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
-    "architect": "CollectArchAdvice",
-    "hr": "CollectHRAdvice",
-}
+# Reserved for future dream-side yields. Currently empty: the governance
+# loop runs entirely in-process (no DreamResult.Yield is produced).
+DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +32,10 @@ DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
 class DispatchRequest:
     """Returned inside DreamResult.Yield to describe a Task-tool dispatch.
 
-    Governance-context constraints:
+    Currently unused: the governance loop runs entirely in-process and
+    does not yield. Kept as a reserved schema in case a future dream-side
+    path needs to round-trip through the coordinator's Task tool. If
+    revived, the previous convention was:
       - agent_type ∈ {"architect", "hr"}
       - subtask_id ∈ {"governance_knowledge", "governance_capability"}
       - prompt must start with `## 治理模式`

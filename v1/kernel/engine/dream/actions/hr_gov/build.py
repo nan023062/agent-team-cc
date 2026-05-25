@@ -1,7 +1,9 @@
 """hr_gov/build.py — Build deterministic leaf.
 
-Finalizes the subtree by writing bb.hr_governance_report in the schema
-expected by CollectHRAdvice's parser (see hr_governance.parse_response).
+Finalizes the subtree by writing bb.hr_governance_report (same shape as
+arch_governance_report: safe_actions_applied + advice_pending). Downstream
+consumer is `emit_report.py`, which renders both reports into the
+dream-tick markdown.
 """
 from __future__ import annotations
 

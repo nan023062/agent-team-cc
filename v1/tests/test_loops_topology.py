@@ -327,7 +327,11 @@ def test_hr_governance_six_scans_present():
 
 
 # ---------------------------------------------------------------------------
-# Descriptor contract — every agent-side loop has the three-piece kit
+# Descriptor contract — every agent-side loop exposes NODE_SPECS
+# (compose_prompt / parse_response were removed alongside the legacy
+# dispatch-architect / dispatch-hr leaves; sub-loops are now in-process
+# Python BT subtrees and the descriptor's prompt-rendering responsibility
+# moved into the subtree's leaves.)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mod", [
@@ -336,60 +340,10 @@ def test_hr_governance_six_scans_present():
     hr_execution,
     hr_governance,
 ])
-def test_descriptor_modules_have_three_piece_kit(mod):
+def test_descriptor_modules_expose_node_specs(mod):
     assert hasattr(mod, "NODE_SPECS"), f"{mod.__name__}: missing NODE_SPECS"
-    assert hasattr(mod, "compose_prompt"), f"{mod.__name__}: missing compose_prompt"
-    assert hasattr(mod, "parse_response"), f"{mod.__name__}: missing parse_response"
     assert isinstance(mod.NODE_SPECS, list) and mod.NODE_SPECS
     assert all(isinstance(s, NodeSpec) for s in mod.NODE_SPECS)
-
-
-@pytest.mark.parametrize("mod", [
-    architect_execution,
-    architect_governance,
-    hr_execution,
-    hr_governance,
-])
-def test_compose_prompt_returns_nonempty_string(mod):
-    class _BB:
-        user_request = "test request"
-        arch_plan = None
-        dna_snapshot = None
-        agent_snapshot = None
-    out = mod.compose_prompt(_BB())
-    assert isinstance(out, str) and out.strip()
-    # Every NODE label should appear in the rendered prompt.
-    for spec in mod.NODE_SPECS:
-        assert spec.label in out, f"{mod.__name__}: label {spec.label!r} not in prompt"
-
-
-@pytest.mark.parametrize("mod,empty_key", [
-    (architect_execution, "arch_plan"),
-    (architect_governance, "arch_governance_report"),
-    (hr_execution, "agent_assignments"),
-    (hr_governance, "hr_governance_report"),
-])
-def test_parse_response_handles_empty(mod, empty_key):
-    out = mod.parse_response(None)
-    assert empty_key in out
-    assert out[empty_key] is None
-    assert "error" in out
-
-
-@pytest.mark.parametrize("mod,key", [
-    (architect_execution, "arch_plan"),
-    (architect_governance, "arch_governance_report"),
-    (hr_execution, "agent_assignments"),
-    (hr_governance, "hr_governance_report"),
-])
-def test_parse_response_handles_json_string(mod, key):
-    import json as _json
-    if key == "agent_assignments":
-        payload = _json.dumps({key: [{"subtask_id": "t1", "agent_file": "x.md"}]})
-    else:
-        payload = _json.dumps({key: {"safe_done": [], "pending_advice": []}})
-    out = mod.parse_response(payload)
-    assert key in out and out[key] is not None
 
 
 # ---------------------------------------------------------------------------

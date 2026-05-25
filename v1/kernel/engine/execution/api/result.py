@@ -20,7 +20,7 @@ from typing import Any
 class DispatchRequest:
     """Returned inside BtResult.Yield to describe a Task-tool dispatch."""
 
-    agent_type: str                       # "architect" | "auditor" | "work" | "hr"
+    agent_type: str                       # "work" (and "auditor" when assistant dispatches Audit directly) — architect/hr no longer yield (in-process subtrees)
     agent_file: str | None
     prompt: str
     subtask_id: str | None = None         # In v3, this carries the Task.id for WorkAgentLeaf dispatches.
@@ -47,7 +47,7 @@ class Task:
     """Element of bb.arch_plan (v3).
 
     Produced by Architect in one shot. HR fills in `agent_file` during the
-    DispatchHR step. Work Agent receives `description` + `params` +
+    HR execution subtree. Work Agent receives `description` + `params` +
     `arch_context` in the dispatch prompt.
     """
 

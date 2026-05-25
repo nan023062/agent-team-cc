@@ -18,12 +18,12 @@ kernel/engine/execution/               # 行为树引擎根模块
 │   ├── decorator.py                   # Decorator ABC + 4 标准装饰器实现（Trace / Timeout / Retry / Catch）
 │   ├── blackboard.py                  # Blackboard 类（schema v2，14 字段） + dirty 跟踪 + 序列化
 │   └── runner.py                      # Runner：驱动遍历、yield/resume、快照/恢复
-├── actions/                           # v3 Action 实现
+├── actions/                           # Action 实现
 │   ├── init_tick.py                   # 第一节点占位
 │   ├── mode_classify.py               # 两模式分类：conversation / execution（规则 + LLM 兜底）
 │   ├── direct_reply.py                # 对话模式直接回复
-│   ├── dispatch_architect.py          # yield 派 Architect，回填 arch_plan
-│   ├── dispatch_hr.py                 # yield 派 HR，回填 agent_assignments
+│   ├── arch_exec/                     # Architect 执行子循环（in-process BT 子树）
+│   ├── hr_exec/                       # HR 执行子循环（in-process BT 子树）
 │   ├── dispatch_work.py               # yield 派 Work Agent，含 WorkAgentLeaf
 │   ├── respond.py
 │   ├── flush_memory.py
@@ -249,8 +249,8 @@ class BtResult:
 ```python
 @dataclass
 class DispatchRequest:
-    agent_type: str          # "architect" | "auditor" | "work" | ...
-    agent_file: str | None   # work agent 需要；架构师/审计员可为 None
+    agent_type: str          # "work" | "auditor"（architect / hr 已下沉为引擎内子树，不再 yield）
+    agent_file: str | None   # work agent 需要；auditor 可为 None
     prompt: str              # 喂给 Task tool 的完整 prompt
     subtask_id: str | None   # WorkAgentLeaf 派工时携带，用于 resume 时定位 subtask_results[id]
     timeout_hint_s: int | None
@@ -268,21 +268,10 @@ sequenceDiagram
 
     M->>E: bt_tick("用户需求 X")
     E->>FS: write bb.json (init)
-    E->>E: tick → InitTick → ModeClassify(mode=execution) → DispatchArchitect
-    E->>FS: write bb.json (dirty)
-    E->>FS: write resume.json
-    E-->>M: Yield(tick_id, dispatch=Architect)
-
-    M->>M: Task(Architect, prompt)
-    M->>E: bt_tick_resume(tick_id, arch_plan)
-    E->>FS: read bb.json + resume.json
-    E->>E: DispatchArchitect.on_resume → SUCCESS → DispatchHR
-    E->>FS: write bb.json + resume.json
-    E-->>M: Yield(tick_id, dispatch=HR)
-
-    M->>M: Task(HR, prompt)
-    M->>E: bt_tick_resume(tick_id, agent_assignments)
-    E->>E: DispatchHR.on_resume → SUCCESS → DispatchWork → WorkAgentLeaf#a1
+    E->>E: tick → InitTick → ModeClassify(mode=execution)
+    E->>E: ArchitectExecution 子树（in-process）→ 写 bb.arch_plan
+    E->>E: HrExecution 子树（in-process）→ 写 bb.agent_assignments
+    E->>E: DispatchWork → WorkAgentLeaf#a1
     E->>FS: write bb.json + resume.json
     E-->>M: Yield(tick_id, dispatch=WorkAgent a1)
 
@@ -294,7 +283,7 @@ sequenceDiagram
     E-->>M: Done(user_message)
 ```
 
-对话通路更短——`ModeClassify` 把 `bb.mode` 写成 `"conversation"`，`ModeBranch` 直走 `DirectReply` 写 `final_response`，单次 tick 就 `Done`，从不 yield。
+执行根的 yield 只剩 Work Agent 一种——Architect / HR 的执行子循环已下沉为引擎内 Python BT 子树，全程在 `bt_tick` 调用栈内完成，不经主 agent 中转。对话通路更短——`ModeClassify` 把 `bb.mode` 写成 `"conversation"`，`ModeBranch` 直走 `DirectReply` 写 `final_response`，单次 tick 就 `Done`，从不 yield。
 
 ### 6.5 错误恢复与孤儿 tick
 

@@ -6,8 +6,6 @@ No persistence, no MCP — pure in-memory.
 from __future__ import annotations
 
 from engine.execution.actions.direct_reply import DirectReply
-from engine.execution.actions.dispatch_architect import DispatchArchitect
-from engine.execution.actions.dispatch_hr import DispatchHR
 from engine.execution.actions.dispatch_work import DispatchWork, WorkAgentLeaf
 from engine.execution.actions.init_tick import InitTick
 from engine.execution.actions.llm_hook import NullLLM
@@ -185,121 +183,6 @@ def test_direct_reply_uses_llm_when_available():
     bb = _bb(user_request="hi")
     DirectReply(llm=_StubReplyLLM()).tick(bb)
     assert bb.final_response == "stub-reply: hi"
-
-
-# ---------------------------------------------------------------------------
-# DispatchArchitect
-# ---------------------------------------------------------------------------
-
-def test_dispatch_architect_yields_then_resumes_with_structured_plan():
-    bb = _bb(user_request="实现 login API")
-    node = DispatchArchitect()
-    assert node.tick(bb) is Status.RUNNING
-    assert bb.pending_dispatch is not None
-    assert bb.pending_dispatch.agent_type == "architect"
-
-    reply = (
-        '{"arch_plan": [{"id": "a1", "description": "build handler", '
-        '"required_capability": "programmer", "arch_context": "ctx-1"}]}'
-    )
-    node.on_resume(bb, reply)
-    assert bb.arch_plan is not None
-    assert len(bb.arch_plan) == 1
-    assert bb.arch_plan[0]["id"] == "a1"
-    assert bb.arch_plan[0]["required_capability"] == "programmer"
-    assert bb.arch_plan[0]["arch_context"] == "ctx-1"
-    assert bb.pending_dispatch is None
-
-    # Second tick should short-circuit (idempotent).
-    assert node.tick(bb) is Status.SUCCESS
-
-
-def test_dispatch_architect_plain_text_reply_wraps_single_task():
-    bb = _bb(user_request="do the thing")
-    node = DispatchArchitect()
-    node.tick(bb)
-    node.on_resume(bb, "Just go implement it in src/login.py.")
-    assert len(bb.arch_plan) == 1
-    assert bb.arch_plan[0]["required_capability"] == "generalist"
-    assert "implement it" in bb.arch_plan[0]["arch_context"]
-
-
-def test_dispatch_architect_json_array_reply():
-    bb = _bb(user_request="x")
-    node = DispatchArchitect()
-    node.tick(bb)
-    node.on_resume(bb, '[{"id":"a1","description":"d1"}]')
-    assert len(bb.arch_plan) == 1
-    assert bb.arch_plan[0]["id"] == "a1"
-
-
-def test_dispatch_architect_error_sets_interrupt():
-    bb = _bb(user_request="x")
-    node = DispatchArchitect()
-    node.tick(bb)
-    node.on_resume(bb, "arch_error: ContextPack generation failed")
-    assert bb.interrupt_reason and "arch_error" in bb.interrupt_reason
-    # Next tick → FAILURE
-    assert node.tick(bb) is Status.FAILURE
-
-
-# ---------------------------------------------------------------------------
-# DispatchHR
-# ---------------------------------------------------------------------------
-
-def test_dispatch_hr_yields_then_resumes():
-    bb = _bb(user_request="x", arch_plan=[
-        {"id": "a1", "description": "d1", "required_capability": "py"},
-    ])
-    node = DispatchHR()
-    assert node.tick(bb) is Status.RUNNING
-    assert bb.pending_dispatch.agent_type == "hr"
-    assert bb.pending_dispatch.agent_file == ".claude/agents/hr/hr.md"
-
-    reply = "task_id=a1 agent_file=.claude/agents/programmer/programmer.md capability=py"
-    node.on_resume(bb, reply)
-    assert bb.agent_assignments == [{
-        "task_id": "a1",
-        "agent_file": ".claude/agents/programmer/programmer.md",
-        "capability": "py",
-    }]
-    # arch_plan also got the agent_file merged in.
-    assert bb.arch_plan[0]["agent_file"] == ".claude/agents/programmer/programmer.md"
-    assert bb.pending_dispatch is None
-    # Second tick — idempotent SUCCESS.
-    assert node.tick(bb) is Status.SUCCESS
-
-
-def test_dispatch_hr_skips_when_all_assigned():
-    bb = _bb(arch_plan=[
-        {"id": "a1", "agent_file": ".claude/agents/x/x.md"},
-    ])
-    node = DispatchHR()
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.pending_dispatch is None
-
-
-def test_dispatch_hr_skips_when_no_plan():
-    bb = _bb()
-    assert DispatchHR().tick(bb) is Status.SUCCESS
-
-
-def test_dispatch_hr_gap_sets_interrupt():
-    bb = _bb(arch_plan=[{"id": "a1", "description": "x"}])
-    node = DispatchHR()
-    node.tick(bb)
-    node.on_resume(bb, "agent_gap: no agent for python\nplease recruit")
-    assert bb.interrupt_reason and "agent_gap" in bb.interrupt_reason
-    # Next tick — FAILURE
-    assert node.tick(bb) is Status.FAILURE
-
-
-def test_dispatch_hr_accepts_legacy_subtask_id_lines():
-    bb = _bb(arch_plan=[{"id": "a1", "description": "x"}])
-    node = DispatchHR()
-    node.tick(bb)
-    node.on_resume(bb, "subtask_id=a1 agent_file=.claude/agents/p/p.md capability=py")
-    assert bb.arch_plan[0]["agent_file"] == ".claude/agents/p/p.md"
 
 
 # ---------------------------------------------------------------------------
