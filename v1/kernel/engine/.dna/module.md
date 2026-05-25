@@ -1,7 +1,7 @@
 ---
 name: kernel-engine
 owner: architect
-description: Kernel engine — home of the CLI dispatcher and CBIM's twin behavior-tree roots; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree execution root execution/ (MCP-exposed bt_tick / bt_tick_resume) and the governance root dream/ (MCP-exposed dream_tick / dream_tick_resume), both driven by shared execution/core primitives
+description: Kernel engine — home of the CLI dispatcher and CBIM's twin behavior-tree roots; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree execution root execution/ (MCP-exposed bt_tick / bt_tick_resume) and the governance root dream/ (MCP-exposed dream_tick / dream_tick_resume), both driven by shared engine/core primitives
 keywords: []
 dependencies: []
 ---
@@ -29,6 +29,13 @@ classDiagram
     class debug
     class config
     class audit
+    class core {
+        +Node
+        +Composite
+        +Decorator
+        +Runner
+        +Blackboard
+    }
     class persistence {
         +write_bb()
         +read_bb()
@@ -57,14 +64,18 @@ classDiagram
     cli --> audit
     cli --> execution : audit-only inspect
     cli --> dream : audit-only inspect
+    persistence --> core : SCHEMA_VERSION
+    execution --> core : Node / Composite / Decorator / Runner / Blackboard
     execution --> persistence : bb / resume / trace I/O
+    dream --> core : Node / Composite / Decorator / Runner / Blackboard
     dream --> persistence : bb / resume / trace I/O
-    dream --> execution : reuses execution/core primitives
 ```
 
 Note: `execution/` and `dream/` are NOT routed through `cli`. They are exposed to the main agent via the `mcp_server` container as MCP tools. The CLI dispatcher only inspects them for audit / debug purposes (e.g. listing `.cbim/scheduler/bt/<tick_id>/` and `.cbim/scheduler/dream/<run_id>/` directories); the loops themselves are driven by `bt_tick` / `bt_tick_resume` and `dream_tick` / `dream_tick_resume` MCP calls.
 
-`persistence/` is the shared atomic file I/O layer for both root loops. Both `execution/` and `dream/` write `bb.json` / `resume.json` / `trace.jsonl` through it; on-disk paths under `.cbim/scheduler/{bt,dream}/<id>/` are the external contract surface (also read by the dashboard and CLI audit tools). `persistence/` knows nothing about `bt/` vs `dream/` — the caller injects the absolute directory; that is what lets one module serve both loops.
+`core/` is the shared BT primitives layer — `Node` ABC, `Composite` (Sequence / Selector / SequenceTolerant), `Decorator`, `Runner`, `Blackboard` (with `SCHEMA_VERSION`), `loop_spec`. Both root loops (`execution/` and `dream/`) build their trees out of `core/` primitives; neither owns these abstractions. `core/` has zero dependency on either root loop — it is the stable abstraction layer that both volatile root trees depend inward on. This is what makes `execution/` and `dream/` siblings rather than parent/child.
+
+`persistence/` is the shared atomic file I/O layer for both root loops. Both `execution/` and `dream/` write `bb.json` / `resume.json` / `trace.jsonl` through it; on-disk paths under `.cbim/scheduler/{bt,dream}/<id>/` are the external contract surface (also read by the dashboard and CLI audit tools). `persistence/` knows nothing about `bt/` vs `dream/` — the caller injects the absolute directory; that is what lets one module serve both loops. It depends only on `core.blackboard.SCHEMA_VERSION`.
 
 Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 
@@ -86,13 +97,14 @@ Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 
 Hook events are NOT dispatched through this CLI — Claude Code invokes the in-process bridge scripts at `.claude/hooks/cbim_*.py` directly.
 
-Internal cross-cutting modules: `logger` + `session_log` (per-session text logs), `call_log` + `import_log` (PreToolUse/PostToolUse + import telemetry), `log_view` (read-back surface for `log show` / `log tail`), `debug` (.debug flag toggle), `config` (config get/set/show), `audit` (drift checks), `persistence` (atomic bb / resume / trace file I/O shared by both root loops).
+Internal cross-cutting modules: `logger` + `session_log` (per-session text logs), `call_log` + `import_log` (PreToolUse/PostToolUse + import telemetry), `log_view` (read-back surface for `log show` / `log tail`), `debug` (.debug flag toggle), `config` (config get/set/show), `audit` (drift checks), `core` (shared BT primitives), `persistence` (atomic bb / resume / trace file I/O shared by both root loops).
 
 Non-CLI sub-modules (driven through other surfaces):
 
+- `core/` — shared behavior-tree primitives layer. Owns `Node` ABC, `Composite` (Sequence / Selector / SequenceTolerant), `Decorator`, `Runner`, `Blackboard` (with `SCHEMA_VERSION`), and `loop_spec`. The stable abstraction floor under both root loops: `execution/` and `dream/` both import from `core/` to build their trees, but `core/` has zero knowledge of either loop. Unidirectional dependency: `{execution, dream, persistence} → core`, never the reverse.
 - `persistence/` — atomic file persistence for behavior-tree state (bb.json + resume.json via `snapshot.py`; trace.jsonl via `trace.py`). Shared by `execution/` and `dream/` runners; loop-agnostic (the caller injects the absolute directory). On-disk paths under `.cbim/scheduler/{bt,dream}/<id>/` are an external contract — read by the dashboard and CLI audit tools. Depends on `engine/core/blackboard.SCHEMA_VERSION` only. See `engine/persistence/.dna/module.md`.
-- `execution/` — behavior-tree driver for the **execution loop** (user-driven root). Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. See `engine/execution/.dna/module.md` and `engine/execution/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}` (writes via `engine/persistence/`).
-- `dream/` — behavior-tree driver for the **governance loop** (SessionStart-catchup-driven root, CBIM's second root, peer to `execution/`). Exposes `dream_tick(reason, run_id=None)` / `dream_tick_resume(run_id, dispatch_result)` / `dream_list_runs(limit=10)` / `dream_abort(run_id, reason)` as MCP tools. Triggered by SessionStart hook when ≥20 hours since last successful run. Drives three governance steps (memory / knowledge / capability) via `SequenceTolerant`; memory step calls `memory/` internal maintenance interfaces in-process (no LLM); knowledge / capability steps yield to dispatch Architect / HR in governance mode. Reuses `execution/core` primitives (Node ABC, Composite, Decorator, Runner) and `engine/persistence/` for bb / resume / trace I/O but holds an independent root tree, independent blackboard schema (8 fields), independent trace, independent entry tools. Dependency direction is `dream → execution/core` and `dream → engine/persistence`; `execution` does NOT depend on `dream`. See `engine/dream/.dna/module.md` and `engine/dream/.dna/contract.md`. Persistence at `.cbim/scheduler/dream/<run_id>/{bb.json, trace.jsonl, resume.json, report.md, current.json, last_success.json, abandoned.json}` — physically isolated from `execution/`.
+- `execution/` — behavior-tree driver for the **execution loop** (user-driven root). Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. Builds its tree out of `engine/core/` primitives. See `engine/execution/.dna/module.md` and `engine/execution/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}` (writes via `engine/persistence/`).
+- `dream/` — behavior-tree driver for the **governance loop** (SessionStart-catchup-driven root, CBIM's second root, peer to `execution/`). Exposes `dream_tick(reason, run_id=None)` / `dream_tick_resume(run_id, dispatch_result)` / `dream_list_runs(limit=10)` / `dream_abort(run_id, reason)` as MCP tools. Triggered by SessionStart hook when ≥20 hours since last successful run. Drives three governance steps (memory / knowledge / capability) via `SequenceTolerant`; memory step calls `memory/` internal maintenance interfaces in-process (no LLM); knowledge / capability steps yield to dispatch Architect / HR in governance mode. Reuses `engine/core/` primitives (Node ABC, Composite, Decorator, Runner) and `engine/persistence/` for bb / resume / trace I/O but holds an independent root tree, independent blackboard schema (8 fields), independent trace, independent entry tools. Dependency direction is `dream → engine/core` and `dream → engine/persistence`; `execution` does NOT depend on `dream`, and `dream` does NOT depend on `execution` — they are siblings sharing `core/`. See `engine/dream/.dna/module.md` and `engine/dream/.dna/contract.md`. Persistence at `.cbim/scheduler/dream/<run_id>/{bb.json, trace.jsonl, resume.json, report.md, current.json, last_success.json, abandoned.json}` — physically isolated from `execution/`.
 
 ## Origin Context
 
