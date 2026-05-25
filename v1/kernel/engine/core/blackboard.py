@@ -69,11 +69,25 @@ class Blackboard:
     # arch_plan_draft, hr_agent_inventory, hr_current_task, hr_current_match,
     # hr_assignments_draft, …) without bloating the canonical 14-field set.
     # Dirty-tracking still only applies to FIELDS via __setattr__.
-    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at", "__dict__")
+    #
+    # `_trace_flushed_idx`: count of bb.trace entries already drained to
+    # trace.jsonl on disk. Owned and bumped by Runner._flush_trace; not a
+    # canonical field (excluded from to_dict / from_dict). On resume the
+    # counter resets to len(bb.trace) — entries already in bb.trace at
+    # resume time were already flushed in the prior tick.
+    __slots__ = (
+        "_dirty",
+        "_trace_flushed_idx",
+        *FIELDS,
+        "_created_at",
+        "_updated_at",
+        "__dict__",
+    )
 
     def __init__(self) -> None:
         # Bypass __setattr__ during init so we don't mark dirty for defaults.
         object.__setattr__(self, "_dirty", False)
+        object.__setattr__(self, "_trace_flushed_idx", 0)
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         object.__setattr__(self, "_created_at", now)
         object.__setattr__(self, "_updated_at", now)
@@ -128,6 +142,11 @@ class Blackboard:
         # bb_status sits both at top-level and inside fields per spec; prefer top.
         if "bb_status" in d:
             object.__setattr__(bb, "bb_status", d["bb_status"])
+        # Restored blackboards: assume anything currently in bb.trace was
+        # already flushed to disk in the prior tick. The next tick's
+        # instrumentation only appends NEW entries beyond this point.
+        existing = bb.trace if isinstance(bb.trace, list) else []
+        object.__setattr__(bb, "_trace_flushed_idx", len(existing))
         object.__setattr__(bb, "_dirty", False)
         return bb
 

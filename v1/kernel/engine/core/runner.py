@@ -12,12 +12,23 @@ on disk is the only continuity.
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from engine.persistence import snapshot, trace as trace_mod
 from .blackboard import Blackboard
 from .node import Node, Status
+
+
+# Sentinel attribute on Node instances that have already had their `tick`
+# wrapped by `_instrument_tree`. Idempotent — re-wrapping would double-emit.
+_INSTRUMENTED_MARK = "_runner_trace_wrapped"
+
+
+def _now_iso_ms() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 class RunResult:
@@ -72,6 +83,94 @@ class Runner:
             if agent_type_to_leaf is not None
             else DEFAULT_AGENT_TYPE_TO_LEAF
         )
+        # Wrap every node's tick once at Runner construction so that BT-node
+        # enter/exit events land in bb.trace on every tick, regardless of
+        # which subtree drives them. Idempotent — repeated Runner instances
+        # over the same tree are safe.
+        self._instrument_tree(self._root)
+
+    # ------------------------------------------------------------------
+    # Tree instrumentation (BT-node enter/exit events into bb.trace)
+    # ------------------------------------------------------------------
+
+    def _instrument_tree(self, root: Node) -> None:
+        """Wrap `tick` on every Node reachable from `root` so each invocation
+        emits ``node_enter`` and ``node_exit`` events into ``bb.trace``.
+
+        The wrapper is installed once per Node instance (idempotent via
+        the ``_INSTRUMENTED_MARK`` sentinel). It writes the bound method
+        on the instance — the class-level ABC method is untouched, so
+        nodes still pass isinstance / inheritance checks unchanged.
+
+        Trace event shape (kept small — full payloads stay in bb.json):
+          - ``node_enter``: {event, node, ts}
+          - ``node_exit``:  {event, node, status, dur_ms, ts}
+          - ``node_error``: {event, node, error, dur_ms, ts} — exception
+            re-raised after recording so Runner.run() error-path handles it.
+
+        Trace is best-effort: if bb has no list-typed ``trace`` attribute,
+        the wrapper silently no-ops on the write and still ticks the node.
+        """
+        visited: set[int] = set()
+        stack: list[Node] = [root]
+        while stack:
+            n = stack.pop()
+            if id(n) in visited:
+                continue
+            visited.add(id(n))
+            for ch in n.children():
+                stack.append(ch)
+            if getattr(n, _INSTRUMENTED_MARK, False):
+                continue
+            self._wrap_node_tick(n)
+            try:
+                setattr(n, _INSTRUMENTED_MARK, True)
+            except (AttributeError, TypeError):
+                # Node uses __slots__ and disallows arbitrary attrs — skip
+                # the mark but the bound-method overwrite below still took
+                # effect (the wrapper itself self-guards via closure).
+                pass
+
+    def _wrap_node_tick(self, node: Node) -> None:
+        original = node.tick
+        node_name = node.name or type(node).__name__
+
+        def wrapped(bb, _orig=original, _name=node_name):
+            _append_trace_event(bb, {
+                "event": "node_enter",
+                "node": _name,
+                "ts": _now_iso_ms(),
+            })
+            t0 = time.perf_counter()
+            try:
+                status = _orig(bb)
+            except Exception as e:
+                dur_ms = int((time.perf_counter() - t0) * 1000)
+                _append_trace_event(bb, {
+                    "event": "node_error",
+                    "node": _name,
+                    "error": f"{type(e).__name__}: {e}",
+                    "dur_ms": dur_ms,
+                    "ts": _now_iso_ms(),
+                })
+                raise
+            dur_ms = int((time.perf_counter() - t0) * 1000)
+            _append_trace_event(bb, {
+                "event": "node_exit",
+                "node": _name,
+                "status": status.value if hasattr(status, "value") else str(status),
+                "dur_ms": dur_ms,
+                "ts": _now_iso_ms(),
+            })
+            return status
+
+        try:
+            node.tick = wrapped  # type: ignore[method-assign]
+        except (AttributeError, TypeError):
+            # __slots__ node refused the per-instance method override.
+            # Leave node un-instrumented — instrumentation is best-effort
+            # observability, not load-bearing.
+            pass
 
     # ------------------------------------------------------------------
     # Tick driver
@@ -87,11 +186,18 @@ class Runner:
         # then we re-drive).
         bb.pending_dispatch = None
 
+        # Re-prime bb-dependent composites (e.g. DispatchWork rebuilds its
+        # WorkAgentLeaf children from bb.arch_plan) and re-walk to wrap any
+        # nodes that were not present at Runner construction. Idempotent.
+        _prime_bb_dependent_composites(self._root, bb)
+        self._instrument_tree(self._root)
+
         try:
             status = self._root.tick(bb)
         except Exception as e:
             bb.bb_status = "error"
             self._persist(bb, tick_dir)
+            self._flush_trace(bb, tick_dir)
             return RunResult(
                 "error", error_code="engine_internal",
                 error_message=f"{type(e).__name__}: {e}",
@@ -104,6 +210,9 @@ class Runner:
             bb.runner_resume_path = self._build_resume_path(self._root, bb)
             self._persist(bb, tick_dir)
             self._persist_resume(bb, tick_dir)
+            # Drain BT-node enter/exit events from bb.trace BEFORE writing
+            # the yield marker — preserves chronological order on disk.
+            self._flush_trace(bb, tick_dir)
             self._append_trace(bb, tick_dir, {
                 "event": "yield",
                 "dispatch": _summarize_dispatch(bb.pending_dispatch),
@@ -118,6 +227,7 @@ class Runner:
             bb.bb_status = "error"
             self._persist(bb, tick_dir)
             self._clear_resume(tick_dir)
+            self._flush_trace(bb, tick_dir)
             return RunResult(
                 "error", error_code="interrupt",
                 error_message=bb.interrupt_reason,
@@ -127,6 +237,7 @@ class Runner:
         bb.bb_status = "done"
         self._persist(bb, tick_dir)
         self._clear_resume(tick_dir)
+        self._flush_trace(bb, tick_dir)
         return RunResult("done", user_message=bb.final_response or "")
 
     # ------------------------------------------------------------------
@@ -188,6 +299,36 @@ class Runner:
     def _append_trace(self, bb: Blackboard, tick_dir: Path, entry: dict) -> None:
         trace_mod.append(tick_dir, entry)
 
+    def _flush_trace(self, bb, tick_dir: Path) -> None:
+        """Drain any new entries in ``bb.trace`` (those past
+        ``bb._trace_flushed_idx``) to ``trace.jsonl`` and bump the counter.
+
+        Called on every Runner exit point — yield, terminal done, terminal
+        error, exception path. Safe to call multiple times; the counter
+        guards against double-write.
+
+        Best-effort: blackboards without the counter attribute (foreign
+        bb implementations) are skipped silently.
+        """
+        idx = getattr(bb, "_trace_flushed_idx", None)
+        if idx is None:
+            return
+        events = bb.trace if isinstance(bb.trace, list) else []
+        if idx >= len(events):
+            return
+        pending = events[idx:]
+        try:
+            written = trace_mod.append_many(tick_dir, pending)
+        except Exception:
+            # Trace is observational; never let a flush failure break the
+            # tick. Counter is intentionally NOT advanced on failure so
+            # the next exit point retries.
+            return
+        try:
+            object.__setattr__(bb, "_trace_flushed_idx", idx + written)
+        except (AttributeError, TypeError):
+            pass
+
     # ------------------------------------------------------------------
     # Resume-path construction
     # ------------------------------------------------------------------
@@ -221,6 +362,24 @@ class Runner:
         # Fallback: empty path means "restart from root" — Runner will re-tick
         # cleanly because Actions check bb state to short-circuit.
         return []
+
+
+def _append_trace_event(bb, event: dict) -> None:
+    """Best-effort append to bb.trace. Silently no-ops if bb has no trace.
+
+    Uses object.__setattr__ to avoid dirtying canonical FIELDS (the bb's
+    ``trace`` already lives in FIELDS, so direct assignment would tick the
+    dirty flag once per node tick — undesirable churn). We mutate the
+    existing list in place instead; the Runner snapshots bb on dirty
+    boundaries anyway and bb.trace is captured by reference in to_dict.
+    """
+    try:
+        events = bb.trace
+        if not isinstance(events, list):
+            return
+        events.append(event)
+    except (AttributeError, TypeError):
+        pass
 
 
 def _prime_bb_dependent_composites(root: Node, bb) -> None:

@@ -69,11 +69,18 @@ class DreamBlackboard:
     # doesn't know which blackboard it's driving). Default both to None and
     # leave them outside the dirty-tracking FIELDS set so Runner sees safe
     # falsy values without polluting bb.to_dict().
-    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at",
+    #
+    # `_trace_flushed_idx`: parity with bt.Blackboard — owned by the shared
+    # Runner's trace-flush logic. Not a dream-loop field (excluded from
+    # to_dict / from_dict). Restored to len(bb.trace) on from_dict so the
+    # next tick only flushes newly appended entries.
+    __slots__ = ("_dirty", "_trace_flushed_idx", *FIELDS,
+                 "_created_at", "_updated_at",
                  "interrupt_reason", "final_response")
 
     def __init__(self) -> None:
         object.__setattr__(self, "_dirty", False)
+        object.__setattr__(self, "_trace_flushed_idx", 0)
         now = datetime.now(timezone.utc).isoformat(timespec="seconds")
         object.__setattr__(self, "_created_at", now)
         object.__setattr__(self, "_updated_at", now)
@@ -128,6 +135,8 @@ class DreamBlackboard:
                 object.__setattr__(bb, k, v)
         if "bb_status" in d:
             object.__setattr__(bb, "bb_status", d["bb_status"])
+        existing = bb.trace if isinstance(bb.trace, list) else []
+        object.__setattr__(bb, "_trace_flushed_idx", len(existing))
         object.__setattr__(bb, "_dirty", False)
         return bb
 
