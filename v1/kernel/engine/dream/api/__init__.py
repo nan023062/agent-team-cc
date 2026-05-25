@@ -12,6 +12,7 @@ from .result import (
     DispatchRequest,
     DreamResult,
     DreamRunSummary,
+    DREAM_AGENT_SUBTASK_TO_LEAF,
     DREAM_AGENT_TYPE_TO_LEAF,
 )
 
@@ -24,5 +25,6 @@ __all__ = [
     "DispatchRequest",
     "DreamResult",
     "DreamRunSummary",
+    "DREAM_AGENT_SUBTASK_TO_LEAF",
     "DREAM_AGENT_TYPE_TO_LEAF",
 ]

@@ -61,6 +61,7 @@ class Runner:
         scheduler_root: Path,
         subdir: str = "bt",
         agent_type_to_leaf: dict[str, str] | None = None,
+        agent_subtask_to_leaf: dict[str, dict[str, str]] | None = None,
     ) -> None:
         """Drive `root` through ticks, persisting under `scheduler_root/<subdir>/`.
 
@@ -70,6 +71,16 @@ class Runner:
         in-process subtrees now and no longer yield). Foreign trees may
         pass their own mapping; an empty mapping is legal and means
         "this tree never yields beyond `work`".
+
+        `agent_subtask_to_leaf` is an optional two-level routing table
+        keyed by ``(agent_type, subtask_id)``. When present and a match
+        is found, the resolved leaf name takes precedence over the
+        single-level `agent_type_to_leaf` mapping — this lets one
+        agent_type fan out to multiple Collect leaves (e.g. dream's HR
+        dispatch yields for both governance_capability and
+        governance_memory_distill). Lookup falls back to
+        `agent_type_to_leaf` when the (agent_type, subtask_id) pair is
+        not registered, preserving backward compatibility.
         """
         self._root = root
         self._scheduler_root = scheduler_root
@@ -79,6 +90,7 @@ class Runner:
             if agent_type_to_leaf is not None
             else DEFAULT_AGENT_TYPE_TO_LEAF
         )
+        self._agent_subtask_to_leaf = agent_subtask_to_leaf or {}
         # Wrap every node's tick once at Runner construction so that BT-node
         # enter/exit events land in bb.trace on every tick, regardless of
         # which subtree drives them. Idempotent — repeated Runner instances
@@ -342,9 +354,19 @@ class Runner:
         pd = bb.pending_dispatch
         target_names: list[str] = []
         if pd is not None:
+            # Priority 1: two-level (agent_type, subtask_id) routing — lets
+            # one agent_type fan out to multiple Collect leaves (dream loop:
+            # hr → governance_capability vs governance_memory_distill).
+            subtask_map = self._agent_subtask_to_leaf.get(pd.agent_type, {})
+            if pd.subtask_id and pd.subtask_id in subtask_map:
+                target_names.append(subtask_map[pd.subtask_id])
+            # Priority 2: bt-style WorkAgentLeaf#<subtask_id> for the parallel
+            # work-agent dispatch case.
             if pd.subtask_id:
                 base = self._agent_type_to_leaf.get("work", "WorkAgentLeaf")
                 target_names.append(f"{base}#{pd.subtask_id}")
+            # Priority 3: single-level agent_type fallback (architect / hr /
+            # auditor → unique Collect leaf when subtask routing not present).
             mapped = self._agent_type_to_leaf.get(pd.agent_type, "")
             if mapped:
                 target_names.append(mapped)

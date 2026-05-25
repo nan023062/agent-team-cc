@@ -10,10 +10,13 @@ The contract (compaction/.dna/module.md):
 - Internal closure: compact's writes trigger identify again — naturally
   convergent since each compact strictly reduces candidate count.
 
-Iron rule (dream/.dna/module.md): MemoryGovernanceStep is deterministic
-Python — NO LLM call here. Semantic short→medium merging is the
-`memory_distill` skill's job (LLM-driven, main-agent triggered, not in
-this path). What compact() does mechanically:
+Iron rule (this module): ``compact()`` itself is deterministic Python —
+NO LLM call here. Semantic short→medium merging is the ``memory_distill``
+skill's job (LLM-driven, dispatched separately by the dream loop's
+MemDistill triad — Gate/Dispatch/Collect — which yields to the HR agent).
+``compact()`` only consumes the pre-composed merge candidates that
+identifier.py + the distill skill have already produced; it never invents
+content. What compact() does mechanically:
 
   1. Run HealthChecker; no breach AND no pending candidates → empty report.
   2. Pull pending candidates from CandidatesArea.

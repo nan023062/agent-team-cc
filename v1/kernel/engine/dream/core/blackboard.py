@@ -9,6 +9,8 @@ Field write-ownership (single-writer rule, validated by code review):
   - run_id, trigger_reason, started_at        ← InitDreamTick
   - mem_health                                  ← MemHealthScan
   - mem_compact_result                          ← MemCompact (or skip path)
+  - mem_distill_dispatched                      ← MemDistillGate / DispatchMemDistill
+  - mem_distill_result                          ← MemDistillGate (skip) / CollectMemDistill
   - mem_sweep_result                            ← MemSweepExpired
   - mem_index_result                            ← MemRebuildIndex
   - arch_governance_dispatched                  ← DispatchArchGovern
@@ -27,7 +29,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-# Canonical 19-field schema for the governance loop blackboard.
+# Canonical 21-field schema for the governance loop blackboard.
 FIELDS: tuple[str, ...] = (
     # Identity & trigger
     "run_id",
@@ -37,6 +39,8 @@ FIELDS: tuple[str, ...] = (
     # Memory governance step
     "mem_health",
     "mem_compact_result",
+    "mem_distill_dispatched",
+    "mem_distill_result",
     "mem_sweep_result",
     "mem_index_result",
     # Knowledge governance step

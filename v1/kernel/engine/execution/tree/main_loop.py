@@ -19,7 +19,9 @@ Tree shape (see module.md §"5 分支模式拓扑"):
           DispatchCoreAgent#auditor
           Respond#audit
       execution    → ExecutionSeq (Sequence)
-          ArchitectExecution (BT subtree)
+          ArchExecOrFallback (Selector)
+            ArchitectExecution (BT subtree, preferred)
+            FallbackPlan      (deterministic one-task fallback)
           DispatchWork
           Respond
           CatchFlush(FlushMemory)
@@ -36,6 +38,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..actions.arch_exec import build_architect_execution_subtree
+from ..actions.arch_exec.fallback_plan import FallbackPlan
 from ..actions.direct_reply import DirectReply
 from ..actions.dispatch_core_agent import DispatchCoreAgent
 from ..actions.dispatch_work import DispatchWork
@@ -44,7 +47,7 @@ from ..actions.init_tick import InitTick
 from ..actions.llm_hook import NullLLM
 from ..actions.mode_classify import ModeClassify
 from ..actions.respond import Respond
-from engine.core.composite import Sequence, SwitchBranch
+from engine.core.composite import Selector, Sequence, SwitchBranch
 from engine.core.decorator import Catch, Timeout, Trace
 
 
@@ -110,14 +113,24 @@ def build_root(*, llm: Any = None, global_timeout_s: int = 1800):
     )
 
     # Execution branch — the Architect → Work pipeline (v3.6: hr_exec removed).
+    # arch_exec is a chain of LLM-driven leaves; any single parse failure
+    # (truncated response, NullLLM stub, malformed JSON) sinks the whole
+    # subtree. Wrap it in a Selector with FallbackPlan so the execution
+    # pipeline still produces a dispatchable one-task plan instead of
+    # collapsing to an empty `done`. arch_exec stays as the preferred path;
+    # FallbackPlan only fires when arch_exec returns FAILURE.
     arch_exec = build_architect_execution_subtree(llm)
+    arch_exec_with_fallback = Selector(
+        [arch_exec, FallbackPlan(name="FallbackPlan")],
+        name="ArchExecOrFallback",
+    )
     work = DispatchWork(name="DispatchWork")
     respond = Respond(name="Respond")
     flush = Catch(FlushMemory(name="FlushMemory"),
                   fallback="swallow", name="CatchFlush")
 
     execution_seq = Sequence(
-        [arch_exec, work, respond, flush],
+        [arch_exec_with_fallback, work, respond, flush],
         name="ExecutionSeq",
     )
 

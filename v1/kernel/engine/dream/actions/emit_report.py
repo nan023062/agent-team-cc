@@ -64,6 +64,8 @@ def _render_report(bb) -> str:
     lines.append(_yaml_block({
         "mem_health": bb.mem_health,
         "mem_compact_result": bb.mem_compact_result,
+        "mem_distill_dispatched": bb.mem_distill_dispatched,
+        "mem_distill_result": bb.mem_distill_result,
         "mem_sweep_result": bb.mem_sweep_result,
         "mem_index_result": bb.mem_index_result,
     }))

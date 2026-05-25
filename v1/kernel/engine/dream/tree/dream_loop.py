@@ -1,6 +1,6 @@
 """tree/dream_loop.py — build_dream_root: governance loop root constructor.
 
-Topology (per WORKFLOW-DREAM §三):
+Topology (per WORKFLOW-DREAM §三 + MemDistill triad extension):
 
     Root (Sequence) @Trace @Timeout(global=30min)
       ├── InitDreamTick
@@ -8,26 +8,34 @@ Topology (per WORKFLOW-DREAM §三):
       │     ├── MemoryGovernanceStep (Sequence) @Timeout(10min) @Catch
       │     │     ├── MemHealthScan
       │     │     ├── MemCompact
+      │     │     ├── MemDistillGate
+      │     │     ├── DispatchMemDistill  (yields agent_type="hr",
+      │     │     │                        subtask_id="governance_memory_distill")
+      │     │     ├── CollectMemDistill   (owns on_resume → bb.mem_distill_result)
       │     │     ├── MemSweepExpired
       │     │     └── MemRebuildIndex
       │     ├── ArchitectGovernanceStep (Sequence) @Timeout(10min) @Catch
       │     │     ├── DispatchArchGovern   (yields agent_type="architect")
       │     │     └── CollectArchAdvice    (owns on_resume → bb.arch_governance_report)
       │     └── HRGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │           ├── DispatchHRGovern    (yields agent_type="hr")
+      │           ├── DispatchHRGovern    (yields agent_type="hr",
+      │           │                        subtask_id="governance_capability")
       │           └── CollectHRAdvice     (owns on_resume → bb.hr_governance_report)
       ├── EmitReport
       └── FinalizeDreamTick
 
 EmitReport + FinalizeDreamTick live OUTSIDE the SequenceTolerant container
-so they ALWAYS run, even if all three governance steps failed.
+so they ALWAYS run, even if every governance step failed.
 
-Architect / HR governance steps are now yield-based dispatches to the main
-agent's Task tool — the per-step Sequence pairs DispatchXxxGovern (yields
-on first tick, no-op SUCCESS thereafter) with CollectXxxAdvice (owns
-``on_resume`` and stores the parsed report on the dream blackboard).
-A dream_tick that hits both steps yields up to two times before reaching
-Done.
+The memory governance step is now 7 nodes: 4 pure-Python structural nodes
+(Health / Compact / Sweep / Rebuild) plus the MemDistill triad
+(Gate / Dispatch / Collect) which yields to the HR agent for the
+``memory_distill`` skill — semantic short→medium compression is
+LLM-driven, not deterministic.
+
+Architect / HR governance steps remain yield-based dispatches; combined
+with the optional MemDistill yield, a single dream_tick can now yield up
+to **three** times before reaching Done.
 """
 
 from __future__ import annotations
@@ -43,13 +51,16 @@ from memory.crud.file_backend import FileBackend
 
 from ..actions.collect_arch_advice import CollectArchAdvice
 from ..actions.collect_hr_advice import CollectHRAdvice
+from ..actions.collect_mem_distill import CollectMemDistill
 from ..actions.dispatch_arch import DispatchArchGovern
 from ..actions.dispatch_hr import DispatchHRGovern
+from ..actions.dispatch_mem_distill import DispatchMemDistill
 from ..actions.emit_report import EmitReport
 from ..actions.finalize import FinalizeDreamTick
 from ..actions.init_tick import InitDreamTick
 from ..actions.mem_steps import (
     MemCompact,
+    MemDistillGate,
     MemHealthScan,
     MemRebuildIndex,
     MemSweepExpired,
@@ -89,6 +100,9 @@ def build_dream_root(
         [
             MemHealthScan(store_dir=memory_store_dir, name="MemHealthScan"),
             MemCompact(store_dir=memory_store_dir, name="MemCompact"),
+            MemDistillGate(store_dir=memory_store_dir, name="MemDistillGate"),
+            DispatchMemDistill(store_dir=memory_store_dir, name="DispatchMemDistill"),
+            CollectMemDistill(store_dir=memory_store_dir, name="CollectMemDistill"),
             MemSweepExpired(store_dir=memory_store_dir, backend=backend, name="MemSweepExpired"),
             MemRebuildIndex(store_dir=memory_store_dir, backend=backend, name="MemRebuildIndex"),
         ],

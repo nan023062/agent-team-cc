@@ -14,7 +14,7 @@
 | **不返回可执行回调** | `DreamResult.Yield` 只返回数据描述（`DispatchRequest`）；引擎不交出任何"主 agent 调一下就能跑 Action"的函数引用。控制权要么在引擎、要么在主 agent，无中间态。 |
 | **接口集稳定，新增走 contract.md 变更流程** | 这 4 个接口签名按公共契约级别管理：新增字段可向后兼容追加，删除/重命名/语义变更需走 contract 变更流程。新增第 5 个接口同走变更流程。 |
 | **持久化路径 `.cbim/scheduler/dream/<run_id>/` 是公开契约** | 目录布局、文件名（`bb.json` / `trace.jsonl` / `resume.json` / `report.md` / `current.json` / `last_success.json` / `abandoned.json`）、`bb.json.schema_version` 字段**进入公共契约**——外部观测工具（dashboard / 调试 / 审计回放）依赖这套布局。Schema 升级走 `schema_version` 递增 + 向后兼容读取策略。与 `.cbim/scheduler/bt/<tick_id>/` 物理隔离。 |
-| **Action 调子 agent 必须经 yield，不许引擎自派** | 引擎进程内**不**持有"直接调其他 agent 的客户端"。任何 Action 需要派 Architect / HR → `DreamResult.Yield(DispatchRequest)` → 主 agent Task tool → `dream_tick_resume` 回交结果。绕开 Task tool 直派是破窗。**例外**：`MemoryGovernanceStep` 各子节点直接 in-process 调记忆服务内部维护接口——记忆服务是被动数据层不是 agent，无需 yield。 |
+| **Action 调子 agent 必须经 yield，不许引擎自派** | 引擎进程内**不**持有"直接调其他 agent 的客户端"。任何 Action 需要派 Architect / HR → `DreamResult.Yield(DispatchRequest)` → 主 agent Task tool → `dream_tick_resume` 回交结果。绕开 Task tool 直派是破窗。**例外**：`MemoryGovernanceStep` 中的纯结构化子节点（`MemHealthScan` / `MemCompact` / `MemDistillGate` / `MemSweepExpired` / `MemRebuildIndex`）直接 in-process 调记忆服务维护接口——记忆服务是被动数据层不是 agent，无需 yield。MemDistill 三联节点（Gate / Dispatch / Collect）中的 Dispatch 节点是唯一会 yield 的记忆治理节点（语义短→中蒸馏是 LLM 驱动，必须经 HR 治理派工）。 |
 | **`last_completed_at` 时间戳是去重锁唯一依据** | SessionStart 补跑判定唯一读 `.cbim/scheduler/dream/last_success.json` 的 `finished_at` 字段；20 小时窗口由此字段计算。该字段写入由 `FinalizeDreamTick` 唯一负责；任何外部工具读该字段是只读契约，不得跨过 `FinalizeDreamTick` 直接写。 |
 
 ---
@@ -87,10 +87,12 @@ design §六 §七 + 本契约约定的四态联合。
 | `agent_type` | `str` | **仅** `"architect"` / `"hr"`（治理循环不调 work / auditor） |
 | `agent_file` | `str \| None` | 与执行循环复用同一 agent 文件路径；治理 / 执行模式由 prompt 头部 token 区分 |
 | `prompt` | `str` | **必须**以 `## 治理模式` 或等价 token 开头，让 Architect / HR 知道这是治理调用而非业务调用；主 agent **原样**喂入 Task tool，不解释、不修改 |
-| `subtask_id` | `str \| None` | **必须**填入治理步骤 ID，取值 `"governance_knowledge"`（Architect 派工）或 `"governance_capability"`（HR 派工），用于 `dream_tick_resume` 时定位 `bb.*_governance_report` 写入位置 |
+| `subtask_id` | `str \| None` | **必须**填入治理步骤 ID，取值见下方稳定集合，用于 `dream_tick_resume` 时定位 `bb.*_governance_report` / `bb.mem_distill_result` 写入位置 |
 | `timeout_hint_s` | `int \| None` | 治理循环建议值 600（10 分钟，与 `@Timeout(10min)` 步骤装饰器对齐）；非强制 |
 
-**稳定承诺**：`agent_type` 取值集合在治理上下文锁定为 `{"architect", "hr"}`；`subtask_id` 取值集合锁定为 `{"governance_knowledge", "governance_capability"}`；新增字段向后兼容追加。
+**稳定承诺**：`agent_type` 取值集合在治理上下文锁定为 `{"architect", "hr"}`；`subtask_id` 取值集合锁定为 `{"governance_knowledge", "governance_capability", "governance_memory_distill"}`；新增字段向后兼容追加。
+
+> **同一 agent_type 可对应多个 Collect leaf**：HR 在治理循环中既承担能力册扫描（`governance_capability` → `CollectHRAdvice`），又承担记忆蒸馏（`governance_memory_distill` → `CollectMemDistill`）。Runner 走 `(agent_type, subtask_id)` 二级路由（`DREAM_AGENT_SUBTASK_TO_LEAF`，优先于单级 `DREAM_AGENT_TYPE_TO_LEAF` 兜底），从而让同一 agent 类型的不同治理职责映射到各自的 Collect 节点。
 
 ## `DreamRunSummary` — `dream_list_runs` 单条返回
 

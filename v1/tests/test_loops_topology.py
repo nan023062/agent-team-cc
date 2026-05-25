@@ -203,12 +203,15 @@ MEM_GOV_EXPECTED_NAMES = {
     "MemoryGovernanceStep",
     "MemHealthScan",
     "MemCompact",
+    "MemDistillGate",
+    "DispatchMemDistill",
+    "CollectMemDistill",
     "MemSweepExpired",
     "MemRebuildIndex",
 }
 
 
-def test_memory_governance_subtree_has_four_steps(tmp_path: Path):
+def test_memory_governance_subtree_has_seven_steps(tmp_path: Path):
     subtree = memory_governance.build_memory_governance_subtree(store_dir=tmp_path)
     names = set(_walk_names(subtree))
     missing = MEM_GOV_EXPECTED_NAMES - names
@@ -220,7 +223,9 @@ def test_memory_governance_order_matches_dream_loop(tmp_path: Path):
     subtree = memory_governance.build_memory_governance_subtree(store_dir=tmp_path)
     child_names = [c.name for c in subtree.children()]
     assert child_names == [
-        "MemHealthScan", "MemCompact", "MemSweepExpired", "MemRebuildIndex",
+        "MemHealthScan", "MemCompact",
+        "MemDistillGate", "DispatchMemDistill", "CollectMemDistill",
+        "MemSweepExpired", "MemRebuildIndex",
     ], f"unexpected memory_governance order: {child_names}"
 
 

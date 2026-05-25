@@ -36,6 +36,27 @@ DREAM_AGENT_TYPE_TO_LEAF: dict[str, str] = {
 }
 
 
+# Two-level routing (agent_type → subtask_id → leaf_name). Consulted by the
+# Runner BEFORE the single-level table above; falls back to it on miss.
+#
+# One agent_type can fan out to several Collect leaves — the dream loop uses
+# this so the HR agent can be driven by either the capability-governance step
+# (subtask_id="governance_capability" → CollectHRAdvice) or the memory-distill
+# step (subtask_id="governance_memory_distill" → CollectMemDistill).
+#
+# Subtask_ids registered here must also appear in the contract.md stable set
+# (see engine/dream/.dna/contract.md "subtask_id 稳定集合").
+DREAM_AGENT_SUBTASK_TO_LEAF: dict[str, dict[str, str]] = {
+    "architect": {
+        "governance_knowledge": "CollectArchAdvice",
+    },
+    "hr": {
+        "governance_capability":     "CollectHRAdvice",
+        "governance_memory_distill": "CollectMemDistill",
+    },
+}
+
+
 # ---------------------------------------------------------------------------
 # DispatchRequest
 # ---------------------------------------------------------------------------

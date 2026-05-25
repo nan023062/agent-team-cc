@@ -22,6 +22,10 @@ def isolated_dirs(tmp_path: Path, monkeypatch):
     (memory_root / "short").mkdir(parents=True)
     (memory_root / "medium").mkdir(parents=True)
     scheduler_root.mkdir(parents=True)
+    # Seed .last_distill so MemDistillGate's weekly-cadence rule does not
+    # fire — keeps these persistence tests on the original 2-yield trajectory
+    # (architect → HR). Distill-specific behaviour is exercised separately.
+    (memory_root / ".last_distill").write_text("seeded\n", encoding="utf-8")
 
     monkeypatch.setattr(api, "_scheduler_root", lambda: scheduler_root)
     monkeypatch.setattr(api, "_memory_store_dir", lambda: memory_root)

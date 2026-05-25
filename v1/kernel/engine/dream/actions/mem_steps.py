@@ -1,14 +1,24 @@
 """actions/mem_steps.py — memory governance step actions.
 
-Four nodes covering the memory governance sub-loop:
+Five structural nodes covering the memory governance sub-loop:
   MemHealthScan      — in-process call to memory.HealthChecker.check()
   MemCompact         — in-process call to memory.compact()
+  MemDistillGate     — pure decision: should we trigger MemDistill yield?
   MemSweepExpired    — in-process call to memory.sweep_expired()
   MemRebuildIndex    — in-process call to memory.compaction.rebuild()
                        (conditional: only when bb.mem_health.index_drift truthy)
 
-Iron rule per WORKFLOW-DREAM §四: memory governance does NOT go through MCP
-and does NOT yield. All four are pure in-process Python.
+**Rule (revised):** memory governance is mostly pure in-process Python —
+health scan, compact, sweep, rebuild are deterministic and never yield.
+The single exception is the MemDistill triad (Gate / Dispatch / Collect):
+the Dispatch leaf yields to the HR agent to run the ``memory_distill``
+skill — semantic short→medium compression is LLM-driven.
+
+Boundary: structural merging → Python (identifier.py + compactor.py).
+Semantic merging → LLM (MemDistill yield).
+
+Any other node added here MUST be pure Python unless its inputs / outputs
+are not enumerable (i.e. unless semantic judgment is intrinsic to the work).
 
 Construction contract (per architect spec):
   - store_dir: Path is injected at construction time and stored as self._store_dir
@@ -20,6 +30,7 @@ Construction contract (per architect spec):
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +83,75 @@ class MemCompact(Node):
             bb.mem_compact_result = {"error": f"{type(e).__name__}: {e}"}
             return Status.FAILURE
         bb.mem_compact_result = _report_to_dict(report)
+        return Status.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# MemDistillGate
+# ---------------------------------------------------------------------------
+
+# Independent threshold from health.short_max_entries; we want distill to
+# pre-empt the hard ceiling so SHORT_OVERFLOW is rare.
+_DISTILL_THRESHOLD = 30
+# Cadence cap — distill at least once per week regardless of pressure.
+_DISTILL_PERIOD_DAYS = 7
+# Breach codes that should force a distill attempt.
+_DISTILL_BREACH_CODES = ("SHORT_OVERFLOW", "SHORT_VOLUME", "SHORT_STALE")
+
+
+class MemDistillGate(Node):
+    """Decide whether the MemDistill yield should fire this tick.
+
+    Reads bb.mem_health (set by MemHealthScan) and the .last_distill marker
+    under store_dir to set bb.mem_distill_dispatched as a hint for the
+    paired Dispatch / Collect nodes:
+
+      - True  → DispatchMemDistill will yield to HR for the memory_distill
+                skill; CollectMemDistill will await the parsed report.
+      - False → Dispatch / Collect short-circuit; mem_distill_result records
+                the skip reason for EmitReport's rendering.
+
+    The gate itself never yields and never touches the store beyond reading
+    the .last_distill mtime. Decision is local + cheap.
+    """
+
+    def __init__(self, *, store_dir: Path, name: str = "MemDistillGate") -> None:
+        self.name = name
+        self._store_dir = Path(store_dir)
+
+    def tick(self, bb) -> Status:
+        health = bb.mem_health or {}
+        # _report_to_dict flattens HealthReport into
+        # {"indicators": {...}, "breaches": [...], "index_drift": bool}
+        indicators = health.get("indicators") or {}
+        breaches = health.get("breaches") or []
+        short_count = int(indicators.get("short_count") or 0)
+
+        marker = self._store_dir / ".last_distill"
+        days_since: float = float("inf")
+        if marker.exists():
+            try:
+                age_seconds = time.time() - marker.stat().st_mtime
+                days_since = age_seconds / 86400.0
+            except OSError:
+                days_since = float("inf")
+
+        should_distill = (
+            any(code in breaches for code in _DISTILL_BREACH_CODES)
+            or short_count >= _DISTILL_THRESHOLD
+            or days_since >= _DISTILL_PERIOD_DAYS
+        )
+
+        bb.mem_distill_dispatched = bool(should_distill)
+        if not should_distill:
+            bb.mem_distill_result = {
+                "skipped": True,
+                "reason": "below_threshold",
+                "short_count": short_count,
+                "days_since_last_distill": (
+                    None if days_since == float("inf") else round(days_since, 2)
+                ),
+            }
         return Status.SUCCESS
 
 

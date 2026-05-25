@@ -29,6 +29,11 @@ def isolated_dirs(tmp_path: Path, monkeypatch):
     (memory_root / "short").mkdir(parents=True)
     (memory_root / "medium").mkdir(parents=True)
     scheduler_root.mkdir(parents=True)
+    # Suppress the MemDistill yield by seeding a fresh .last_distill marker
+    # (Gate's cadence rule fires once per week without one). Tests that
+    # specifically exercise the distill yield should remove the marker or
+    # override the fixture.
+    (memory_root / ".last_distill").write_text("seeded\n", encoding="utf-8")
     monkeypatch.setattr(api, "_scheduler_root", lambda: scheduler_root)
     monkeypatch.setattr(api, "_memory_store_dir", lambda: memory_root)
     return scheduler_root, memory_root

@@ -75,7 +75,11 @@ def test_each_step_is_catch_over_timeout(root):
         assert isinstance(inner, Timeout), f"{child.name} inner is not Timeout"
 
 
-def test_memory_step_has_four_action_children(root):
+def test_memory_step_has_seven_action_children(root):
+    """Memory step is 7 nodes: 4 deterministic structural nodes plus the
+    MemDistill triad (Gate / Dispatch / Collect) inserted between MemCompact
+    and MemSweepExpired so the distill yield runs before sweep clears any
+    short entries marked `distilled: true`."""
     body = root.children()[0].children()[0]
     steps = body.children()[1]
     mem_catch = steps.children()[0]
@@ -85,6 +89,9 @@ def test_memory_step_has_four_action_children(root):
     assert _names(mem_seq.children()) == [
         "MemHealthScan",
         "MemCompact",
+        "MemDistillGate",
+        "DispatchMemDistill",
+        "CollectMemDistill",
         "MemSweepExpired",
         "MemRebuildIndex",
     ]

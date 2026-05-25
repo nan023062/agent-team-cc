@@ -60,10 +60,13 @@ def test_root_structure_matches_design():
 
 
 def test_execution_seq_has_four_nodes_in_order():
-    """ExecutionSeq children = [ArchitectExecution, DispatchWork,
+    """ExecutionSeq children = [ArchExecOrFallback, DispatchWork,
     Respond, CatchFlush]. Order is load-bearing: the Architect subtree
-    must produce arch_plan (with required_capability per task) before
-    WorkAgentLeaf dispatches."""
+    (or its deterministic FallbackPlan sibling) must produce arch_plan
+    (with required_capability per task) before WorkAgentLeaf dispatches.
+    The first slot is a Selector so a parse failure inside the LLM-driven
+    arch_exec chain falls through to FallbackPlan instead of collapsing
+    the whole pipeline to an empty `done`."""
     exec_seq = None
     for n in _walk(ROOT):
         if n.name == "ExecutionSeq":
@@ -72,9 +75,15 @@ def test_execution_seq_has_four_nodes_in_order():
     assert exec_seq is not None, "ExecutionSeq not found"
     child_names = [c.name for c in exec_seq.children()]
     assert child_names == [
-        "ArchitectExecution",
+        "ArchExecOrFallback",
         "DispatchWork", "Respond", "CatchFlush",
     ], f"unexpected ExecutionSeq children: {child_names}"
+    # First child must be a Selector with ArchitectExecution first, then
+    # FallbackPlan — order matters so arch_exec stays the preferred path.
+    arch_slot = exec_seq.children()[0]
+    arch_slot_children = [c.name for c in arch_slot.children()]
+    assert arch_slot_children == ["ArchitectExecution", "FallbackPlan"], \
+        f"ArchExecOrFallback children unexpected: {arch_slot_children}"
 
 
 def test_decorator_stack_outermost_is_trace_then_timeout():

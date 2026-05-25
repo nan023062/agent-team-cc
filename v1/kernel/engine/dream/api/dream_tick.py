@@ -29,6 +29,7 @@ from .result import (
     DispatchRequest,
     DreamResult,
     DreamRunSummary,
+    DREAM_AGENT_SUBTASK_TO_LEAF,
     DREAM_AGENT_TYPE_TO_LEAF,
 )
 
@@ -171,6 +172,7 @@ def dream_tick(reason: str, run_id: str | None = None) -> DreamResult:
             scheduler_root=_scheduler_root(),
             subdir="dream",
             agent_type_to_leaf=DREAM_AGENT_TYPE_TO_LEAF,
+            agent_subtask_to_leaf=DREAM_AGENT_SUBTASK_TO_LEAF,
         )
         rr = runner.run(bb)
         return _to_dream_result(rr, run_id, bb)
@@ -236,6 +238,7 @@ def dream_tick_resume(run_id: str, dispatch_result: Any) -> DreamResult:
             scheduler_root=_scheduler_root(),
             subdir="dream",
             agent_type_to_leaf=DREAM_AGENT_TYPE_TO_LEAF,
+            agent_subtask_to_leaf=DREAM_AGENT_SUBTASK_TO_LEAF,
         )
         rr = runner.resume(bb, dispatch_result)
         return _to_dream_result(rr, run_id, bb)
