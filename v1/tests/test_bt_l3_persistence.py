@@ -1,12 +1,12 @@
-"""L3 — persistence: bb.json + resume.json + trace.jsonl round-trips (v3).
+"""L3 — persistence: bb.json + resume.json + trace.jsonl round-trips (v3.6).
 
 Uses pytest tmp_path fixture for the scheduler root; never touches the
 real .cbim/ directory.
 
-Post-t6: the architect/HR sub-loops run in-process; the only remaining
-yield on the execution path is DispatchWork. The `stub_root` fixture
-rebuilds ROOT with a StubArchHrLLM so the arch+hr subtrees drive cleanly
-to that yield.
+v3.6: the architect sub-loop runs in-process; the hr_exec sub-loop was
+removed entirely. The only remaining yield on the execution path is
+DispatchWork. The `stub_root` fixture rebuilds ROOT with a StubArchHrLLM
+so the arch subtree drives cleanly to that yield.
 """
 from __future__ import annotations
 
@@ -61,11 +61,21 @@ def test_bb_snapshot_roundtrip(tmp_path):
     assert bb2.bb_status == "running"
 
 
-def test_bb_snapshot_schema_version_is_2():
+def test_bb_snapshot_schema_version_is_3():
     bb = Blackboard()
     bb.tick_id = "x"
     raw = bb.to_dict()
-    assert raw["schema_version"] == SCHEMA_VERSION == 2
+    assert raw["schema_version"] == SCHEMA_VERSION == 3
+
+
+def test_bb_snapshot_has_no_agent_assignments_field():
+    """v3.6 removed agent_assignments — must not appear in bb.json fields."""
+    bb = Blackboard()
+    bb.tick_id = "x"
+    bb.arch_plan = [{"id": "a1"}]
+    raw = bb.to_dict()
+    assert "agent_assignments" not in raw["fields"], \
+        f"agent_assignments leaked into bb.json fields: {raw['fields']}"
 
 
 def test_read_bb_drops_old_schema_version(tmp_path):
@@ -96,12 +106,18 @@ def test_yield_writes_bb_resume_and_trace(isolated_scheduler_root):
 
 
 def test_first_yield_targets_work_agent(isolated_scheduler_root):
-    """Post-t6: arch_exec + hr_exec run in-process; the only execution-path
-    yield is DispatchWork dispatching the work agent leaf."""
+    """v3.6: arch_exec runs in-process and hr_exec is removed; the only
+    execution-path yield is DispatchWork dispatching the work agent leaf.
+
+    The work yield carries agent_file=None and required_capability set
+    from the arch_plan task — main agent resolves agent_file via MCP
+    agent_list."""
     sched = isolated_scheduler_root
     r = api.bt_tick("实现 login API 模块")
     assert r.kind == "yield"
     assert r.dispatch_request.agent_type == "work"
+    assert r.dispatch_request.agent_file is None
+    assert r.dispatch_request.required_capability == "programmer"
     rj = json.loads((sched / "bt" / r.tick_id / "resume.json").read_text(encoding="utf-8"))
     path = rj["runner_resume_path"]
     assert any(seg.startswith("WorkAgentLeaf#") for seg in path), \

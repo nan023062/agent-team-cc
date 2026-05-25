@@ -1,7 +1,7 @@
-"""Topology assertions for the eight-loop catalog.
+"""Topology assertions for the loop catalog.
 
 Loops now live under two scoped registries:
-  - engine.execution.loops (execution_root, architect_execution, hr_execution, memory_crud)
+  - engine.execution.loops (execution_root, architect_execution, memory_crud)
   - engine.dream.loops    (dream_root, architect_governance, hr_governance, memory_governance)
 
 Pure structural checks: no LLM calls, no Runner ticks, no MCP roundtrips.
@@ -21,7 +21,6 @@ from engine.core.loop_spec import NodeSpec
 from engine.execution.loops import (
     architect_execution,
     execution_root,
-    hr_execution,
     memory_crud,
 )
 from engine.execution.loops import get_loop as get_exec_loop
@@ -43,7 +42,6 @@ from engine.dream.loops import loop_names as gov_loop_names
 EXPECTED_EXEC_LOOP_NAMES = {
     "execution_root",
     "architect_execution",
-    "hr_execution",
     "memory_crud",
 }
 
@@ -55,7 +53,7 @@ EXPECTED_GOV_LOOP_NAMES = {
 }
 
 
-def test_execution_registry_lists_all_four_loops():
+def test_execution_registry_lists_all_loops():
     assert set(exec_loop_names()) == EXPECTED_EXEC_LOOP_NAMES
 
 
@@ -278,31 +276,6 @@ def test_architect_governance_eight_scans_present():
     assert scan_count == 8, f"expected 8 scan_ specs, got {scan_count}"
 
 
-HR_EXEC_EXPECTED_LABELS = {
-    "盘点现有能力册",
-    "逐子任务匹配",
-    "匹配结果",
-    "有且胜任",
-    "有但能力不足",
-    "无匹配",
-    "训练/招募/临时兜底",
-    "针对性训练已有 agent",
-    "懒式招募新 agent",
-    "通用 agent 临时承接/登记为能力缺口",
-    "登入承接清单",
-    "清单覆盖全部子任务?",
-    "装配承接清单",
-}
-
-
-def test_hr_execution_node_specs():
-    labels = _labels(hr_execution.NODE_SPECS)
-    missing = HR_EXEC_EXPECTED_LABELS - labels
-    assert not missing, f"missing hr_execution labels: {missing}"
-    ids = _ids(hr_execution.NODE_SPECS)
-    assert len(ids) == len(hr_execution.NODE_SPECS), "duplicate spec ids"
-
-
 HR_GOV_EXPECTED_LABELS = {
     "加载能力册与近期派工/评估痕迹",
     "扫闲置",
@@ -337,7 +310,6 @@ def test_hr_governance_six_scans_present():
 @pytest.mark.parametrize("mod", [
     architect_execution,
     architect_governance,
-    hr_execution,
     hr_governance,
 ])
 def test_descriptor_modules_expose_node_specs(mod):

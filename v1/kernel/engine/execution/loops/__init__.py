@@ -1,10 +1,9 @@
 """engine.execution.loops — execution-class loop catalog.
 
-Holds the four loops that run under the execution root (bt_tick):
+Holds the three loops that run under the execution root (bt_tick):
 
   execution_root      → engine.execution.tree.main_loop      (re-export)
   architect_execution → NodeSpec descriptor + subtree builder re-export
-  hr_execution        → NodeSpec descriptor + subtree builder re-export
   memory_crud         → in-process BT built here (core primitives)
 
 `get_loop(name)` returns the module object — callers pick what they need
@@ -22,7 +21,6 @@ from types import ModuleType
 from . import (
     architect_execution,
     execution_root,
-    hr_execution,
     memory_crud,
 )
 
@@ -30,7 +28,6 @@ from . import (
 _REGISTRY: dict[str, ModuleType] = {
     "execution_root":      execution_root,
     "architect_execution": architect_execution,
-    "hr_execution":        hr_execution,
     "memory_crud":         memory_crud,
 }
 
@@ -58,6 +55,5 @@ __all__ = [
     "loop_names",
     "execution_root",
     "architect_execution",
-    "hr_execution",
     "memory_crud",
 ]

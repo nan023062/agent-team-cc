@@ -21,10 +21,11 @@ class DispatchRequest:
     """Returned inside BtResult.Yield to describe a Task-tool dispatch."""
 
     agent_type: str                       # "work" | "architect" | "hr" | "auditor" — see actions/core_agents.CORE_AGENT_FILES for the canonical mapping of the three core-agent values to .claude/agents/*.md paths. Work dispatches carry subtask_id; core-agent dispatches do not.
-    agent_file: str | None
+    agent_file: str | None                # Core-agent dispatches (architect/hr/auditor): engine fills from CORE_AGENT_FILES. Work dispatches (agent_type="work"): ALWAYS None — main agent matches via MCP agent_list using required_capability, falling back to .claude/agents/programmer/programmer.md.
     prompt: str
     subtask_id: str | None = None         # In v3, this carries the Task.id for WorkAgentLeaf dispatches.
     timeout_hint_s: int | None = None
+    required_capability: str | None = None  # Only carried for agent_type="work"; sourced from arch_plan task; drives main-agent's agent_list lookup.
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -39,6 +40,7 @@ class DispatchRequest:
             prompt=d.get("prompt", ""),
             subtask_id=d.get("subtask_id"),
             timeout_hint_s=d.get("timeout_hint_s"),
+            required_capability=d.get("required_capability"),
         )
 
 

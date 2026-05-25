@@ -261,20 +261,48 @@ def test_direct_reply_uses_llm_when_available():
 # ---------------------------------------------------------------------------
 
 def test_work_agent_leaf_yields_with_task_id():
+    """v3.6: work yield carries agent_file=None; required_capability is
+    forwarded from arch_plan task and main agent does the lookup."""
     bb = _bb(arch_plan=[
         {"id": "a1", "description": "do stuff",
-         "agent_file": ".claude/agents/programmer/programmer.md"},
+         "required_capability": "programmer"},
     ])
     leaf = WorkAgentLeaf(task_id="a1")
     assert leaf.tick(bb) is Status.RUNNING
     assert bb.pending_dispatch.subtask_id == "a1"
     assert bb.pending_dispatch.agent_type == "work"
-    assert bb.pending_dispatch.agent_file == ".claude/agents/programmer/programmer.md"
+    assert bb.pending_dispatch.agent_file is None
+    assert bb.pending_dispatch.required_capability == "programmer"
+
+
+def test_work_agent_leaf_forwards_required_capability_verbatim():
+    """Focused: whatever string the arch_plan task puts in
+    required_capability must land verbatim on the DispatchRequest."""
+    for cap in ("programmer", "tester", "doc_writer", "generalist"):
+        bb = _bb(arch_plan=[
+            {"id": "t1", "description": "d", "required_capability": cap},
+        ])
+        leaf = WorkAgentLeaf(task_id="t1")
+        assert leaf.tick(bb) is Status.RUNNING
+        assert bb.pending_dispatch.required_capability == cap, \
+            f"expected required_capability={cap!r}, got {bb.pending_dispatch.required_capability!r}"
+        assert bb.pending_dispatch.agent_file is None
+
+
+def test_work_agent_leaf_missing_capability_yields_none():
+    """When arch_plan task omits required_capability, the DispatchRequest
+    carries None (main agent then falls back to the default programmer
+    agent_file). The leaf must NOT raise."""
+    bb = _bb(arch_plan=[{"id": "t1", "description": "d"}])
+    leaf = WorkAgentLeaf(task_id="t1")
+    assert leaf.tick(bb) is Status.RUNNING
+    assert bb.pending_dispatch.required_capability is None
+    assert bb.pending_dispatch.agent_file is None
 
 
 def test_work_agent_leaf_resume_writes_work_results():
     bb = _bb(arch_plan=[
-        {"id": "a1", "description": "d", "agent_file": "x"},
+        {"id": "a1", "description": "d", "required_capability": "programmer"},
     ])
     leaf = WorkAgentLeaf(task_id="a1")
     leaf.tick(bb)
@@ -293,8 +321,8 @@ def test_work_agent_leaf_skips_when_result_present():
 
 def test_dispatch_work_completes_when_all_results_present():
     bb = _bb(arch_plan=[
-        {"id": "a1", "description": "d", "agent_file": "x"},
-        {"id": "a2", "description": "d", "agent_file": "x"},
+        {"id": "a1", "description": "d", "required_capability": "programmer"},
+        {"id": "a2", "description": "d", "required_capability": "programmer"},
     ])
     bb.work_results = {
         "a1": {"status": "ok", "output": "done"},
@@ -305,8 +333,8 @@ def test_dispatch_work_completes_when_all_results_present():
 
 def test_dispatch_work_yields_first_pending_leaf():
     bb = _bb(arch_plan=[
-        {"id": "a1", "description": "d", "agent_file": "x"},
-        {"id": "a2", "description": "d", "agent_file": "x"},
+        {"id": "a1", "description": "d", "required_capability": "programmer"},
+        {"id": "a2", "description": "d", "required_capability": "programmer"},
     ])
     dw = DispatchWork()
     assert dw.tick(bb) is Status.RUNNING

@@ -1,9 +1,13 @@
-"""L4 — end-to-end dry-runs through the global ROOT (v3).
+"""L4 — end-to-end dry-runs through the global ROOT (v3.6).
 
-Post-t6: the architect/HR sub-loops run as in-process BT subtrees, so the
-only execution-path yield is DispatchWork dispatching the work agent.
-The fixture rebuilds ROOT with a StubArchHrLLM so the arch/HR subtrees
-produce a deterministic single-task arch_plan + agent_assignments.
+v3.6: the architect sub-loop runs as an in-process BT subtree; the
+hr_exec sub-loop was removed entirely. The only execution-path yield is
+DispatchWork dispatching the work agent, with agent_file=None and
+required_capability sourced from the arch_plan task — the main agent
+maps capability → agent_file via MCP agent_list at dispatch time.
+
+The fixture rebuilds ROOT with a StubArchHrLLM so the arch subtree
+produces a deterministic single-task arch_plan.
 """
 from __future__ import annotations
 
@@ -84,6 +88,22 @@ def test_e2e_execution_single_work_yield_then_done(isolated_scheduler_root):
     assert "Implemented in src/login.py" in r.user_message
     assert len(log) == 1
     assert log[0] == ("work", "a1")
+
+
+def test_e2e_work_yield_carries_capability_not_agent_file(isolated_scheduler_root):
+    """v3.6 work-yield contract: agent_type='work', agent_file=None,
+    required_capability=<str from arch_plan task>. Main agent does the
+    capability→agent_file lookup outside the engine."""
+    r = api.bt_tick("实现 login API 模块")
+    assert r.kind == "yield"
+    dr = r.dispatch_request
+    assert dr.agent_type == "work"
+    assert dr.agent_file is None, \
+        f"work yield must NOT carry agent_file; got {dr.agent_file!r}"
+    assert isinstance(dr.required_capability, str) and dr.required_capability, \
+        f"work yield must carry required_capability str; got {dr.required_capability!r}"
+    # StubArchHrLLM hard-codes 'programmer' in the assembled arch_plan.
+    assert dr.required_capability == "programmer"
 
 
 def test_e2e_execution_work_failure_reply_still_completes(isolated_scheduler_root):

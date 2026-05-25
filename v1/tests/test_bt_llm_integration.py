@@ -14,9 +14,11 @@ Two test groups in this module:
 Note: the only execution-root actions that call an LLM directly are
 ModeClassify (on rule miss) and DirectReply (always). DispatchWork yields
 to a Work Agent — the agent itself may or may not use an LLM internally,
-but that is outside this engine's surface. The Architect/HR execution
-sub-loops run as in-process Python BT subtrees; their LLM use is covered
-elsewhere. This file covers the two engine-internal LLM paths.
+but that is outside this engine's surface. The Architect execution
+sub-loop runs as an in-process Python BT subtree; its LLM use is covered
+elsewhere. (v3.6 removed the HR execution sub-loop entirely — the
+capability→agent_file lookup now happens in the main agent via MCP.)
+This file covers the two engine-internal LLM paths.
 """
 from __future__ import annotations
 

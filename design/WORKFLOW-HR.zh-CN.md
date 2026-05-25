@@ -1,67 +1,33 @@
-# CBIM HR 的能力管理（执行子循环流程图 + 治理子循环流程图）
+# CBIM HR 的能力管理（治理子循环流程图）
 
-> 全貌索引文档。父循环（执行根 / 治理根）见 [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) 与 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)，本文不展开。
+> 全貌索引文档。父循环（治理根）见 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)，本文不展开。
 > 位置图见 [`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)；与业务轴的对偶关系见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。
 
 ---
 
 ## 一句话定位
 
-**HR持有执行子循环流程图和治理子循环流程图两棵子循环**——前者前向式造新（响应当前任务的能力匹配与懒式招募），后者回头式重构（扫已有能力册的健康度并产建议）。两棵子循环皆是流程图，由派工 prompt 头部是否带治理模式标识决定进入哪一棵。
+**HR 只持有一棵治理子循环流程图——回头式重构（扫已有能力册的健康度并产建议）。** 该子循环挂在治理根之下，由派工 prompt 头部携带的治理模式标识识别。
 
 ---
 
-## 第一部分：HR执行子循环流程图
+## 第一部分：执行轴上的 HR 边界（v3.6 变更说明）
 
-### 1.1 触发与定位
+### 1.1 v3.6 撤掉了 HR 执行子循环
 
-挂在执行根之下，由执行根的"派 HR"节点 yield 触发，目标是为当前任务的子任务清单逐一落实承接 agent。**前向式**：只看当前任务需要什么能力，不回头审视已有 agent 的健康度。
+历史上 HR 同时持有"执行子循环（前向式匹配 / 招募）"与"治理子循环（回头式扫健康度）"两棵子循环。**v3.6 已撤掉 HR 执行子循环。** 现在执行根派 Work Agent 前由主 agent 用系统级 MCP `agent_list` 查能力册，直接根据 `required_capability` 匹配 `.claude/agents/*.md`，匹配不到回退到 `programmer`——读侧不再走 HR。
 
-### 1.2 HR执行子循环流程图（Mermaid）
+边界判定的权威依据见 [`v1/kernel/cbi/agents/.dna/module.md`](../v1/kernel/cbi/agents/.dna/module.md)：**`agent_list` 是系统级查询能力所有 agent 都有权限；HR 只在写侧（招 / 训 / 治）出现。** 即：
 
-```mermaid
-flowchart TD
-    Yield(["接 yield<br/>携带任务清单与模块上下文"])
-    Scan["盘点现有能力册"]
-    PerTask["逐子任务匹配"]
-    Match{"匹配结果"}
+- **读侧（匹配 / 查询）** 不归 HR——任何 agent 都能直接调 `agent_list`，因此执行根无需为查能力册而 yield 给 HR。
+- **写侧（招募 / 训练 / 治理）** 仍归 HR——新建 agent 文件、训练已有 agent、扫健康度产建议这些动作必须经过 HR。
 
-    Fit["有且胜任"]
-    Weak["有但能力不足"]
-    Miss["无匹配"]
+执行根上仍保留的两条 HR 相关路径：
 
-    Decide{"训练 / 招募 / 临时兜底"}
-    Train["针对性训练已有 agent"]
-    Recruit["懒式招募新 agent"]
-    Temp["通用 agent 临时承接<br/>登记为能力缺口"]
+- **`hr` mode** — 用户显式说"招个 X agent" / "把这个 agent 训成 Y"时，主 agent 直答给 HR，HR 在单轮内完成写动作。
+- **`hr_gov` 治理子树** — 治理根后台扫能力册，本文档第二部分展开。
 
-    AddOne["登入承接清单"]
-    AllDone{"清单覆盖全部子任务?"}
-    Build["装配承接清单"]
-    Return(["回执行根<br/>下一步派 Work Agent"])
-
-    Yield --> Scan --> PerTask --> Match
-    Match -->|胜任| Fit --> AddOne
-    Match -->|偏弱| Weak --> Decide
-    Match -->|缺失| Miss --> Decide
-    Decide -->|训练| Train --> AddOne
-    Decide -->|招募| Recruit --> AddOne
-    Decide -->|兜底| Temp --> AddOne
-    AddOne --> AllDone
-    AllDone -->|否| PerTask
-    AllDone -->|是| Build --> Return
-```
-
-### 1.3 节点职责表（执行子循环）
-
-| 节点 | 职责 | 边界 |
-|------|------|------|
-| 盘点现有能力册 | 读取能力轴注册表，形成可匹配视图 | 不评估健康度 |
-| 逐子任务匹配 | 按模块上下文给出的能力需求逐一匹配 | 一次只看一个子任务 |
-| 训练 | 对已有 agent 做针对性微调，使其胜任当前任务 | 不做泛化重训 |
-| 懒式招募 | 当复杂度足够时孵化新专域 agent | 最小可用，不预造 |
-| 临时兜底 | 用通用 agent 承接，同时登记为能力缺口供治理回头扫 | 不掩盖缺口 |
-| 装配承接清单 | 保证清单覆盖全部子任务并交还父循环 | 不替父循环派工 |
+执行根的派工拓扑见 [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) §4。
 
 ---
 
@@ -114,16 +80,17 @@ flowchart TD
 
 ---
 
-## 第三部分：两棵子循环对比
+## 第三部分：HR 在两根上的对比
 
-| 维度 | 执行子循环流程图 | 治理子循环流程图 |
-|------|------------|------------|
-| 触发方 | 执行根派 HR | 治理根派 HR |
-| 产出物 | 承接清单（子任务到 agent 的映射） | 治理报告（安全动作 + 待决建议） |
-| 衔接 | 交还执行根继续派 Work Agent | 交还治理根汇总落盘并在下次 SessionStart 呈现 |
+| 维度 | 执行根（v3.6 起） | 治理根 |
+|------|------------------|--------|
+| HR 是否有子循环 | 否——读侧由主 agent 直接调 `agent_list`；写侧 `hr` mode 走单轮直答，不展开子循环 | 是——治理子循环流程图（第二部分） |
+| 触发方 | 用户显式写动作请求（招 / 训），由模式分类落到 `hr` mode | 治理根派 HR 治理 |
+| 产出物 | 单轮写动作结果（新 agent 文件 / 已训 agent / 拒绝说明） | 治理报告（安全动作 + 待决建议） |
+| 衔接 | 直答回主 agent，汇总渲染给用户 | 交还治理根汇总落盘并在下次 SessionStart 呈现 |
 
 ---
 
 ## 第四部分：与业务轴的对偶
 
-能力轴（HR 管）与业务轴（Architect 管）互为镜像：业务轴新增模块可触发能力轴招募对应专域 agent；新 agent 孵化反过来携带新的业务领域知识。两轴各自持有执行 + 治理两棵子循环流程图，协同裂变，边界持续扩展。详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。
+能力轴（HR 管）与业务轴（Architect 管）互为镜像：业务轴新增模块可触发能力轴招募对应专域 agent；新 agent 孵化反过来携带新的业务领域知识。两轴在治理侧对偶完整——各持一棵治理子循环流程图；执行侧则不对称——Architect 仍有执行子循环（产 ContextPack），HR 在执行轴上只暴露 `agent_list` 这一系统级读接口与 `hr` mode 单轮写直答，不再持有子循环。详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。

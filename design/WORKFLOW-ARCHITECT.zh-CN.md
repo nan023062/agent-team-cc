@@ -125,4 +125,4 @@ flowchart TD
 
 ## 4. 与能力轴的对偶
 
-业务知识轴（Architect 管）与能力轴（HR 管）互为镜像，两轴各自都拥有"执行 + 治理"两个子循环，组合覆盖 CBIM 全部知识与能力维度。详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md)。
+业务知识轴（Architect 管）与能力轴（HR 管）在治理侧对偶完整——各持一棵治理子循环流程图，回头扫各自的注册表健康度。执行侧并不对称：Architect 仍持有执行子循环（为当前任务产 ContextPack），HR 在 v3.6 后已撤掉执行子循环——读侧由主 agent 用系统级 MCP `agent_list` 直接查能力册做匹配；HR 只在写侧（招 / 训 / 治）出现。边界判定见 [`v1/kernel/cbi/agents/.dna/module.md`](../v1/kernel/cbi/agents/.dna/module.md)，详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) §1。

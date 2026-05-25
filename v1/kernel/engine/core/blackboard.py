@@ -1,6 +1,6 @@
 """core/blackboard.py — Blackboard: the single carrier of cross-node state.
 
-The 14 fields from WORKFLOW-EXECUTION §2.1 (v3) are declared as dataclass-style
+The 13 fields from WORKFLOW-EXECUTION §2.1 (v3) are declared as dataclass-style
 attributes. Dirty tracking: any explicit attribute assignment marks the bb
 dirty; the Runner consults `bb._dirty` to decide whether to rewrite bb.json
 on node exit.
@@ -9,7 +9,7 @@ No write barriers are enforced here (the "single writer per field" rule
 is a design-time invariant; runtime enforcement would be ceremonious and
 duplicate static review). Reads are unrestricted.
 
-Schema version: 2 (v3 simplification — see WORKFLOW-EXECUTION §0).
+Schema version: 3 (v3.6 — `agent_assignments` removed alongside hr_exec subtree).
 """
 
 from __future__ import annotations
@@ -36,16 +36,15 @@ class IdentifiableBB(Protocol):
     def clear_dirty(self) -> None: ...
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
-# Canonical field set per WORKFLOW-EXECUTION §2.1 v3 (14 fields).
+# Canonical field set per WORKFLOW-EXECUTION §2.1 v3.6 (13 fields).
 FIELDS: tuple[str, ...] = (
     "tick_id",
     "user_request",
     "mode",
     "arch_plan",
-    "agent_assignments",
     "work_results",
     "final_response",
     "interrupt_reason",

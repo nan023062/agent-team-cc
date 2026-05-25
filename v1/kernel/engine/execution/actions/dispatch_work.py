@@ -37,10 +37,11 @@ class WorkAgentLeaf(Node):
             return Status.FAILURE
         bb.pending_dispatch = DispatchRequest(
             agent_type="work",
-            agent_file=task.get("agent_file"),
+            agent_file=None,
             prompt=self._compose_prompt(bb, task),
             subtask_id=self.task_id,
             timeout_hint_s=task.get("timeout_hint_s"),
+            required_capability=task.get("required_capability"),
         )
         return Status.RUNNING
 

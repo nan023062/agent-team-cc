@@ -20,7 +20,6 @@ Tree shape (see module.md §"5 分支模式拓扑"):
           Respond#audit
       execution    → ExecutionSeq (Sequence)
           ArchitectExecution (BT subtree)
-          HrExecution (BT subtree)
           DispatchWork
           Respond
           CatchFlush(FlushMemory)
@@ -41,7 +40,6 @@ from ..actions.direct_reply import DirectReply
 from ..actions.dispatch_core_agent import DispatchCoreAgent
 from ..actions.dispatch_work import DispatchWork
 from ..actions.flush_memory import FlushMemory
-from ..actions.hr_exec import build_hr_execution_subtree
 from ..actions.init_tick import InitTick
 from ..actions.llm_hook import NullLLM
 from ..actions.mode_classify import ModeClassify
@@ -111,16 +109,15 @@ def build_root(*, llm: Any = None, global_timeout_s: int = 1800):
         name="AuditBranch",
     )
 
-    # Execution branch — the full Architect → HR → Work pipeline.
+    # Execution branch — the Architect → Work pipeline (v3.6: hr_exec removed).
     arch_exec = build_architect_execution_subtree(llm)
-    hr_exec = build_hr_execution_subtree(llm)
     work = DispatchWork(name="DispatchWork")
     respond = Respond(name="Respond")
     flush = Catch(FlushMemory(name="FlushMemory"),
                   fallback="swallow", name="CatchFlush")
 
     execution_seq = Sequence(
-        [arch_exec, hr_exec, work, respond, flush],
+        [arch_exec, work, respond, flush],
         name="ExecutionSeq",
     )
 

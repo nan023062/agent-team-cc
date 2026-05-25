@@ -1,12 +1,13 @@
-"""L2 — tree topology / decorator stacking invariants (v3.5).
+"""L2 — tree topology / decorator stacking invariants (v3.6).
 
 Static structural checks on the global ROOT to prevent silent topology drift.
 
 Post-t? (5-mode): the root branch is now a SwitchBranch with five cases
 (conversation / architect / hr / audit / execution). The three core-agent
 branches each dispatch one core agent (architect / hr / auditor) and run
-Respond on the result. The execution branch is the unchanged Arch → HR →
-Work pipeline.
+Respond on the result. v3.6 removed the HrExecution sub-loop: the execution
+branch is now a straight Architect → Work pipeline; main agent maps
+required_capability → agent_file via MCP agent_list at dispatch time.
 """
 from __future__ import annotations
 
@@ -46,20 +47,23 @@ def test_root_structure_matches_design():
         # Execution branch
         "ExecutionSeq",
         "ArchitectExecution",
-        "HrExecution",
         "DispatchWork",
         "Respond",
         "CatchFlush", "FlushMemory",
     ]
     for ex in expected:
         assert ex in names, f"Missing node {ex} in tree; got {names}"
+    # v3.6 removed the HrExecution sub-loop — required_capability → agent_file
+    # lookup moved out of the engine into the main agent (MCP agent_list).
+    assert "HrExecution" not in names, \
+        f"HrExecution must NOT appear in ROOT walk post-v3.6; got {names}"
 
 
-def test_execution_seq_has_five_nodes_in_order():
-    """ExecutionSeq children = [ArchitectExecution, HrExecution,
-    DispatchWork, Respond, CatchFlush]. Order is load-bearing: the
-    Architect subtree must produce arch_plan before HR can assign agents;
-    HR must finish before WorkAgentLeaf dispatches."""
+def test_execution_seq_has_four_nodes_in_order():
+    """ExecutionSeq children = [ArchitectExecution, DispatchWork,
+    Respond, CatchFlush]. Order is load-bearing: the Architect subtree
+    must produce arch_plan (with required_capability per task) before
+    WorkAgentLeaf dispatches."""
     exec_seq = None
     for n in _walk(ROOT):
         if n.name == "ExecutionSeq":
@@ -68,7 +72,7 @@ def test_execution_seq_has_five_nodes_in_order():
     assert exec_seq is not None, "ExecutionSeq not found"
     child_names = [c.name for c in exec_seq.children()]
     assert child_names == [
-        "ArchitectExecution", "HrExecution",
+        "ArchitectExecution",
         "DispatchWork", "Respond", "CatchFlush",
     ], f"unexpected ExecutionSeq children: {child_names}"
 
