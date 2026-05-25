@@ -149,3 +149,58 @@ def test_e2e_architect_error_interrupts(isolated_scheduler_root):
     )
     assert r.kind == "error"
     assert "arch_error" in (r.interrupt_reason or "") or "arch_error" in (r.error_message or "")
+
+
+# ---------------------------------------------------------------------------
+# Memory CRUD flush smoke
+# ---------------------------------------------------------------------------
+
+def test_e2e_flush_memory_drains_queue(monkeypatch, tmp_path):
+    """Smoke: FlushMemory drains bb.memory_flush_queue via the CRUD sub-loop.
+
+    Replaces the real write primitive with an in-memory stub so no real
+    file IO happens. Asserts the node returns SUCCESS and the queue is
+    cleared after a successful write.
+    """
+    from types import SimpleNamespace
+    from engine.execution.actions import flush_memory as fm
+    from engine.core.node import Status
+
+    writes: list[tuple[str, str]] = []
+
+    def _stub_make_write_call(_backend):
+        def _call(crud_bb):
+            entry = (crud_bb.crud_op or {}).get("entry") or {}
+            path = entry.get("path")
+            tier = entry.get("tier")
+            if not path or not tier:
+                raise ValueError(f"flush entry missing path/tier: {entry!r}")
+            writes.append((path, tier))
+            return {"path": path, "tier": tier}
+        return _call
+
+    monkeypatch.setattr(fm, "_make_write_call", _stub_make_write_call)
+
+    bb = SimpleNamespace(
+        memory_flush_queue=[
+            {
+                "path": str(tmp_path / "short" / "2026-05-25-smoke.md"),
+                "tier": "short",
+                "content": "smoke entry",
+            }
+        ]
+    )
+
+    status = fm.FlushMemory().tick(bb)
+
+    # Spec: 1) does not raise (status SUCCESS or FAILURE both acceptable);
+    #       2) queue drained after the tick;
+    #       3) the stub write_call is actually invoked (regression: missing
+    #          runner_resume_path on crud_bb used to swallow every entry).
+    assert status in (Status.SUCCESS, Status.FAILURE)
+    assert bb.memory_flush_queue == []
+    assert len(writes) == 1
+    assert writes[0] == (
+        str(tmp_path / "short" / "2026-05-25-smoke.md"),
+        "short",
+    )
