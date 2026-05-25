@@ -13,11 +13,11 @@ on disk is the only continuity.
 from __future__ import annotations
 
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from engine.persistence import snapshot, trace as trace_mod
+from ._trace_utils import _append_trace_event, _now_iso_ms
 from .blackboard import Blackboard
 from .node import Node, Status
 
@@ -25,10 +25,6 @@ from .node import Node, Status
 # Sentinel attribute on Node instances that have already had their `tick`
 # wrapped by `_instrument_tree`. Idempotent — re-wrapping would double-emit.
 _INSTRUMENTED_MARK = "_runner_trace_wrapped"
-
-
-def _now_iso_ms() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 class RunResult:
@@ -362,24 +358,6 @@ class Runner:
         # Fallback: empty path means "restart from root" — Runner will re-tick
         # cleanly because Actions check bb state to short-circuit.
         return []
-
-
-def _append_trace_event(bb, event: dict) -> None:
-    """Best-effort append to bb.trace. Silently no-ops if bb has no trace.
-
-    Uses object.__setattr__ to avoid dirtying canonical FIELDS (the bb's
-    ``trace`` already lives in FIELDS, so direct assignment would tick the
-    dirty flag once per node tick — undesirable churn). We mutate the
-    existing list in place instead; the Runner snapshots bb on dirty
-    boundaries anyway and bb.trace is captured by reference in to_dict.
-    """
-    try:
-        events = bb.trace
-        if not isinstance(events, list):
-            return
-        events.append(event)
-    except (AttributeError, TypeError):
-        pass
 
 
 def _prime_bb_dependent_composites(root: Node, bb) -> None:

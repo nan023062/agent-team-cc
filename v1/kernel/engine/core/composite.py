@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from ._trace_utils import _append_trace_event, _now_iso_ms
 from .node import Node, Status
 
 
@@ -65,13 +66,44 @@ class Selector(_Composite):
 
     def tick(self, bb) -> Status:
         start_idx = _resume_index(self, bb)
+        # Per-tick decision log; do NOT hang this on self (composites are
+        # stateless across ticks per README §2 iron rule).
+        child_results: list[dict] = []
         for i in range(start_idx, len(self._children)):
             child = self._children[i]
             status = _tick_child(self, child, i, bb)
+            child_results.append({
+                "name": child.name,
+                "status": status.value if hasattr(status, "value") else str(status),
+            })
             if status is Status.SUCCESS:
+                _append_trace_event(bb, {
+                    "event": "selector_decision",
+                    "node": self.name,
+                    "chosen_child": child.name,
+                    "outcome": "success",
+                    "child_results": child_results,
+                    "ts": _now_iso_ms(),
+                })
                 return Status.SUCCESS
             if status is Status.RUNNING:
+                _append_trace_event(bb, {
+                    "event": "selector_decision",
+                    "node": self.name,
+                    "chosen_child": child.name,
+                    "outcome": "running",
+                    "child_results": child_results,
+                    "ts": _now_iso_ms(),
+                })
                 return Status.RUNNING
+        _append_trace_event(bb, {
+            "event": "selector_decision",
+            "node": self.name,
+            "chosen_child": None,
+            "outcome": "all_failure",
+            "child_results": child_results,
+            "ts": _now_iso_ms(),
+        })
         return Status.FAILURE
 
 
@@ -132,16 +164,55 @@ class SwitchBranch(Node):
         return kids
 
     def tick(self, bb) -> Status:
+        # Four decision paths, each emits exactly one switch_decision event
+        # BEFORE the chosen child (if any) ticks. This keeps the trace
+        # chronological: decision → child_enter → child_exit.
         try:
             key = self._key_fn(bb)
-        except Exception:
-            key = None
+        except Exception as e:
+            _append_trace_event(bb, {
+                "event": "switch_decision",
+                "node": self.name,
+                "key": None,
+                "matched_case": "__error__",
+                "chosen_child": None,
+                "error": f"{type(e).__name__}: {e}",
+                "ts": _now_iso_ms(),
+            })
+            return Status.FAILURE
+
         child = self._cases.get(key) if key is not None else None
-        if child is None:
-            if self._default is None:
-                return Status.FAILURE
-            child = self._default
-        return child.tick(bb)
+        if child is not None:
+            _append_trace_event(bb, {
+                "event": "switch_decision",
+                "node": self.name,
+                "key": key,
+                "matched_case": key,
+                "chosen_child": child.name,
+                "ts": _now_iso_ms(),
+            })
+            return child.tick(bb)
+
+        if self._default is not None:
+            _append_trace_event(bb, {
+                "event": "switch_decision",
+                "node": self.name,
+                "key": key,
+                "matched_case": "__default__",
+                "chosen_child": self._default.name,
+                "ts": _now_iso_ms(),
+            })
+            return self._default.tick(bb)
+
+        _append_trace_event(bb, {
+            "event": "switch_decision",
+            "node": self.name,
+            "key": key,
+            "matched_case": "__no_match__",
+            "chosen_child": None,
+            "ts": _now_iso_ms(),
+        })
+        return Status.FAILURE
 
 
 class AlwaysSuccess(Node):

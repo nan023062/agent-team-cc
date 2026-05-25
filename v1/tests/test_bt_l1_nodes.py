@@ -12,7 +12,14 @@ from engine.execution.actions.llm_hook import NullLLM
 from engine.execution.actions.mode_classify import ModeClassify
 from engine.execution.actions.respond import Respond
 from engine.core.blackboard import Blackboard
-from engine.core.composite import ModeBranch, Parallel, Selector, Sequence
+from engine.core.composite import (
+    AlwaysSuccess,
+    ModeBranch,
+    Parallel,
+    Selector,
+    Sequence,
+    SwitchBranch,
+)
 from engine.core.node import Node, Status
 
 
@@ -179,9 +186,64 @@ def test_mode_classify_chinese_audit_is_audit():
     assert bb.mode == "audit"
 
 
-def test_mode_classify_architect_wins_over_execution_verb():
-    # "design" + "implement" both present — architect must win per precedence.
+def test_mode_classify_execution_verb_wins_over_design_keyword():
+    # v3.7: precedence is execution-verb > architect-request. With both
+    # "design" and "implement" present the user has explicitly said they
+    # want it implemented — that's execution. The architect step happens
+    # automatically inside ExecutionSeq via the ArchitectExecution subtree.
     bb = _bb(user_request="design and implement a new auth module")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+# v3.7 anti-regression — bare topic words must NOT hijack execution requests.
+
+def test_mode_classify_implement_audit_logging_is_execution():
+    bb = _bb(user_request="implement audit logging")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+def test_mode_classify_refactor_architecture_module_is_execution():
+    bb = _bb(user_request="refactor the architecture module")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+def test_mode_classify_add_agent_recruitment_endpoint_is_execution():
+    bb = _bb(user_request="add agent recruitment endpoint")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+def test_mode_classify_fix_design_doc_typo_is_execution():
+    bb = _bb(user_request="fix the design doc typo")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+def test_mode_classify_build_code_review_pipeline_is_execution():
+    bb = _bb(user_request="build a code review pipeline")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+def test_mode_classify_chinese_refactor_recruitment_flow_is_execution():
+    bb = _bb(user_request="重构招聘流程代码")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
+
+
+# v3.7 architect-preempt — split/merge/deprecate a module, update .dna.
+
+def test_mode_classify_chinese_split_module_is_architect_preempt():
+    bb = _bb(user_request="拆分 auth 模块")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "architect"
+
+
+def test_mode_classify_english_update_dna_is_architect_preempt():
+    bb = _bb(user_request="update .dna for auth module")
     assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
     assert bb.mode == "architect"
 
@@ -372,3 +434,178 @@ def test_respond_interrupt_path_leaves_final_response_empty():
     bb = _bb(interrupt_reason="agent_gap: x")
     Respond().tick(bb)
     assert bb.final_response is None
+
+
+# ---------------------------------------------------------------------------
+# SwitchBranch — decision trace events
+# ---------------------------------------------------------------------------
+
+def _switch_events(bb) -> list[dict]:
+    return [e for e in bb.trace if e.get("event") == "switch_decision"]
+
+
+def _selector_events(bb) -> list[dict]:
+    return [e for e in bb.trace if e.get("event") == "selector_decision"]
+
+
+def test_switch_branch_hits_case_emits_decision():
+    a = _StubNode("A", Status.SUCCESS)
+    b = _StubNode("B", Status.SUCCESS)
+    sw = SwitchBranch(
+        key_fn=lambda bb: bb.mode,
+        cases={"alpha": a, "beta": b},
+        name="SW",
+    )
+    bb = _bb()
+    bb.mode = "alpha"
+    assert sw.tick(bb) is Status.SUCCESS
+    assert (a.ticks, b.ticks) == (1, 0)
+    events = _switch_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["node"] == "SW"
+    assert ev["key"] == "alpha"
+    assert ev["matched_case"] == "alpha"
+    assert ev["chosen_child"] == "A"
+    assert "error" not in ev
+
+
+def test_switch_branch_falls_back_to_default_emits_decision():
+    a = _StubNode("A", Status.SUCCESS)
+    d = _StubNode("D", Status.SUCCESS)
+    sw = SwitchBranch(
+        key_fn=lambda bb: bb.mode,
+        cases={"alpha": a},
+        default=d,
+        name="SW",
+    )
+    bb = _bb()
+    bb.mode = "unknown"
+    assert sw.tick(bb) is Status.SUCCESS
+    assert (a.ticks, d.ticks) == (0, 1)
+    events = _switch_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["key"] == "unknown"
+    assert ev["matched_case"] == "__default__"
+    assert ev["chosen_child"] == "D"
+
+
+def test_switch_branch_no_match_no_default_returns_failure_and_emits_decision():
+    a = _StubNode("A", Status.SUCCESS)
+    sw = SwitchBranch(
+        key_fn=lambda bb: bb.mode,
+        cases={"alpha": a},
+        name="SW",
+    )
+    bb = _bb()
+    bb.mode = "unknown"
+    assert sw.tick(bb) is Status.FAILURE
+    assert a.ticks == 0
+    events = _switch_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["key"] == "unknown"
+    assert ev["matched_case"] == "__no_match__"
+    assert ev["chosen_child"] is None
+
+
+def test_switch_branch_key_fn_raises_returns_failure_and_emits_error_event():
+    a = _StubNode("A", Status.SUCCESS)
+    d = _StubNode("D", Status.SUCCESS)
+
+    def _boom(_bb):
+        raise RuntimeError("kaboom")
+
+    sw = SwitchBranch(
+        key_fn=_boom,
+        cases={"alpha": a},
+        default=d,
+        name="SW",
+    )
+    bb = _bb()
+    # Even with a default, key_fn errors short-circuit to FAILURE (no
+    # fallback execution — the bb predicate itself is broken).
+    assert sw.tick(bb) is Status.FAILURE
+    assert (a.ticks, d.ticks) == (0, 0)
+    events = _switch_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["matched_case"] == "__error__"
+    assert ev["chosen_child"] is None
+    assert ev["key"] is None
+    assert ev["error"].startswith("RuntimeError: kaboom")
+
+
+# ---------------------------------------------------------------------------
+# Selector — decision trace events
+# ---------------------------------------------------------------------------
+
+def test_selector_first_child_success_emits_decision_with_single_result():
+    a = _StubNode("A", Status.SUCCESS)
+    b = _StubNode("B", Status.SUCCESS)
+    sel = Selector([a, b], name="Sel")
+    bb = _bb()
+    assert sel.tick(bb) is Status.SUCCESS
+    events = _selector_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["node"] == "Sel"
+    assert ev["chosen_child"] == "A"
+    assert ev["outcome"] == "success"
+    assert ev["child_results"] == [{"name": "A", "status": "success"}]
+
+
+def test_selector_second_child_success_after_failure_records_both_results():
+    a = _StubNode("A", Status.FAILURE)
+    b = _StubNode("B", Status.SUCCESS)
+    c = _StubNode("C", Status.SUCCESS)
+    sel = Selector([a, b, c], name="Sel")
+    bb = _bb()
+    assert sel.tick(bb) is Status.SUCCESS
+    assert c.ticks == 0
+    events = _selector_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["chosen_child"] == "B"
+    assert ev["outcome"] == "success"
+    assert ev["child_results"] == [
+        {"name": "A", "status": "failure"},
+        {"name": "B", "status": "success"},
+    ]
+
+
+def test_selector_middle_running_emits_running_decision():
+    a = _StubNode("A", Status.FAILURE)
+    b = _StubNode("B", Status.RUNNING)
+    c = _StubNode("C", Status.SUCCESS)
+    sel = Selector([a, b, c], name="Sel")
+    bb = _bb()
+    assert sel.tick(bb) is Status.RUNNING
+    assert c.ticks == 0
+    events = _selector_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["chosen_child"] == "B"
+    assert ev["outcome"] == "running"
+    assert ev["child_results"] == [
+        {"name": "A", "status": "failure"},
+        {"name": "B", "status": "running"},
+    ]
+
+
+def test_selector_all_failure_emits_decision_with_no_chosen_child():
+    a = _StubNode("A", Status.FAILURE)
+    b = _StubNode("B", Status.FAILURE)
+    sel = Selector([a, b], name="Sel")
+    bb = _bb()
+    assert sel.tick(bb) is Status.FAILURE
+    events = _selector_events(bb)
+    assert len(events) == 1
+    ev = events[0]
+    assert ev["chosen_child"] is None
+    assert ev["outcome"] == "all_failure"
+    assert ev["child_results"] == [
+        {"name": "A", "status": "failure"},
+        {"name": "B", "status": "failure"},
+    ]
