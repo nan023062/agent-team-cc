@@ -100,6 +100,141 @@ class Parallel(_Composite):
         return Status.SUCCESS
 
 
+class SwitchBranch(Node):
+    """N-way branch on a bb-derived key.
+
+    Routes to the child registered under ``key_fn(bb)``. When the key has
+    no match in ``cases``, falls back to ``default`` (or returns FAILURE if
+    no default supplied).
+
+    Like ModeBranch, this is NOT a Selector — we route on a bb predicate,
+    not on child return values. The chosen child's status bubbles up
+    unchanged.
+    """
+
+    def __init__(
+        self,
+        *,
+        key_fn: Callable[[object], str],
+        cases: dict[str, Node],
+        default: Node | None = None,
+        name: str = "SwitchBranch",
+    ) -> None:
+        self.name = name
+        self._key_fn = key_fn
+        self._cases = dict(cases)
+        self._default = default
+
+    def children(self) -> list[Node]:
+        kids = list(self._cases.values())
+        if self._default is not None:
+            kids.append(self._default)
+        return kids
+
+    def tick(self, bb) -> Status:
+        try:
+            key = self._key_fn(bb)
+        except Exception:
+            key = None
+        child = self._cases.get(key) if key is not None else None
+        if child is None:
+            if self._default is None:
+                return Status.FAILURE
+            child = self._default
+        return child.tick(bb)
+
+
+class AlwaysSuccess(Node):
+    """No-op leaf that always returns SUCCESS.
+
+    Useful as a SwitchBranch fallback for "do nothing on this branch".
+    """
+
+    def __init__(self, *, name: str = "AlwaysSuccess") -> None:
+        self.name = name
+
+    def tick(self, bb) -> Status:
+        return Status.SUCCESS
+
+
+class ForEach(Node):
+    """Iterate a bb list field, ticking the child once per item.
+
+    For each item in ``bb.<items_field>``:
+      1. Write the item to ``bb.<item_var>``.
+      2. Tick ``child``.
+      3. If child returns FAILURE → return FAILURE (abort iteration; progress
+         stays so a follow-up tick resumes at the same index after the
+         caller fixes the upstream issue).
+      4. If child returns RUNNING → return RUNNING (yielded to Runner;
+         progress stays so the next tick resumes at the same index).
+      5. If child returns SUCCESS → advance progress, continue.
+
+    On full traversal: clear ``bb.<progress_field>`` and ``bb.<item_var>``
+    so a re-tick starts clean, and return SUCCESS.
+
+    Resumable: progress lives on bb under ``progress_field`` (default
+    ``f"_foreach_{items_field}_idx"``). If present at tick entry, iteration
+    starts there; otherwise it starts at 0.
+
+    Missing or non-list ``bb.<items_field>`` → SUCCESS (treat as empty).
+    """
+
+    def __init__(
+        self,
+        *,
+        items_field: str,
+        item_var: str,
+        child: Node,
+        progress_field: str | None = None,
+        name: str = "ForEach",
+    ) -> None:
+        self.name = name
+        self._items_field = items_field
+        self._item_var = item_var
+        self._child = child
+        self._progress_field = progress_field or f"_foreach_{items_field}_idx"
+
+    def children(self) -> list[Node]:
+        return [self._child]
+
+    def tick(self, bb) -> Status:
+        items = getattr(bb, self._items_field, None)
+        if not isinstance(items, list) or not items:
+            self._clear(bb)
+            return Status.SUCCESS
+
+        idx = getattr(bb, self._progress_field, None)
+        if not isinstance(idx, int) or idx < 0:
+            idx = 0
+
+        n = len(items)
+        while idx < n:
+            setattr(bb, self._item_var, items[idx])
+            setattr(bb, self._progress_field, idx)
+            status = self._child.tick(bb)
+            if status is Status.FAILURE:
+                return Status.FAILURE
+            if status is Status.RUNNING:
+                return Status.RUNNING
+            idx += 1
+
+        self._clear(bb)
+        return Status.SUCCESS
+
+    def _clear(self, bb) -> None:
+        # Best-effort cleanup; tolerate blackboards that pin a __slots__ schema
+        # and refuse arbitrary attribute deletes.
+        try:
+            setattr(bb, self._progress_field, None)
+        except (AttributeError, TypeError):
+            pass
+        try:
+            setattr(bb, self._item_var, None)
+        except (AttributeError, TypeError):
+            pass
+
+
 class ModeBranch(Node):
     """Two-way branch on `bb.mode` (v3).
 

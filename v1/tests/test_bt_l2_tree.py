@@ -18,7 +18,12 @@ def _walk(n, acc=None):
 
 
 def test_root_structure_matches_design():
-    """Expected stacking and presence of key v3 nodes."""
+    """Expected stacking and presence of key v3 nodes.
+
+    Post-t6: the legacy Retry-wrapped DispatchArchitect / DispatchHR leaves
+    were replaced by the in-process arch_exec / hr_exec subtrees rooted at
+    ArchitectExecution / HrExecution.
+    """
     names = [n.name for n in _walk(ROOT)]
     expected = [
         "Root", "GlobalTimeout", "RootSeq",
@@ -26,8 +31,8 @@ def test_root_structure_matches_design():
         "ModeBranch",
         "DirectReply",
         "ExecutionSeq",
-        "RetryDispatchArchitect", "DispatchArchitect",
-        "RetryDispatchHR", "DispatchHR",
+        "ArchitectExecution",
+        "HrExecution",
         "DispatchWork",
         "Respond",
         "CatchFlush", "FlushMemory",
@@ -37,10 +42,10 @@ def test_root_structure_matches_design():
 
 
 def test_execution_seq_has_five_nodes_in_order():
-    """ExecutionSeq children = [RetryDispatchArchitect, RetryDispatchHR,
-    DispatchWork, Respond, CatchFlush]. Order is load-bearing: Architect
-    must produce arch_plan before HR can assign agents; HR must finish
-    before WorkAgentLeaf dispatches."""
+    """ExecutionSeq children = [ArchitectExecution, HrExecution,
+    DispatchWork, Respond, CatchFlush]. Order is load-bearing: the
+    Architect subtree must produce arch_plan before HR can assign agents;
+    HR must finish before WorkAgentLeaf dispatches."""
     exec_seq = None
     for n in _walk(ROOT):
         if n.name == "ExecutionSeq":
@@ -49,7 +54,7 @@ def test_execution_seq_has_five_nodes_in_order():
     assert exec_seq is not None, "ExecutionSeq not found"
     child_names = [c.name for c in exec_seq.children()]
     assert child_names == [
-        "RetryDispatchArchitect", "RetryDispatchHR",
+        "ArchitectExecution", "HrExecution",
         "DispatchWork", "Respond", "CatchFlush",
     ], f"unexpected ExecutionSeq children: {child_names}"
 

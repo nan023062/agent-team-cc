@@ -169,4 +169,27 @@ def parse_response(payload: str | dict | None) -> dict:
     return {"arch_governance_report": {"raw": repr(payload)}}
 
 
-__all__ = ["NODE_SPECS", "compose_prompt", "parse_response"]
+def build_architect_governance_subtree(llm):
+    """Construct the Python-BT architect-governance subtree.
+
+    Delegates to engine.dream.actions.arch_gov. Kept here as a thin
+    re-export so callers that already import this descriptor module
+    (e.g. dream/tree/dream_loop.py at t6 wiring time) can get the
+    subtree builder without a second import path.
+
+    The legacy descriptor surface (NODE_SPECS / compose_prompt /
+    parse_response) stays in place for the dispatch-architect path and
+    its tests; once the dream root is rewired (t6) the descriptor
+    becomes unreachable in production but topology tests still pin it
+    as the design-doc source of truth.
+    """
+    from engine.dream.actions.arch_gov import build_architect_governance_subtree as _build
+    return _build(llm)
+
+
+__all__ = [
+    "NODE_SPECS",
+    "compose_prompt",
+    "parse_response",
+    "build_architect_governance_subtree",
+]

@@ -1,13 +1,18 @@
 """L4 — end-to-end dry-runs through the global ROOT (v3).
 
-FakeDispatcher: pretends to be the main agent. Each scenario drives
-bt_tick → loop { yield → fake task result → bt_tick_resume } until done.
+Post-t6: the architect/HR sub-loops run as in-process BT subtrees, so the
+only execution-path yield is DispatchWork dispatching the work agent.
+The fixture rebuilds ROOT with a StubArchHrLLM so the arch/HR subtrees
+produce a deterministic single-task arch_plan + agent_assignments.
 """
 from __future__ import annotations
 
 import pytest
 
 from engine.execution.api import bt_tick as api
+from engine.execution.tree.main_loop import build_root
+
+from stub_llm import StubArchHrLLM
 
 
 @pytest.fixture
@@ -15,6 +20,7 @@ def isolated_scheduler_root(tmp_path, monkeypatch):
     sched = tmp_path / ".cbim" / "scheduler"
     sched.mkdir(parents=True)
     monkeypatch.setattr(api, "_scheduler_root", lambda: sched)
+    monkeypatch.setattr(api, "ROOT", build_root(llm=StubArchHrLLM()))
     return sched
 
 
@@ -66,89 +72,27 @@ def test_e2e_english_question_is_conversation(isolated_scheduler_root):
 # Execution path
 # ---------------------------------------------------------------------------
 
-_ARCH_REPLY = (
-    '{"arch_plan":[{"id":"a1","description":"build login handler",'
-    '"required_capability":"programmer","arch_context":"ctx-pack-1"}]}'
-)
-
-_HR_REPLY_A1 = (
-    "task_id=a1 agent_file=.claude/agents/programmer/programmer.md capability=py"
-)
-
-
-def test_e2e_execution_three_step_dispatch(isolated_scheduler_root):
+def test_e2e_execution_single_work_yield_then_done(isolated_scheduler_root):
+    """StubArchHrLLM produces a single-task arch_plan; the only yield is
+    DispatchWork for that task, after which Respond writes the work output
+    into final_response."""
     r, log = _drive(
         "实现 login API 模块",
-        _ARCH_REPLY,
-        _HR_REPLY_A1,
         "Implemented in src/login.py",
     )
     assert r.kind == "done"
     assert "Implemented in src/login.py" in r.user_message
-    assert log[0][0] == "architect"
-    assert log[1][0] == "hr"
-    assert log[2][0] == "work"
-    assert log[2][1] == "a1"
+    assert len(log) == 1
+    assert log[0] == ("work", "a1")
 
 
-def test_e2e_execution_multi_task_plan(isolated_scheduler_root):
-    arch = (
-        '{"arch_plan":['
-        '{"id":"a1","description":"build handler","required_capability":"py"},'
-        '{"id":"a2","description":"write tests","required_capability":"py"}'
-        ']}'
-    )
-    hr = (
-        "task_id=a1 agent_file=.claude/agents/programmer/programmer.md capability=py\n"
-        "task_id=a2 agent_file=.claude/agents/programmer/programmer.md capability=py"
-    )
-    r, log = _drive(
-        "实现 login API 与测试",
-        arch, hr,
-        "handler done",
-        "tests done",
-    )
-    assert r.kind == "done"
-    assert "handler done" in r.user_message
-    assert "tests done" in r.user_message
-    agent_types = [a for a, _ in log]
-    assert agent_types == ["architect", "hr", "work", "work"]
-    # task ids on the two work yields
-    work_ids = [sid for atype, sid in log if atype == "work"]
-    assert work_ids == ["a1", "a2"]
-
-
-def test_e2e_architect_plain_text_reply_is_single_task(isolated_scheduler_root):
-    r, log = _drive(
-        "实现 login API",
-        "Just go put the handler in src/login.py and call it a day.",
-        "task_id=t1 agent_file=.claude/agents/programmer/programmer.md capability=py",
-        "Done.",
-    )
+def test_e2e_execution_work_failure_reply_still_completes(isolated_scheduler_root):
+    """Even a 'Done.' style work reply terminates cleanly — the engine
+    treats the reply as the work output and Respond echoes it."""
+    r, log = _drive("实现 login API", "Done.")
     assert r.kind == "done"
     assert "Done." in r.user_message
-    assert [a for a, _ in log] == ["architect", "hr", "work"]
-
-
-def test_e2e_hr_agent_gap_interrupts(isolated_scheduler_root):
-    r, log = _drive(
-        "实现 login API",
-        _ARCH_REPLY,
-        "agent_gap: no programmer agent available",
-    )
-    assert r.kind == "error"
-    # Retry will resend once → second HR yield with same agent_gap response →
-    # so we may see two HR yields before failure surfaces.
-    assert "agent_gap" in (r.interrupt_reason or "") or "agent_gap" in (r.error_message or "")
-
-
-def test_e2e_architect_error_interrupts(isolated_scheduler_root):
-    r, log = _drive(
-        "实现 login API",
-        "arch_error: blueprint missing",
-    )
-    assert r.kind == "error"
-    assert "arch_error" in (r.interrupt_reason or "") or "arch_error" in (r.error_message or "")
+    assert [a for a, _ in log] == ["work"]
 
 
 # ---------------------------------------------------------------------------

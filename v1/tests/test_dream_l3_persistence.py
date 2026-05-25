@@ -64,14 +64,47 @@ def test_catchup_outside_20h_window_runs(isolated_dirs):
 # ---------------------------------------------------------------------------
 # Single-flight
 # ---------------------------------------------------------------------------
+#
+# Post-t6: arch_gov + hr_gov run in-process under NullLLM, so a tick that
+# is not gated drives straight to "done". Single-flight + abort + list_runs
+# semantics are now exercised by simulating a stuck RUNNING tick on disk
+# (the same shape SessionStart's "stale RUNNING" detector handles), since
+# we no longer have a natural mid-tick suspension point.
+
+
+def _seed_running_tick(scheduler_root, run_id: str = "stuck-run") -> None:
+    """Write a minimal bb.json + current.json that look like a tick in
+    flight, without ever invoking the engine."""
+    dream_dir = scheduler_root / "dream"
+    tick_dir = dream_dir / run_id
+    tick_dir.mkdir(parents=True, exist_ok=True)
+    (tick_dir / "bb.json").write_text(json.dumps({
+        "schema_version": 2,
+        "tick_id": run_id,
+        "bb_status": "running",
+        "created_at": "2026-05-25T00:00:00+00:00",
+        "updated_at": "2026-05-25T00:00:00+00:00",
+        "fields": {
+            "tick_id": run_id,
+            "trigger_reason": "manual",
+            "started_at": "2026-05-25T00:00:00+00:00",
+            "step_results": {},
+        },
+    }), encoding="utf-8")
+    (dream_dir / "current.json").write_text(json.dumps({
+        "run_id": run_id,
+        "status": "running",
+        "started_at": "2026-05-25T00:00:00+00:00",
+        "last_heartbeat": "2026-05-25T00:00:00+00:00",
+    }), encoding="utf-8")
+
 
 def test_second_dream_tick_while_running_is_skipped(isolated_dirs):
     scheduler_root, _ = isolated_dirs
-    res1 = api.dream_tick("manual")
-    assert res1.kind == "yield"
-    res2 = api.dream_tick("manual")
-    assert res2.kind == "skipped"
-    assert res2.reason == "another_run_in_progress"
+    _seed_running_tick(scheduler_root)
+    res = api.dream_tick("manual")
+    assert res.kind == "skipped"
+    assert res.reason == "another_run_in_progress"
 
 
 # ---------------------------------------------------------------------------
@@ -83,13 +116,22 @@ def test_dream_list_runs_returns_empty_when_no_dir(isolated_dirs):
 
 
 def test_dream_list_runs_includes_running_tick(isolated_dirs):
-    res = api.dream_tick("manual")
-    assert res.kind == "yield"
+    scheduler_root, _ = isolated_dirs
+    _seed_running_tick(scheduler_root, run_id="stuck-1")
     runs = api.dream_list_runs()
     assert len(runs) == 1
-    assert runs[0].run_id == res.run_id
+    assert runs[0].run_id == "stuck-1"
     assert runs[0].status == "running"
     assert runs[0].trigger_reason == "manual"
+
+
+def test_dream_list_runs_records_done_tick(isolated_dirs):
+    """A fully in-process tick drives to done; list_runs should pick it up."""
+    res = api.dream_tick("manual")
+    assert res.kind == "done"
+    runs = api.dream_list_runs()
+    assert len(runs) == 1
+    assert runs[0].status == "done"
 
 
 # ---------------------------------------------------------------------------
@@ -98,20 +140,18 @@ def test_dream_list_runs_includes_running_tick(isolated_dirs):
 
 def test_dream_abort_marks_abandoned_and_clears_current(isolated_dirs):
     scheduler_root, _ = isolated_dirs
-    res = api.dream_tick("manual")
-    assert res.kind == "yield"
-    abort = api.dream_abort(res.run_id, "user_preempted")
+    _seed_running_tick(scheduler_root, run_id="stuck-abort")
+    abort = api.dream_abort("stuck-abort", "user_preempted")
     assert abort.aborted is True
     # abandoned.json exists
-    assert (scheduler_root / "dream" / res.run_id / "abandoned.json").exists()
+    assert (scheduler_root / "dream" / "stuck-abort" / "abandoned.json").exists()
     # current.json cleared → another tick can now start
     res2 = api.dream_tick("manual")
-    assert res2.kind == "yield"
-    # last_success.json must NOT have been written by abort
-    assert not (scheduler_root / "dream" / "last_success.json").exists()
-    # list_runs reports the aborted one as abandoned
+    assert res2.kind in ("done", "yield")
+    # The aborted tick must NOT advance last_success.json by itself; a
+    # subsequent successful tick may, so we only assert the abort half here.
     runs = {r.run_id: r.status for r in api.dream_list_runs()}
-    assert runs[res.run_id] == "abandoned"
+    assert runs["stuck-abort"] == "abandoned"
 
 
 def test_dream_abort_on_unknown_run_is_noop(isolated_dirs):

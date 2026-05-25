@@ -3,9 +3,6 @@
 Static topology — auditable in one read. Stacking order locked per
 WORKFLOW-EXECUTION §5: Trace > Timeout > {Retry | Catch}.
 
-Forbidden combinations (enforced by L2 tests):
-  - Retry around DispatchWork — non-idempotent (dispatches agent calls)
-
 Tree shape (see WORKFLOW-EXECUTION §3):
   Root (Trace > Timeout > Sequence)
     InitTick
@@ -13,8 +10,8 @@ Tree shape (see WORKFLOW-EXECUTION §3):
     ModeBranch
       conversation → DirectReply
       execution    → ExecutionSeq (Sequence)
-          RetryDispatchArchitect
-          RetryDispatchHR
+          ArchitectExecution (BT subtree)
+          HrExecution (BT subtree)
           DispatchWork
           Respond
           CatchFlush(FlushMemory)
@@ -24,17 +21,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..actions.arch_exec import build_architect_execution_subtree
 from ..actions.direct_reply import DirectReply
-from ..actions.dispatch_architect import DispatchArchitect
-from ..actions.dispatch_hr import DispatchHR
 from ..actions.dispatch_work import DispatchWork
 from ..actions.flush_memory import FlushMemory
+from ..actions.hr_exec import build_hr_execution_subtree
 from ..actions.init_tick import InitTick
 from ..actions.llm_hook import NullLLM
 from ..actions.mode_classify import ModeClassify
 from ..actions.respond import Respond
 from engine.core.composite import ModeBranch, Sequence
-from engine.core.decorator import Catch, Retry, Timeout, Trace
+from engine.core.decorator import Catch, Timeout, Trace
 
 
 def _default_llm() -> Any:
@@ -61,17 +58,15 @@ def build_root(*, llm: Any = None, global_timeout_s: int = 1800):
     classify = ModeClassify(llm=llm, name="ModeClassify")
     direct = DirectReply(llm=llm, name="DirectReply")
 
-    arch = Retry(DispatchArchitect(name="DispatchArchitect"),
-                 n=2, only="idempotent", name="RetryDispatchArchitect")
-    hr = Retry(DispatchHR(name="DispatchHR"),
-               n=2, only="idempotent", name="RetryDispatchHR")
+    arch_exec = build_architect_execution_subtree(llm)
+    hr_exec = build_hr_execution_subtree(llm)
     work = DispatchWork(name="DispatchWork")
     respond = Respond(name="Respond")
     flush = Catch(FlushMemory(name="FlushMemory"),
                   fallback="swallow", name="CatchFlush")
 
     execution_seq = Sequence(
-        [arch, hr, work, respond, flush],
+        [arch_exec, hr_exec, work, respond, flush],
         name="ExecutionSeq",
     )
 

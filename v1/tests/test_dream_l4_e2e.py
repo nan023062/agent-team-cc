@@ -1,7 +1,10 @@
 """L4 — dream-loop end-to-end tests.
 
-Drive a full tick through both yield gates (Architect + HR) with a
-FakeDispatcher that asserts governance-context invariants on every dispatch.
+Post-t6: arch_gov + hr_gov are in-process BT subtrees, so a single
+dream_tick("manual") drives all three governance steps to completion in
+one shot — no yield/resume ping-pong. These tests assert the same end-
+state contract (report on disk, last_success.json, three step_results
+keys) but on a single call.
 """
 from __future__ import annotations
 
@@ -29,67 +32,23 @@ def isolated_dirs(tmp_path: Path, monkeypatch):
     return scheduler_root, memory_root
 
 
-class FakeDispatcher:
-    """Drives dream ticks: enforces governance-context invariants on every
-    yield (agent_type ∈ {architect, hr}, subtask_id ∈ {governance_knowledge,
-    governance_capability}, prompt starts with `## 治理模式`).
-    """
-
-    def __init__(self):
-        self.dispatches: list[dict] = []
-
-    def drive(self, first: "api.DreamResult", reply_by_agent: dict | None = None):
-        reply_by_agent = reply_by_agent or {}
-        res = first
-        steps = 0
-        while res.kind == "yield":
-            steps += 1
-            assert steps < 10, "yield ping-pong did not terminate"
-            dr = res.dispatch_request
-            assert dr.agent_type in ("architect", "hr"), dr.agent_type
-            assert dr.subtask_id in ("governance_knowledge", "governance_capability"), dr.subtask_id
-            assert dr.prompt.startswith("## 治理模式")
-            self.dispatches.append({
-                "agent_type": dr.agent_type,
-                "subtask_id": dr.subtask_id,
-            })
-            reply = reply_by_agent.get(dr.agent_type, {
-                "safe_actions_applied": [f"{dr.agent_type} ack"],
-                "advice_pending": [],
-            })
-            res = api.dream_tick_resume(res.run_id, reply)
-        return res
-
-
 # ---------------------------------------------------------------------------
 # E2E cases
 # ---------------------------------------------------------------------------
 
 def test_full_tick_drives_to_done(isolated_dirs):
     scheduler_root, _ = isolated_dirs
-    first = api.dream_tick("manual")
-    final = FakeDispatcher().drive(first)
-    assert final.kind == "done", final.to_dict()
-    assert final.report_path is not None
-    assert Path(final.report_path).exists()
+    res = api.dream_tick("manual")
+    assert res.kind == "done", res.to_dict()
+    assert res.report_path is not None
+    assert Path(res.report_path).exists()
     # last_success.json was written
     assert (scheduler_root / "dream" / "last_success.json").exists()
 
 
-def test_full_tick_yields_arch_then_hr_in_order(isolated_dirs):
-    first = api.dream_tick("manual")
-    fd = FakeDispatcher()
-    final = fd.drive(first)
-    assert final.kind == "done"
-    # Architect yield before HR yield.
-    types = [d["agent_type"] for d in fd.dispatches]
-    assert types == ["architect", "hr"]
-
-
 def test_done_report_records_all_three_step_results(isolated_dirs):
-    first = api.dream_tick("manual")
-    final = FakeDispatcher().drive(first)
-    assert final.kind == "done"
+    res = api.dream_tick("manual")
+    assert res.kind == "done"
     runs = api.dream_list_runs()
     assert len(runs) == 1
     assert runs[0].status == "done"
@@ -98,15 +57,34 @@ def test_done_report_records_all_three_step_results(isolated_dirs):
         "ArchStepCatch",
         "HRStepCatch",
     }
-    # All three should be success since FakeDispatcher always replies cleanly
-    # and memory step's 4A skeletons are no-op success.
+    # All three steps run in-process with NullLLM; memory step's 4A
+    # skeletons are no-op success; arch/HR scans return empty findings on
+    # the NullLLM stub reply but still SUCCEED — so all three are success.
     assert all(v == "success" for v in runs[0].step_results.values())
 
 
 def test_resume_with_invalid_payload_type_returns_error(isolated_dirs):
+    """The arch/HR subtrees no longer yield, so we can't get a live yield
+    handle. Instead, drive a tick to done, then call resume on the now-
+    terminal run with a bad payload — the API still rejects on type."""
     first = api.dream_tick("manual")
-    assert first.kind == "yield"
-    # Pass an int — not str, not dict.
-    res = api.dream_tick_resume(first.run_id, 42)
+    # First call already drives to done now; resume of a finished run
+    # surfaces 'run_not_found_or_done', not the schema check.
+    if first.kind == "done":
+        # Synthesize a RUNNING tick on disk so resume gets past the
+        # status gate and hits the dispatch_result schema validation.
+        scheduler_root = api._scheduler_root()
+        run_id = "fake-running"
+        tick_dir = scheduler_root / "dream" / run_id
+        tick_dir.mkdir(parents=True, exist_ok=True)
+        (tick_dir / "bb.json").write_text(json.dumps({
+            "schema_version": 2,
+            "tick_id": run_id,
+            "bb_status": "running",
+            "fields": {"tick_id": run_id},
+        }), encoding="utf-8")
+        res = api.dream_tick_resume(run_id, 42)
+    else:
+        res = api.dream_tick_resume(first.run_id, 42)
     assert res.kind == "error"
     assert res.error_code == "dispatch_result_schema_mismatch"

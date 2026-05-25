@@ -31,3 +31,11 @@ class NullLLM:
         return a coherent Done message without any LLM wired.
         """
         return f"（对话模式）{user_request}"
+
+    def run(self, prompt: str) -> str:
+        """Generic single-prompt entry used by LlmActionLeaf.
+
+        NullLLM default: a JSON stub that downstream parsers can decode
+        without crashing. Real clients perform the actual completion.
+        """
+        return '{"result": null}'

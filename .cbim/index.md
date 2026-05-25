@@ -9,6 +9,7 @@
 - v1/kernel/dashboard
 - v1/kernel/engine
 - v1/kernel/engine/audit
+- v1/kernel/engine/core
 - v1/kernel/engine/dream
 - v1/kernel/engine/execution
 - v1/kernel/engine/persistence

@@ -90,13 +90,17 @@ def test_memory_step_has_four_action_children(root):
     ]
 
 
-def test_arch_and_hr_steps_have_dispatch_then_collect(root):
+def test_arch_and_hr_steps_wrap_in_process_subtrees(root):
+    """Post-t6: each governance step holds a single in-process BT subtree
+    (ArchGovernanceSubtree / HRGovernanceSubtree) instead of the legacy
+    Dispatch+Collect pair. The whole step now runs inside the same tick
+    with no yield to Claude."""
     body = root.children()[0].children()[0]
     steps = body.children()[1]
     arch_seq = steps.children()[1].children()[0].children()[0]
     hr_seq = steps.children()[2].children()[0].children()[0]
-    assert _names(arch_seq.children()) == ["DispatchArchGovern", "CollectArchAdvice"]
-    assert _names(hr_seq.children()) == ["DispatchHRGovern", "CollectHRAdvice"]
+    assert _names(arch_seq.children()) == ["ArchGovernanceSubtree"]
+    assert _names(hr_seq.children()) == ["HRGovernanceSubtree"]
 
 
 def test_emit_and_finalize_live_outside_governance_steps(root):

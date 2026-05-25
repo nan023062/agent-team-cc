@@ -163,3 +163,13 @@ def parse_response(payload: str | dict | None) -> dict:
 
 
 __all__ = ["NODE_SPECS", "compose_prompt", "parse_response"]
+
+
+# Python BT subtree (v4) — kept as a tail import so the compatibility shim
+# above (NODE_SPECS / compose_prompt / parse_response) loads even if the
+# subtree's imports drift. The Python tree is built via:
+#     from engine.execution.actions.hr_exec import build_hr_execution_subtree
+# and is the source of truth going forward; this prompt-scaffold file is
+# kept for the existing dispatch_hr path until the t6 main_loop migration
+# wires the subtree in.
+from engine.execution.actions.hr_exec import build_hr_execution_subtree  # noqa: E402, F401

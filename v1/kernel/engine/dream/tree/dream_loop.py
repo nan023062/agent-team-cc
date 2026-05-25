@@ -6,16 +6,10 @@ Topology (per WORKFLOW-DREAM §三):
       ├── InitDreamTick
       ├── GovernanceSteps (SequenceTolerant)
       │     ├── MemoryGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │     │     ├── MemHealthScan
-      │     │     ├── MemCompact
-      │     │     ├── MemSweepExpired
-      │     │     └── MemRebuildIndex
       │     ├── ArchitectGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │     │     ├── DispatchArchGovern
-      │     │     └── CollectArchAdvice
+      │     │     └── ArchGovernanceSubtree (BT subtree)
       │     └── HRGovernanceStep (Sequence) @Timeout(10min) @Catch
-      │           ├── DispatchHRGovern
-      │           └── CollectHRAdvice
+      │           └── HRGovernanceSubtree (BT subtree)
       ├── EmitReport
       └── FinalizeDreamTick
 
@@ -26,6 +20,7 @@ so they ALWAYS run, even if all three governance steps failed.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from engine.core.composite import Sequence
 from engine.core.decorator import Catch, Timeout, Trace
@@ -34,11 +29,10 @@ from engine.dream.core.composite_tolerant import SequenceTolerant
 from memory.crud.backend import MemoryBackend
 from memory.crud.file_backend import FileBackend
 
-from ..actions.collect_advice import CollectArchAdvice, CollectHRAdvice
-from ..actions.dispatch_arch import DispatchArchGovern
-from ..actions.dispatch_hr import DispatchHRGovern
+from ..actions.arch_gov import build_architect_governance_subtree
 from ..actions.emit_report import EmitReport
 from ..actions.finalize import FinalizeDreamTick
+from ..actions.hr_gov import build_hr_governance_subtree
 from ..actions.init_tick import InitDreamTick
 from ..actions.mem_steps import (
     MemCompact,
@@ -46,6 +40,23 @@ from ..actions.mem_steps import (
     MemRebuildIndex,
     MemSweepExpired,
 )
+from engine.execution.actions.llm_hook import NullLLM
+
+
+def _default_llm() -> Any:
+    """Pick the real Anthropic client when ANTHROPIC_API_KEY is set; fall back
+    to NullLLM otherwise. Mirrors execution/tree/main_loop._default_llm so the
+    two roots stay symmetric.
+    """
+    import os
+
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        return NullLLM()
+    try:
+        from engine.execution.actions.llm_client import AnthropicLLM
+        return AnthropicLLM()
+    except Exception:
+        return NullLLM()
 
 
 def build_dream_root(
@@ -55,6 +66,7 @@ def build_dream_root(
     memory_backend: MemoryBackend | None = None,
     global_timeout_s: int = 1800,
     step_timeout_s: int = 600,
+    llm: Any = None,
 ):
     """Construct the governance loop root.
 
@@ -71,8 +83,12 @@ def build_dream_root(
         Hard ceiling for the whole tick (default 30min).
     step_timeout_s : int
         Per-step ceiling (default 10min).
+    llm : Any, optional
+        In-process LLM client used by the arch_gov / hr_gov scan leaves.
+        Defaults to AnthropicLLM (when ANTHROPIC_API_KEY is set) or NullLLM.
     """
     backend = memory_backend or FileBackend(memory_store_dir)
+    llm = llm if llm is not None else _default_llm()
 
     init = InitDreamTick(name="InitDreamTick")
 
@@ -94,10 +110,7 @@ def build_dream_root(
 
     # ---- Knowledge governance step ----
     arch_seq = Sequence(
-        [
-            DispatchArchGovern(name="DispatchArchGovern"),
-            CollectArchAdvice(name="CollectArchAdvice"),
-        ],
+        [build_architect_governance_subtree(llm)],
         name="ArchitectGovernanceStep",
     )
     arch_step = Catch(
@@ -108,10 +121,7 @@ def build_dream_root(
 
     # ---- Capability governance step ----
     hr_seq = Sequence(
-        [
-            DispatchHRGovern(name="DispatchHRGovern"),
-            CollectHRAdvice(name="CollectHRAdvice"),
-        ],
+        [build_hr_governance_subtree(llm)],
         name="HRGovernanceStep",
     )
     hr_step = Catch(

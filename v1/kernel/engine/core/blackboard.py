@@ -65,7 +65,12 @@ class Blackboard:
     bb dirty for the next Runner snapshot.
     """
 
-    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at")
+    # NOTE: "__dict__" is included so the bt subtrees (arch_exec / hr_exec)
+    # can stash intermediate scratch fields (arch_scan_summary, arch_state,
+    # arch_plan_draft, hr_agent_inventory, hr_current_task, hr_current_match,
+    # hr_assignments_draft, …) without bloating the canonical 14-field set.
+    # Dirty-tracking still only applies to FIELDS via __setattr__.
+    __slots__ = ("_dirty", *FIELDS, "_created_at", "_updated_at", "__dict__")
 
     def __init__(self) -> None:
         # Bypass __setattr__ during init so we don't mark dirty for defaults.

@@ -78,19 +78,31 @@ class AnthropicLLM:
         reply = self._call(system, user_request, temperature=0.3)
         return (reply or "").strip()
 
+    def run(self, prompt: str) -> str:
+        """Generic single-prompt entry used by LlmActionLeaf.
+
+        The prompt is the whole user message; no separate system block is
+        injected here so the caller stays in full control of the framing
+        (each scan leaf already builds its own contract-bearing prompt).
+        """
+        reply = self._call(system="", user=prompt, temperature=0)
+        return reply or ""
+
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
 
     def _call(self, system: str, user: str, *, temperature: float = 0,
               max_tokens: int | None = None) -> str:
-        resp = self._client.messages.create(
-            model=self._model,
-            max_tokens=max_tokens or self._max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
+        kwargs: dict = {
+            "model": self._model,
+            "max_tokens": max_tokens or self._max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": user}],
+        }
+        if system:
+            kwargs["system"] = system
+        resp = self._client.messages.create(**kwargs)
         # `resp.content` is a list of content blocks; concatenate text blocks.
         parts: list[str] = []
         for block in resp.content:

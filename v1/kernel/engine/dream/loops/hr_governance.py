@@ -143,4 +143,19 @@ def parse_response(payload: str | dict | None) -> dict:
     return {"hr_governance_report": {"raw": repr(payload)}}
 
 
-__all__ = ["NODE_SPECS", "compose_prompt", "parse_response"]
+def build_hr_governance_subtree(llm):
+    """Construct the Python-BT HR-governance subtree.
+
+    Delegates to engine.dream.actions.hr_gov. Same re-export pattern as
+    architect_governance.build_architect_governance_subtree.
+    """
+    from engine.dream.actions.hr_gov import build_hr_governance_subtree as _build
+    return _build(llm)
+
+
+__all__ = [
+    "NODE_SPECS",
+    "compose_prompt",
+    "parse_response",
+    "build_hr_governance_subtree",
+]
