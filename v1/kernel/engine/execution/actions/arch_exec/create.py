@@ -38,10 +38,14 @@ def _parse(text: str) -> Any | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Module draft (boundary/contract/depends_on) can run a few hundred
+    # tokens; 2048 covers it. retries=2 absorbs transient flakiness.
     return LlmActionLeaf(
         name="Create",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_draft",
+        max_tokens=2048,
+        retries=2,
     )

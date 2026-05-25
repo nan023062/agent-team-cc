@@ -33,10 +33,16 @@ def _parse(text: str) -> Any | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Scan emits intent + modules list + notes — usually small but the
+    # modules list can balloon when the user_request touches many files.
+    # 2048 covers the realistic upper bound; retries=2 absorbs transient
+    # JSON-fence flakiness.
     return LlmActionLeaf(
         name="Scan",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_scan_summary",
+        max_tokens=2048,
+        retries=2,
     )

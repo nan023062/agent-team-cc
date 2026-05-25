@@ -37,10 +37,14 @@ def _parse(text: str) -> Any | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Specs list (module/todo per spec) can run long when design is dense.
+    # 2048 covers it; retries=2 absorbs transient flakiness.
     return LlmActionLeaf(
         name="Validate",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_validation_result",
+        max_tokens=2048,
+        retries=2,
     )

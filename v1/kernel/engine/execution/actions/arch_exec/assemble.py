@@ -55,10 +55,19 @@ def _parse(text: str) -> list | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Assemble emits the final arch_plan — up to 8 tasks × ~150 tokens of
+    # JSON each, plus framing — so the default 1024-token cap on the shared
+    # AnthropicLLM truncates the reply mid-array, extract_json returns None,
+    # the leaf FAILUREs, and the outer Selector falls through to
+    # FallbackPlan (losing all ContextPack content). 4096 leaves headroom
+    # for the maximum-size plan plus arch_context strings; retries=2 covers
+    # the rare transient malformed-fence case without bloating cost.
     return LlmActionLeaf(
         name="Assemble",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_plan",
+        max_tokens=4096,
+        retries=2,
     )

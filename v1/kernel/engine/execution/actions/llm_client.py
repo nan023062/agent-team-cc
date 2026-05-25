@@ -85,14 +85,20 @@ class AnthropicLLM:
         reply = self._call(system, user_request, temperature=0.3)
         return (reply or "").strip()
 
-    def run(self, prompt: str) -> str:
+    def run(self, prompt: str, *, max_tokens: int | None = None) -> str:
         """Generic single-prompt entry used by LlmActionLeaf.
 
         The prompt is the whole user message; no separate system block is
         injected here so the caller stays in full control of the framing
         (each scan leaf already builds its own contract-bearing prompt).
+
+        ``max_tokens`` overrides the client-default cap for this single
+        call. Leaves that emit JSON arrays (Scan / Map / Assemble) must
+        pass a higher value to avoid truncation-induced parse failures.
+        When unset, falls back to ``self._max_tokens`` (constructor default).
         """
-        reply = self._call(system="", user=prompt, temperature=0)
+        reply = self._call(system="", user=prompt, temperature=0,
+                           max_tokens=max_tokens)
         return reply or ""
 
     # ------------------------------------------------------------------

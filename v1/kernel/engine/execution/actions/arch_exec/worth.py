@@ -38,10 +38,13 @@ def _parse(text: str) -> bool | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Boolean + one-sentence reason — tiny reply, default cap is fine; the
+    # retry is a cheap guard against malformed-fence outliers.
     return LlmActionLeaf(
         name="Worth",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_worth",
+        retries=2,
     )

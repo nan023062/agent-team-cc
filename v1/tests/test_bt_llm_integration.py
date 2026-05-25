@@ -165,3 +165,21 @@ def test_classify_mode_accepts_each_of_the_five_modes():
     for mode in ("conversation", "architect", "hr", "audit", "execution"):
         llm, _fake = _build_anthropic_with_stub_client(reply=mode)
         assert llm.classify_mode("anything") == mode
+
+
+def test_run_uses_client_default_max_tokens_when_unset():
+    """AnthropicLLM.run() with no max_tokens kwarg falls back to the
+    client-default cap set at construction (the historical 1024)."""
+    llm, fake = _build_anthropic_with_stub_client(reply="anything")
+    llm.run("prompt body")
+    assert fake.last_kwargs["max_tokens"] == 1024
+
+
+def test_run_forwards_explicit_max_tokens_override():
+    """When LlmActionLeaf passes max_tokens=4096, the Anthropic call must
+    receive 4096 — not the constructor-default 1024. This is the fix for
+    the arch_exec Assemble truncation that previously dropped the whole
+    architect-execution chain into FallbackPlan."""
+    llm, fake = _build_anthropic_with_stub_client(reply="anything")
+    llm.run("prompt body", max_tokens=4096)
+    assert fake.last_kwargs["max_tokens"] == 4096

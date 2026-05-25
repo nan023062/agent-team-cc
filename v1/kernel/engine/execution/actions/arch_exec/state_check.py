@@ -41,10 +41,14 @@ def _parse(text: str) -> str | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Tiny structured reply — default cap is plenty, but retry guards
+    # against the rare malformed-fence case so a transient blip doesn't
+    # sink the whole architect-execution chain into FallbackPlan.
     return LlmActionLeaf(
         name="StateCheck",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_state",
+        retries=2,
     )

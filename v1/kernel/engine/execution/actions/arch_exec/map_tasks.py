@@ -56,10 +56,15 @@ def _parse(text: str) -> list | None:
 
 
 def build(llm_client: Any) -> LlmActionLeaf:
+    # Map emits plan_draft with up to 8 task entries — same truncation risk
+    # as Assemble (see assemble.build for the cap rationale). retries=2
+    # absorbs transient JSON-fence flakiness.
     return LlmActionLeaf(
         name="Map",
         llm_client=llm_client,
         prompt_builder=_build_prompt,
         response_parser=_parse,
         output_field="arch_plan_draft",
+        max_tokens=4096,
+        retries=2,
     )
