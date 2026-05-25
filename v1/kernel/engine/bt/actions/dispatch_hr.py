@@ -5,21 +5,28 @@ DispatchRequest for HR and returns RUNNING. on_resume parses HR's
 assignment list into bb.agent_assignments and merges agent_file back into
 the corresponding Task dicts in bb.arch_plan.
 
-Idempotent: a tick where every Task already has an agent_file returns
-SUCCESS without re-dispatching. Safe to wrap in @Retry.
+Prompt scaffolding and JSON-response normalization are delegated to
+`engine.loops.hr_execution` — the design flowchart NodeSpec list is the
+single source of truth. This action only owns:
+  - the yield gesture (DispatchRequest)
+  - the agent_gap short-circuit
+  - the merge of agent_file back into arch_plan
 
-agent_gap handling: if HR replies with "agent_gap:" prefix the action
-writes bb.interrupt_reason and returns FAILURE on the next tick.
-
-Accepted reply formats:
-  - "task_id=t1 agent_file=.claude/agents/x/x.md capability=py" lines
-  - dict with key "agent_assignments": list[{task_id, agent_file, capability}]
+Reply parsing falls back to the legacy line-format path
+(``task_id=... agent_file=... capability=...``) so existing agent replies
+keep working unchanged.
 """
 
 from __future__ import annotations
 
 from ..api.result import DispatchRequest
 from ..core.node import Node, Status
+
+
+def _loop():
+    # Lazy import to break the import cycle (see dispatch_architect.py).
+    import engine.loops.hr_execution as m
+    return m
 
 
 _HR_AGENT_FILE = ".claude/agents/hr/hr.md"
@@ -42,7 +49,7 @@ class DispatchHR(Node):
         bb.pending_dispatch = DispatchRequest(
             agent_type="hr",
             agent_file=_HR_AGENT_FILE,
-            prompt=self._compose_prompt(bb, missing),
+            prompt=_loop().compose_prompt(bb),
             subtask_id=None,
         )
         return Status.RUNNING
@@ -54,7 +61,7 @@ class DispatchHR(Node):
             bb.interrupt_reason = f"agent_gap: {tail}"
             bb.pending_dispatch = None
             return
-        assignments = self._parse_assignments(payload, text)
+        assignments = self._extract_assignments(payload, text)
         if not assignments:
             bb.interrupt_reason = "agent_gap: hr returned empty assignment"
             bb.pending_dispatch = None
@@ -76,37 +83,37 @@ class DispatchHR(Node):
     # Internals
     # --------------------------------------------------------------
 
-    def _compose_prompt(self, bb, missing: list[dict]) -> str:
-        lines = ["# HR — Agent Assignment Request (execution mode)", "",
-                 "## User request", bb.user_request or "", "",
-                 "## Tasks needing agent assignment"]
-        for t in missing:
-            lines.append(
-                f"- task_id={t.get('id')} "
-                f"capability={t.get('required_capability', 'generalist')} "
-                f"description={(t.get('description') or '')[:120]}"
-            )
-        lines += ["", "## Asked of HR",
-                  "Return one line per task in the form:",
-                  "  task_id=<id> agent_file=<path> capability=<short tag>",
-                  "If no suitable agent exists for some task, emit:",
-                  "  agent_gap: <capability or note>"]
-        return "\n".join(lines)
-
     @staticmethod
-    def _parse_assignments(payload, text: str) -> list[dict]:
-        if isinstance(payload, dict) and isinstance(payload.get("agent_assignments"), list):
+    def _extract_assignments(payload, text: str) -> list[dict]:
+        """Coerce HR's reply into the canonical assignment list.
+
+        Strategy:
+          1. Run `loop.parse_response(payload)` — it handles dict / JSON
+             string / list shapes carrying agent_assignments. If a usable
+             list comes back, normalize each entry to the expected keys.
+          2. Otherwise fall back to legacy line-format parsing so existing
+             text-based replies (``task_id=... agent_file=...``) work.
+        """
+        normalized = _loop().parse_response(payload)
+        raw_assigns = normalized.get("agent_assignments")
+        if isinstance(raw_assigns, list):
             out: list[dict] = []
-            for a in payload["agent_assignments"]:
-                if isinstance(a, dict) and "task_id" in a and "agent_file" in a:
+            for a in raw_assigns:
+                if not isinstance(a, dict):
+                    continue
+                tid = a.get("task_id") or a.get("subtask_id") or a.get("id")
+                agent_file = a.get("agent_file")
+                if tid and agent_file:
                     out.append({
-                        "task_id": a["task_id"],
-                        "agent_file": a["agent_file"],
+                        "task_id": tid,
+                        "agent_file": agent_file,
                         "capability": a.get("capability", ""),
                     })
             if out:
                 return out
-        out: list[dict] = []
+
+        # Legacy line-format fallback.
+        out2: list[dict] = []
         for line in (text or "").splitlines():
             line = line.strip()
             # Accept both `task_id=` (v3) and legacy `subtask_id=` (v2) for
@@ -117,12 +124,12 @@ class DispatchHR(Node):
             tid = parts.get("task_id") or parts.get("subtask_id")
             agent_file = parts.get("agent_file")
             if tid and agent_file:
-                out.append({
+                out2.append({
                     "task_id": tid,
                     "agent_file": agent_file,
                     "capability": parts.get("capability", ""),
                 })
-        return out
+        return out2
 
 
 def _payload_text(payload) -> str:

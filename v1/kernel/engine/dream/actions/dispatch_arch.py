@@ -5,6 +5,10 @@ on first tick when bb.arch_governance_dispatched is None. On resume the
 matching CollectArchAdvice node consumes the payload — this node only owns
 the yield gesture.
 
+Prompt scaffolding is delegated to `engine.loops.architect_governance` so
+the design flowchart (WORKFLOW-ARCHITECT.zh-CN.md §2) NodeSpec list is the
+single source of truth.
+
 Per-tick idempotent: once dispatched (flag set), subsequent ticks are SUCCESS
 no-ops, so this node is safe under any composite that may re-enter it on
 resume.
@@ -15,6 +19,13 @@ from __future__ import annotations
 from engine.bt.core.node import Node, Status
 
 from ..api.result import DispatchRequest
+
+
+def _loop():
+    # Lazy import to break the import cycle: engine.loops/__init__ eagerly
+    # imports dream_root → dream_loop → this module.
+    import engine.loops.architect_governance as m
+    return m
 
 
 # Default agent file paths (matched at .claude/agents/<role>/<role>.md per
@@ -40,31 +51,9 @@ class DispatchArchGovern(Node):
         bb.pending_dispatch = DispatchRequest(
             agent_type="architect",
             agent_file=self._agent_file,
-            prompt=self._compose_prompt(bb),
+            prompt=_loop().compose_prompt(bb),
             subtask_id="governance_knowledge",
             timeout_hint_s=self._timeout_hint_s,
         )
         bb.arch_governance_dispatched = True
         return Status.RUNNING
-
-    def _compose_prompt(self, bb) -> str:
-        return (
-            "## 治理模式\n\n"
-            "# Architect Governance Sub-loop\n\n"
-            f"run_id: {bb.run_id}\n"
-            f"trigger_reason: {bb.trigger_reason or 'unknown'}\n\n"
-            "## Task\n"
-            "Run the Architect governance sub-loop per "
-            "`design/WORKFLOW-ARCHITECT.zh-CN.md` §2: scan .dna/ registry for "
-            "orphan / drift / split-candidate / merge-candidate / dependency-conflict "
-            "/ memory-promotion-candidate modules. Return a structured report:\n\n"
-            "```\n"
-            "safe_actions_applied:\n"
-            "  - <one line per safe idempotent action taken>\n"
-            "advice_pending:\n"
-            "  - <one line per high-impact suggestion needing user confirm>\n"
-            "```\n\n"
-            "Safe actions (timestamps, missing fields, log entries) may be "
-            "executed directly. High-impact actions (archive module, change "
-            "contract, delete .dna/) MUST go to advice_pending only."
-        )

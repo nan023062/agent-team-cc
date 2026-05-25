@@ -4,18 +4,17 @@ First tick (when bb.arch_plan is None): emits a DispatchRequest for the
 Architect agent and returns RUNNING. on_resume parses the Architect reply
 into bb.arch_plan: list[Task].
 
-Idempotent: a tick where bb.arch_plan is already populated returns SUCCESS
-without re-dispatching. Safe to wrap in @Retry.
+Prompt scaffolding and JSON-response normalization are delegated to
+`engine.loops.architect_execution` — the design flowchart NodeSpec list
+is the single source of truth for the prompt and the response shape.
+This action only owns:
+  - the yield gesture (DispatchRequest)
+  - the agent_error short-circuit (arch_error: token)
+  - the final coercion from `loop.parse_response()` output to
+    `list[Task]` on bb.arch_plan (the BT-level contract)
 
-Reply parsing — three accepted shapes:
-  1. dict with key "arch_plan" → list[dict]  → list[Task]
-  2. list[dict]                              → list[Task]
-  3. anything else (str / dict without plan) → single fallback Task
-     wrapping the raw text as arch_context.
-
-agent_gap-style errors from Architect: if the reply contains the literal
-token "arch_error:" the action writes bb.interrupt_reason and returns
-FAILURE on the next tick.
+Reply parsing falls back to the legacy line / free-text path so existing
+agent replies (plain text wrap, JSON array directly) keep working.
 """
 
 from __future__ import annotations
@@ -24,6 +23,13 @@ import json
 
 from ..api.result import DispatchRequest, Task
 from ..core.node import Node, Status
+
+
+def _loop():
+    # Lazy import to break the import cycle: engine.loops/__init__ eagerly
+    # imports execution_root → main_loop → this module. Resolved at call time.
+    import engine.loops.architect_execution as m
+    return m
 
 
 _ARCH_AGENT_FILE = ".claude/agents/architect/architect.md"
@@ -41,7 +47,7 @@ class DispatchArchitect(Node):
         bb.pending_dispatch = DispatchRequest(
             agent_type="architect",
             agent_file=_ARCH_AGENT_FILE,
-            prompt=self._compose_prompt(bb),
+            prompt=_loop().compose_prompt(bb),
             subtask_id=None,
         )
         return Status.RUNNING
@@ -53,7 +59,7 @@ class DispatchArchitect(Node):
             bb.interrupt_reason = f"arch_error: {tail}"
             bb.pending_dispatch = None
             return
-        plan = self._parse_plan(payload, text)
+        plan = self._extract_plan(payload, text)
         if not plan:
             plan = [Task(
                 id="t1",
@@ -68,21 +74,6 @@ class DispatchArchitect(Node):
     # Internals
     # --------------------------------------------------------------
 
-    def _compose_prompt(self, bb) -> str:
-        return (
-            "# Architect — Plan Request (execution mode)\n\n"
-            "## User request\n"
-            f"{bb.user_request or ''}\n\n"
-            "## Asked of Architect\n"
-            "Produce an execution plan. Reply with EITHER:\n"
-            "  (a) a JSON object {\"arch_plan\": [Task, Task, ...]} where each\n"
-            "      Task is {id, description, required_capability, params, arch_context};\n"
-            "  (b) a JSON array [Task, ...] directly; OR\n"
-            "  (c) free-form text — the engine will wrap it as a single task.\n\n"
-            "Use option (a) or (b) for anything multi-step. Use (c) only for\n"
-            "single-step requests where the description IS the context."
-        )
-
     @staticmethod
     def _payload_text(payload) -> str:
         if isinstance(payload, str):
@@ -92,19 +83,30 @@ class DispatchArchitect(Node):
         return str(payload)
 
     @staticmethod
-    def _parse_plan(payload, text: str) -> list[Task]:
-        # Case 1: dict payload may carry the plan directly.
-        if isinstance(payload, dict):
-            if isinstance(payload.get("arch_plan"), list):
-                return _coerce_task_list(payload["arch_plan"])
-            if isinstance(payload.get("plan"), list):
-                return _coerce_task_list(payload["plan"])
+    def _extract_plan(payload, text: str) -> list[Task]:
+        """Coerce a Task list out of whatever the architect returned.
 
-        # Case 2: try to extract JSON from the text.
+        Strategy:
+          1. Run `loop.parse_response(payload)` — it normalizes dict / JSON
+             str / list into {"arch_plan": <value>}. If <value> is a list
+             of task-shaped dicts, that's our plan.
+          2. If <value> is a dict carrying a nested task list (e.g.
+             {"context_pack": ..., "items": [...]}), pick the first list
+             of dicts inside.
+          3. Fall back to substring JSON extraction on the raw text (legacy
+             behavior for agents that wrap JSON in prose).
+        """
+        normalized = _loop().parse_response(payload)
+        value = normalized.get("arch_plan")
+
+        plan = _coerce_task_list_maybe(value)
+        if plan:
+            return plan
+
+        # Substring JSON extraction (legacy fallback for prose-wrapped JSON).
         stripped = (text or "").strip()
         if not stripped:
             return []
-        # Strip ```json ... ``` fences.
         if stripped.startswith("```"):
             stripped = stripped.strip("`")
             if stripped.lower().startswith("json"):
@@ -112,7 +114,6 @@ class DispatchArchitect(Node):
         try:
             parsed = json.loads(stripped)
         except (json.JSONDecodeError, ValueError):
-            # Try to locate the first {...} or [...] substring.
             start = min((i for i in (stripped.find("{"), stripped.find("["))
                          if i != -1), default=-1)
             end = max(stripped.rfind("}"), stripped.rfind("]"))
@@ -124,14 +125,27 @@ class DispatchArchitect(Node):
                 return []
 
         if isinstance(parsed, dict):
-            if isinstance(parsed.get("arch_plan"), list):
-                return _coerce_task_list(parsed["arch_plan"])
-            if isinstance(parsed.get("plan"), list):
-                return _coerce_task_list(parsed["plan"])
+            for key in ("arch_plan", "plan"):
+                if isinstance(parsed.get(key), list):
+                    return _coerce_task_list(parsed[key])
             return []
         if isinstance(parsed, list):
             return _coerce_task_list(parsed)
         return []
+
+
+def _coerce_task_list_maybe(value) -> list[Task]:
+    """Try to find a list of task-dicts inside whatever loop.parse_response gave us."""
+    if isinstance(value, list):
+        return _coerce_task_list(value)
+    if isinstance(value, dict):
+        for key in ("arch_plan", "plan", "items", "tasks"):
+            inner = value.get(key)
+            if isinstance(inner, list):
+                tasks = _coerce_task_list(inner)
+                if tasks:
+                    return tasks
+    return []
 
 
 def _coerce_task_list(items: list) -> list[Task]:
