@@ -1,31 +1,23 @@
 """hr_exec/decide.py — CoreAgentSelector deterministic leaf.
 
-Runs on the `miss` branch. Consults a static core-agent lookup table; if
-the current task's `required_capability` is a known core role, upgrades
-the match to `fit` and writes the canonical agent file path. Otherwise
-leaves the match as `miss` so the downstream Append step logs an
-agent_gap.
+Runs on the `miss` branch. Consults the shared core-agent capability table
+(see ``actions/core_agents.py``); if the current task's
+``required_capability`` is a known core role, upgrades the match to ``fit``
+and writes the canonical agent file path. Otherwise leaves the match as
+``miss`` so the downstream Append step logs an agent_gap.
 
 No LLM call. Always returns SUCCESS — even on miss, that's a successful
 "checked the table" outcome; the gap is what downstream records.
+
+The table itself lives in ``actions/core_agents.py`` (single source of
+truth shared with ``actions/dispatch_core_agent.py``).
 """
 
 from __future__ import annotations
 
 from engine.core.node import Node, Status
 
-
-# Static lookup. Capability aliases collapse to the same agent file.
-CORE_AGENT_TABLE: dict[str, str] = {
-    "architect":               ".claude/agents/architect/architect.md",
-    "hr":                      ".claude/agents/hr/hr.md",
-    "auditor":                 ".claude/agents/auditor/auditor.md",
-    "programmer":              ".claude/agents/programmer/programmer.md",
-    "coder":                   ".claude/agents/programmer/programmer.md",
-    "tester":                  ".claude/agents/programmer/programmer.md",
-    "python-backend-engineer": ".claude/agents/programmer/programmer.md",
-    "prompt-engineer":         ".claude/agents/programmer/programmer.md",
-}
+from ..core_agents import CORE_AGENT_CAPABILITY_TABLE
 
 
 class CoreAgentSelector(Node):
@@ -36,7 +28,7 @@ class CoreAgentSelector(Node):
         task = getattr(bb, "hr_current_task", None) or {}
         cap = task.get("required_capability")
         if isinstance(cap, str):
-            agent_file = CORE_AGENT_TABLE.get(cap.strip().lower())
+            agent_file = CORE_AGENT_CAPABILITY_TABLE.get(cap.strip().lower())
             if agent_file:
                 bb.hr_current_match = {
                     "kind": "fit",

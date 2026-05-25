@@ -36,8 +36,13 @@ class RunResult:
 
 
 DEFAULT_AGENT_TYPE_TO_LEAF: dict[str, str] = {
-    "auditor": "Audit",
-    "work": "WorkAgentLeaf",
+    # v3.5: each of the three core-agent branches has its own
+    # DispatchCoreAgent leaf, named with an agent_type suffix so the
+    # resume path resolves unambiguously.
+    "architect": "DispatchCoreAgent#architect",
+    "hr":        "DispatchCoreAgent#hr",
+    "auditor":   "DispatchCoreAgent#auditor",
+    "work":      "WorkAgentLeaf",
 }
 
 

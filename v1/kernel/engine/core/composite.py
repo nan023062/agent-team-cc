@@ -238,6 +238,15 @@ class ForEach(Node):
 class ModeBranch(Node):
     """Two-way branch on `bb.mode` (v3).
 
+    .. deprecated:: v3.5
+       Superseded by :class:`SwitchBranch` once the execution root grew
+       to five modes (``conversation`` / ``architect`` / ``hr`` /
+       ``audit`` / ``execution``). New code should use ``SwitchBranch``
+       directly. The class is retained for backward compatibility with
+       any external callers and for unit tests that still exercise the
+       two-mode shape; it is no longer wired into the v3.5 main loop
+       (see ``engine/execution/tree/main_loop.py``).
+
     Routes to the `conversation` child when `bb.mode == "conversation"`,
     to the `execution` child otherwise (default fallback: execution).
 

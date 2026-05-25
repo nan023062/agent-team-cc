@@ -51,20 +51,27 @@ class AnthropicLLM:
 
     def classify_mode(self, user_request: str) -> str:
         system = (
-            "You classify a user request into exactly one of two CBIM modes:\n"
+            "You classify a user request into exactly one of five CBIM modes:\n"
             "  - 'conversation': a question, lookup, explanation, status check,\n"
-            "    greeting, or anything that the coordinator can answer directly\n"
+            "    greeting, or anything the coordinator can answer directly\n"
             "    without dispatching to a subagent.\n"
-            "  - 'execution': a request to do something — implement, fix, design,\n"
-            "    audit, recruit, train, refactor, etc. — anything requiring\n"
-            "    Architect / HR / Work Agent involvement.\n\n"
-            "Reply with ONLY the single word 'conversation' or 'execution'. "
-            "No prose, no punctuation, no quotes."
+            "  - 'architect': design, blueprint, module shape, knowledge-pack,\n"
+            "    or .dna / module.md / contract.md authoring requests.\n"
+            "  - 'hr': agent recruitment, training, assessment, gap filling,\n"
+            "    workforce / capability management requests.\n"
+            "  - 'audit': independent review, critique, second opinion, code or\n"
+            "    design review requests.\n"
+            "  - 'execution': any request to do work (implement / fix / refactor /\n"
+            "    build / wire / create / etc.) that needs the full Architect →\n"
+            "    HR → Work Agent pipeline; this is the default when in doubt.\n\n"
+            "Reply with ONLY one of the five single words 'conversation', "
+            "'architect', 'hr', 'audit', or 'execution'. No prose, no "
+            "punctuation, no quotes."
         )
         reply = self._call(system, user_request, temperature=0,
                            max_tokens=8)
         verdict = (reply or "").strip().lower()
-        if verdict not in ("conversation", "execution"):
+        if verdict not in ("conversation", "architect", "hr", "audit", "execution"):
             return "execution"
         return verdict
 

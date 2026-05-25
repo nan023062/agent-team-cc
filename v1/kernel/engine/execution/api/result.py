@@ -20,7 +20,7 @@ from typing import Any
 class DispatchRequest:
     """Returned inside BtResult.Yield to describe a Task-tool dispatch."""
 
-    agent_type: str                       # "work" (and "auditor" when assistant dispatches Audit directly) — architect/hr no longer yield (in-process subtrees)
+    agent_type: str                       # "work" | "architect" | "hr" | "auditor" — see actions/core_agents.CORE_AGENT_FILES for the canonical mapping of the three core-agent values to .claude/agents/*.md paths. Work dispatches carry subtask_id; core-agent dispatches do not.
     agent_file: str | None
     prompt: str
     subtask_id: str | None = None         # In v3, this carries the Task.id for WorkAgentLeaf dispatches.

@@ -18,9 +18,14 @@ class NullLLM:
     """
 
     def classify_mode(self, user_request: str) -> str:
-        """Classify request into 'conversation' | 'execution'.
+        """Classify request into one of the 5 v3.5 modes.
 
-        NullLLM default: 'execution'. Real LLM may return either label.
+        Valid return values: 'conversation' | 'architect' | 'hr' |
+        'audit' | 'execution'.
+
+        NullLLM default: 'execution' (the safe "send through the
+        Architect → HR → Work pipeline" path). Real LLM may return any
+        of the five labels.
         """
         return "execution"
 

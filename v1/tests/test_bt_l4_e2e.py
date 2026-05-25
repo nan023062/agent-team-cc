@@ -96,6 +96,86 @@ def test_e2e_execution_work_failure_reply_still_completes(isolated_scheduler_roo
 
 
 # ---------------------------------------------------------------------------
+# Core-agent paths (architect / hr / audit)
+#
+# Each of the three core-agent branches must produce EXACTLY ONE yield
+# per tick — a DispatchRequest with the correct agent_type and the
+# canonical .claude/agents/<x>/<x>.md agent_file — and then complete
+# after one resume call.
+# ---------------------------------------------------------------------------
+
+def test_e2e_architect_mode_yields_architect_dispatch(isolated_scheduler_root):
+    """Architect mode (rule path: 'design' / '架构' / etc.) yields one
+    architect dispatch and surfaces the architect's reply verbatim."""
+    r = api.bt_tick("design a new login module")
+    assert r.kind == "yield"
+    dr = r.dispatch_request
+    assert dr.agent_type == "architect"
+    assert dr.agent_file == ".claude/agents/architect/architect.md"
+    assert dr.subtask_id == "core:architect"
+
+    tick_id = r.tick_id
+    r2 = api.bt_tick_resume(tick_id, "Architect: blueprint drafted at .dna/login")
+    assert r2.kind == "done"
+    assert "blueprint drafted" in r2.user_message
+
+
+def test_e2e_hr_mode_yields_hr_dispatch(isolated_scheduler_root):
+    """HR mode (rule path: 'recruit' / '招募' / etc.) yields one HR
+    dispatch and surfaces HR's reply verbatim."""
+    r = api.bt_tick("recruit a python backend engineer agent")
+    assert r.kind == "yield"
+    dr = r.dispatch_request
+    assert dr.agent_type == "hr"
+    assert dr.agent_file == ".claude/agents/hr/hr.md"
+    assert dr.subtask_id == "core:hr"
+
+    tick_id = r.tick_id
+    r2 = api.bt_tick_resume(tick_id, "HR: onboarded python-backend-engineer")
+    assert r2.kind == "done"
+    assert "onboarded python-backend-engineer" in r2.user_message
+
+
+def test_e2e_audit_mode_yields_auditor_dispatch(isolated_scheduler_root):
+    """Audit mode (rule path: 'audit' / '独立审查' / etc.) yields one
+    auditor dispatch and surfaces the auditor's reply verbatim."""
+    r = api.bt_tick("please audit the dispatcher implementation")
+    assert r.kind == "yield"
+    dr = r.dispatch_request
+    assert dr.agent_type == "auditor"
+    assert dr.agent_file == ".claude/agents/auditor/auditor.md"
+    assert dr.subtask_id == "core:auditor"
+
+    tick_id = r.tick_id
+    r2 = api.bt_tick_resume(tick_id, "Auditor: no critical findings")
+    assert r2.kind == "done"
+    assert "no critical findings" in r2.user_message
+
+
+def test_e2e_each_core_agent_mode_yields_exactly_once(isolated_scheduler_root):
+    """Drive each of the three core-agent modes through the helper and
+    assert exactly one yield (one DispatchRequest) per tick."""
+    cases = [
+        ("design the auth module",            "architect",
+         ".claude/agents/architect/architect.md"),
+        ("hire a tester agent",               "hr",
+         ".claude/agents/hr/hr.md"),
+        ("do an independent review of the bt engine", "auditor",
+         ".claude/agents/auditor/auditor.md"),
+    ]
+    for request, expected_type, expected_file in cases:
+        r, log = _drive(request, f"{expected_type}: ok")
+        assert r.kind == "done", f"{request!r} did not complete cleanly"
+        assert len(log) == 1, \
+            f"{request!r} produced {len(log)} yields, expected 1: {log}"
+        agent_type, _subtask_id = log[0]
+        assert agent_type == expected_type, \
+            f"{request!r} dispatched {agent_type!r}, expected {expected_type!r}"
+        # subtask_id carries the result-key namespace — sanity-check it.
+        assert _subtask_id == f"core:{expected_type}"
+
+
+# ---------------------------------------------------------------------------
 # Memory CRUD flush smoke
 # ---------------------------------------------------------------------------
 

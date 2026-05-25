@@ -71,15 +71,25 @@ design §6.3 的精确结构进入契约。
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| `agent_type` | `str` | `"architect"` / `"auditor"` / `"work"` 等；主 agent 据此决定走哪条 Task tool 路径 |
-| `agent_file` | `str \| None` | work agent 需要；架构师/审计员可为 None |
+| `agent_type` | `str` | 枚举值见下表；主 agent 据此决定走哪条 Task tool 路径 |
+| `agent_file` | `str \| None` | 三大核心 agent（architect / hr / auditor）由引擎查 `CORE_AGENT_FILES` 填定；Work Agent **始终为 None**，由主 agent 收到 yield 后据 `required_capability` 调 MCP `agent_list` 即时匹配 |
+| `required_capability` | `str \| None` | **仅 `agent_type="work"` 携带**；架构师 `Assemble` 节点从 `arch_plan.task` 写入的能力枚举值（见 `arch_exec/assemble.py::_VALID_CAPS`）；主 agent 据此调 MCP `agent_list` 在 `.claude/agents/*.md` 中匹配 agent_file，匹配不到回退默认 `.claude/agents/programmer/programmer.md` |
 | `prompt` | `str` | 嗂给 Task tool 的完整 prompt，主 agent **原样**嗂入，不解释、不修改 |
 | `subtask_id` | `str \| None` | `WorkAgentLeaf` 派工时携带，用于 `bt_tick_resume` 时定位 `bb.subtask_results[id]` |
 | `timeout_hint_s` | `int \| None` | 主 agent 可参考的超时建议；非强制 |
 
-**稳定承诺**：现有字段名与语义锁定；新增字段向后兼容追加。
+**`agent_type` 枚举值（informative — 与 mode 分支一一对应）**：
 
----
+| 值 | 由哪个 mode 子树产出 | 主 agent 应走的 Task tool 路径 |
+|----|----------------------|------------------------------|
+| `"architect"` | DispatchArchitect | `.claude/agents/architect/architect.md` |
+| `"hr"` | DispatchHR | `.claude/agents/hr/hr.md` |
+| `"auditor"` | DispatchAuditor | `.claude/agents/auditor/auditor.md` |
+| `"work"` | DispatchWork | 主 agent 据 `required_capability` 调 MCP `agent_list` 在 `.claude/agents/*.md` 中匹配；匹配不到回退默认 `.claude/agents/programmer/programmer.md`（该查表职责不在引擎进程内） |
+
+`direct` mode 不产生 yield（引擎内直接 Respond），故不出现 `agent_type` 值。
+
+**稳定承诺**：现有字段名与语义锁定；现有 4 个 `agent_type` 枚举值（`"architect"` / `"hr"` / `"auditor"` / `"work"`）锁定；`required_capability` 字段语义（仅 work 携带、主 agent 右侧匹配、回退 programmer）锁定；新增字段向后兼容追加；**新增 `agent_type` 枚举值**等同于新增 mode 分支，需走 contract 变更流程（且必须证明无法塞进现有 5 个 mode 之一，见 module.md Non-Goals）。
 
 ## 不在契约内的部分
 

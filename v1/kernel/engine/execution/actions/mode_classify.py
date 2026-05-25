@@ -1,15 +1,24 @@
-"""actions/mode_classify.py — classify user_request → bb.mode ∈ {conversation, execution}.
+"""actions/mode_classify.py — classify user_request → bb.mode.
 
-Two-mode policy (v3, replaces v2's 7-class IntentAnalyze):
-  1. Rule path — keyword/pattern table. Deterministic; no LLM call.
-     Hit "conversation"-shaped requests (questions, look-ups, greetings) →
-     bb.mode = "conversation"; everything else defaults to "execution".
+Five-mode policy (v3.5 — extends the v3 two-mode):
+  1. Rule path — keyword/pattern tables. Deterministic; no LLM call.
+     - design / blueprint / module-shape requests → bb.mode = "architect"
+     - agent recruitment / training / assessment   → bb.mode = "hr"
+     - independent review / audit                  → bb.mode = "audit"
+     - questions / lookups / greetings             → bb.mode = "conversation"
+     - everything else (execution verbs, default)  → bb.mode = "execution"
   2. LLM path — only on rule MISS where the LLM is wired. NullLLM returns
      "execution" as a safe default; never raises.
 
-Empty / whitespace-only request → "conversation" so DirectReply can ship
-a friendly "please describe what you want" message instead of blowing up
+Empty / whitespace-only request → "conversation" so DirectReply ships a
+friendly "please describe what you want" message instead of blowing up
 the execution pipeline.
+
+Precedence on rule conflict: architect > hr > audit > execution-verb >
+conversation. The three core-agent signals win over generic execution
+verbs because "design a new module" and "implement a new module" both
+contain execution verbs but only the former should reach Architect
+directly.
 
 NEVER fails (returns SUCCESS always). The mode is a routing decision, not
 an error condition.
@@ -24,6 +33,55 @@ from engine.core.node import Node, Status
 from .llm_hook import NullLLM
 
 
+# The 5 mode strings returned by classify_mode (and written to bb.mode).
+MODES: tuple[str, ...] = ("conversation", "architect", "hr", "audit", "execution")
+DEFAULT_MODE = "execution"
+
+
+_ARCHITECT_PATTERNS = [
+    # English design / blueprint phrasing
+    re.compile(
+        r"\b(design|blueprint|architect|architecture|module\s+shape|"
+        r"redesign|re-?architect|propose\s+a\s+design|sketch\s+a\s+design|"
+        r"knowledge\s+pack|context\s*pack|\.dna|module\.md|contract\.md)\b",
+        re.IGNORECASE,
+    ),
+    # Chinese design / blueprint phrasing
+    re.compile(
+        r"(设计|架构|蓝图|知识包|画一下|出一份设计|拆分模块|"
+        r"模块边界|模块化|重构架构|定义契约|契约设计)"
+    ),
+]
+
+_HR_PATTERNS = [
+    # English recruitment / training / assessment phrasing
+    re.compile(
+        r"\b(recruit|hire|onboard|train|coach|mentor|assess|evaluate|fire|"
+        r"retire|promote|agent\s+(recruit|hire|onboard|train|gap)|"
+        r"work\s*agent|workforce)\b",
+        re.IGNORECASE,
+    ),
+    # Chinese recruitment / training / assessment phrasing
+    re.compile(
+        r"(招募|招聘|入职|培训|带教|考核|评估|裁撤|晋升|"
+        r"工作\s*agent|人员管理|能力管理|岗位|招一个|招个)"
+    ),
+]
+
+_AUDIT_PATTERNS = [
+    # English audit / independent review phrasing
+    re.compile(
+        r"\b(audit|independent\s+review|critique|second\s+opinion|"
+        r"sanity\s+check|code\s+review|design\s+review|gov(ernance)?\s+check)\b",
+        re.IGNORECASE,
+    ),
+    # Chinese audit / independent review phrasing
+    re.compile(
+        r"(审计|独立审查|独立审核|独立复核|独立评审|"
+        r"复盘|挑刺|找问题|质疑|提出反对意见|做\s*code\s*review)"
+    ),
+]
+
 _CONVERSATION_PATTERNS = [
     # English question / lookup / greeting phrasing
     re.compile(r"^\s*(what|who|when|where|why|how|which|is|are|do|does|can|could|should|would)\b",
@@ -37,11 +95,12 @@ _CONVERSATION_PATTERNS = [
 
 _EXECUTION_PATTERNS = [
     # Strong action verbs — short-circuit to execution even if a
-    # conversation pattern incidentally matches.
-    re.compile(r"\b(implement|add|fix|refactor|build|wire|create|design|split|merge|deprecate|"
-               r"recruit|hire|train|onboard|fire|assess|review|audit|update|delete|remove)\b",
+    # conversation pattern incidentally matches. (Architect / HR / Audit
+    # patterns are tested BEFORE these and win when matched.)
+    re.compile(r"\b(implement|add|fix|refactor|build|wire|create|split|merge|deprecate|"
+               r"update|delete|remove)\b",
                re.IGNORECASE),
-    re.compile(r"(实现|新增|修复|重构|加(一?个|入)|创建|设计|拆分|合并|废弃|招募|培训|考核|审查|审核|复核|评审|更新|删除|改写|重写)"),
+    re.compile(r"(实现|新增|修复|重构|加(一?个|入)|创建|拆分|合并|废弃|更新|删除|改写|重写)"),
 ]
 
 
@@ -56,7 +115,24 @@ class ModeClassify(Node):
             bb.mode = "conversation"
             return Status.SUCCESS
 
-        # Strong execution verbs win unconditionally.
+        # Precedence: architect > hr > audit > execution-verb > conversation.
+        # The three core-agent signals must beat the generic execution
+        # verbs ("design" / "recruit" / "audit" all contain or imply
+        # action verbs, but each routes to its own dedicated agent).
+        for pat in _ARCHITECT_PATTERNS:
+            if pat.search(text):
+                bb.mode = "architect"
+                return Status.SUCCESS
+        for pat in _HR_PATTERNS:
+            if pat.search(text):
+                bb.mode = "hr"
+                return Status.SUCCESS
+        for pat in _AUDIT_PATTERNS:
+            if pat.search(text):
+                bb.mode = "audit"
+                return Status.SUCCESS
+
+        # Generic execution verbs.
         for pat in _EXECUTION_PATTERNS:
             if pat.search(text):
                 bb.mode = "execution"
@@ -68,12 +144,12 @@ class ModeClassify(Node):
                 bb.mode = "conversation"
                 return Status.SUCCESS
 
-        # Rule miss — defer to LLM (NullLLM returns "execution").
+        # Rule miss — defer to LLM (NullLLM returns DEFAULT_MODE).
         try:
             verdict = self._llm.classify_mode(text)
         except Exception:
-            verdict = "execution"
-        if verdict not in ("conversation", "execution"):
-            verdict = "execution"
+            verdict = DEFAULT_MODE
+        if verdict not in MODES:
+            verdict = DEFAULT_MODE
         bb.mode = verdict
         return Status.SUCCESS

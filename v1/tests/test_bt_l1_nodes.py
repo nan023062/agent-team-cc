@@ -143,6 +143,49 @@ def test_mode_classify_rule_miss_defaults_to_execution_under_null_llm():
     assert bb.mode == "execution"
 
 
+def test_mode_classify_english_design_is_architect():
+    bb = _bb(user_request="design a new login module")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "architect"
+
+
+def test_mode_classify_chinese_design_is_architect():
+    bb = _bb(user_request="给登录功能做一份设计")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "architect"
+
+
+def test_mode_classify_english_recruit_is_hr():
+    bb = _bb(user_request="recruit a python backend engineer agent")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "hr"
+
+
+def test_mode_classify_chinese_recruit_is_hr():
+    bb = _bb(user_request="招一个会写 Rust 的工作 agent")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "hr"
+
+
+def test_mode_classify_english_audit_is_audit():
+    bb = _bb(user_request="please audit the dispatcher implementation")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "audit"
+
+
+def test_mode_classify_chinese_audit_is_audit():
+    bb = _bb(user_request="对最近的改动做一次独立审查")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "audit"
+
+
+def test_mode_classify_architect_wins_over_execution_verb():
+    # "design" + "implement" both present — architect must win per precedence.
+    bb = _bb(user_request="design and implement a new auth module")
+    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert bb.mode == "architect"
+
+
 class _StubModeLLM(NullLLM):
     def __init__(self, verdict: str) -> None:
         self._verdict = verdict
@@ -156,6 +199,34 @@ def test_mode_classify_llm_path_on_rule_miss():
     node = ModeClassify(llm=_StubModeLLM("conversation"))
     assert node.tick(bb) is Status.SUCCESS
     assert bb.mode == "conversation"
+
+
+def test_mode_classify_llm_path_can_return_architect():
+    bb = _bb(user_request="zzz blarp qux")
+    node = ModeClassify(llm=_StubModeLLM("architect"))
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.mode == "architect"
+
+
+def test_mode_classify_llm_path_can_return_hr():
+    bb = _bb(user_request="zzz blarp qux")
+    node = ModeClassify(llm=_StubModeLLM("hr"))
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.mode == "hr"
+
+
+def test_mode_classify_llm_path_can_return_audit():
+    bb = _bb(user_request="zzz blarp qux")
+    node = ModeClassify(llm=_StubModeLLM("audit"))
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.mode == "audit"
+
+
+def test_mode_classify_llm_invalid_verdict_falls_back_to_execution():
+    bb = _bb(user_request="zzz blarp qux")
+    node = ModeClassify(llm=_StubModeLLM("nonsense"))
+    assert node.tick(bb) is Status.SUCCESS
+    assert bb.mode == "execution"
 
 
 # ---------------------------------------------------------------------------
