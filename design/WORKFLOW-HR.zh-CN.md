@@ -1,4 +1,4 @@
-# CBIM HR 的能力管理（执行子循环BT + 治理子循环BT）
+# CBIM HR 的能力管理（执行子循环流程图 + 治理子循环流程图）
 
 > 全貌索引文档。父循环（执行根 / 治理根）见 [`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md) 与 [`WORKFLOW-DREAM.zh-CN.md`](./WORKFLOW-DREAM.zh-CN.md)，本文不展开。
 > 位置图见 [`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)；与业务轴的对偶关系见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。
@@ -7,17 +7,17 @@
 
 ## 一句话定位
 
-**HR持有执行子循环BT和治理子循环BT两棵子循环**——前者前向式造新（响应当前任务的能力匹配与懒式招募），后者回头式重构（扫已有能力册的健康度并产建议）。两棵子循环皆是BT，由派工 prompt 头部是否带治理模式标识决定进入哪一棵。
+**HR持有执行子循环流程图和治理子循环流程图两棵子循环**——前者前向式造新（响应当前任务的能力匹配与懒式招募），后者回头式重构（扫已有能力册的健康度并产建议）。两棵子循环皆是流程图，由派工 prompt 头部是否带治理模式标识决定进入哪一棵。
 
 ---
 
-## 第一部分：HR执行子循环BT
+## 第一部分：HR执行子循环流程图
 
 ### 1.1 触发与定位
 
 挂在执行根之下，由执行根的"派 HR"节点 yield 触发，目标是为当前任务的子任务清单逐一落实承接 agent。**前向式**：只看当前任务需要什么能力，不回头审视已有 agent 的健康度。
 
-### 1.2 HR执行子循环BT拓扑（Mermaid）
+### 1.2 HR执行子循环流程图（Mermaid）
 
 ```mermaid
 flowchart TD
@@ -65,13 +65,13 @@ flowchart TD
 
 ---
 
-## 第二部分：HR治理子循环BT
+## 第二部分：HR治理子循环流程图
 
 ### 2.1 触发与定位
 
 挂在治理根之下，由治理根的"派 HR 治理"节点 yield 触发，prompt 头部带治理模式标识。目标是对能力册做体检。**回头式**：不响应任何当前任务，只看已有 agent 的健康度与结构。
 
-### 2.2 HR治理子循环BT拓扑（Mermaid）
+### 2.2 HR治理子循环流程图（Mermaid）
 
 ```mermaid
 flowchart TD
@@ -116,7 +116,7 @@ flowchart TD
 
 ## 第三部分：两棵子循环对比
 
-| 维度 | 执行子循环BT | 治理子循环BT |
+| 维度 | 执行子循环流程图 | 治理子循环流程图 |
 |------|------------|------------|
 | 触发方 | 执行根派 HR | 治理根派 HR |
 | 产出物 | 承接清单（子任务到 agent 的映射） | 治理报告（安全动作 + 待决建议） |
@@ -126,4 +126,4 @@ flowchart TD
 
 ## 第四部分：与业务轴的对偶
 
-能力轴（HR 管）与业务轴（Architect 管）互为镜像：业务轴新增模块可触发能力轴招募对应专域 agent；新 agent 孵化反过来携带新的业务领域知识。两轴各自持有执行 + 治理两棵子循环BT，协同裂变，边界持续扩展。详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。
+能力轴（HR 管）与业务轴（Architect 管）互为镜像：业务轴新增模块可触发能力轴招募对应专域 agent；新 agent 孵化反过来携带新的业务领域知识。两轴各自持有执行 + 治理两棵子循环流程图，协同裂变，边界持续扩展。详见 [`WORKFLOW-ARCHITECT.zh-CN.md`](./WORKFLOW-ARCHITECT.zh-CN.md)。

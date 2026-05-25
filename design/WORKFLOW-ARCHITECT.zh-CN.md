@@ -1,14 +1,14 @@
-# CBIM Architect 双子循环 BT
+# CBIM Architect 双子循环流程图
 
 > 关联：[`LOOPS-OVERVIEW`](./LOOPS-OVERVIEW.zh-CN.md)（位置图） · [`WORKFLOW-EXECUTION`](./WORKFLOW-EXECUTION.zh-CN.md)（执行根） · [`WORKFLOW-DREAM`](./WORKFLOW-DREAM.zh-CN.md)（治理根） · [`WORKFLOW-HR`](./WORKFLOW-HR.zh-CN.md)（能力轴对偶）
 
-**一句话定位：Architect 持有执行子循环 BT 和治理子循环 BT 两棵子循环**，分别挂在执行根与治理根之下，由父循环 yield 触发，agent 接 yield 后按 BT 节点序遍历，跑完一棵子循环回到父循环。两棵子循环共用同一份 agent 配置，由父循环派工 prompt 头部标识决定进入哪棵。
+**一句话定位：Architect 持有执行子循环流程图和治理子循环流程图两个子循环**，分别挂在执行根与治理根之下，由父循环 yield 触发，agent 接 yield 后按流程图节点序遍历，跑完一个子循环回到父循环。两个子循环共用同一份 agent 配置，由父循环派工 prompt 头部标识决定进入哪个。
 
 ---
 
 ## 1. 总览
 
-| 维度 | 执行子循环 BT | 治理子循环 BT |
+| 维度 | 执行子循环流程图 | 治理子循环流程图 |
 |------|--------------|--------------|
 | 触发方 | 执行根（用户驱动） | 治理根（scheduler 驱动） |
 | 工作性质 | 前向式造新：为当前任务而懒式创建/更新模块 | 回头式重构：扫已有模块注册表，找该拆/归档/合并/重组的 |
@@ -17,7 +17,7 @@
 
 ---
 
-## 2. Architect 执行子循环 BT 拓扑
+## 2. Architect 执行子循环流程图
 
 ```mermaid
 flowchart TD
@@ -71,7 +71,7 @@ flowchart TD
 
 ---
 
-## 3. Architect 治理子循环 BT 拓扑
+## 3. Architect 治理子循环流程图
 
 ```mermaid
 flowchart TD
@@ -125,4 +125,4 @@ flowchart TD
 
 ## 4. 与能力轴的对偶
 
-业务知识轴（Architect 管）与能力轴（HR 管）互为镜像，两轴各自都拥有"执行 + 治理"两棵子循环，组合覆盖 CBIM 全部知识与能力维度。详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md)。
+业务知识轴（Architect 管）与能力轴（HR 管）互为镜像，两轴各自都拥有"执行 + 治理"两个子循环，组合覆盖 CBIM 全部知识与能力维度。详见 [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md)。

@@ -1,17 +1,17 @@
-# 执行根 BT — 全貌
+# 执行根流程图 — 全貌
 
-> 关联：[全景图](./LOOPS-OVERVIEW.zh-CN.md) · [治理根 BT](./WORKFLOW-DREAM.zh-CN.md)
-> 子循环（只引用，本篇不展开）：[Architect 子循环 BT](./WORKFLOW-ARCHITECT.zh-CN.md) · [HR 子循环 BT](./WORKFLOW-HR.zh-CN.md) · [主 agent 记忆 CRUD 子循环 BT](./WORKFLOW-MEMORY.zh-CN.md)
+> 关联：[全景图](./LOOPS-OVERVIEW.zh-CN.md) · [治理根流程图](./WORKFLOW-DREAM.zh-CN.md)
+> 子循环（只引用，本篇不展开）：[Architect 子循环流程图](./WORKFLOW-ARCHITECT.zh-CN.md) · [HR 子循环流程图](./WORKFLOW-HR.zh-CN.md) · [主 agent 记忆 CRUD 子循环流程图](./WORKFLOW-MEMORY.zh-CN.md)
 
 ---
 
 ## 1. 定位
 
-**执行根 BT 由用户 prompt 触发。** 用户每发一次 prompt，主 agent 把它喂给执行根 BT，由根 BT 决定走对话直答还是走执行通路；执行通路依次完成知识、能力、业务三轴，最终渲染回复送回用户。CBIM 所有循环都是 BT，本根与治理根平级共存。
+**执行根流程图由用户 prompt 触发。** 用户每发一次 prompt，主 agent 把它喂给执行根流程图，由根流程图决定走对话直答还是走执行通路；执行通路依次完成知识、能力、业务三轴，最终渲染回复送回用户。CBIM 所有循环都是流程图，本根与治理根平级共存。
 
 ---
 
-## 2. 执行根 BT 拓扑
+## 2. 执行根流程图
 
 ```mermaid
 flowchart TD
@@ -53,13 +53,13 @@ flowchart TD
 
 ## 4. 与子循环的衔接
 
-执行根的叶节点只负责"派单 + 等结果"，真正的工作发生在被派出的 agent 内部，每个被派出的 agent 自己也跑一棵 BT。
+执行根的叶节点只负责"派单 + 等结果"，真正的工作发生在被派出的 agent 内部，每个被派出的 agent 自己也跑一个流程图。
 
-| 执行根节点 | 衔接的子循环 BT |
+| 执行根节点 | 衔接的子循环流程图 |
 |-----------|----------------|
-| 派单给架构师 | [Architect 子循环 BT](./WORKFLOW-ARCHITECT.zh-CN.md) |
-| 派单给人事 | [HR 子循环 BT](./WORKFLOW-HR.zh-CN.md) |
-| 落记忆 | [主 agent 记忆 CRUD 子循环 BT](./WORKFLOW-MEMORY.zh-CN.md) |
+| 派单给架构师 | [Architect 子循环流程图](./WORKFLOW-ARCHITECT.zh-CN.md) |
+| 派单给人事 | [HR 子循环流程图](./WORKFLOW-HR.zh-CN.md) |
+| 落记忆 | [主 agent 记忆 CRUD 子循环流程图](./WORKFLOW-MEMORY.zh-CN.md) |
 
 派单给业务 Agent 衔接的是具体业务 agent，其内部拓扑由各 agent 自行约定，本文不收录。
 
@@ -67,4 +67,4 @@ flowchart TD
 
 ## 5. 与治理根的关系
 
-执行根由用户 prompt 触发，治理根由会话开启时的检查触发，二者平级，共用同一套 BT 引擎，互不依赖。用户 prompt 始终优先于治理活动。
+执行根由用户 prompt 触发，治理根由会话开启时的检查触发，二者平级，共用同一套流程图引擎，互不依赖。用户 prompt 始终优先于治理活动。
