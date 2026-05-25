@@ -1,21 +1,21 @@
-"""L1 — node-level unit tests for engine.bt (v3).
+"""L1 — node-level unit tests for engine.execution (v3).
 
 Covers core composites/decorators + each v3 Action's tick/on_resume contract.
 No persistence, no MCP — pure in-memory.
 """
 from __future__ import annotations
 
-from engine.bt.actions.direct_reply import DirectReply
-from engine.bt.actions.dispatch_architect import DispatchArchitect
-from engine.bt.actions.dispatch_hr import DispatchHR
-from engine.bt.actions.dispatch_work import DispatchWork, WorkAgentLeaf
-from engine.bt.actions.init_tick import InitTick
-from engine.bt.actions.llm_hook import NullLLM
-from engine.bt.actions.mode_classify import ModeClassify
-from engine.bt.actions.respond import Respond
-from engine.bt.core.blackboard import Blackboard
-from engine.bt.core.composite import ModeBranch, Parallel, Selector, Sequence
-from engine.bt.core.node import Node, Status
+from engine.execution.actions.direct_reply import DirectReply
+from engine.execution.actions.dispatch_architect import DispatchArchitect
+from engine.execution.actions.dispatch_hr import DispatchHR
+from engine.execution.actions.dispatch_work import DispatchWork, WorkAgentLeaf
+from engine.execution.actions.init_tick import InitTick
+from engine.execution.actions.llm_hook import NullLLM
+from engine.execution.actions.mode_classify import ModeClassify
+from engine.execution.actions.respond import Respond
+from engine.execution.core.blackboard import Blackboard
+from engine.execution.core.composite import ModeBranch, Parallel, Selector, Sequence
+from engine.execution.core.node import Node, Status
 
 
 # ---------------------------------------------------------------------------

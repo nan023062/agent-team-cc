@@ -4,7 +4,7 @@ No persistence, no MCP — pure in-memory.
 """
 from __future__ import annotations
 
-from engine.bt.core.node import Node, Status
+from engine.execution.core.node import Node, Status
 from engine.dream.core.blackboard import DreamBlackboard, FIELDS
 from engine.dream.core.composite_tolerant import SequenceTolerant
 

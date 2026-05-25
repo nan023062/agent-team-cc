@@ -1,6 +1,6 @@
 """mcp_server/tools/bt.py — MCP tools for CBIM behavior-tree engine.
 
-Thin shim over engine.bt.api.bt_tick — all real logic lives in the engine.
+Thin shim over engine.execution.api.bt_tick — all real logic lives in the engine.
 Exposes 4 tools:
   - bt_tick(user_request, context=None)
   - bt_tick_resume(tick_id, dispatch_result)
@@ -10,7 +10,7 @@ Exposes 4 tools:
 
 from __future__ import annotations
 
-from engine.bt.api.bt_tick import (
+from engine.execution.api.bt_tick import (
     bt_abort as _bt_abort,
     bt_list_running_ticks as _bt_list_running_ticks,
     bt_tick as _bt_tick,

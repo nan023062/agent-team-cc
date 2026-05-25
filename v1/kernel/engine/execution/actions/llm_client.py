@@ -7,7 +7,7 @@ DirectReply:
     reply_conversation(user_request) -> str
 
 Constructor injection only — never instantiated at module import time. The
-`anthropic` SDK import is deferred so `import engine.bt` works on machines
+`anthropic` SDK import is deferred so `import engine.execution` works on machines
 without the SDK installed; missing SDK or missing API key surfaces only when
 a method is actually called.
 

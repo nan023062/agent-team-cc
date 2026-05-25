@@ -1,4 +1,4 @@
-# kernel/engine/bt — 对外契约
+# kernel/engine/execution — 对外契约
 
 > 本契约定义行为树引擎对外暴露的全部接口。**只有 3 个接口**：2 个驱动入口（`bt_tick` / `bt_tick_resume`）+ 1 个观测辅助（`bt_list_running_ticks`）。任何"派 agent / 写黑板 / 读节点内部"的路径都不在本契约——它们要么经协程式 yield/resume 回路、要么归子模块内部。
 
@@ -73,7 +73,7 @@ design §6.3 的精确结构进入契约。
 |------|------|------|
 | `agent_type` | `str` | `"architect"` / `"auditor"` / `"work"` 等；主 agent 据此决定走哪条 Task tool 路径 |
 | `agent_file` | `str \| None` | work agent 需要；架构师/审计员可为 None |
-| `prompt` | `str` | 喂给 Task tool 的完整 prompt，主 agent **原样**喂入，不解释、不修改 |
+| `prompt` | `str` | 嗂给 Task tool 的完整 prompt，主 agent **原样**嗂入，不解释、不修改 |
 | `subtask_id` | `str \| None` | `WorkAgentLeaf` 派工时携带，用于 `bt_tick_resume` 时定位 `bb.subtask_results[id]` |
 | `timeout_hint_s` | `int \| None` | 主 agent 可参考的超时建议；非强制 |
 

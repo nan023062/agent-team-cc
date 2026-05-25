@@ -1,6 +1,6 @@
 # CBIM 行为树引擎
 
-> v2 核心驱动引擎的实现规约。给后续 `.dna/engine/bt/` 模块设计与编码实施的人看。
+> v2 核心驱动引擎的实现规约。给后续 `.dna/engine/execution/` 模块设计与编码实施的人看。
 > 关联文档：[`WORKFLOW-EXECUTION.zh-CN.md`](./WORKFLOW-EXECUTION.zh-CN.md)（执行循环的语义与树拓扑）、[`LOOPS-OVERVIEW.zh-CN.md`](./LOOPS-OVERVIEW.zh-CN.md)（在 CBIM 全景中的位置）。
 
 本文档**只讲"引擎怎么实现"**——树拓扑、阶段语义、黑板字段表请直接读 WORKFLOW-EXECUTION。两份文档不互抄。
@@ -10,7 +10,7 @@
 ## 1. 模块结构
 
 ```
-kernel/engine/bt/                      # 行为树引擎根模块
+kernel/engine/execution/               # 行为树引擎根模块
 ├── .dna/                              # 模块知识（待 Architect 设计阶段产出）
 ├── core/
 │   ├── node.py                        # Node ABC + Status 三态枚举

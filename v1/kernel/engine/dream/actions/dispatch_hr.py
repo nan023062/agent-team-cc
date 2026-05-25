@@ -10,7 +10,7 @@ source of truth.
 
 from __future__ import annotations
 
-from engine.bt.core.node import Node, Status
+from engine.execution.core.node import Node, Status
 
 from ..api.result import DispatchRequest
 

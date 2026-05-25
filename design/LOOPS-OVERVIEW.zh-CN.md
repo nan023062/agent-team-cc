@@ -59,7 +59,7 @@ flowchart TB
 | HR 执行子循环流程图 | 执行根 yield | Task tool 派给 HR | [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) |
 | HR 治理子循环流程图 | 治理根 yield | Task tool 派给 HR | [`WORKFLOW-HR.zh-CN.md`](./WORKFLOW-HR.zh-CN.md) |
 
-引擎本体见 [`v1/kernel/engine/bt/README.md`](../v1/kernel/engine/bt/README.md)。
+引擎本体见 [`v1/kernel/engine/execution/README.md`](../v1/kernel/engine/execution/README.md)。
 
 ---
 

@@ -5,7 +5,7 @@ package gives each one a single canonical module so they sit on one
 shelf — no logic added beyond re-exports and a thin registry.
 
 Loop map (loop_name → module)
-  execution_root        → engine.bt.tree.main_loop      (re-export)
+  execution_root        → engine.execution.tree.main_loop      (re-export)
   dream_root            → engine.dream.tree.dream_loop  (re-export)
   memory_crud           → in-process BT built here (bt.core primitives)
   memory_governance     → engine.dream.actions.mem_steps (re-export + builder)

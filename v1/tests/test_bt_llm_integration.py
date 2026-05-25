@@ -16,10 +16,10 @@ import os
 
 import pytest
 
-from engine.bt.actions.direct_reply import DirectReply
-from engine.bt.actions.mode_classify import ModeClassify
-from engine.bt.core.blackboard import Blackboard
-from engine.bt.core.node import Status
+from engine.execution.actions.direct_reply import DirectReply
+from engine.execution.actions.mode_classify import ModeClassify
+from engine.execution.core.blackboard import Blackboard
+from engine.execution.core.node import Status
 
 
 pytestmark = [
@@ -42,7 +42,7 @@ def _bb(**overrides) -> Blackboard:
 
 def _llm():
     # Imported lazily so collection works even without the SDK installed.
-    from engine.bt.actions.llm_client import AnthropicLLM
+    from engine.execution.actions.llm_client import AnthropicLLM
     return AnthropicLLM()
 
 

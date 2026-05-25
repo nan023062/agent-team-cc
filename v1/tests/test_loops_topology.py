@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from engine.bt.core.node import Node
+from engine.execution.core.node import Node
 from engine.loops import (
     NodeSpec,
     architect_execution,
@@ -90,7 +90,7 @@ def _ids(specs: list[NodeSpec]) -> set[str]:
 # ---------------------------------------------------------------------------
 
 def test_execution_root_reexports_bt_root():
-    from engine.bt.tree.main_loop import ROOT as BT_ROOT
+    from engine.execution.tree.main_loop import ROOT as BT_ROOT
     assert execution_root.ROOT is BT_ROOT
     assert callable(execution_root.build_root)
 
@@ -366,13 +366,13 @@ def test_parse_response_handles_json_string(mod, key):
 
 
 # ---------------------------------------------------------------------------
-# Cross-cutting — engine.bt and engine.dream public APIs unchanged
+# Cross-cutting — engine.execution and engine.dream public APIs unchanged
 # ---------------------------------------------------------------------------
 
 def test_bt_public_api_frozen():
     """Sanity guard: the four symbols loops/ depends on must still exist."""
-    from engine.bt.tree.main_loop import ROOT, build_root  # noqa: F401
-    from engine.bt.api.result import BtResult, DispatchRequest  # noqa: F401
+    from engine.execution.tree.main_loop import ROOT, build_root  # noqa: F401
+    from engine.execution.api.result import BtResult, DispatchRequest  # noqa: F401
 
 
 def test_dream_public_api_frozen():

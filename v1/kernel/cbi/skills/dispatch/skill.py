@@ -2,16 +2,16 @@ SKILL: str = """\
 # Skill: Request Classification and Dispatch (engine-internal resource)
 
 > **NOTE (v2)**: As of phase 4C this skill is no longer read by the coordinator.
-> Control flow has moved into the behavior-tree engine (`engine/bt/`). This file
+> Control flow has moved into the behavior-tree engine (`engine/execution/`). This file
 > is retained as a static data source consumed by:
 >
->   - `engine.bt.actions.intent_analyze.IntentRules` — the classification table
->   - `engine.bt.actions.aggregate.Aggregate` — the conflict-detection thresholds
->   - `engine.bt.actions.converge_judge.ConvergeJudge` — the interruption table
+>   - `engine.execution.actions.intent_analyze.IntentRules` — the classification table
+>   - `engine.execution.actions.aggregate.Aggregate` — the conflict-detection thresholds
+>   - `engine.execution.actions.converge_judge.ConvergeJudge` — the interruption table
 >
 > The coordinator MUST NOT read this skill. Coordinator behavior is in
 > `CLAUDE.md ## Workflow` and the tree topology in
-> `engine/bt/tree/main_loop.py`.
+> `engine/execution/tree/main_loop.py`.
 
 ---
 

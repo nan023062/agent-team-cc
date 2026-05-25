@@ -9,9 +9,9 @@ import json
 
 import pytest
 
-from engine.bt.api import bt_tick as api
-from engine.bt.core.blackboard import Blackboard, SCHEMA_VERSION
-from engine.bt.persistence import snapshot
+from engine.execution.api import bt_tick as api
+from engine.execution.core.blackboard import Blackboard, SCHEMA_VERSION
+from engine.execution.persistence import snapshot
 
 
 @pytest.fixture

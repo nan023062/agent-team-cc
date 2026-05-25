@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from engine.bt.core.composite import Sequence
-from engine.bt.core.decorator import Catch, Timeout, Trace
+from engine.execution.core.composite import Sequence
+from engine.execution.core.decorator import Catch, Timeout, Trace
 from engine.dream.core.composite_tolerant import SequenceTolerant
 from engine.dream.tree.dream_loop import build_dream_root
 

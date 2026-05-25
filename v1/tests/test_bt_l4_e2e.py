@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from engine.bt.api import bt_tick as api
+from engine.execution.api import bt_tick as api
 
 
 @pytest.fixture

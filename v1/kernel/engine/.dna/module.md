@@ -1,7 +1,7 @@
 ---
 name: kernel-engine
 owner: architect
-description: Kernel engine — home of the CLI dispatcher and CBIM's twin behavior-tree roots; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree execution root bt/ (MCP-exposed bt_tick / bt_tick_resume) and the governance root dream/ (MCP-exposed dream_tick / dream_tick_resume), both driven by shared bt/core primitives
+description: Kernel engine — home of the CLI dispatcher and CBIM's twin behavior-tree roots; (1) unified CLI dispatcher routing python -m engine <domain> to memory/dna/agent/skill/hook/mcp/dashboard/init/project/log/config/debug/audit, (2) home of the behavior-tree execution root execution/ (MCP-exposed bt_tick / bt_tick_resume) and the governance root dream/ (MCP-exposed dream_tick / dream_tick_resume), both driven by shared execution/core primitives
 keywords: []
 dependencies: []
 ---
@@ -11,7 +11,7 @@ dependencies: []
 The kernel engine plays a **twin role**:
 
 1. **Unified CLI dispatcher.** Single user-facing entry — `python -m engine <domain> [<command>] [args]`, invoked via the project's shim `.cbim/run`. `__main__.py` calls `engine.cli.main()`, which builds an argparse tree and dispatches each domain to the matching delegate.
-2. **Home of the behavior-tree driver (`bt/`).** v2's core driver engine for the execution loop. Each user prompt triggers one `bt_tick`; the BT runner drives a global root node through yield/resume coroutines until `Done`. Exposed to the main agent as MCP tools (`bt_tick` / `bt_tick_resume`), not as a CLI sub-domain.
+2. **Home of the behavior-tree driver (`execution/`).** v2's core driver engine for the execution loop. Each user prompt triggers one `bt_tick`; the BT runner drives a global root node through yield/resume coroutines until `Done`. Exposed to the main agent as MCP tools (`bt_tick` / `bt_tick_resume`), not as a CLI sub-domain.
 
 Engine contains zero business logic in either role. The CLI dispatcher parses arguments and routes; the BT driver runs the tree but defers every actual agent dispatch back to the main agent via `BtResult.Yield`. Every domain (CLI side) and every Action (BT side) delegates outward to the owning module.
 
@@ -29,7 +29,7 @@ classDiagram
     class debug
     class config
     class audit
-    class bt {
+    class execution {
         +bt_tick()
         +bt_tick_resume()
         +bt_list_running_ticks()
@@ -48,12 +48,12 @@ classDiagram
     cli --> debug
     cli --> config
     cli --> audit
-    cli --> bt : audit-only inspect
+    cli --> execution : audit-only inspect
     cli --> dream : audit-only inspect
-    dream --> bt : reuses bt/core primitives
+    dream --> execution : reuses execution/core primitives
 ```
 
-Note: `bt/` and `dream/` are NOT routed through `cli`. They are exposed to the main agent via the `mcp_server` container as MCP tools. The CLI dispatcher only inspects them for audit / debug purposes (e.g. listing `.cbim/scheduler/bt/<tick_id>/` and `.cbim/scheduler/dream/<run_id>/` directories); the loops themselves are driven by `bt_tick` / `bt_tick_resume` and `dream_tick` / `dream_tick_resume` MCP calls.
+Note: `execution/` and `dream/` are NOT routed through `cli`. They are exposed to the main agent via the `mcp_server` container as MCP tools. The CLI dispatcher only inspects them for audit / debug purposes (e.g. listing `.cbim/scheduler/bt/<tick_id>/` and `.cbim/scheduler/dream/<run_id>/` directories); the loops themselves are driven by `bt_tick` / `bt_tick_resume` and `dream_tick` / `dream_tick_resume` MCP calls.
 
 Dispatched domains (current surface, mirrors `engine/cli.py:main`):
 
@@ -79,8 +79,8 @@ Internal cross-cutting modules: `logger` + `session_log` (per-session text logs)
 
 Non-CLI sub-modules (driven through other surfaces):
 
-- `bt/` — behavior-tree driver for the **execution loop** (user-driven root). Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. See `engine/bt/.dna/module.md` and `engine/bt/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}`.
-- `dream/` — behavior-tree driver for the **governance loop** (SessionStart-catchup-driven root, CBIM's second root, peer to `bt/`). Exposes `dream_tick(reason, run_id=None)` / `dream_tick_resume(run_id, dispatch_result)` / `dream_list_runs(limit=10)` / `dream_abort(run_id, reason)` as MCP tools. Triggered by SessionStart hook when ≥20 hours since last successful run. Drives three governance steps (memory / knowledge / capability) via `SequenceTolerant`; memory step calls `memory/` internal maintenance interfaces in-process (no LLM); knowledge / capability steps yield to dispatch Architect / HR in governance mode. Reuses `bt/core` primitives (Node ABC, Composite, Decorator, Runner, persistence, trace) but holds an independent root tree, independent blackboard schema (8 fields), independent trace, independent entry tools. Dependency direction is `dream → bt/core`; `bt` does NOT depend on `dream`. See `engine/dream/.dna/module.md` and `engine/dream/.dna/contract.md`. Persistence at `.cbim/scheduler/dream/<run_id>/{bb.json, trace.jsonl, resume.json, report.md, current.json, last_success.json, abandoned.json}` — physically isolated from `bt/`.
+- `execution/` — behavior-tree driver for the **execution loop** (user-driven root). Exposes `bt_tick(user_request, context=None)` / `bt_tick_resume(tick_id, dispatch_result)` / `bt_list_running_ticks()` as MCP tools (registered by `mcp_server`). The main agent calls `bt_tick` on each user prompt; the BT runner drives the global root node through yield/resume until `Done`. See `engine/execution/.dna/module.md` and `engine/execution/.dna/contract.md`. Persistence at `.cbim/scheduler/bt/<tick_id>/{bb.json, trace.jsonl, resume.json}`.
+- `dream/` — behavior-tree driver for the **governance loop** (SessionStart-catchup-driven root, CBIM's second root, peer to `execution/`). Exposes `dream_tick(reason, run_id=None)` / `dream_tick_resume(run_id, dispatch_result)` / `dream_list_runs(limit=10)` / `dream_abort(run_id, reason)` as MCP tools. Triggered by SessionStart hook when ≥20 hours since last successful run. Drives three governance steps (memory / knowledge / capability) via `SequenceTolerant`; memory step calls `memory/` internal maintenance interfaces in-process (no LLM); knowledge / capability steps yield to dispatch Architect / HR in governance mode. Reuses `execution/core` primitives (Node ABC, Composite, Decorator, Runner, persistence, trace) but holds an independent root tree, independent blackboard schema (8 fields), independent trace, independent entry tools. Dependency direction is `dream → execution/core`; `execution` does NOT depend on `dream`. See `engine/dream/.dna/module.md` and `engine/dream/.dna/contract.md`. Persistence at `.cbim/scheduler/dream/<run_id>/{bb.json, trace.jsonl, resume.json, report.md, current.json, last_success.json, abandoned.json}` — physically isolated from `execution/`.
 
 ## Origin Context
 
@@ -90,9 +90,9 @@ Every CBIM operation that an LLM or human types is one CLI invocation. The kerne
 2. **One logging seam.** Every invocation flows through `cli.main()`, so per-session call logging is uniform across all domains without each sub-engine reinventing the wheel.
 3. **Domain isolation.** Each domain's real implementation lives in a sibling sub-module (`memory/`, `cbi/`, `mcp_server/`, etc.). Engine merely parses and dispatches. A domain can be refactored, removed, or added without touching the other domains.
 
-`engine/` is also the home of `bt/` — the v2 behavior-tree driver. Why colocate the BT driver with the CLI dispatcher rather than make it a sibling top-level package? Two reasons:
+`engine/` is also the home of `execution/` — the v2 behavior-tree driver. Why colocate the BT driver with the CLI dispatcher rather than make it a sibling top-level package? Two reasons:
 
-1. **Shared cross-cutting infrastructure.** `bt/` reuses `engine.config` (audit / iteration thresholds), `engine.logger` (session-level signals; BT trace is separate), and the same project-root resolution machinery. Promoting BT to a sibling would force every cross-cutting access through an extra package boundary for zero design win.
+1. **Shared cross-cutting infrastructure.** `execution/` reuses `engine.config` (audit / iteration thresholds), `engine.logger` (session-level signals; BT trace is separate), and the same project-root resolution machinery. Promoting BT to a sibling would force every cross-cutting access through an extra package boundary for zero design win.
 2. **One "engine" mental model.** The kernel has one operational engine, with two faces: a synchronous CLI face (humans / scripts call `cbim ...`) and a coroutine-driven BT face (the main agent calls `bt_tick` via MCP). Both faces live under `engine/` because they share the same "router-with-no-business-logic" personality — neither owns business semantics; both delegate outward.
 
 ## Key Decisions

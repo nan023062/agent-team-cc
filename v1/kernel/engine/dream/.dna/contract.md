@@ -124,12 +124,12 @@ design §六 §七 + 本契约约定的四态联合。
 | 项 | 归属 |
 |----|------|
 | 黑板 schema 与字段写者表 | 归 design `WORKFLOW-DREAM.zh-CN.md §五`；通过 `bb.json.schema_version` 管理演进，不通过本契约暴露 |
-| 节点 ABC、组合节点、装饰器实现 | 复用 `engine/bt/core/` 子模块内部；外部不可见、不可继承（C1 单接口原则） |
-| `SequenceTolerant` 组合节点的内部实现 | 归 `engine/bt/core/composite.py`（在 bt 模块内新增）；外部只通过 `tree/` 静态拼装可见 |
+| 节点 ABC、组合节点、装饰器实现 | 复用 `engine/execution/core/` 子模块内部；外部不可见、不可继承（C1 单接口原则） |
+| `SequenceTolerant` 组合节点的内部实现 | 归 `engine/execution/core/composite.py`（在 execution 模块内新增）；外部只通过 `tree/` 静态拼装可见 |
 | Action 实现内部的 in-process 记忆服务调用 | 归 `actions/mem_*.py` 内部；通过构造器注入 memory 客户端，对外只通过 `tick(bb) → Status` 暴露 |
 | 治理模式 prompt 模板 | 归 `actions/dispatch_*.py` 内部；prompt 结构演进不通过本契约暴露 |
 | 树拓扑（节点排列、装饰器叠加顺序） | 归 `tree/dream_root.py`；可静态审计但不通过运行时 API 暴露——审计请直读源码 |
-| `trace.jsonl` 单条事件结构 | 复用 `bt/persistence/trace.py` 格式；事件类型是观测约定，不是 RPC 契约——下游消费者按 best-effort 解析 |
+| `trace.jsonl` 单条事件结构 | 复用 `execution/persistence/trace.py` 格式；事件类型是观测约定，不是 RPC 契约——下游消费者按 best-effort 解析 |
 | abandoned run 自动恢复策略 | **明确不做**；abandoned 是终态，20 小时窗口正常滚动后由下次 SessionStart 触发**新的** dream tick 而非续跑 |
 | 直派 Architect / HR 的回调接口 | **明确不做**；任何派工一律经 yield → Task tool → resume 回路 |
 | SessionStart hook 注入提示的具体文案 | 归 `.claude/hooks/cbim_session_start.py` 内部；本契约只约束 `dream_tick` 入口，不约束触发提示语 |
