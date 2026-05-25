@@ -14,6 +14,7 @@ import from dashboard. If either direction shows up, the boundary is broken.
 
 from .memory_service import (
     list_entries,
+    get_entry,
     reindex as memory_reindex,
     cleanup as memory_cleanup,
 )
@@ -36,6 +37,7 @@ from .log_service import read_log
 
 __all__ = [
     "list_entries",
+    "get_entry",
     "list_agents",
     "list_modules",
     "read_log",

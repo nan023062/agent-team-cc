@@ -145,6 +145,13 @@ def reindex(tier: str = "", cwd: str = "") -> str:
     return f"reindexed {count} entries (tier={tier_arg or 'all'})"
 
 
+def get_entry(entry_id: str, cwd: str = "") -> dict | None:
+    from memory._facade import get as _facade_get
+    root = Path(find_project_root(cwd or None))
+    store_dir = root / ".cbim" / "memory"
+    return _facade_get(entry_id, store_dir=store_dir)
+
+
 def cleanup(keep_days: int, cwd: str = "") -> str:
     """Delete short-term entries older than `keep_days` days.
 

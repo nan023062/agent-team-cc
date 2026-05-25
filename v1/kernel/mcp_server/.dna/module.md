@@ -12,7 +12,7 @@ MCP (Model Context Protocol) server exposing kernel ops as MCP tools over stdio 
 
 - **agent** — `agent_list`, `agent_show`, `agent_scaffold`, `agent_update`, `agent_add_skill`, `agent_archive`
 - **dna** — `dna_list`, `dna_show`, `dna_reindex`, `dna_init`, `dna_edit`, `dna_split`, `dna_write_doc` (deprecated), `dna_write_section` (deprecated)
-- **memory** — `memory_query`, `memory_list`, `memory_create`, `memory_delete`, `memory_reindex`, `memory_cleanup`
+- **memory** — `memory_query`, `memory_get`, `memory_list`, `memory_create`, `memory_delete`, `memory_reindex`, `memory_cleanup`
 - **skill** — `skill_list`, `skill_show` (read-only)
 - **snapshot** — `project_snapshot` (read-only)
 - **scheduler** — task scheduler control surface (`scheduler_status`, `scheduler_trigger`)
@@ -59,3 +59,4 @@ classDiagram
 ## Non-Goals
 
 - **No hook transport.** Hook subprocesses do not connect to this server (no UDS listener, no hook-facing MCP tools). Hook reliability is decoupled from server liveness.
+

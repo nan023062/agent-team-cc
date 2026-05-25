@@ -5,11 +5,13 @@ Exposes:
   memory_query(text, tier, top_k)       — semantic search across the store
   memory_create(slug, content, tier)    — create a new memory entry
   memory_list(tier)                     — list all entry IDs
+  memory_get(entry_id)                  — fetch a single entry by id or path
   memory_delete(path)                   — delete a memory entry
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 
@@ -137,6 +139,29 @@ def register(mcp) -> None:
             return _cleanup(keep_days=keep_days, cwd=cwd)
         except (ValueError, FileNotFoundError, RuntimeError) as e:
             return f"ERROR: {e}"
+
+    @mcp.tool()
+    def memory_get(entry_id: str, cwd: str = "") -> str:
+        """Fetch a single memory entry by id or absolute path.
+
+        Args:
+            entry_id: Absolute path, or bare basename resolved against
+                      short/, medium/, candidates/ in that order.
+            cwd: Project directory (default: current working dir).
+
+        Returns:
+            JSON-encoded entry dict ({id, path, tier, mtime, metadata,
+            content}) on hit, or the literal string "null" when no such
+            entry exists.
+        """
+        from services import get_entry as _get_entry
+        try:
+            entry = _get_entry(entry_id, cwd=cwd)
+        except (ValueError, FileNotFoundError, RuntimeError) as e:
+            return json.dumps({"error": str(e)})
+        if entry is None:
+            return "null"
+        return json.dumps(entry, ensure_ascii=False)
 
     @mcp.tool()
     def memory_delete(path: str, cwd: str = "") -> str:
