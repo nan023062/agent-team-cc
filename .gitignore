@@ -16,3 +16,6 @@ cbim-kernel-*.tar.gz
 .cbim/dashboard/.run/
 .cbim/.upgrade_cache.json
 .cbim/.pin
+
+# CBIM
+.cbim/

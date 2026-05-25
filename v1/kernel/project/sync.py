@@ -233,7 +233,10 @@ def sync_hook_scripts(project_root: Path, dry_run: bool = False) -> list[str]:
 
 
 _CBIM_HOOK_CMD_PREFIX = ".claude/hooks/cbim_"
-_LEGACY_CBIM_HOOK_CMD_PREFIX = ".cbim/run hook"
+_LEGACY_CBIM_HOOK_CMD_PREFIXES: tuple[str, ...] = (
+    ".cbim/run hook",  # pre-Phase-3a shim
+    "cbim hook ",      # pre-V1 CLI-based hooks (e.g. "cbim hook session-start")
+)
 _CBIM_DENY_PATTERNS: tuple[str, ...] = (
     "Write(.cbim/**)",
     "Edit(.cbim/**)",
@@ -255,9 +258,8 @@ def _is_cbim_hook_entry(entry: object) -> bool:
     cmd = entry.get("command")
     if not isinstance(cmd, str):
         return False
-    return (
-        cmd.startswith(_CBIM_HOOK_CMD_PREFIX)
-        or cmd.startswith(_LEGACY_CBIM_HOOK_CMD_PREFIX)
+    return cmd.startswith(_CBIM_HOOK_CMD_PREFIX) or any(
+        cmd.startswith(p) for p in _LEGACY_CBIM_HOOK_CMD_PREFIXES
     )
 
 

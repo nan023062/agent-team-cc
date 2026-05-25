@@ -14,7 +14,9 @@
     ],
     "deny": [
       "Write(.cbim/**)",
-      "Edit(.cbim/**)"
+      "Edit(.cbim/**)",
+      "Read(.cbim/**)",
+      "Bash(.cbim/run *)"
     ],
     "defaultMode": "bypassPermissions"
   },
@@ -24,7 +26,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook session-start"
+            "command": ".claude/hooks/cbim_session_start.py"
+          },
+          {
+            "type": "command",
+            "command": ".claude/hooks/cbim_auto_preview.py"
           }
         ]
       }
@@ -34,7 +40,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook session-end"
+            "command": ".claude/hooks/cbim_session_end.py"
           }
         ]
       }
@@ -44,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook stop"
+            "command": ".claude/hooks/cbim_stop.py"
           }
         ]
       }
@@ -54,7 +60,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook log-prompt"
+            "command": ".claude/hooks/cbim_user_prompt_submit.py"
           }
         ]
       }
@@ -64,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook log-pre-tool"
+            "command": ".claude/hooks/cbim_pre_tool_use.py"
           }
         ]
       }
@@ -74,18 +80,10 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cbim hook log-post-tool"
+            "command": ".claude/hooks/cbim_post_tool_use.py"
           }
         ]
       }
     ]
-  },
-  "mcpServers": {
-    "cbim": {
-      "command": "cbim",
-      "args": [
-        "mcp"
-      ]
-    }
   }
 }

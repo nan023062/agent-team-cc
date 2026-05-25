@@ -230,6 +230,64 @@ def _check_mcp_sdk(project_root: Path) -> None:
     )
 
 
+def _clean_global_settings() -> None:
+    """Remove stale cbim hook entries and mcpServers.cbim from global settings.
+
+    Pre-V1 installers wrote `cbim hook ...` CLI commands into the global
+    ~/.claude/settings.json. In V1, hooks are project-local Python scripts;
+    the global settings must have no cbim entries. This migration runs once
+    per install and is a no-op if the file is already clean.
+    """
+    import json
+
+    global_settings = Path.home() / ".claude" / "settings.json"
+    if not global_settings.exists():
+        return
+    try:
+        data = json.loads(global_settings.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+
+    before = json.dumps(data, sort_keys=True)
+
+    hooks = data.get("hooks")
+    if isinstance(hooks, dict):
+        for event, groups in list(hooks.items()):
+            if not isinstance(groups, list):
+                continue
+            new_groups = []
+            for g in groups:
+                if not isinstance(g, dict):
+                    new_groups.append(g)
+                    continue
+                kept = [e for e in g.get("hooks", []) if not _sync._is_cbim_hook_entry(e)]
+                if kept:
+                    ng = dict(g)
+                    ng["hooks"] = kept
+                    new_groups.append(ng)
+            hooks[event] = new_groups
+        for event in [k for k, v in hooks.items() if not v]:
+            del hooks[event]
+        if not hooks:
+            del data["hooks"]
+
+    mcp = data.get("mcpServers")
+    if isinstance(mcp, dict) and "cbim" in mcp:
+        del mcp["cbim"]
+        if not mcp:
+            del data["mcpServers"]
+
+    after = json.dumps(data, sort_keys=True)
+    if before == after:
+        return
+
+    global_settings.write_text(
+        json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    print("[cbim] cleaned legacy cbim entries from global ~/.claude/settings.json")
+
+
 def _install_settings(project_root: Path, force: bool) -> None:
     # sync_settings already merges idempotently; force has no effect on merge
     # semantics (the merge is always safe).
@@ -296,6 +354,7 @@ def init_project(project_root: Path, force: bool = False) -> None:
     project_root = Path(project_root).resolve()
     print(f"[cbim] Initializing CBIM project at {project_root}")
 
+    _clean_global_settings()
     _install_config(project_root, force)
     _ensure_dir(project_root / ".cbim" / "logs", project_root)
     _ensure_dir(project_root / ".cbim" / "memory" / "short", project_root)

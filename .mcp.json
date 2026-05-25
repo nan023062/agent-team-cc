@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "cbim": {
+      "command": ".cbim/run",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}
