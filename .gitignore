@@ -23,6 +23,3 @@ Temp/
 .cbim/dashboard/.run/
 .cbim/.upgrade_cache.json
 .cbim/.pin
-
-# CBIM
-.cbim/
