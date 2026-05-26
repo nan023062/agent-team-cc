@@ -1,9 +1,8 @@
 """engine.execution.loops — execution-class loop catalog.
 
-Holds the three loops that run under the execution root (bt_tick):
+Holds the loops that run under the execution root (bt_tick):
 
   execution_root      → engine.execution.tree.main_loop      (re-export)
-  architect_execution → NodeSpec descriptor + subtree builder re-export
   memory_crud         → in-process BT built here (core primitives)
 
 `get_loop(name)` returns the module object — callers pick what they need
@@ -13,13 +12,17 @@ than a single artifact keeps the registry agnostic to the loop's category
 
 Scope is intentionally execution-only; governance-class loops live in
 `engine.dream.loops` and have their own registry.
+
+PR-D: ``architect_execution`` is deleted. The nine-leaf in-process
+arch_exec subtree was replaced by a single yield to the architect agent
+(see ``actions/arch_exec_yield.ArchExecYield``); there is no longer any
+descriptor-style loop catalog entry for it.
 """
 from __future__ import annotations
 
 from types import ModuleType
 
 from . import (
-    architect_execution,
     execution_root,
     memory_crud,
 )
@@ -27,7 +30,6 @@ from . import (
 
 _REGISTRY: dict[str, ModuleType] = {
     "execution_root":      execution_root,
-    "architect_execution": architect_execution,
     "memory_crud":         memory_crud,
 }
 
@@ -54,6 +56,5 @@ __all__ = [
     "get_loop",
     "loop_names",
     "execution_root",
-    "architect_execution",
     "memory_crud",
 ]

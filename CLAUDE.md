@@ -63,7 +63,7 @@ The project root is always the directory containing `.cbim/` — the directory w
 
 ## Workflow
 
-The coordinator no longer drives the dispatch loop in prose. Control flow has moved into the behavior-tree engine (`v1/kernel/engine/bt/`). Your job each turn is mechanical:
+The coordinator no longer drives the dispatch loop in prose. Control flow has moved into the behavior-tree engine (`v1/kernel/engine/execution/`). Your job each turn is mechanical:
 
 1. Receive the user's prompt.
 2. Call MCP tool `bt_tick(user_request=<the prompt>)`.
@@ -77,7 +77,7 @@ The coordinator no longer drives the dispatch loop in prose. Control flow has mo
    - `kind="error"` → relay `error_message` (and `interrupt_reason` if present) to the user; tick ends.
 4. Loop steps 2–3 until you see `kind="done"` or `kind="error"`.
 
-That is the entire workflow. You do not classify intent, decompose tasks, decide who to dispatch, judge convergence, count iterations, or detect conflicts — all of that lives in the engine and is statically auditable in `v1/kernel/engine/bt/tree/main_loop.py`.
+That is the entire workflow. You do not classify intent, decompose tasks, decide who to dispatch, judge convergence, count iterations, or detect conflicts — all of that lives in the engine and is statically auditable in `v1/kernel/engine/execution/tree/main_loop.py`.
 
 ### What you must not do
 

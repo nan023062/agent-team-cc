@@ -19,7 +19,6 @@ import pytest
 from engine.core.node import Node
 from engine.core.loop_spec import NodeSpec
 from engine.execution.loops import (
-    architect_execution,
     execution_root,
     memory_crud,
 )
@@ -41,7 +40,6 @@ from engine.dream.loops import loop_names as gov_loop_names
 
 EXPECTED_EXEC_LOOP_NAMES = {
     "execution_root",
-    "architect_execution",
     "memory_crud",
 }
 
@@ -231,28 +229,13 @@ def test_memory_governance_order_matches_dream_loop(tmp_path: Path):
 
 # ---------------------------------------------------------------------------
 # Agent-side descriptor loops
+#
+# PR-D: architect_execution descriptor + NODE_SPECS were deleted along
+# with the in-process arch_exec subtree. The architect's execution-mode
+# behavior now lives entirely in .claude/agents/architect/architect.md;
+# the kernel-side surface is the single-yield ArchExecYield leaf. There
+# is no descriptor loop left to assert on.
 # ---------------------------------------------------------------------------
-
-ARCH_EXEC_EXPECTED_LABELS = {
-    "读取相关模块知识/扫工作区代码",
-    "知识与代码同步状态判断",
-    "值得为这块代码建立模块知识?",
-    "懒式建立新模块知识",
-    "直接提取模块路径与约束",
-    "定位变更点/补齐知识",
-    "验证设计可行性/标记待实现规约",
-    "子任务到模块映射",
-    "装配 ContextPack",
-}
-
-
-def test_architect_execution_node_specs():
-    labels = _labels(architect_execution.NODE_SPECS)
-    missing = ARCH_EXEC_EXPECTED_LABELS - labels
-    assert not missing, f"missing architect_execution labels: {missing}"
-    # ids must be unique
-    ids = _ids(architect_execution.NODE_SPECS)
-    assert len(ids) == len(architect_execution.NODE_SPECS), "duplicate spec ids"
 
 
 ARCH_GOV_EXPECTED_LABELS = {
@@ -305,16 +288,13 @@ def test_hr_governance_six_scans_present():
 
 
 # ---------------------------------------------------------------------------
-# Descriptor contract — every agent-side loop exposes NODE_SPECS.
-# Governance descriptors (architect_governance / hr_governance) also expose
-# compose_prompt + parse_response, consumed by the dream-loop dispatch /
-# collect leaves to render the architect / HR governance prompts and parse
-# the returned reports. architect_execution remains in-process subtree and
-# carries _NODE_GUIDE instead.
+# Descriptor contract — every agent-side governance loop exposes
+# NODE_SPECS + compose_prompt + parse_response. (PR-D removed
+# architect_execution from this catalog along with the in-process
+# subtree.)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mod", [
-    architect_execution,
     architect_governance,
     hr_governance,
 ])

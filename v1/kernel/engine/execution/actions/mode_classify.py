@@ -9,8 +9,10 @@ Five-mode policy (v3.7 — tighten core-agent patterns, prioritize execution ver
      - explicit auditor request (audit X / ask auditor / code review)  → audit
      - questions / lookups / greetings                                 → conversation
      - everything else (default)                                       → execution
-  2. LLM path — only on rule MISS where the LLM is wired. NullLLM returns
-     "execution" as a safe default; never raises.
+  2. PR-D: the LLM fallback branch is gone. The kernel performs no LLM
+     classification; rule miss defaults to "execution" so the architect
+     agent itself can reroute (via status="needs_user_input") if the
+     request turns out to be conversational on closer inspection.
 
 Empty / whitespace-only request → "conversation" so DirectReply ships a
 friendly "please describe what you want" message instead of blowing up
@@ -18,7 +20,7 @@ the execution pipeline.
 
 Precedence on rule conflict (v3.7):
   architect-preempt > execution-verb > architect-request > hr-request >
-  audit-request > conversation > LLM fallback.
+  audit-request > conversation > default ("execution").
 
 The v3.5/v3.6 ordering (`architect > hr > audit > execution-verb`) used
 bare topic keywords ("architecture" / "audit" / "module.md" / "recruit")
@@ -42,13 +44,11 @@ an error condition.
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from engine.core.node import Node, Status
-from .llm_hook import NullLLM
 
 
-# The 5 mode strings returned by classify_mode (and written to bb.mode).
+# The 5 mode strings written to bb.mode by ModeClassify.tick.
 MODES: tuple[str, ...] = ("conversation", "architect", "hr", "audit", "execution")
 DEFAULT_MODE = "execution"
 
@@ -245,9 +245,8 @@ _CONVERSATION_PATTERNS = [
 
 
 class ModeClassify(Node):
-    def __init__(self, *, llm: Any = None, name: str = "ModeClassify") -> None:
+    def __init__(self, *, name: str = "ModeClassify") -> None:
         self.name = name
-        self._llm = llm or NullLLM()
 
     def tick(self, bb) -> Status:
         text = (bb.user_request or "").strip()
@@ -257,7 +256,7 @@ class ModeClassify(Node):
 
         # v3.7 precedence:
         #   architect-preempt > execution-verb > architect-request >
-        #   hr-request > audit-request > conversation > LLM fallback.
+        #   hr-request > audit-request > conversation > default.
 
         # 1. Architect preempt — split/merge/deprecate a module, update .dna.
         for pat in _ARCHITECT_PREEMPT_PATTERNS:
@@ -295,12 +294,10 @@ class ModeClassify(Node):
                 bb.mode = "conversation"
                 return Status.SUCCESS
 
-        # 7. Rule miss — defer to LLM (NullLLM returns DEFAULT_MODE).
-        try:
-            verdict = self._llm.classify_mode(text)
-        except Exception:
-            verdict = DEFAULT_MODE
-        if verdict not in MODES:
-            verdict = DEFAULT_MODE
-        bb.mode = verdict
+        # 7. Rule miss — default to execution (the safe "send through
+        # the Architect → Work pipeline" path). The kernel performs no
+        # LLM classification; the architect itself reroutes (via
+        # status="needs_user_input") if the request turns out to be
+        # conversational on closer inspection.
+        bb.mode = DEFAULT_MODE
         return Status.SUCCESS

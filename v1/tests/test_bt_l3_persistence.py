@@ -3,10 +3,10 @@
 Uses pytest tmp_path fixture for the scheduler root; never touches the
 real .cbim/ directory.
 
-v3.6: the architect sub-loop runs in-process; the hr_exec sub-loop was
-removed entirely. The only remaining yield on the execution path is
-DispatchWork. The `stub_root` fixture rebuilds ROOT with a StubArchHrLLM
-so the arch subtree drives cleanly to that yield.
+PR-D: the architect sub-loop was replaced by ArchExecYield — a single
+yield to the architect agent. Execution-path ticks now yield TWICE per
+tick: first the architect dispatch, then DispatchWork. Tests that drive
+the full pipeline feed both yields in order.
 """
 from __future__ import annotations
 
@@ -15,23 +15,36 @@ import json
 import pytest
 
 from engine.execution.api import bt_tick as api
-from engine.execution.tree.main_loop import build_root
 from engine.core.blackboard import Blackboard, SCHEMA_VERSION
 from engine.persistence import snapshot
 
-from stub_llm import StubArchHrLLM
+
+# Canonical fake-architect receipt the tests feed back when ArchExecYield
+# yields. Trailer carries one task so DispatchWork yields exactly one
+# work-agent dispatch on the next step.
+_ARCH_PLAN_JSON = (
+    '[{"id":"a1","description":"stub task",'
+    '"required_capability":"programmer","params":{},'
+    '"arch_context":"stub-ctx"}]'
+)
+FAKE_ARCH_RECEIPT = (
+    "Plan ready.\n"
+    "<!-- BEGIN CBIM-RECEIPT v1\n"
+    "status: ok\n"
+    "task_id: arch:1\n"
+    "agent: architect\n"
+    "summary: stub plan\n"
+    f"arch_plan: {_ARCH_PLAN_JSON}\n"
+    "END CBIM-RECEIPT -->\n"
+)
 
 
 @pytest.fixture
 def isolated_scheduler_root(tmp_path, monkeypatch):
-    """Redirect the API's scheduler-root resolver to a tmp dir AND swap the
-    module-level ROOT for one built with StubArchHrLLM so the in-process
-    arch/HR subtrees can drive past Map/Assemble/Match without a real LLM.
-    """
+    """Redirect the API's scheduler-root resolver to a tmp dir."""
     sched = tmp_path / ".cbim" / "scheduler"
     sched.mkdir(parents=True)
     monkeypatch.setattr(api, "_scheduler_root", lambda: sched)
-    monkeypatch.setattr(api, "ROOT", build_root(llm=StubArchHrLLM()))
     return sched
 
 
@@ -105,32 +118,37 @@ def test_yield_writes_bb_resume_and_trace(isolated_scheduler_root):
     assert (tick_dir / "trace.jsonl").exists()
 
 
-def test_first_yield_targets_work_agent(isolated_scheduler_root):
-    """v3.6: arch_exec runs in-process and hr_exec is removed; the only
-    execution-path yield is DispatchWork dispatching the work agent leaf.
-
-    The work yield carries agent_file=None and required_capability set
-    from the arch_plan task — main agent resolves agent_file via MCP
-    agent_list."""
+def test_first_yield_targets_architect(isolated_scheduler_root):
+    """PR-D: the first execution-path yield is ArchExecYield dispatching
+    the architect agent. The work-agent yield comes second, after the
+    architect's receipt has populated bb.arch_plan."""
     sched = isolated_scheduler_root
     r = api.bt_tick("实现 login API 模块")
     assert r.kind == "yield"
-    assert r.dispatch_request.agent_type == "work"
-    assert r.dispatch_request.agent_file is None
-    assert r.dispatch_request.required_capability == "programmer"
+    dr = r.dispatch_request
+    assert dr.agent_type == "architect"
+    assert dr.agent_file == ".claude/agents/architect/architect.md"
+    assert dr.subtask_id == "arch:1"
     rj = json.loads((sched / "bt" / r.tick_id / "resume.json").read_text(encoding="utf-8"))
-    path = rj["runner_resume_path"]
-    assert any(seg.startswith("WorkAgentLeaf#") for seg in path), \
-        f"resume path missing WorkAgentLeaf#<id>: {path}"
+    assert "ArchExecYield" in rj["runner_resume_path"], \
+        f"resume path missing ArchExecYield: {rj['runner_resume_path']}"
 
 
-def test_resume_path_includes_task_id_suffix_on_work_yield(isolated_scheduler_root):
+def test_second_yield_targets_work_agent(isolated_scheduler_root):
+    """After feeding the architect receipt, the next yield is DispatchWork
+    fanning out one WorkAgentLeaf per task in the parsed arch_plan."""
     sched = isolated_scheduler_root
     r1 = api.bt_tick("实现 login API 模块")
     assert r1.kind == "yield"
-    assert r1.dispatch_request.agent_type == "work"
-    # StubArchHrLLM hard-codes task_id="a1" in the produced arch_plan.
-    assert r1.dispatch_request.subtask_id == "a1"
+    assert r1.dispatch_request.agent_type == "architect"
+
+    r2 = api.bt_tick_resume(r1.tick_id, FAKE_ARCH_RECEIPT)
+    assert r2.kind == "yield"
+    dr = r2.dispatch_request
+    assert dr.agent_type == "work"
+    assert dr.agent_file is None
+    assert dr.required_capability == "programmer"
+    assert dr.subtask_id == "a1"
     rj = json.loads((sched / "bt" / r1.tick_id / "resume.json").read_text(encoding="utf-8"))
     assert any(seg.startswith("WorkAgentLeaf#") for seg in rj["runner_resume_path"]), \
         f"resume path missing WorkAgentLeaf#<id>: {rj['runner_resume_path']}"
@@ -138,12 +156,13 @@ def test_resume_path_includes_task_id_suffix_on_work_yield(isolated_scheduler_ro
 
 def test_resume_clears_resume_json_on_done(isolated_scheduler_root):
     sched = isolated_scheduler_root
-    # Drive a full execution tick: first yield is the work agent; supplying
-    # its reply takes the runner to Done and resume.json must be cleared.
+    # Full pipeline: architect yield → work yield → Done.
     r1 = api.bt_tick("实现 login API 模块")
     assert r1.kind == "yield"
-    r2 = api.bt_tick_resume(r1.tick_id, "Done.")
-    assert r2.kind == "done"
+    r2 = api.bt_tick_resume(r1.tick_id, FAKE_ARCH_RECEIPT)
+    assert r2.kind == "yield"
+    r3 = api.bt_tick_resume(r1.tick_id, "Done.")
+    assert r3.kind == "done"
     assert not (sched / "bt" / r1.tick_id / "resume.json").exists()
 
 
@@ -160,6 +179,7 @@ def test_dirty_flag_triggers_write(tmp_path):
 def test_runner_resume_path_persists_in_bb_json(isolated_scheduler_root):
     sched = isolated_scheduler_root
     r = api.bt_tick("实现 login API 模块")
+    assert r.kind == "yield"
     raw = json.loads((sched / "bt" / r.tick_id / "bb.json").read_text(encoding="utf-8"))
     assert raw["fields"].get("runner_resume_path"), \
         "runner_resume_path must be persisted into bb.json on yield"

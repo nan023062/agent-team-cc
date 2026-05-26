@@ -1,22 +1,39 @@
-"""L4 — end-to-end dry-runs through the global ROOT (v3.6).
+"""L4 — end-to-end dry-runs through the global ROOT.
 
-v3.6: the architect sub-loop runs as an in-process BT subtree; the
-hr_exec sub-loop was removed entirely. The only execution-path yield is
-DispatchWork dispatching the work agent, with agent_file=None and
-required_capability sourced from the arch_plan task — the main agent
-maps capability → agent_file via MCP agent_list at dispatch time.
+PR-D: the architect sub-loop is gone. Execution-path ticks now yield
+TWICE per pipeline pass: first ArchExecYield dispatches the architect
+(carries agent_type="architect", subtask_id="arch:1"), then DispatchWork
+dispatches the work agent for each task the architect returned in its
+receipt trailer (agent_type="work", agent_file=None, required_capability
+sourced from the arch_plan task).
 
-The fixture rebuilds ROOT with a StubArchHrLLM so the arch subtree
-produces a deterministic single-task arch_plan.
+Tests feed a canned architect receipt (FAKE_ARCH_RECEIPT) carrying a
+single-task arch_plan so the second yield is the lone work-agent
+dispatch.
 """
 from __future__ import annotations
 
 import pytest
 
 from engine.execution.api import bt_tick as api
-from engine.execution.tree.main_loop import build_root
 
-from stub_llm import StubArchHrLLM
+
+# Canonical fake-architect receipt — trailer carries one task.
+_ARCH_PLAN_JSON = (
+    '[{"id":"a1","description":"stub task",'
+    '"required_capability":"programmer","params":{},'
+    '"arch_context":"stub-ctx"}]'
+)
+FAKE_ARCH_RECEIPT = (
+    "Plan ready.\n"
+    "<!-- BEGIN CBIM-RECEIPT v1\n"
+    "status: ok\n"
+    "task_id: arch:1\n"
+    "agent: architect\n"
+    "summary: stub plan\n"
+    f"arch_plan: {_ARCH_PLAN_JSON}\n"
+    "END CBIM-RECEIPT -->\n"
+)
 
 
 @pytest.fixture
@@ -24,7 +41,6 @@ def isolated_scheduler_root(tmp_path, monkeypatch):
     sched = tmp_path / ".cbim" / "scheduler"
     sched.mkdir(parents=True)
     monkeypatch.setattr(api, "_scheduler_root", lambda: sched)
-    monkeypatch.setattr(api, "ROOT", build_root(llm=StubArchHrLLM()))
     return sched
 
 
@@ -58,6 +74,7 @@ def test_e2e_conversation_short_circuits_to_done(isolated_scheduler_root):
     assert r.kind == "done"
     assert r.user_message
     # No dispatches at all — conversation mode bypasses ExecutionSeq.
+    assert r.user_message.startswith("（对话模式）")
 
 
 def test_e2e_empty_request_lands_in_conversation_mode(isolated_scheduler_root):
@@ -70,49 +87,67 @@ def test_e2e_english_question_is_conversation(isolated_scheduler_root):
     r = api.bt_tick("what is the difference between L1 and L2 tests?")
     assert r.kind == "done"
     assert r.user_message
+    assert r.user_message.startswith("（对话模式）")
 
 
 # ---------------------------------------------------------------------------
 # Execution path
 # ---------------------------------------------------------------------------
 
-def test_e2e_execution_single_work_yield_then_done(isolated_scheduler_root):
-    """StubArchHrLLM produces a single-task arch_plan; the only yield is
-    DispatchWork for that task, after which Respond writes the work output
-    into final_response."""
+def test_e2e_execution_architect_then_work_then_done(isolated_scheduler_root):
+    """PR-D pipeline: architect yield → feed receipt → work yield → feed
+    reply → Done. The architect receipt's arch_plan carries one task so
+    DispatchWork produces exactly one work-agent yield."""
     r, log = _drive(
         "实现 login API 模块",
+        FAKE_ARCH_RECEIPT,
         "Implemented in src/login.py",
     )
     assert r.kind == "done"
     assert "Implemented in src/login.py" in r.user_message
-    assert len(log) == 1
-    assert log[0] == ("work", "a1")
+    assert len(log) == 2
+    assert log[0] == ("architect", "arch:1")
+    assert log[1] == ("work", "a1")
 
 
-def test_e2e_work_yield_carries_capability_not_agent_file(isolated_scheduler_root):
-    """v3.6 work-yield contract: agent_type='work', agent_file=None,
-    required_capability=<str from arch_plan task>. Main agent does the
-    capability→agent_file lookup outside the engine."""
+def test_e2e_first_yield_is_architect_dispatch(isolated_scheduler_root):
+    """PR-D: the very first yield on the execution path targets the
+    architect agent; the work yield comes only after the receipt has
+    populated bb.arch_plan."""
     r = api.bt_tick("实现 login API 模块")
     assert r.kind == "yield"
     dr = r.dispatch_request
+    assert dr.agent_type == "architect"
+    assert dr.agent_file == ".claude/agents/architect/architect.md"
+    assert dr.subtask_id == "arch:1"
+
+
+def test_e2e_work_yield_carries_capability_not_agent_file(isolated_scheduler_root):
+    """Work-yield contract: agent_type='work', agent_file=None,
+    required_capability=<str from arch_plan task>. Main agent does the
+    capability→agent_file lookup outside the engine."""
+    r1 = api.bt_tick("实现 login API 模块")
+    assert r1.kind == "yield"
+    assert r1.dispatch_request.agent_type == "architect"
+    r2 = api.bt_tick_resume(r1.tick_id, FAKE_ARCH_RECEIPT)
+    assert r2.kind == "yield"
+    dr = r2.dispatch_request
     assert dr.agent_type == "work"
     assert dr.agent_file is None, \
         f"work yield must NOT carry agent_file; got {dr.agent_file!r}"
     assert isinstance(dr.required_capability, str) and dr.required_capability, \
         f"work yield must carry required_capability str; got {dr.required_capability!r}"
-    # StubArchHrLLM hard-codes 'programmer' in the assembled arch_plan.
+    # FAKE_ARCH_RECEIPT's arch_plan hard-codes 'programmer'.
     assert dr.required_capability == "programmer"
 
 
 def test_e2e_execution_work_failure_reply_still_completes(isolated_scheduler_root):
     """Even a 'Done.' style work reply terminates cleanly — the engine
     treats the reply as the work output and Respond echoes it."""
-    r, log = _drive("实现 login API", "Done.")
+    r, log = _drive("实现 login API", FAKE_ARCH_RECEIPT, "Done.")
     assert r.kind == "done"
     assert "Done." in r.user_message
-    assert [a for a, _ in log] == ["work"]
+    assert [a for a, _ in log] == ["architect", "work"]
 
 
 # ---------------------------------------------------------------------------

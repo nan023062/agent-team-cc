@@ -28,10 +28,13 @@ class WorkAgentLeaf(Node):
     def tick(self, bb) -> Status:
         result = (bb.work_results or {}).get(self.task_id)
         if result is not None:
-            status = result.get("status")
-            if status == "ok":
-                return Status.SUCCESS
-            return Status.FAILURE
+            # PR-C: any terminal status (ok / failed / needs_arch_decision /
+            # needs_user_input) is "done" from the leaf's POV. ConvergeJudge
+            # downstream routes the convergence verdict by inspecting the
+            # status field; we MUST surface SUCCESS here so the judge runs.
+            # Pre-PR-C semantics (FAILURE on non-ok) would short-circuit
+            # DispatchWork before the judge could see the result.
+            return Status.SUCCESS
         task = self._find_task(bb)
         if task is None:
             return Status.FAILURE
@@ -46,13 +49,24 @@ class WorkAgentLeaf(Node):
         return Status.RUNNING
 
     def on_resume(self, bb, payload) -> None:
+        from .receipt import parse_trailer
+
         text = payload if isinstance(payload, str) else (
             payload.get("output", "") if isinstance(payload, dict) else str(payload)
         )
+        trailer = parse_trailer(text, dispatch_task_id=self.task_id)
+
         new_results = dict(bb.work_results or {})
         new_results[self.task_id] = {
-            "status": "ok",
+            "status": trailer.status,
+            "summary": trailer.summary,
+            "question": trailer.question,
+            "blocking_module": trailer.blocking_module,
+            "failure_kind": trailer.failure_kind,
+            "artifacts": list(trailer.artifacts),
+            "agent": trailer.agent,
             "output": text,
+            "extras": dict(trailer.extras),
             "raw": payload if not isinstance(payload, str) else None,
         }
         bb.work_results = new_results

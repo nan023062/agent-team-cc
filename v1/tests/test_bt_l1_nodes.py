@@ -8,7 +8,6 @@ from __future__ import annotations
 from engine.execution.actions.direct_reply import DirectReply
 from engine.execution.actions.dispatch_work import DispatchWork, WorkAgentLeaf
 from engine.execution.actions.init_tick import InitTick
-from engine.execution.actions.llm_hook import NullLLM
 from engine.execution.actions.mode_classify import ModeClassify
 from engine.execution.actions.respond import Respond
 from engine.core.blackboard import Blackboard
@@ -116,73 +115,73 @@ def test_init_tick_never_fails():
 
 def test_mode_classify_empty_request_is_conversation():
     bb = _bb(user_request="")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "conversation"
 
 
 def test_mode_classify_question_is_conversation():
     bb = _bb(user_request="What is CBIM?")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "conversation"
 
 
 def test_mode_classify_chinese_question_is_conversation():
     bb = _bb(user_request="什么是 CBIM？")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "conversation"
 
 
 def test_mode_classify_implement_verb_is_execution():
     bb = _bb(user_request="实现 login API 模块")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_english_implement_is_execution():
     bb = _bb(user_request="implement the login API module")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_rule_miss_defaults_to_execution_under_null_llm():
     bb = _bb(user_request="zzz qrx blarp 玳瑁")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_english_design_is_architect():
     bb = _bb(user_request="design a new login module")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "architect"
 
 
 def test_mode_classify_chinese_design_is_architect():
     bb = _bb(user_request="给登录功能做一份设计")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "architect"
 
 
 def test_mode_classify_english_recruit_is_hr():
     bb = _bb(user_request="recruit a python backend engineer agent")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "hr"
 
 
 def test_mode_classify_chinese_recruit_is_hr():
     bb = _bb(user_request="招一个会写 Rust 的工作 agent")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "hr"
 
 
 def test_mode_classify_english_audit_is_audit():
     bb = _bb(user_request="please audit the dispatcher implementation")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "audit"
 
 
 def test_mode_classify_chinese_audit_is_audit():
     bb = _bb(user_request="对最近的改动做一次独立审查")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "audit"
 
 
@@ -192,7 +191,7 @@ def test_mode_classify_execution_verb_wins_over_design_keyword():
     # want it implemented — that's execution. The architect step happens
     # automatically inside ExecutionSeq via the ArchitectExecution subtree.
     bb = _bb(user_request="design and implement a new auth module")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
@@ -200,37 +199,37 @@ def test_mode_classify_execution_verb_wins_over_design_keyword():
 
 def test_mode_classify_implement_audit_logging_is_execution():
     bb = _bb(user_request="implement audit logging")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_refactor_architecture_module_is_execution():
     bb = _bb(user_request="refactor the architecture module")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_add_agent_recruitment_endpoint_is_execution():
     bb = _bb(user_request="add agent recruitment endpoint")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_fix_design_doc_typo_is_execution():
     bb = _bb(user_request="fix the design doc typo")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_build_code_review_pipeline_is_execution():
     bb = _bb(user_request="build a code review pipeline")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
 def test_mode_classify_chinese_refactor_recruitment_flow_is_execution():
     bb = _bb(user_request="重构招聘流程代码")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "execution"
 
 
@@ -238,84 +237,36 @@ def test_mode_classify_chinese_refactor_recruitment_flow_is_execution():
 
 def test_mode_classify_chinese_split_module_is_architect_preempt():
     bb = _bb(user_request="拆分 auth 模块")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "architect"
 
 
 def test_mode_classify_english_update_dna_is_architect_preempt():
     bb = _bb(user_request="update .dna for auth module")
-    assert ModeClassify(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert ModeClassify().tick(bb) is Status.SUCCESS
     assert bb.mode == "architect"
 
 
-class _StubModeLLM(NullLLM):
-    def __init__(self, verdict: str) -> None:
-        self._verdict = verdict
-
-    def classify_mode(self, user_request: str) -> str:
-        return self._verdict
-
-
-def test_mode_classify_llm_path_on_rule_miss():
-    bb = _bb(user_request="zzz blarp qux")
-    node = ModeClassify(llm=_StubModeLLM("conversation"))
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.mode == "conversation"
-
-
-def test_mode_classify_llm_path_can_return_architect():
-    bb = _bb(user_request="zzz blarp qux")
-    node = ModeClassify(llm=_StubModeLLM("architect"))
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.mode == "architect"
-
-
-def test_mode_classify_llm_path_can_return_hr():
-    bb = _bb(user_request="zzz blarp qux")
-    node = ModeClassify(llm=_StubModeLLM("hr"))
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.mode == "hr"
-
-
-def test_mode_classify_llm_path_can_return_audit():
-    bb = _bb(user_request="zzz blarp qux")
-    node = ModeClassify(llm=_StubModeLLM("audit"))
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.mode == "audit"
-
-
-def test_mode_classify_llm_invalid_verdict_falls_back_to_execution():
-    bb = _bb(user_request="zzz blarp qux")
-    node = ModeClassify(llm=_StubModeLLM("nonsense"))
-    assert node.tick(bb) is Status.SUCCESS
-    assert bb.mode == "execution"
+# PR-D: ModeClassify no longer has an LLM fallback branch. Rule miss
+# defaults to "execution"; the architect agent itself may reroute via
+# status="needs_user_input" if the request turns out conversational.
+# The historical _StubModeLLM tests (LLM verdict round-trip) are gone.
 
 
 # ---------------------------------------------------------------------------
-# DirectReply
+# DirectReply (PR-D: passthrough only, no LLM hook)
 # ---------------------------------------------------------------------------
 
-def test_direct_reply_writes_final_response_with_null_llm():
+def test_direct_reply_writes_final_response_passthrough():
     bb = _bb(user_request="什么是 CBIM？")
-    assert DirectReply(llm=NullLLM()).tick(bb) is Status.SUCCESS
-    assert bb.final_response and "什么是 CBIM？" in bb.final_response
+    assert DirectReply().tick(bb) is Status.SUCCESS
+    assert bb.final_response == "（对话模式）什么是 CBIM？"
 
 
 def test_direct_reply_empty_request_writes_prompt_hint():
     bb = _bb(user_request="")
-    assert DirectReply(llm=NullLLM()).tick(bb) is Status.SUCCESS
+    assert DirectReply().tick(bb) is Status.SUCCESS
     assert bb.final_response == "请描述你的需求。"
-
-
-class _StubReplyLLM(NullLLM):
-    def reply_conversation(self, user_request: str) -> str:
-        return "stub-reply: " + user_request
-
-
-def test_direct_reply_uses_llm_when_available():
-    bb = _bb(user_request="hi")
-    DirectReply(llm=_StubReplyLLM()).tick(bb)
-    assert bb.final_response == "stub-reply: hi"
 
 
 # ---------------------------------------------------------------------------

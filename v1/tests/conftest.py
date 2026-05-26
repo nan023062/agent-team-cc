@@ -1,7 +1,7 @@
 """Pytest config for v1 kernel tests.
 
-Adds v1/kernel/ and v1/tests/ to sys.path so `import engine` and
-`import stub_llm` both resolve without requiring an editable install.
+Adds v1/kernel/ and v1/tests/ to sys.path so `import engine` resolves
+without requiring an editable install.
 """
 import sys
 from pathlib import Path

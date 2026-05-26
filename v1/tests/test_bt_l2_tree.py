@@ -44,11 +44,19 @@ def test_root_structure_matches_design():
         "ArchitectBranch", "DispatchCoreAgent#architect", "Respond#architect",
         "HrBranch",        "DispatchCoreAgent#hr",        "Respond#hr",
         "AuditBranch",     "DispatchCoreAgent#auditor",   "Respond#audit",
-        # Execution branch
+        # Execution branch (PR-C: WorkLoop wraps the architect-work
+        # convergence cycle; EscalationGate switches on bb.convergence)
+        # (PR-D: ArchExecYield is the single-yield architect dispatch
+        # leaf, replacing the in-process nine-leaf subtree.)
         "ExecutionSeq",
-        "ArchitectExecution",
+        "WorkLoop",
+        "ArchExecYield",
         "DispatchWork",
+        "ConvergeJudge",
+        "EscalationGate",
         "Respond",
+        "Respond#need_user",
+        "Respond#exhausted",
         "CatchFlush", "FlushMemory",
     ]
     for ex in expected:
@@ -59,14 +67,18 @@ def test_root_structure_matches_design():
         f"HrExecution must NOT appear in ROOT walk post-v3.6; got {names}"
 
 
-def test_execution_seq_has_four_nodes_in_order():
-    """ExecutionSeq children = [ArchExecOrFallback, DispatchWork,
-    Respond, CatchFlush]. Order is load-bearing: the Architect subtree
-    (or its deterministic FallbackPlan sibling) must produce arch_plan
-    (with required_capability per task) before WorkAgentLeaf dispatches.
-    The first slot is a Selector so a parse failure inside the LLM-driven
-    arch_exec chain falls through to FallbackPlan instead of collapsing
-    the whole pipeline to an empty `done`."""
+def test_execution_seq_three_node_pr_c_shape():
+    """PR-C: ExecutionSeq children = [WorkLoop, EscalationGate, CatchFlush].
+
+    WorkLoop wraps [ArchExecYield, DispatchWork, ConvergeJudge] with
+    max_iters=3; the architect re-runs on each retry so iter-2+ behaviour
+    is local to the loop. EscalationGate routes on bb.convergence to
+    Respond / Respond#need_user / Respond#exhausted. CatchFlush always
+    runs last so memory flushes regardless of which branch fired.
+
+    PR-D: ArchExecYield replaces the Selector(ArchitectExecution) slot —
+    the architect runs as a yield-out dispatch to the architect agent
+    instead of an in-process subtree."""
     exec_seq = None
     for n in _walk(ROOT):
         if n.name == "ExecutionSeq":
@@ -75,15 +87,31 @@ def test_execution_seq_has_four_nodes_in_order():
     assert exec_seq is not None, "ExecutionSeq not found"
     child_names = [c.name for c in exec_seq.children()]
     assert child_names == [
-        "ArchExecOrFallback",
-        "DispatchWork", "Respond", "CatchFlush",
+        "WorkLoop", "EscalationGate", "CatchFlush",
     ], f"unexpected ExecutionSeq children: {child_names}"
-    # First child must be a Selector with ArchitectExecution first, then
-    # FallbackPlan — order matters so arch_exec stays the preferred path.
-    arch_slot = exec_seq.children()[0]
-    arch_slot_children = [c.name for c in arch_slot.children()]
-    assert arch_slot_children == ["ArchitectExecution", "FallbackPlan"], \
-        f"ArchExecOrFallback children unexpected: {arch_slot_children}"
+
+    # WorkLoop children = [ArchExecYield, DispatchWork, ConvergeJudge]
+    work_loop = exec_seq.children()[0]
+    work_loop_children = [c.name for c in work_loop.children()]
+    assert work_loop_children == [
+        "ArchExecYield", "DispatchWork", "ConvergeJudge",
+    ], f"unexpected WorkLoop children: {work_loop_children}"
+
+    # ArchExecYield is a leaf — no children.
+    arch_slot = work_loop.children()[0]
+    assert arch_slot.children() == [], \
+        f"ArchExecYield must be a leaf; got children {arch_slot.children()}"
+
+    # EscalationGate has exactly three cases + default; default == "done"
+    # branch instance (Respond).
+    gate = exec_seq.children()[1]
+    assert isinstance(gate, SwitchBranch)
+    cases = gate._cases  # noqa: SLF001 — structural assertion
+    assert set(cases.keys()) == {"done", "user_input", "exhausted"}
+    assert cases["done"].name == "Respond"
+    assert cases["user_input"].name == "Respond#need_user"
+    assert cases["exhausted"].name == "Respond#exhausted"
+    assert gate._default is cases["done"]
 
 
 def test_decorator_stack_outermost_is_trace_then_timeout():

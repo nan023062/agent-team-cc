@@ -33,6 +33,42 @@ def _scheduler_root() -> Path:
         return Path.cwd() / ".cbim" / "scheduler"
 
 
+# PR-D: both ArchExecYield (WorkLoop's first child) and
+# DispatchCoreAgent#architect (ArchitectBranch) dispatch agent_type=
+# "architect". The Runner's default agent_type→leaf map points
+# "architect" at DispatchCoreAgent#architect, which is right for the
+# core-agent branch but wrong for the WorkLoop. The two-level subtask
+# map below routes by (agent_type, subtask_id):
+#
+#   ("architect", "core:architect") → DispatchCoreAgent#architect
+#   ("architect", "arch:<n>")       → ArchExecYield  (single-level
+#                                       fallback below catches this)
+#
+# We override the single-level default for "architect" to "ArchExecYield"
+# so the WorkLoop yield resumes at the right leaf. The subtask map
+# above takes priority for the core-agent branch — see runner's
+# `_build_resume_path` priority chain.
+from engine.core.runner import DEFAULT_AGENT_TYPE_TO_LEAF as _RUNNER_DEFAULT_MAP
+
+_AGENT_TYPE_TO_LEAF: dict[str, str] = {
+    **_RUNNER_DEFAULT_MAP,
+    "architect": "ArchExecYield",
+}
+
+_AGENT_SUBTASK_TO_LEAF: dict[str, dict[str, str]] = {
+    "architect": {"core:architect": "DispatchCoreAgent#architect"},
+}
+
+
+def _build_runner() -> Runner:
+    return Runner(
+        ROOT,
+        scheduler_root=_scheduler_root(),
+        agent_type_to_leaf=_AGENT_TYPE_TO_LEAF,
+        agent_subtask_to_leaf=_AGENT_SUBTASK_TO_LEAF,
+    )
+
+
 def bt_tick(user_request: str, context: dict | None = None) -> BtResult:
     """Start a new tick. Generates tick_id, initializes bb, drives to
     first yield / Done / Error."""
@@ -47,7 +83,7 @@ def bt_tick(user_request: str, context: dict | None = None) -> BtResult:
         bb.work_results = {}
         bb.bb_status = "running"
 
-        runner = Runner(ROOT, scheduler_root=_scheduler_root())
+        runner = _build_runner()
         rr = runner.run(bb)
         return _to_bt_result(rr, tick_id)
     except Exception as e:
@@ -69,7 +105,7 @@ def bt_tick_resume(tick_id: str, dispatch_result: Any) -> BtResult:
                 error_code="tick_not_found_or_done",
                 error_message=f"tick_id {tick_id} not found or already terminal",
             )
-        runner = Runner(ROOT, scheduler_root=_scheduler_root())
+        runner = _build_runner()
         rr = runner.resume(bb, dispatch_result)
         return _to_bt_result(rr, tick_id)
     except Exception as e:

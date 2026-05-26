@@ -107,6 +107,119 @@ class Selector(_Composite):
         return Status.FAILURE
 
 
+class LoopSeq(_Composite):
+    """Bounded re-entry Sequence — multi-child + iteration cap.
+
+    Ticks children left-to-right like Sequence. SUCCESS at the end of the
+    children list exits the loop with SUCCESS. FAILURE from any child
+    bumps the iteration counter and re-enters from the first child, up to
+    ``max_iters`` total iterations. The max_iters-th FAILURE returns
+    SUCCESS (NOT FAILURE) — the convergence signal is expected to live on
+    a separate bb field (see PR-C: bb.convergence), so the outer Sequence
+    must continue running to let a downstream Switch render the
+    "exhausted" reply.
+
+    Iteration state lives on bb under ``_loopseq_<name>_iter`` (1-based)
+    plus the public alias ``bb.work_loop_iter`` when ``name == "WorkLoop"``
+    so ConvergeJudge and tests can read it ergonomically. The composite
+    itself never stores cross-tick state (README §2 iron rule).
+    """
+
+    def __init__(
+        self,
+        children: list[Node],
+        *,
+        max_iters: int = 3,
+        name: str = "LoopSeq",
+    ) -> None:
+        super().__init__(children, name=name)
+        if max_iters < 1:
+            raise ValueError(f"LoopSeq max_iters must be >= 1, got {max_iters}")
+        self._max_iters = max_iters
+
+    def tick(self, bb) -> Status:
+        iter_field = f"_loopseq_{self.name}_iter"
+        cur = int(getattr(bb, iter_field, 0) or 0)
+        # First entry of the loop in this run -> initialise to 1.
+        if cur == 0:
+            cur = 1
+            setattr(bb, iter_field, cur)
+            if self.name == "WorkLoop":
+                bb.work_loop_iter = cur
+
+        while True:
+            # Resume support: if runner_resume_path runs through this
+            # composite, skip children that already completed in a prior tick.
+            start_idx = _resume_index(self, bb)
+            inner_status = Status.SUCCESS
+            for i in range(start_idx, len(self._children)):
+                child = self._children[i]
+                status = _tick_child(self, child, i, bb)
+                if status is Status.FAILURE:
+                    inner_status = Status.FAILURE
+                    break
+                if status is Status.RUNNING:
+                    # Yielded — Runner takes over; resume next tick.
+                    return Status.RUNNING
+                # SUCCESS — continue to next child
+
+            if inner_status is Status.SUCCESS:
+                # Body completed cleanly — exit loop.
+                _clear_loop_iter(bb, iter_field, self.name)
+                return Status.SUCCESS
+
+            # inner_status is FAILURE — decide whether to re-enter.
+            if cur >= self._max_iters:
+                # Exhausted retries. PR-C contract: return SUCCESS so the
+                # outer Sequence advances to EscalationGate, which reads
+                # bb.convergence for the actual outcome signal.
+                _clear_loop_iter(bb, iter_field, self.name)
+                return Status.SUCCESS
+
+            # Re-enter: bump iter, clear resume path so we restart from
+            # the first child on the next iteration.
+            cur += 1
+            setattr(bb, iter_field, cur)
+            if self.name == "WorkLoop":
+                bb.work_loop_iter = cur
+            _clear_resume_into(self, bb)
+            _append_trace_event(bb, {
+                "event": "loopseq_reenter",
+                "node": self.name,
+                "iter": cur,
+                "max_iters": self._max_iters,
+                "ts": _now_iso_ms(),
+            })
+            # Continue the while True; next iteration starts at child 0.
+
+
+def _clear_loop_iter(bb, iter_field: str, name: str) -> None:
+    """Reset both the canonical scratch field and the public alias to None."""
+    try:
+        setattr(bb, iter_field, None)
+    except (AttributeError, TypeError):
+        pass
+    if name == "WorkLoop":
+        try:
+            bb.work_loop_iter = None
+        except (AttributeError, TypeError):
+            pass
+
+
+def _clear_resume_into(composite: _Composite, bb) -> None:
+    """Truncate runner_resume_path at this composite so the next inner
+    walk starts from the first child."""
+    path = getattr(bb, "runner_resume_path", None) or []
+    try:
+        idx = path.index(composite.name)
+    except ValueError:
+        return
+    try:
+        bb.runner_resume_path = path[:idx]
+    except (AttributeError, TypeError):
+        pass
+
+
 class Parallel(_Composite):
     """Tick every child sequentially (no real concurrency in the engine).
 
