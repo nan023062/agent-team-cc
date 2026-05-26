@@ -71,6 +71,75 @@ def test_chinese_query_matches_bigrams():
     assert [r[0] for r in res] == ["d1"]
 
 
+def test_different_queries_yield_different_rankings():
+    """Regression: different queries must produce different rankings.
+
+    Guards against a class of bug where search() returns the same top-k
+    regardless of query (e.g. corpus-stale stats, query-token leakage,
+    accidental constant scoring). Builds a small mixed-script corpus and
+    asserts:
+      (a) at least 3 of the 6 query pairs have distinct top-1 doc_ids;
+      (b) each query's top-1 doc actually contains the keyword;
+      (c) no two distinct queries share the exact same
+          (doc_id-ordering, score-sequence).
+    """
+    idx = BM25Index()
+    docs = {
+        "d_fox": "the quick brown fox jumps over the lazy dog",
+        "d_rare": "a rare albino tiger was spotted in the forest",
+        "d_lang": "自然语言处理是人工智能的核心方向",
+        "d_image": "image recognition uses convolutional neural networks",
+        "d_weather": "today the weather is sunny and mild across the region",
+        "d_vision": "图像识别 与 计算机视觉 紧密 相关",
+    }
+    for doc_id, text in docs.items():
+        idx.upsert(doc_id, text)
+
+    queries = {
+        "fox": "d_fox",
+        "rare": "d_rare",
+        "语言": "d_lang",
+        "image": "d_image",
+    }
+    results = {q: idx.search(q, top_k=5) for q in queries}
+
+    # Every query must return at least one hit.
+    for q, res in results.items():
+        assert res, f"query {q!r} returned no hits"
+
+    # (b) Each query's top-1 hit must be the doc whose content carries the keyword.
+    for q, expected_top in queries.items():
+        top_doc = results[q][0][0]
+        assert top_doc == expected_top, (
+            f"query {q!r} top-1 was {top_doc!r}, expected {expected_top!r}; "
+            f"full ranking: {results[q]}"
+        )
+        # And the keyword must literally appear in that doc (sanity on the corpus itself).
+        assert q in docs[expected_top]
+
+    # (a) At least 3 query pairs must have distinct top-1 doc_ids.
+    qlist = list(queries.keys())
+    distinct_top1_pairs = 0
+    for i in range(len(qlist)):
+        for j in range(i + 1, len(qlist)):
+            if results[qlist[i]][0][0] != results[qlist[j]][0][0]:
+                distinct_top1_pairs += 1
+    assert distinct_top1_pairs >= 3, (
+        f"only {distinct_top1_pairs} query pairs have distinct top-1; "
+        f"top-1 by query: { {q: r[0][0] for q, r in results.items()} }"
+    )
+
+    # (c) No two distinct queries share the same (doc_id order, score sequence).
+    signatures = {q: (tuple(d for d, _ in r), tuple(s for _, s in r)) for q, r in results.items()}
+    for i in range(len(qlist)):
+        for j in range(i + 1, len(qlist)):
+            qa, qb = qlist[i], qlist[j]
+            assert signatures[qa] != signatures[qb], (
+                f"queries {qa!r} and {qb!r} produced identical ranking+scores: "
+                f"{signatures[qa]}"
+            )
+
+
 def test_roundtrip_serialization():
     idx = BM25Index()
     idx.upsert("d1", "hello world")

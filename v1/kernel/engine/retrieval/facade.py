@@ -22,6 +22,13 @@ from pathlib import Path
 from threading import RLock
 from typing import Dict, List, Optional, Union
 
+# Minimum spread between top vector scores below which we treat the
+# embedding as semantically collapsed (e.g. provider stuck returning a
+# constant vector). At that point cosine ranking is just the VectorBlob
+# insertion order, which is meaningless to the caller — degrade to BM25
+# transparently per contract.md (fallback must be invisible).
+_VECTOR_COLLAPSE_EPSILON = 1e-6
+
 from engine.retrieval.config import RetrievalConfig, load_config
 from engine.retrieval.drift import DriftReport, fast_check, full_check
 from engine.retrieval.embedding.base import EmbeddingProvider
@@ -311,6 +318,12 @@ class RetrievalFacade:
                 except Exception:
                     vec_ranked = []
                 bm_ranked = state.bm25.search(query, top_k, allowed_ids=allowed_ids)
+                # Detect semantic collapse: if the top vector scores are all
+                # tied (within epsilon) we are seeing insertion-order leakage,
+                # not similarity. Treat exactly like an embed() exception —
+                # drop vec_ranked so the BM25 path below is the sole ranker.
+                if vec_ranked and _is_vector_collapsed(vec_ranked):
+                    vec_ranked = []
                 if self.config.hybrid_search and vec_ranked and bm_ranked:
                     ranked = rrf_fuse([vec_ranked, bm_ranked], top_k=top_k)
                 elif vec_ranked:
@@ -399,6 +412,27 @@ class RetrievalFacade:
 # --------------------------------------------------------------------------
 # Module-level singleton + 5 public functions.
 # --------------------------------------------------------------------------
+
+
+def _is_vector_collapsed(vec_ranked: List[tuple]) -> bool:
+    """True when the vector ranking carries no usable signal.
+
+    Two failure modes the embedding layer can hand us silently:
+      * provider returns a constant vector for every text (sims all equal),
+      * provider returns a near-zero vector that survives the q_norm==0
+        gate in VectorIndex but still produces effectively-equal sims.
+
+    In both cases scored.sort() degenerates to VectorBlob insertion order,
+    which is ~indexed_at order — useless for retrieval. We declare
+    collapse when the spread between top-1 and bottom score in the
+    returned slice is below epsilon, AND there is more than one result
+    to compare. Single-hit results can't collapse by definition.
+    """
+    if len(vec_ranked) < 2:
+        return False
+    top = vec_ranked[0][1]
+    bot = vec_ranked[-1][1]
+    return (top - bot) < _VECTOR_COLLAPSE_EPSILON
 
 
 def _filter_doc_ids(records: Dict[str, DocRecord], filters: Optional[dict]) -> Optional[set]:

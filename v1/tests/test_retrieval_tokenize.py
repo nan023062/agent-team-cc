@@ -48,3 +48,48 @@ def test_nfkc_normalization():
     # full-width digits should normalize to ASCII
     toks = tokenize("１２３")
     assert toks == ["123"]
+
+
+def test_distinct_words_yield_distinct_tokens():
+    # Exclusion test: distinct ASCII words must not flatten to the same token set.
+    words = ["fox", "dog", "language", "image", "retrieval"]
+    token_sets = {w: set(tokenize(w)) for w in words}
+    for w, ts in token_sets.items():
+        assert ts, f"empty token set for {w!r}"
+    for a in words:
+        for b in words:
+            if a == b:
+                continue
+            assert token_sets[a] != token_sets[b], (
+                f"{a!r} and {b!r} produced identical token sets: {token_sets[a]}"
+            )
+            assert not token_sets[a].issubset(token_sets[b]), (
+                f"{a!r} tokens are a subset of {b!r} tokens"
+            )
+            assert not token_sets[b].issubset(token_sets[a]), (
+                f"{b!r} tokens are a subset of {a!r} tokens"
+            )
+
+
+def test_distinct_cjk_terms_yield_distinct_bigrams():
+    # Exclusion test: distinct CJK 2-char terms must each emit a unique bigram,
+    # and NFKC must not fold any pair into the same surface form.
+    terms = ["语言", "识别", "检索", "排序"]
+    bigrams = {}
+    for t in terms:
+        toks = tokenize(t)
+        assert t in toks, f"expected bigram {t!r} in tokens {toks}"
+        bigrams[t] = t
+    seen = set()
+    for t, bg in bigrams.items():
+        assert bg not in seen, f"bigram collision on {bg!r}"
+        seen.add(bg)
+    # And pairwise full token-set distinctness — no two terms collapse to the same set.
+    token_sets = {t: set(tokenize(t)) for t in terms}
+    for a in terms:
+        for b in terms:
+            if a == b:
+                continue
+            assert token_sets[a] != token_sets[b], (
+                f"{a!r} and {b!r} produced identical token sets: {token_sets[a]}"
+            )

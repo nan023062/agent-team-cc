@@ -137,3 +137,107 @@ def test_chinese_search(tmp_path):
     f.index_upsert("memory_medium", "m2", "图像识别管线")
     hits = f.search("memory_medium", "检索")
     assert [h.doc_id for h in hits] == ["m1"]
+
+
+# --------------------------------------------------------------------------
+# Regression: embedding provider that is "available" but degenerate.
+#
+# Symptom we are guarding against: provider.embed() returns a constant or
+# near-zero vector for every input. VectorIndex.search() then produces tied
+# cosine scores, and Python's stable sort hands back VectorBlob.doc_ids in
+# insertion order (≈ indexed_at). The facade used to ship that "ranking"
+# straight to the caller, masking the embedder failure as a working
+# vector search. Fix: detect the tie and fall back to BM25.
+# --------------------------------------------------------------------------
+
+
+from engine.retrieval.embedding.base import EmbeddingProvider
+
+
+class _ConstantEmbeddingProvider(EmbeddingProvider):
+    """Stub that claims availability but returns a fixed vector every time.
+
+    Models a real provider stuck on a cached / default / quantized-to-zero
+    response. is_available() is True so the facade exercises the vector path.
+    """
+
+    name = "constant_stub"
+
+    def __init__(self, dim: int = 4, fill: float = 0.0) -> None:
+        self._dim = dim
+        self._fill = fill
+
+    def is_available(self) -> bool:
+        return True
+
+    def dimension(self) -> int:
+        return self._dim
+
+    def embed(self, text: str):
+        return [self._fill] * self._dim
+
+
+def _facade_with_provider(tmp_path: Path, provider: EmbeddingProvider) -> RetrievalFacade:
+    f = RetrievalFacade(tmp_path / "index", RetrievalConfig())
+    f.provider = provider  # override the null provider for this test
+    return f
+
+
+@pytest.mark.parametrize("fill", [0.0, 1.0])
+def test_facade_constant_embedding_does_not_collapse_to_insertion_order(tmp_path, fill):
+    """A broken embedder must not produce indexed_at-ordered results.
+
+    Acceptable behaviors per contract.md:
+      * transparent fallback to BM25 (preferred — keeps callers working), OR
+      * raise an error (acceptable — surfaces the failure loudly).
+
+    Forbidden behavior:
+      * silently return docs in indexed_at order while pretending to be a
+        semantic ranking. This is what the bug looked like in the wild.
+    """
+    import time
+
+    provider = _ConstantEmbeddingProvider(dim=4, fill=fill)
+    f = _facade_with_provider(tmp_path, provider)
+
+    # Five topically-distinct docs. Sleep between upserts so indexed_at
+    # actually differs (second-resolution timestamps in store.now_iso).
+    docs = [
+        ("d_fox",     "the quick brown fox jumps over"),
+        ("d_db",      "postgres index btree query planner"),
+        ("d_cook",    "garlic butter shrimp recipe weeknight"),
+        ("d_astro",   "supernova remnant pulsar magnetar"),
+        ("d_legal",   "contract clause arbitration jurisdiction"),
+    ]
+    for doc_id, content in docs:
+        f.index_upsert("dna", doc_id, content)
+        time.sleep(1.05)  # cross a whole-second boundary for indexed_at
+
+    insertion_order = [doc_id for doc_id, _ in docs]
+
+    def _run(query: str, expected_top: str):
+        try:
+            hits = f.search("dna", query, top_k=5)
+        except Exception:
+            # "Loud failure" is an acceptable contract — the test passes.
+            return
+        # Otherwise we expect BM25 fallback to have done real work.
+        got_order = [h.doc_id for h in hits]
+        # Forbidden: returning the full corpus in indexed_at (insertion) order.
+        assert got_order != insertion_order, (
+            f"facade collapsed to insertion order for query={query!r}; "
+            f"constant-embedding fallback to BM25 did not engage"
+        )
+        # And BM25 should put the lexically matching doc on top.
+        assert hits and hits[0].doc_id == expected_top, (
+            f"expected BM25 to rank {expected_top!r} first for {query!r}, "
+            f"got {got_order}"
+        )
+        # All hits must still have a real float score (contract: Hit.score is float).
+        for h in hits:
+            assert isinstance(h.score, float)
+
+    # Two unrelated queries — each should pick a different winner if BM25
+    # is in charge; both would tie to insertion order under the bug.
+    _run("fox", expected_top="d_fox")
+    _run("pulsar", expected_top="d_astro")
