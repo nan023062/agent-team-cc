@@ -4,6 +4,7 @@ Covers PR-A spec §8.2 cases 1-9.
 """
 from __future__ import annotations
 
+import json
 import textwrap
 
 from engine.execution.actions.receipt import ReceiptTrailer, parse_trailer
@@ -292,3 +293,184 @@ def test_unknown_failure_kind_collapses_to_parse_error():
     assert t.status == "failed"
     assert t.failure_kind == "other"
     assert "unknown failure_kind" in t.summary
+
+
+# ---------------------------------------------------------------------------
+# Multi-line continuation values (pretty-printed JSON arch_plan etc.)
+#
+# The architect emits arch_plan as a JSON-encoded list[dict]. LLMs naturally
+# pretty-print JSON across multiple lines; the line-oriented parser must
+# treat lines whose prefix is not an identifier-shaped key as continuations
+# of the currently-open field. See receipt.py::_looks_like_new_field.
+# ---------------------------------------------------------------------------
+
+_PLAN = [
+    {
+        "id": "t1",
+        "description": "do the thing",
+        "required_capability": "programmer",
+        "params": {"depends_on": []},
+        "arch_context": "ctx for t1",
+    },
+    {
+        "id": "t2",
+        "description": "do the other thing",
+        "required_capability": "tester",
+        "params": {"depends_on": ["t1"]},
+        "arch_context": "ctx for t2",
+    },
+]
+
+
+def test_single_line_arch_plan_still_parses_identically():
+    """Baseline: a one-line arch_plan continues to parse exactly as before
+    the continuation rule was added. Regression guard."""
+    one_line = json.dumps(_PLAN, ensure_ascii=False)
+    text = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "agent: architect",
+        "summary: planned.",
+        f"arch_plan: {one_line}",
+    ])
+    t = parse_trailer(text, dispatch_task_id="t1")
+    assert t.status == "ok"
+    assert t.extras["arch_plan"] == one_line
+    assert json.loads(t.extras["arch_plan"]) == _PLAN
+
+
+def test_two_line_arch_plan_parses_to_same_json():
+    """Opening ``[`` on the key line, contents + closing ``]`` on the next
+    line. The closing line is a continuation (no identifier:value prefix)."""
+    payload = json.dumps(_PLAN, ensure_ascii=False)
+    # Split right after the first ``[`` so the head stays on the key line
+    # and the tail wraps onto its own line.
+    head = "["
+    tail = payload[1:]  # everything from the first object onward, including ']'
+    text = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "agent: architect",
+        "summary: planned.",
+        f"arch_plan: {head}",
+        tail,
+    ])
+    t = parse_trailer(text, dispatch_task_id="t1")
+    assert t.status == "ok"
+    raw = t.extras["arch_plan"]
+    # JSON tolerates whitespace; the value must round-trip to the same plan.
+    assert json.loads(raw) == _PLAN
+
+
+def test_fully_pretty_printed_multi_line_arch_plan_parses():
+    """The natural LLM output format: indent=2 across many lines, including
+    blank lines (which the parser must preserve as part of the value)."""
+    pretty = json.dumps(_PLAN, ensure_ascii=False, indent=2)
+    # Splice a blank line into the middle to confirm blank lines inside a
+    # multi-line value survive (JSON parsers ignore them).
+    lines = pretty.split("\n")
+    midpoint = len(lines) // 2
+    pretty_with_blank = "\n".join(lines[:midpoint] + [""] + lines[midpoint:])
+
+    # Build the trailer with arch_plan spanning many lines.
+    pretty_lines = pretty_with_blank.split("\n")
+    body_lines = [
+        "status: ok",
+        "task_id: t1",
+        "agent: architect",
+        "summary: planned.",
+        # Opening line: key + first JSON char.
+        f"arch_plan: {pretty_lines[0]}",
+        *pretty_lines[1:],
+    ]
+    text = _trailer(body_lines)
+    t = parse_trailer(text, dispatch_task_id="t1")
+    assert t.status == "ok"
+    assert json.loads(t.extras["arch_plan"]) == _PLAN
+    # Other fields are unaffected.
+    assert t.summary == "planned."
+    assert t.agent == "architect"
+
+
+def test_known_field_prefix_inside_multi_line_value_starts_new_field():
+    """Edge case (d): if a continuation line happens to begin with ``agent:``
+    (unlikely but possible, e.g. an unquoted YAML-ish snippet inside a
+    value), it MUST be recognized as a new field — the continuation rule
+    is 'unknown identifier-shaped prefix', not 'no colon'."""
+    text = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "summary: first line of summary",
+        # This line LOOKS like a continuation of summary, but its prefix is
+        # the known field name ``agent`` — so it must open the agent field.
+        "agent: programmer",
+        # And the body remains valid: all required fields are present.
+    ])
+    t = parse_trailer(text, dispatch_task_id="t1")
+    assert t.status == "ok"
+    assert t.agent == "programmer"
+    assert t.summary == "first line of summary"
+
+
+def test_continuation_does_not_misclassify_json_internal_colons():
+    """Defense in depth: pretty-printed JSON contains many ``"key":`` lines.
+    Those start with a quote, not an identifier, so they must be treated
+    as continuations — never as new trailer fields. If this regresses,
+    arch_plan parsing silently truncates."""
+    pretty = json.dumps(_PLAN, ensure_ascii=False, indent=2)
+    pretty_lines = pretty.split("\n")
+    text = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "agent: architect",
+        "summary: planned.",
+        f"arch_plan: {pretty_lines[0]}",
+        *pretty_lines[1:],
+    ])
+    t = parse_trailer(text, dispatch_task_id="t1")
+    # Sanity: arch_plan parses, and none of the JSON-internal keys
+    # ("id", "description", "params", ...) leaked into extras.
+    assert json.loads(t.extras["arch_plan"]) == _PLAN
+    leaked = {"id", "description", "required_capability", "params", "arch_context"}
+    assert leaked.isdisjoint(t.extras.keys())
+
+
+def test_unknown_identifier_prefix_after_known_fields_still_lands_in_extras():
+    """Regression: ``test_unknown_key_lands_in_extras`` already covers the
+    happy path, but this pins the interaction with the new continuation
+    code — a fresh ``foo: bar`` line after ``summary`` MUST open a new
+    extras field, not be appended to summary's value buffer."""
+    text = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "agent: programmer",
+        "summary: did the thing.",
+        "foo: bar",
+    ])
+    t = parse_trailer(text, dispatch_task_id="t1")
+    assert t.summary == "did the thing."
+    assert t.extras["foo"] == "bar"
+
+
+def test_parse_trailer_never_raises_on_pathological_multiline():
+    """The never-raises contract must survive the continuation extension."""
+    # Pile up enough hostile patterns to exercise the continuation buffer
+    # without tripping the parser into an exception.
+    weird = _trailer([
+        "status: ok",
+        "task_id: t1",
+        "agent: programmer",
+        "summary: starts here",
+        "  ",  # blank-ish continuation
+        "no colon at all just prose",
+        '{"id": "x", "nested": {"k": "v"}}',
+        "]",
+        "}",
+        "trailing: with: many: colons",  # 'trailing' is an identifier → new extras field
+    ])
+    t = parse_trailer(weird, dispatch_task_id="t1")
+    assert t.status == "ok"
+    # The non-identifier lines all attached to summary; the identifier-led
+    # line opened a fresh extras field rather than blowing up.
+    assert "trailing" in t.extras
+    assert t.extras["trailing"] == "with: many: colons"

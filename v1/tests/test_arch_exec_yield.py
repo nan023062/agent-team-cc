@@ -159,10 +159,11 @@ def test_on_resume_with_malformed_json_yields_empty_plan():
     leaf.tick(bb)
     leaf.on_resume(bb, _receipt("[not valid json"))
     assert bb.arch_plan == []
-    # Next tick is SUCCESS — empty plan is a legal terminal state
-    # (architect explicitly said no work needed). DispatchWork treats
-    # the empty plan as a no-op.
-    assert leaf.tick(bb) is Status.SUCCESS
+    # Malformed plan must surface as user_input so EscalationGate routes
+    # to Respond#need_user instead of letting WorkLoop fall through to a
+    # fake 'done'.
+    assert bb.convergence == "user_input"
+    assert bb.work_results["arch:1"]["status"] == "needs_user_input"
 
 
 def test_on_resume_with_missing_arch_context_fails_validation():
@@ -176,6 +177,8 @@ def test_on_resume_with_missing_arch_context_fails_validation():
     )
     leaf.on_resume(bb, _receipt(plan_json))
     assert bb.arch_plan == []
+    assert bb.convergence == "user_input"
+    assert bb.work_results["arch:1"]["status"] == "needs_user_input"
 
 
 def test_on_resume_with_too_many_tasks_fails_validation():
@@ -190,6 +193,8 @@ def test_on_resume_with_too_many_tasks_fails_validation():
     )
     leaf.on_resume(bb, _receipt(f"[{items}]"))
     assert bb.arch_plan == []
+    assert bb.convergence == "user_input"
+    assert bb.work_results["arch:1"]["status"] == "needs_user_input"
 
 
 def test_on_resume_with_failed_status_yields_empty_plan():

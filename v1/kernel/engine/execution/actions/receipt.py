@@ -187,24 +187,77 @@ def parse_trailer(text: str, *, dispatch_task_id: str) -> ReceiptTrailer:
 # ---------------------------------------------------------------------------
 
 def _parse_body(body: str) -> tuple[dict[str, str], dict[str, str]]:
+    """Parse the receipt body into (known fields, extras).
+
+    Supports multi-line continuation values: a line whose first non-whitespace
+    token is NOT ``<known-or-prior-key>:`` is appended to the current field's
+    value buffer (preserving its newline so JSON-encoded values survive
+    pretty-printing). The continuation rule is keyed on "unknown prefix", not
+    "no colon" — JSON object keys contain colons.
+    """
     fields_parsed: dict[str, str] = {}
     extras: dict[str, str] = {}
+    # Insertion order: each entry is (bucket, key) where bucket is the dict
+    # that owns the value. Used to append continuation lines to whichever
+    # field was last opened.
+    last_bucket: dict[str, str] | None = None
+    last_key: str | None = None
+
     for raw_line in body.splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        if ":" not in line:
-            continue  # Tolerate stray lines silently — extras would be noisy.
-        key, _, value = line.partition(":")
-        key = key.strip().lower()
-        value = value.strip()
-        if not key or not value:
-            continue
-        if key in _KNOWN_FIELDS:
-            fields_parsed[key] = value
+        if _looks_like_new_field(raw_line):
+            line = raw_line.strip()
+            key, _, value = line.partition(":")
+            key = key.strip().lower()
+            value = value.strip()
+            if not key:
+                # Defensive; _looks_like_new_field already filtered this.
+                continue
+            bucket = fields_parsed if key in _KNOWN_FIELDS else extras
+            bucket[key] = value
+            last_bucket = bucket
+            last_key = key
         else:
-            extras[key] = value
+            # Continuation line — append raw (with newline) to the active
+            # field's buffer. Blank lines inside a multi-line value are
+            # preserved; stray lines before any field is opened are dropped.
+            if last_bucket is None or last_key is None:
+                continue
+            current = last_bucket[last_key]
+            # Append the line verbatim, separated by a newline. JSON parsers
+            # ignore internal whitespace, so this round-trips cleanly.
+            last_bucket[last_key] = current + "\n" + raw_line
+
     return fields_parsed, extras
+
+
+# A trailer field name is an identifier-shaped prefix: ASCII letters,
+# digits, and underscore, starting with a letter or underscore. Anything
+# else before the first ``:`` (e.g. ``"id"`` with quotes, ``{"id"``, or
+# ``  - "field"``) is JSON / prose detritus and treated as continuation,
+# not a new field. This is what makes pretty-printed JSON values
+# (``arch_plan``) round-trip cleanly: their internal ``"key":`` lines all
+# start with a quote, so they never look like trailer fields.
+_FIELD_PREFIX_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)\s*:")
+
+
+def _looks_like_new_field(raw_line: str) -> bool:
+    """True iff ``raw_line`` opens a new ``key: value`` field rather than
+    continues the previous one.
+
+    Rule: after stripping leading whitespace, the line must begin with an
+    identifier followed by ``:``. Lines that don't (blank lines, prose,
+    JSON-internal ``"key":`` lines, ``- "x"`` array items, closing ``]``,
+    etc.) are continuations of the currently-open field. A known field
+    name or a previously-seen extras key is always an identifier, so they
+    satisfy the rule by construction — the unknown-prefix case the spec
+    cares about (an ``agent:`` line embedded inside a multi-line value)
+    is also handled correctly: ``agent`` is an identifier, so it opens a
+    new field.
+    """
+    line = raw_line.lstrip()
+    if not line:
+        return False
+    return _FIELD_PREFIX_RE.match(line) is not None
 
 
 def _parse_artifacts(raw: str | None) -> tuple[str, ...]:

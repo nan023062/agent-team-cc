@@ -89,7 +89,7 @@ class ArchExecYield(Node):
         bb.pending_dispatch = DispatchRequest(
             agent_type="architect",
             agent_file=ARCHITECT_AGENT_FILE,
-            prompt=self._compose_prompt(bb),
+            prompt=self._compose_prompt(bb, subtask_id),
             subtask_id=subtask_id,
             timeout_hint_s=None,
         )
@@ -135,8 +135,29 @@ class ArchExecYield(Node):
         raw = trailer.extras.get("arch_plan")
         plan = _parse_plan(raw)
         if plan is None:
-            # Malformed plan JSON → treat as failed.
+            # Malformed / missing / cap-violating / bad-capability plan.
+            # Surface as user_input so EscalationGate routes to
+            # Respond#need_user instead of letting WorkLoop fall through
+            # to a fake 'done' with an empty plan. Re-dispatching the
+            # same architect with the same prompt would almost certainly
+            # produce the same malformed reply — only the user can break
+            # the deadlock by rephrasing.
             bb.arch_plan = []
+            bb.convergence = "user_input"
+            new_results = dict(bb.work_results or {})
+            new_results[subtask_id] = {
+                "status": "needs_user_input",
+                "summary": "architect reply did not contain a parseable arch_plan trailer field",
+                "question": (
+                    "The architect did not produce a valid arch_plan. "
+                    "Please rephrase your request or restate it more "
+                    "explicitly so the architect can decompose it into "
+                    "work tasks."
+                ),
+                "agent": "architect",
+                "output": text,
+            }
+            bb.work_results = new_results
             return
 
         bb.arch_plan = plan
@@ -151,7 +172,7 @@ class ArchExecYield(Node):
         return f"arch:{iter_no}"
 
     @staticmethod
-    def _compose_prompt(bb) -> str:
+    def _compose_prompt(bb, subtask_id: str) -> str:
         user_request = (getattr(bb, "user_request", "") or "").strip()
         snapshot = getattr(bb, "knowledge_snapshot", None) or ""
         if not snapshot:
@@ -183,8 +204,16 @@ class ArchExecYield(Node):
             "  - 依赖关系写入 params.depends_on (list[str])，不能成环\n"
             "  - 不可执行 → arch_plan 留空 list，receipt status=needs_user_input + question\n\n"
             "### 回执格式\n"
-            "按 PR-A 回执 trailer 规范，并在 trailer 中追加一行：\n"
-            "  arch_plan: <JSON-encoded list[dict]>\n"
+            "按 PR-A 回执 trailer 规范输出，并在 trailer 中追加 arch_plan 行。\n"
+            "完整模板（单行注释，与 receipt.py 解析器一致）：\n\n"
+            "<!-- BEGIN CBIM-RECEIPT v1\n"
+            f"task_id: {subtask_id}\n"
+            "agent: architect\n"
+            "status: ok\n"
+            "summary: <一句话总结>\n"
+            "notes: \n"
+            "arch_plan: <JSON-encoded list[dict]，无任务时为 []>\n"
+            "END CBIM-RECEIPT -->\n"
         )
 
 
@@ -206,13 +235,16 @@ def _parse_plan(raw: Any) -> list[dict] | None:
     """Parse and validate the architect's arch_plan trailer field.
 
     Returns the normalized list on success, None on any structural
-    failure. An empty list is a valid result (architect said "no work
-    needed") and is returned as ``[]``.
+    failure (including a missing ``arch_plan`` field — the architect
+    is required to emit the line even when the plan is empty). An
+    explicit empty list (``raw == "[]"`` or whitespace-only) is a
+    valid result and is returned as ``[]``.
     """
     if raw is None:
-        # No arch_plan field at all — treat as empty plan (status=ok
-        # with no work). Architect explicitly said no work needed.
-        return []
+        # Missing field — the architect did not honor the receipt
+        # contract. Treat as malformed so the caller surfaces FAILURE
+        # rather than silently producing an empty plan.
+        return None
     if not isinstance(raw, str):
         return None
     s = raw.strip()

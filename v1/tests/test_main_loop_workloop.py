@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 from engine.core.composite import LoopSeq, Sequence, SwitchBranch
 from engine.core.node import Node, Status
+from engine.execution.actions.arch_exec_yield import ArchExecYield
 from engine.execution.actions.converge_judge import (
     DEFAULT_MAX_ITERS,
     ConvergeJudge,
@@ -201,3 +202,147 @@ def test_exhausted_branch_renders_handoff_banner():
     assert "What schema for field Z?" in bb.final_response
     assert "v1/kernel/engine/exec" in bb.final_response
     assert "(a) 给架构师补充关键信息后重试" in bb.final_response
+
+
+# ---------------------------------------------------------------------------
+# Regression canaries — exercise the real ArchExecYield leaf inside the
+# WorkLoop + EscalationGate sub-tree so the three fixes (malformed-reply
+# routes to user_input, multi-line arch_plan parses, architect persona
+# carries execution mode) cannot silently regress.
+#
+# Why integration-level: the prior leaf-only test
+# `test_on_resume_with_malformed_json_yields_empty_plan` enshrined the
+# old silent-empty-plan behavior. Only ticking the whole sub-tree proves
+# the loop actually surfaces user_input via EscalationGate instead of
+# falling through to a fake "done" with "(empty response)".
+# ---------------------------------------------------------------------------
+
+def _mini_tree_with_arch_yield():
+    """Same shape as _mini_tree but with a real ArchExecYield first child."""
+    respond = Respond(name="Respond")
+    respond_need_user = Respond(name="Respond#need_user", mode="need_user")
+    respond_exhausted = Respond(name="Respond#exhausted", mode="exhausted")
+
+    arch = ArchExecYield(name="ArchExecYield")
+    judge = ConvergeJudge(max_iters=DEFAULT_MAX_ITERS, name="ConvergeJudge")
+    work_loop = LoopSeq(
+        [arch, DispatchWork(name="DispatchWork"), judge],
+        max_iters=DEFAULT_MAX_ITERS,
+        name="WorkLoop",
+    )
+    gate = SwitchBranch(
+        key_fn=_converge_key,
+        cases={
+            "done":       respond,
+            "user_input": respond_need_user,
+            "exhausted":  respond_exhausted,
+        },
+        default=respond,
+        name="EscalationGate",
+    )
+    return arch, Sequence([work_loop, gate], name="MiniExec")
+
+
+# Malformed reply: status=ok, all required base fields present, but NO
+# arch_plan line at all. Pre-fix this collapsed to bb.arch_plan=[],
+# convergence unset → "done" branch → Respond renders "(empty response)".
+# Post-fix: ArchExecYield seeds convergence="user_input" + a synthetic
+# needs_user_input work_results entry so EscalationGate routes to
+# Respond#need_user.
+_MALFORMED_REPLY = (
+    "Body prose.\n"
+    "<!-- BEGIN CBIM-RECEIPT v1\n"
+    "status: ok\n"
+    "task_id: arch:1\n"
+    "agent: architect\n"
+    "summary: stub\n"
+    "END CBIM-RECEIPT -->\n"
+)
+
+
+def test_malformed_arch_reply_routes_to_user_input_not_done():
+    arch, tree = _mini_tree_with_arch_yield()
+    bb = _mini_bb(arch_plan=None, work_results={})
+    bb.user_request = "implement login form"
+    bb.knowledge_snapshot = None
+
+    # First tick drives ArchExecYield → RUNNING with pending_dispatch set.
+    assert tree.tick(bb) is Status.RUNNING
+    assert bb.pending_dispatch is not None
+    assert bb.pending_dispatch.agent_type == "architect"
+
+    # Architect (simulated) returns a malformed receipt — status=ok but
+    # no arch_plan trailer field.
+    arch.on_resume(bb, _MALFORMED_REPLY)
+
+    # Re-tick. WorkLoop re-enters at child 0: ArchExecYield sees
+    # bb.arch_plan == [] (a list) → SUCCESS. DispatchWork sees empty
+    # plan → SUCCESS. ConvergeJudge sees needs_user_input in
+    # work_results → leaves convergence="user_input". EscalationGate
+    # routes to Respond#need_user.
+    assert tree.tick(bb) is Status.SUCCESS
+
+    # (a) Convergence is user_input, not the silent "done".
+    assert bb.convergence == "user_input"
+    # (b) Banner is the Respond#need_user header.
+    assert bb.final_response is not None
+    assert bb.final_response.startswith("我需要你的确认才能继续")
+    # (c) Definitely NOT the empty-response fallback that the old bug
+    # produced.
+    assert bb.final_response != "(empty response)"
+
+
+# Multi-line arch_plan: the JSON value opens with [ on the trailer key
+# line, then one task object pretty-printed across 5 lines, then a
+# closing ]. Pre-fix the parser treated each new key: line as a fresh
+# trailer field, so the value collapsed to "[" and json.loads failed.
+# Post-fix _looks_like_new_field gates on identifier-shaped prefixes only,
+# so JSON-internal "key": lines and the bare [/] brackets are correctly
+# appended as continuation.
+_MULTILINE_REPLY = (
+    "<!-- BEGIN CBIM-RECEIPT v1\n"
+    "status: ok\n"
+    "task_id: arch:1\n"
+    "agent: architect\n"
+    "summary: stub\n"
+    "arch_plan: [\n"
+    "  {\n"
+    '    "id": "t1", "description": "implement login form",\n'
+    '    "required_capability": "programmer",\n'
+    '    "params": {}, "arch_context": "ctx-login"\n'
+    "  }\n"
+    "]\n"
+    "END CBIM-RECEIPT -->\n"
+)
+
+
+def test_multiline_arch_plan_parses_through_sub_tree():
+    arch, tree = _mini_tree_with_arch_yield()
+    bb = _mini_bb(arch_plan=None, work_results={})
+    bb.user_request = "implement login form"
+    bb.knowledge_snapshot = None
+
+    # First tick → architect dispatch yields RUNNING.
+    assert tree.tick(bb) is Status.RUNNING
+
+    # Architect (simulated) returns a well-formed but pretty-printed
+    # multi-line arch_plan value.
+    arch.on_resume(bb, _MULTILINE_REPLY)
+
+    # The leaf-level assertion: parser handled the continuation lines.
+    assert isinstance(bb.arch_plan, list)
+    assert len(bb.arch_plan) == 1
+    task = bb.arch_plan[0]
+    assert task["id"] == "t1"
+    assert task["description"] == "implement login form"
+    assert task["required_capability"] == "programmer"
+    assert task["arch_context"] == "ctx-login"
+
+    # And the integration-level corroboration: re-ticking advances past
+    # ArchExecYield into DispatchWork, which now has a real task to fan
+    # out — so it yields a work-agent dispatch (RUNNING). This proves
+    # the parsed plan flows downstream, not just that the JSON decoded.
+    assert tree.tick(bb) is Status.RUNNING
+    assert bb.pending_dispatch is not None
+    assert bb.pending_dispatch.agent_type == "work"
+    assert bb.pending_dispatch.subtask_id == "t1"
