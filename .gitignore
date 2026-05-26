@@ -12,14 +12,9 @@ Temp/
 #.claude/
 #CLAUDE.md
 .cbim/memory/short/
-.cbim/memory/medium/
-.cbim/memory/last-session.md
-.cbim/memory/.chroma/
 .cbim/logs/
 .cbim/.debug
 .cbim/.cc-status
 .cbim/scheduler/state.json
 .cbim/scheduler/bt/
-.cbim/dashboard/.run/
-.cbim/.upgrade_cache.json
-.cbim/.pin
+.cbim/dashboard/
