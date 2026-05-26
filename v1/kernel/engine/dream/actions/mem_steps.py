@@ -1,21 +1,21 @@
-"""actions/mem_steps.py — memory governance step actions.
+"""actions/mem_steps.py — memory governance step actions (in-process leaves).
 
-Five structural nodes covering the memory governance sub-loop:
+Four pure-Python structural nodes:
   MemHealthScan      — in-process call to memory.HealthChecker.check()
   MemCompact         — in-process call to memory.compact()
-  MemDistillGate     — pure decision: should we trigger MemDistill yield?
   MemSweepExpired    — in-process call to memory.sweep_expired()
-  MemRebuildIndex    — in-process call to memory.compaction.rebuild()
-                       (conditional: only when bb.mem_health.index_drift truthy)
+  MemRebuildIndex    — in-process call to memory.compaction.rebuilder
+                       .rebuild_and_verify() (always runs in v2)
 
-**Rule (revised):** memory governance is mostly pure in-process Python —
-health scan, compact, sweep, rebuild are deterministic and never yield.
-The single exception is the MemDistill triad (Gate / Dispatch / Collect):
-the Dispatch leaf yields to the HR agent to run the ``memory_distill``
-skill — semantic short→medium compression is LLM-driven.
+The v2 distill triggering (TranscriptScan + DistillGate + the
+DispatchMemDistill / CollectMemDistill / TranscriptDelete yield triad)
+lives in ``actions/transcript_steps.py`` and the matching dispatch /
+collect modules.
 
-Boundary: structural merging → Python (identifier.py + compactor.py).
-Semantic merging → LLM (MemDistill yield).
+**Rule:** memory governance is mostly pure in-process Python — health
+scan, compact, sweep, rebuild are deterministic and never yield.
+Semantic short→medium compression is LLM-driven and runs via the
+DispatchMemDistill self-yield to the main agent.
 
 Any other node added here MUST be pure Python unless its inputs / outputs
 are not enumerable (i.e. unless semantic judgment is intrinsic to the work).
@@ -30,13 +30,13 @@ Construction contract (per architect spec):
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from typing import Any
 
 from engine.core.node import Node, Status
 
-from memory.compaction import HealthChecker, compact, rebuild, sweep_expired
+from memory.compaction import HealthChecker, compact, sweep_expired
+from memory.compaction.rebuilder import rebuild_and_verify
 from memory.crud.backend import MemoryBackend
 
 
@@ -86,73 +86,10 @@ class MemCompact(Node):
         return Status.SUCCESS
 
 
-# ---------------------------------------------------------------------------
-# MemDistillGate
-# ---------------------------------------------------------------------------
-
-# Independent threshold from health.short_max_entries; we want distill to
-# pre-empt the hard ceiling so SHORT_OVERFLOW is rare.
-_DISTILL_THRESHOLD = 30
-# Cadence cap — distill at least once per week regardless of pressure.
-_DISTILL_PERIOD_DAYS = 7
-# Breach codes that should force a distill attempt.
-_DISTILL_BREACH_CODES = ("SHORT_OVERFLOW", "SHORT_VOLUME", "SHORT_STALE")
-
-
-class MemDistillGate(Node):
-    """Decide whether the MemDistill yield should fire this tick.
-
-    Reads bb.mem_health (set by MemHealthScan) and the .last_distill marker
-    under store_dir to set bb.mem_distill_dispatched as a hint for the
-    paired Dispatch / Collect nodes:
-
-      - True  → DispatchMemDistill will yield to HR for the memory_distill
-                skill; CollectMemDistill will await the parsed report.
-      - False → Dispatch / Collect short-circuit; mem_distill_result records
-                the skip reason for EmitReport's rendering.
-
-    The gate itself never yields and never touches the store beyond reading
-    the .last_distill mtime. Decision is local + cheap.
-    """
-
-    def __init__(self, *, store_dir: Path, name: str = "MemDistillGate") -> None:
-        self.name = name
-        self._store_dir = Path(store_dir)
-
-    def tick(self, bb) -> Status:
-        health = bb.mem_health or {}
-        # _report_to_dict flattens HealthReport into
-        # {"indicators": {...}, "breaches": [...], "index_drift": bool}
-        indicators = health.get("indicators") or {}
-        breaches = health.get("breaches") or []
-        short_count = int(indicators.get("short_count") or 0)
-
-        marker = self._store_dir / ".last_distill"
-        days_since: float = float("inf")
-        if marker.exists():
-            try:
-                age_seconds = time.time() - marker.stat().st_mtime
-                days_since = age_seconds / 86400.0
-            except OSError:
-                days_since = float("inf")
-
-        should_distill = (
-            any(code in breaches for code in _DISTILL_BREACH_CODES)
-            or short_count >= _DISTILL_THRESHOLD
-            or days_since >= _DISTILL_PERIOD_DAYS
-        )
-
-        bb.mem_distill_dispatched = bool(should_distill)
-        if not should_distill:
-            bb.mem_distill_result = {
-                "skipped": True,
-                "reason": "below_threshold",
-                "short_count": short_count,
-                "days_since_last_distill": (
-                    None if days_since == float("inf") else round(days_since, 2)
-                ),
-            }
-        return Status.SUCCESS
+# MemDistillGate (v1) was removed in v2 — the distill triggering rule is
+# now data-volume on bb.transcript_paths via DistillGate (see
+# actions/transcript_steps.py). MemHealthScan no longer needs to feed a
+# threshold check.
 
 
 # ---------------------------------------------------------------------------
@@ -190,10 +127,17 @@ class MemSweepExpired(Node):
 # ---------------------------------------------------------------------------
 
 class MemRebuildIndex(Node):
-    """Run memory.compaction.rebuild() — conditional on bb.mem_health.index_drift.
+    """Run memory.compaction.rebuild_and_verify() unconditionally.
 
-    When index_drift is falsy the action is skipped and returns SUCCESS with a
-    `{skipped: true}` result; this matches the design rule "SUCCESS = 重建完成或跳过".
+    v2 behaviour (per .dna/contract.md outbound table): always run the
+    rebuild + drift-verify pair on the medium tier. The rebuild step is
+    idempotent (re-feeds the per-entry retrieval upsert; a clean medium
+    re-converges in one pass), and the verify step surfaces anything
+    the rebuild couldn't reconcile. Skipping on "no drift" was a v1
+    heuristic that depended on a HealthChecker indicator that the v2
+    rebuilder makes redundant — every tick now does the full check.
+
+    Writes the ``RebuildReport`` (as a dict) to ``bb.mem_index_result``.
     """
 
     def __init__(
@@ -207,19 +151,17 @@ class MemRebuildIndex(Node):
         self.name = name
         self._store_dir = Path(store_dir)
         self._backend = backend
+        # ``tier`` kept for v1 signature compatibility; rebuild_and_verify
+        # only addresses medium in v2.
         self._tier = tier
 
     def tick(self, bb) -> Status:
-        health = bb.mem_health or {}
-        if not health.get("index_drift"):
-            bb.mem_index_result = {"skipped": True, "reason": "no_index_drift"}
-            return Status.SUCCESS
         try:
-            count = rebuild(self._store_dir, self._backend, tier=self._tier)
+            report = rebuild_and_verify(self._store_dir, self._backend)
         except Exception as e:
             bb.mem_index_result = {"error": f"{type(e).__name__}: {e}"}
             return Status.FAILURE
-        bb.mem_index_result = {"indexed": int(count), "tier": self._tier}
+        bb.mem_index_result = _report_to_dict(report)
         return Status.SUCCESS
 
 

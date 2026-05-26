@@ -2,6 +2,13 @@
 __pycache__/
 *.pyc
 cbim-kernel-*.tar.gz
+
+# Unity / C# generated files
+Library/
+obj/
+Temp/
+*.csproj
+
 #.claude/
 #CLAUDE.md
 .cbim/memory/short/

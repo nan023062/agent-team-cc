@@ -1,78 +1,105 @@
 SKILL: str = """\
-# Skill: Memory Distillation (Short → Medium)
+# Skill: Memory Distillation (Transcript → Medium)
 
-**Main agent only. Triggered periodically or on demand.**
+**只由主 agent 调用。** 输入是 Claude Code 原生会话 JSONL；输出是 `.cbim/memory/medium/` 下的四象限条目。
 
-Compress short-term session records into medium-term pattern summaries, providing raw material for HR capability governance and architect business governance.
-Medium-term memory is organized by **four quadrants**, each determining where information ultimately flows in the governance structure.
-
-Distillation produces analytical material only; promotion decisions belong to the governance loops, not to this skill.
+蒸馏只产出分析素材；是否触发后续治理（HR 评估 / architect 知识更新）由治理循环或用户决定，本 skill 不负责。
 
 ---
 
-## Trigger Timing
+## 触发场景
 
-| Scenario | Description |
-|----------|-------------|
-| User explicitly requests | "Distill memory" / "Summarize recent sessions" |
-| Accumulation threshold | `short/` has ≥`distill.suggest_threshold` unprocessed entries — proactively suggest (default 5, see `memory/config.json`) |
-| Governance prerequisite | Before HR assessment / architect governance, run this skill first to ensure medium memory is current |
-
----
-
-## Prerequisite: Complete Signal Fields
-
-Entries written by the Stop hook have empty signal rows by default. **Signals must be filled in before distillation** (see memory_write skill); otherwise there is no material to distill.
-
-For each pending `short/*.md`, check the `## 信号` section and complete the `- [x]` lines.
+| 场景 | 说明 |
+|------|------|
+| 用户显式请求 | "整理记忆" / "蒸馏最近 session" / "distill" |
+| 阈值提示 | 主 agent 注意到 transcript 积累过多，主动建议 |
+| 治理循环 yield | `dream_tick` 的 `DispatchMemDistill` 节点 yield 给主 agent，prompt 里会列出 `paths` |
 
 ---
 
-## Step 1 — Scan Short-term Entries, Group by Quadrant
+## 步骤 1 — 定位 transcript 目录
 
-Read all pending entries under `memory/short/`; collect checked signals (`- [x]` prefix).
+Claude Code 把每次 session 的对话流写在 `~/.claude/projects/<slug>/<session-id>.jsonl`。
 
-Classify by four quadrants:
+**slug 规则**：当前项目 CWD 中 `:` → `-`，`\\` 或 `/` → `-`，其余字符保留。
 
-| Quadrant | Collection Key | Medium File Name |
-|----------|---------------|-----------------|
-| MUST | agent-id | `capability-<agent-id>.md` |
-| HOW (capability-oriented) | agent-id | `capability-<agent-id>.md` |
-| WANT | module name / scope | `decision-<scope>.md` |
-| HOW (business-oriented) | module name | `business-<module>.md` |
-| IS | module name | `business-<module>.md` |
+示例：
 
-> To judge whether HOW is capability-oriented or business-oriented: still holds in another project → capability; strongly tied to current business context → business.
+| CWD | slug |
+|-----|------|
+| `D:\\GitRepository\\cbim-kernel` | `D--GitRepository-cbim-kernel` |
+| `/home/linan/proj` | `-home-linan-proj` |
 
----
+拼接 home 目录跨平台脚本（Bash 工具）：
 
-## Step 2 — Determine Whether to Distill
-
-| Scenario | Action |
-|----------|--------|
-| **User corrected an agent's behavior** (MUST) | **Must distill** — highest priority |
-| **IS-type change** (interface, rule, config) | **Must distill** — prevents future decisions based on stale facts |
-| **WANT-type decision** | **Must distill** — recording "why" is the core of architectural knowledge |
-| Same agent / module signal repeating across multiple entries | **Must distill** — repetition indicates pattern, not coincidence |
-| Single occurrence, but describes a clear gap or effective pattern | **Recommended** — assess generalization value |
-| Single occurrence, highly context-specific | May defer; keep in short-term |
-
-**Five judgment criteria (for borderline cases):**
-1. Cost of loss: would future decisions deteriorate without this information?
-2. Generalizability: is this a one-time detail or a cross-task reusable principle?
-3. Stability: does it remain valid beyond the current session?
-4. Root-cause value: does it explain "why" rather than just "what"?
-5. Error-prevention value: would recording it prevent a past error from recurring?
+```bash
+# Linux / macOS
+echo "$HOME/.claude/projects/<slug>/"
+# Windows (PowerShell)
+echo "$env:USERPROFILE\\.claude\\projects\\<slug>\\"
+```
 
 ---
 
-## Step 3 — Write or Update Medium Entry
+## 步骤 2 — 选出待蒸馏的 JSONL
 
-**If file exists → update; if not → create.**
+两种入口，路径来源不同：
 
-### Capability Medium Entry (MUST + capability-oriented HOW)
+| 调用来源 | 路径列表来源 |
+|---------|------------|
+| 治理循环 yield | prompt 里已带 `paths` 字段（mtime > 1 天的 transcript）——**直接用，不要重扫** |
+| 用户手动触发 | 主 agent 用 Glob 自扫 `~/.claude/projects/<slug>/*.jsonl`，**全部纳入**（含近期） |
 
-File: `memory/medium/capability-<agent-id>.md`
+不论哪种来源，跳过明显无意义的文件（大小 < 2KB 视作 too-short）。
+
+---
+
+## 步骤 3 — 读取并理解 transcript 内容
+
+每个 `.jsonl` 是一次 session 的逐行 JSON 记录（用户轮、助手轮、tool calls、tool results）。
+
+用 `Read` 工具逐文件读取，按行解析。重点关注：
+
+- **用户消息**——尤其是纠正、要求改变行为、明确决策的语句
+- **subagent 执行结果**——成功模式、踩坑点
+- **文件改动记录**——接口签名、契约、配置变化
+- **决策语句**——"我们选 A 不选 B 因为 ..."
+
+> v2 不再依赖任何 `- [x]` 预选信号。主 agent 直接读原文推断。
+
+---
+
+## 步骤 4 — 提炼 MUST / WANT / HOW / IS 四象限
+
+| 象限 | 含义 | 收集键 | 归属 medium 文件 |
+|------|------|--------|-----------------|
+| MUST | 行为约束（用户纠正、必须遵守） | agent-id | `capability-<agent-id>.md` |
+| HOW（能力向） | 跨项目仍成立的有效流程 | agent-id | `capability-<agent-id>.md` |
+| WANT | 业务决策（为什么选 A 不选 B） | 模块名 / scope | `decision-<scope>.md` |
+| HOW（业务向） | 强绑当前业务的流程 | 模块名 | `business-<module>.md` |
+| IS | 事实 / 接口 / 规则变更 | 模块名 | `business-<module>.md` |
+
+**HOW 归属判断**：换个项目还成立 → 能力向；强依赖当前业务上下文 → 业务向。
+
+**判断该不该蒸馏（borderline 时的五条标尺）**：
+
+1. 丢失代价：将来决策会不会因为没有这条而变差？
+2. 普适性：是一次性细节还是跨任务可复用？
+3. 稳定性：超出当前 session 还成立吗？
+4. 根因价值：解释了 "why" 而不只是 "what" 吗？
+5. 防错价值：记下能防止过去那个错重现吗？
+
+任何一条强 yes → 蒸馏。
+
+---
+
+## 步骤 5 — 写入 medium 条目
+
+调 `memory_create` MCP 工具，`tier="medium"`（v2 记忆服务不再接受 `short`）。**文件已存在则更新；不存在则创建。**
+
+### 能力 medium 条目（MUST + 能力向 HOW）
+
+文件：`capability-<agent-id>.md`
 
 ```markdown
 ---
@@ -85,29 +112,24 @@ sources: 5
 
 ## Summary
 
-Overall assessment of this agent's current capability patterns (one paragraph; rewrite on each update, do not append).
+对该 agent 当前能力模式的整体判断（一段话，每次更新重写、不追加）。
 
-Example:
-programmer lacks proactive locking awareness in concurrent write scenarios; needs user prompts to handle race conditions.
-Performs stably on single-threaded sequential tasks; skilled at breaking down steps and calling tool chains.
-Has established a dry-run prerequisite habit; zero errors in the past 8 write-operation tasks.
+## MUST 记录（行为约束）
 
-## MUST Records (Behavioral Constraints)
+| 日期 | 来源 transcript | 内容 | 触发原因 |
+|------|----------------|------|---------|
+| 2026-05-10 | <session-id>.jsonl | 批量删除前必须先展示影响范围 | 用户纠正了一次误删 |
 
-| Date | Source Entry | Content | Trigger Reason |
-|------|-------------|---------|---------------|
-| 2026-05-10 | 2026-05-10-main-xxx.md | Must display change scope before bulk deletes | User corrected a mistaken deletion |
+## HOW 记录（有效流程）
 
-## HOW Records (Effective Flows)
-
-| Date | Source Entry | Content |
-|------|-------------|---------|
-| 2026-05-12 | 2026-05-12-main-yyy.md | Contract first then architecture; interface is more stable |
+| 日期 | 来源 transcript | 内容 |
+|------|----------------|------|
+| 2026-05-12 | <session-id>.jsonl | 先契约后架构，接口更稳 |
 ```
 
-### Decision Medium Entry (WANT)
+### 决策 medium 条目（WANT）
 
-File: `memory/medium/decision-<scope>.md`
+文件：`decision-<scope>.md`
 
 ```markdown
 ---
@@ -118,30 +140,23 @@ updated: YYYY-MM-DD
 sources: 2
 ---
 
-## Decision Records
+## 决策记录
 
-Using ADR (Y-statement) format:
+ADR (Y-statement) 格式：
 
-### [Decision Title]
-In the context of [background],
-facing [core constraint],
-we chose [option A] over [option B],
-to achieve [goal],
-accepting [trade-off].
+### [决策标题]
+在 [背景] 下，
+面对 [核心约束]，
+我们选择 [方案 A] 而非 [方案 B]，
+以达成 [目标]，
+接受 [代价]。
 
-Example:
-In a multi-agent system requiring memory retrieval,
-facing the trade-off between "zero external dependencies" and "semantic search",
-we chose FileBackend (sorted by time) over ChromaDB (vector search),
-to achieve install-ready, no network dependency,
-accepting that retrieval does not support semantic similarity — sorted by time only.
-
-Decision by: linan, date: 2026-05-18
+决策人：linan，日期：2026-05-18
 ```
 
-### Business Medium Entry (business-oriented HOW + IS)
+### 业务 medium 条目（业务向 HOW + IS）
 
-File: `memory/medium/business-<module>.md`
+文件：`business-<module>.md`
 
 ```markdown
 ---
@@ -154,99 +169,83 @@ sources: 4
 
 ## Summary
 
-Overall description of this module's current state and key patterns (rewrite on each update, do not append).
+模块当前状态与关键模式的整体描述（每次更新重写）。
 
-## IS Records (Current Facts)
+## IS 记录（当前事实）
 
-| Date | Source Entry | Content | Change Type |
-|------|-------------|---------|------------|
-| 2026-05-15 | 2026-05-15-main-zzz.md | Damage interface signature changed to calculate(actor, target, context) | Interface change |
-| 2026-05-10 | 2026-05-10-main-aaa.md | "Active user" definition: login → purchase | Business rule change |
+| 日期 | 来源 transcript | 内容 | 变更类型 |
+|------|----------------|------|---------|
+| 2026-05-15 | <session-id>.jsonl | Damage 接口签名改为 calculate(actor, target, context) | 接口变更 |
 
-## HOW Records (Business Flows)
+## HOW 记录（业务流程）
 
-| Date | Source Entry | Content | Count |
-|------|-------------|---------|-------|
-| 2026-05-12 | 2026-05-12-main-bbb.md | Damage calculation: receive → validate → calculate → broadcast, no skipping | 3 |
+| 日期 | 来源 transcript | 内容 | 次数 |
+|------|----------------|------|------|
+| 2026-05-12 | <session-id>.jsonl | 伤害结算：接收 → 校验 → 计算 → 广播，不能跳步 | 3 |
 ```
 
 ---
 
-## Step 4 — Rules for Updating Existing Entries
+## 步骤 6 — 更新已有 medium 条目的规则
 
-1. Append new rows to the `## Signal Records` table
-2. Increment `sources` count by the number of new entries
-3. Update `updated` to today's date
-4. **Rewrite `## Summary`** to reflect the latest signals — do not append and accumulate
-
----
-
-## Step 5 — Mark Processed Short-term Entries
-
-After distillation, **do not immediately delete** short-term entries — instead, add a `distilled` marker to the frontmatter.
-The engine's periodic cleanup will delete entries that are "marked + older than 3 days", preserving recent memory.
-
-For every entry scanned in Step 1 (whether or not signals were found), add the marker with the Edit tool:
-
-```markdown
----
-tier: short
-tags: session
-modules: combat
-distilled: 2026-05-18     ← add this line
----
-```
-
-**Do not mark**:
-- Entries intentionally skipped this round (signals pending confirmation) → leave as-is; process next distillation
-
-**Fallback cleanup** (clean entries that are "marked + older than 3 days"):
-
-```bash
-cbim memory cleanup --keep-days 3
-```
-
-`last-session.md` is an independent file not subject to this lifecycle.
+1. 把新行追加到对应的记录表
+2. `sources` 加上新来源数量
+3. `updated` 改为今天
+4. **重写 `## Summary`** 以反映最新信号——不要追加堆积
 
 ---
 
-## Step 6 — Report and Recommend Next Actions
+## 步骤 7 — 不要碰 transcript 原文件
 
-```
-## Memory Distillation Summary ({date range}, {N} entries)
+主 agent **不删** transcript、**不改** transcript、**不加** 任何标记。
 
-### MUST ({N} principles)
-| Agent | Content | Trigger Reason |
-|-------|---------|---------------|
-| programmer | Confirm before bulk delete | User corrected a mistaken deletion |
+删除是治理循环 `TranscriptDelete` 节点的职责，它依赖本 skill 报告里的 `distilled_paths`。
+用户手动触发（非治理循环）时不删 transcript，只回报蒸馏结果。
 
-### WANT ({N} decisions)
-| Scope | Decision Summary |
-|-------|----------------|
-| memory-module | FileBackend vs ChromaDB, chose zero dependencies |
+---
 
-### HOW ({N} flows)
-| Dimension | Content | Count |
-|-----------|---------|-------|
-| architect (capability) | Contract first then architecture | 3 |
-| combat (business) | Damage calculation four-step flow | 2 |
+## 步骤 8 — 回报蒸馏摘要
 
-### IS ({N} fact changes)
-| Module | Change |
-|--------|--------|
-| combat | Interface signature updated |
-| auth | Token validity 24h→8h |
+返回给调用方（治理循环用 `dream_tick_resume` 的 `dispatch_result`；用户手动调用直接回报）的 JSON：
 
-### Recommended Next Actions
-Capability governance:
-- HR assess programmer (MUST gap × 2 times)
-- HR distill architect HOW to Skill (appeared × 3 times)
-
-Business governance:
-- Architect update combat contract.md / module.md (interface signature changed)
-- Architect distill combat HOW to workflow (× 2 times)
-- Architect record memory-module WANT decision to module.md
+```json
+{
+  "distilled_paths":          ["<absolute path>", ...],
+  "medium_entries_written":   ["<absolute path>", ...],
+  "skipped_paths":            [{"path": "...", "reason": "no-signal|too-short|parse-error"}],
+  "errors":                   ["..."]
+}
 ```
 
-Whether to trigger HR assessment / architect governance after distillation is decided by the user.
+同时给用户一段人话摘要：
+
+```
+## 蒸馏摘要（{N} 个 transcript）
+
+### MUST（{N} 条原则）
+| Agent | 内容 | 触发原因 |
+|-------|------|---------|
+| programmer | 批量删除前先确认 | 用户纠正误删 |
+
+### WANT（{N} 条决策）
+| Scope | 决策摘要 |
+|-------|---------|
+| memory-module | FileBackend vs ChromaDB，选零依赖 |
+
+### HOW（{N} 条流程）
+| 维度 | 内容 | 次数 |
+|------|------|------|
+| architect（能力） | 先契约后架构 | 3 |
+| combat（业务） | 伤害结算四步流程 | 2 |
+
+### IS（{N} 条事实变更）
+| 模块 | 变更 |
+|------|------|
+| combat | 接口签名更新 |
+
+### 跳过
+- <path>：too-short
+```
+
+后续治理动作（HR 评估 / architect 更新知识）由用户或治理循环决定，本 skill 到此为止。
 """

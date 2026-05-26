@@ -21,17 +21,19 @@ from pathlib import Path
 
 from ._fm import find_project_root, parse_frontmatter, strip_frontmatter
 
-TIERS = ("short", "medium")
+# v2: short tier removed. Only medium remains as a file tier.
+TIERS = ("medium",)
 
 
 def list_entries(tier: str | None = None, cwd=None) -> list[dict]:
     """Return all memory entries, newest first.
 
     Args:
-        tier:  Optional filter — "short" or "medium". None = both tiers.
+        tier:  Optional filter — must be "medium" or None in v2. (The legacy
+               "short" value raises ValueError; short tier was removed.)
         cwd:   Project search base (defaults to current working dir). The
                function walks up to find `.cbim/` and reads
-               `.cbim/memory/{tier}/*.md` underneath it.
+               `.cbim/memory/medium/*.md` underneath it.
 
     Returns:
         List of dicts shaped like::
@@ -127,22 +129,27 @@ def _build_backend(cwd: str = ""):
 
 
 def reindex(tier: str = "", cwd: str = "") -> str:
-    """Rescan the memory store and rebuild backend indices.
+    """Rescan the memory store and rebuild backend + retrieval indices.
 
-    Args:
-        tier: "short" | "medium" | "" (both, default).
-        cwd:  Project search base.
-
-    Returns a human-readable summary string like
-    "reindexed 12 entries (tier=short)".
+    v2: only "" (default = medium) or "medium" is accepted. "short" raises
+    ValueError. Output now includes drift counts from the engine.retrieval
+    verify pass that runs alongside the local rebuild.
     """
-    if tier not in ("", "short", "medium"):
-        raise ValueError(f"tier must be 'short', 'medium', or '' (both), got: {tier!r}")
-    from memory.compaction import rebuild
+    if tier not in ("", "medium"):
+        raise ValueError(
+            f"tier must be 'medium' or '' (default), got: {tier!r}; "
+            f"short tier was removed in v2"
+        )
+    from memory.compaction.rebuilder import rebuild_and_verify
     backend, store_dir = _build_backend(cwd)
-    tier_arg = tier or None
-    count = rebuild(store_dir, backend, tier=tier_arg)
-    return f"reindexed {count} entries (tier={tier_arg or 'all'})"
+    report = rebuild_and_verify(store_dir, backend)
+    return (
+        f"reindexed {report.indexed_count} entries; "
+        f"drift checked={report.drift_checked} "
+        f"drifted={report.drift_drifted} "
+        f"repaired={report.drift_repaired} "
+        f"failed={report.drift_failed}"
+    )
 
 
 def get_entry(entry_id: str, cwd: str = "") -> dict | None:
@@ -153,14 +160,15 @@ def get_entry(entry_id: str, cwd: str = "") -> dict | None:
 
 
 def cleanup(keep_days: int, cwd: str = "") -> str:
-    """Delete short-term entries older than `keep_days` days.
+    """Sweep stale candidate stubs older than `keep_days`.
 
-    Returns a human-readable summary like
-    "deleted 4 short-term entries older than 7 days".
+    v2: the v1 target (distilled + aged short entries) is gone with the
+    short tier. The signature is preserved so MCP and CLI callers keep
+    working; semantics now point at the candidates work area.
     """
     if keep_days < 0:
         raise ValueError(f"keep_days must be >= 0, got: {keep_days!r}")
     from memory.compaction import sweep_expired
     backend, store_dir = _build_backend(cwd)
     count = sweep_expired(store_dir, backend, keep_days=keep_days)
-    return f"deleted {count} short-term entries older than {keep_days} days"
+    return f"swept {count} stale candidates older than {keep_days} days"

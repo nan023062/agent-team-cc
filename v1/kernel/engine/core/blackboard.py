@@ -63,6 +63,11 @@ _PERSISTED_EXTRAS: tuple[str, ...] = (
     "convergence",
     "arch_redo_context",
     "work_loop_iter",
+    # v3.8 — ContextRetrieval leaf writes the three-bucket dict here so
+    # downstream subtrees (ModeClassify, the five mode branches) can read
+    # it without re-querying retrieval. Not a canonical FIELDS entry —
+    # carried as an extra so the schema_version doesn't churn.
+    "retrieved_context",
 )
 
 

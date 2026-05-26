@@ -1,50 +1,52 @@
 """
-compaction/archiver.py — `sweep_expired()` (replaces legacy cleanup_short).
+compaction/archiver.py — `sweep_expired()` for stale work-area candidates.
 
-Phase 4A: moved out of the legacy cleanup_short path. Same semantics:
-- Walk short/ for entries whose filename date is older than keep_days.
-- Skip entries that lack a `distilled: <date>` frontmatter marker (those
-  are still pending distillation and must not be silently dropped).
-- Delete the rest through crud.primitives.delete (compaction does NOT
-  hold direct file-write permission on short/ or medium/).
+v2: short tier removed. The v1 sweep target (distilled + aged short entries)
+no longer exists. This module now sweeps stale candidate stubs from the
+work area — candidates whose mtime is older than `keep_days` and that the
+knowledge loop never picked up.
+
+medium/ entries are never auto-archived: long-lived knowledge is the whole
+point of the tier; lifecycle decisions there are explicit (human or LLM-
+driven via memory_distill), not time-based.
 """
 
 from __future__ import annotations
 
-import re
-from datetime import datetime, timedelta
+import time
 from pathlib import Path
 
 from memory.crud.backend import MemoryBackend
-from memory.crud.primitives import delete as _crud_delete
+
+_DAY_SECONDS = 86400
 
 
 def sweep_expired(store_dir: Path, backend: MemoryBackend,
-                  keep_days: int = 3) -> int:
-    """Delete short-term entries that are distilled AND older than keep_days.
+                  keep_days: int = 30) -> int:
+    """Delete candidate stubs older than `keep_days`.
 
-    Returns count of deleted files. Undistilled entries are never touched —
-    they stay until explicitly processed.
+    Returns count of deleted candidate files. The `backend` arg is kept for
+    signature parity with v1 callers (CLI / services); candidates are not
+    indexed in the backend, so the backend itself isn't touched.
     """
-    cutoff = (datetime.now() - timedelta(days=keep_days)).strftime("%Y-%m-%d")
-    short_dir = Path(store_dir) / "short"
-    if not short_dir.exists():
+    from .candidates import CANDIDATES_SUBDIR
+
+    cand_dir = Path(store_dir) / CANDIDATES_SUBDIR
+    if not cand_dir.exists():
         return 0
 
+    cutoff = time.time() - (keep_days * _DAY_SECONDS)
     deleted = 0
-    for md_file in sorted(short_dir.glob("*.md")):
-        m = re.match(r"(\d{4}-\d{2}-\d{2})", md_file.name)
-        if not m or m.group(1) >= cutoff:
+    for f in sorted(cand_dir.glob("*.candidate.json")):
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        if st.st_mtime >= cutoff:
             continue
         try:
-            raw = md_file.read_text(encoding="utf-8")
-            if not re.search(r"^distilled:\s*\S", raw, re.MULTILINE):
-                continue  # not yet distilled — skip
-        except (FileNotFoundError, PermissionError):
+            f.unlink()
+            deleted += 1
+        except OSError:
             continue
-        try:
-            _crud_delete(md_file, backend)
-        except Exception:
-            pass
-        deleted += 1
     return deleted

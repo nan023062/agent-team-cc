@@ -49,10 +49,10 @@ def _bb() -> DreamBlackboard:
 # DreamBlackboard tests
 # ---------------------------------------------------------------------------
 
-def test_dream_bb_field_count_is_21():
-    # 19 fields per the original WORKFLOW-DREAM §五 schema + 2 added by the
-    # MemDistill triad (mem_distill_dispatched, mem_distill_result).
-    assert len(FIELDS) == 21
+def test_dream_bb_field_count_is_23():
+    # 21 fields per the prior count + 2 added by the v2 transcript-driven
+    # distill path (transcript_paths, transcript_delete_errors).
+    assert len(FIELDS) == 23
 
 
 def test_dream_bb_setattr_marks_dirty():

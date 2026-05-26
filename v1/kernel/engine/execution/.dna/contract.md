@@ -18,6 +18,23 @@
 
 ---
 
+### v3.8 新增：ContextRetrieval 前置与三分类上下文
+
+| 约束 | 说明 |
+|------|------|
+| **每次 tick 启动后、`ModeClassify` 前一定跑 `ContextRetrieval`** | 根节点 `RootSeq` 节点顺序为 `InitTick → ContextRetrieval → ModeClassify → ModeSwitch`。顺序锁死；Mode 干预需走 contract 变更流程。 |
+| **`bb.retrieved_context` 是三分类结构的黑板字段** | 唯一写者：`ContextRetrieval` 叶。读者：`ModeClassify` 与五个分支子树。结构与语义进入公共契约：```
+{
+  "recent_memory": [Hit, …],   # transcript + memory_medium，按 score 降序合并
+  "agents":        [Hit, …],   # agents 源
+  "module_knowledge": [Hit, …]  # dna 源
+}
+``` |
+| **源 → 类别映射是公共契约** | `transcript`+`memory_medium` → `recent_memory`；`agents` → `agents`；`dna` → `module_knowledge`。任何 prompt 渲染都可依赖这套分类。 |
+| **`ContextRetrieval` 不 yield** | `kernel/retrieval` 是同步嵌入式接口；ContextRetrieval 不需调外部 agent。 |
+| **失败不阻塞 tick** | retrieval 报错被 `@Catch` 吞掉；写 `bb.retrieved_context = {"recent_memory":[], "agents":[], "module_knowledge":[]}` 后继续。 |
+| **`Hit` 结构跨模块复用** | `Hit = {doc_id, source, score, content, metadata}`——与 `kernel/retrieval` 契约中的 `Hit` 同步演进；本契约不复述字段语义。 |
+
 ## `bt_tick` — 启动新 tick
 
 | 字段 | 内容 |

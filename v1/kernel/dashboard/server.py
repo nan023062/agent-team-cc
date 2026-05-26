@@ -7,7 +7,7 @@ All data shaping lives in `services.*_service`; this file owns only the
 HTTP wire format and the heartbeat-driven shutdown.
 
 Endpoints:
-  GET /api/entries    - memory entries (short + medium tier)   [services.memory_service]
+  GET /api/entries    - memory entries (medium tier)           [services.memory_service]
   GET /api/agents     - work agents from .claude/agents/       [services.agent_service]
   GET /api/knowledge  - .dna modules across the project tree   [services.knowledge_service]
   GET /api/log        - current session log tail               [services.log_service]

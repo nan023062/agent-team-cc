@@ -1,13 +1,20 @@
 """
 crud/file_backend.py — File-based MemoryBackend (default, zero external dependencies).
 
-Retrieval is recency-based (modification time), not semantic.
-To enable semantic search, swap in a vector backend (e.g. ChromaBackend).
+Retrieval is recency-based (modification time), not semantic. For semantic
+search the parent module delegates to `engine.retrieval` rather than swapping
+this backend.
+
+v2: only medium/ is walked; short/ has been removed.
 """
 
 from pathlib import Path
 
 from .backend import MemoryBackend
+
+# Single tier walked by this backend. Kept as a constant so future tier
+# additions don't need a code grep.
+_TIERS = ("medium",)
 
 
 class FileBackend(MemoryBackend):
@@ -17,7 +24,7 @@ class FileBackend(MemoryBackend):
         self._store = store_dir
 
     def upsert(self, doc_id: str, text: str, metadata: dict) -> None:
-        # File is already written by writer.py before add() is called; nothing to index.
+        # File is already written by writer.py before upsert is called; nothing to index.
         pass
 
     def query(self, text: str, n_results: int,
@@ -26,10 +33,13 @@ class FileBackend(MemoryBackend):
 
         `text` is accepted for interface compatibility but ignored —
         retrieval order is modification time, newest first.
-        `where` may carry {"tier": "short"|"medium"} to restrict scope.
+        `where` may carry {"tier": "medium"} to restrict scope; any other
+        tier value yields an empty result (short/ is gone in v2).
         """
         tier = (where or {}).get("tier")
-        tiers = [tier] if tier else ["short", "medium"]
+        if tier is not None and tier not in _TIERS:
+            return []
+        tiers = [tier] if tier else list(_TIERS)
 
         candidates: list[tuple[float, Path]] = []
         for t in tiers:
@@ -58,7 +68,9 @@ class FileBackend(MemoryBackend):
 
     def list_ids(self, where: dict | None = None) -> list[str]:
         tier = (where or {}).get("tier")
-        tiers = [tier] if tier else ["short", "medium"]
+        if tier is not None and tier not in _TIERS:
+            return []
+        tiers = [tier] if tier else list(_TIERS)
         result = []
         for t in tiers:
             tier_dir = self._store / t

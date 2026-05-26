@@ -29,6 +29,46 @@ def _project_root(cwd: str) -> Path:
     return Path(cwd).resolve() if cwd else Path.cwd().resolve()
 
 
+# ---------------------------------------------------------------------------
+# Retrieval side-effects — see mcp_server/tools/dna.py for the rationale.
+# doc_id for the "agents" source is the agent name (== directory basename).
+# ---------------------------------------------------------------------------
+
+
+def _agent_md_path(root: Path, name: str) -> Path:
+    return root / ".claude" / "agents" / name / f"{name}.md"
+
+
+def _safe_reindex_agent(root: Path, name: str) -> None:
+    md = _agent_md_path(root, name)
+    if not md.is_file():
+        return
+    try:
+        content = md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return
+    if not content:
+        return
+    try:
+        from engine.retrieval import index_upsert
+        index_upsert(
+            "agents",
+            name,
+            content,
+            {"source_path": str(md.resolve())},
+        )
+    except Exception:
+        return
+
+
+def _safe_drop_agent(name: str) -> None:
+    try:
+        from engine.retrieval import index_delete
+        index_delete("agents", name)
+    except Exception:
+        return
+
+
 def register(mcp) -> None:
     @mcp.tool()
     def agent_list(cwd: str = "") -> str:
@@ -93,11 +133,13 @@ def register(mcp) -> None:
         """
         from services import scaffold_agent
         try:
-            return scaffold_agent(name, description=description, model=model, cwd=cwd)
+            saved = scaffold_agent(name, description=description, model=model, cwd=cwd)
         except FileExistsError as e:
             return f"ERROR: {e}"
         except (ValueError, FileNotFoundError) as e:
             return f"ERROR: {e}"
+        _safe_reindex_agent(_project_root(cwd), name)
+        return saved
 
     @mcp.tool()
     def agent_update(
@@ -127,11 +169,13 @@ def register(mcp) -> None:
         """
         from services import update_agent
         try:
-            return update_agent(name, target, payload, mode=mode, cwd=cwd)
+            saved = update_agent(name, target, payload, mode=mode, cwd=cwd)
         except FileNotFoundError as e:
             return f"ERROR: {e}"
         except (ValueError, LookupError, RuntimeError) as e:
             return f"ERROR: {e}"
+        _safe_reindex_agent(_project_root(cwd), name)
+        return saved
 
     @mcp.tool()
     def agent_add_skill(
@@ -172,6 +216,8 @@ def register(mcp) -> None:
         """
         from services import archive_agent
         try:
-            return archive_agent(name, cwd=cwd)
+            archived = archive_agent(name, cwd=cwd)
         except FileNotFoundError as e:
             return f"ERROR: {e}"
+        _safe_drop_agent(name)
+        return archived

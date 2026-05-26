@@ -44,7 +44,11 @@ def register(mcp) -> None:
 
         Args:
             text: Query string (free-form natural language).
-            tier: Optional "short" or "medium" to filter by tier; empty = both.
+            tier: Optional "medium" to filter by tier; empty = all v2 tiers.
+                  v2 removed the short tier — passing tier="short" is rejected
+                  with an ERROR string (the memory facade would also raise
+                  ValueError; this MCP wrapper surfaces it as a readable
+                  message rather than a stack trace).
             top_k: Max number of matches to return (default 5).
             cwd: Project directory (default: current working dir of the MCP server).
 
@@ -52,8 +56,15 @@ def register(mcp) -> None:
             Newline-separated list of matching entry IDs (paths relative to the store).
         """
         from cbi.resources import Memory
+        if tier == "short":
+            return (
+                "ERROR: tier='short' was removed in memory v2; use "
+                "tier='medium' or omit the argument"
+            )
+        if tier and tier != "medium":
+            return f"ERROR: tier must be 'medium' or empty, got {tier!r}"
         root = _project_root(Path(cwd) if cwd else Path.cwd())
-        tier_arg = tier if tier in ("short", "medium") else None
+        tier_arg = "medium" if tier == "medium" else None
         results = Memory.query(text, tier=tier_arg, top_k=top_k, root=root)
         if not results:
             return "(no matches)"
@@ -72,7 +83,14 @@ def register(mcp) -> None:
         # backend's doc_id — i.e. the store-relative path string — so
         # rebuild that from the service's structured records.
         from services import list_entries
-        tier_arg = tier if tier in ("short", "medium") else None
+        if tier == "short":
+            return (
+                "ERROR: tier='short' was removed in memory v2; use "
+                "tier='medium' or omit the argument"
+            )
+        if tier and tier not in ("medium", "candidates"):
+            return f"ERROR: tier must be 'medium' / 'candidates' or empty, got {tier!r}"
+        tier_arg = tier if tier in ("medium", "candidates") else None
         entries = list_entries(tier=tier_arg, cwd=cwd or None)
         if not entries:
             return "(empty)"
@@ -85,7 +103,7 @@ def register(mcp) -> None:
     def memory_create(
         slug: str,
         content: str,
-        tier: str = "short",
+        tier: str = "medium",
         cwd: str = "",
     ) -> str:
         """Create a new memory entry under the given tier.
@@ -93,7 +111,10 @@ def register(mcp) -> None:
         Args:
             slug: Short kebab-case identifier (becomes filename suffix).
             content: Markdown body of the memory entry.
-            tier: "short" (raw) or "medium" (distilled pattern). Default "short".
+            tier: "medium" — the only writable tier in memory v2 (the
+                  short tier was removed; transcripts are indexed and
+                  distilled to medium by the dream loop instead). Default
+                  "medium". Any other value is rejected.
             cwd: Project directory (default: current working dir).
 
         Returns:
@@ -101,8 +122,13 @@ def register(mcp) -> None:
         """
         from cbi.resources import Memory
 
-        if tier not in ("short", "medium"):
-            return f"ERROR: tier must be 'short' or 'medium', got {tier!r}"
+        if tier == "short":
+            return (
+                "ERROR: tier='short' was removed in memory v2; use "
+                "tier='medium' (the default)"
+            )
+        if tier != "medium":
+            return f"ERROR: tier must be 'medium', got {tier!r}"
 
         root = _project_root(Path(cwd) if cwd else Path.cwd())
         store = root / ".cbim" / "memory"

@@ -27,8 +27,10 @@ def load_context(store_dir: Path, backend: MemoryBackend, cfg: dict) -> str | No
     parts: list[str] = []
 
     # Recent memory — backend determines ordering (recency or semantic).
+    # v2: only medium/ is walked; short/ tier was removed.
     if store_dir.exists():
-        has_entries = any((store_dir / t).glob("*.md") for t in ("short", "medium"))
+        medium_dir = store_dir / "medium"
+        has_entries = medium_dir.exists() and any(medium_dir.glob("*.md"))
         if has_entries:
             top_k = cfg["query"]["load_top_k"]
             preview_chars = cfg["query"]["entry_preview_chars"]

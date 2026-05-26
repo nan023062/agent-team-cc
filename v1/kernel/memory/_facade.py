@@ -1,12 +1,17 @@
 """
 memory/_facade.py — 4 read-only interfaces: query / scan / get / stats.
 
-Phase 4A: This is the **only** outward-facing contract layer. Zero business
-logic lives here — every method is forwarding. All writes go through the
-3 dedicated entry points (Hook / memory_write MCP / CLI) into crud/; this
-facade refuses to expose anything that mutates state.
+This is the **only** outward-facing contract layer. Zero business logic
+lives here — every method is forwarding. All writes go through the two
+dedicated entry points (memory_write MCP / CLI) into crud/; this facade
+refuses to expose anything that mutates state.
 
-See .dna/contract.md for the public API definition and stability rules.
+v2 contract changes (see .dna/contract.md):
+- `tier` parameter value set narrowed to {medium, candidates}. Passing
+  "short" raises ValueError (it was a valid value in v1).
+- `stats()` schema bumped to v2 — no `short` bucket, `schema_version` field
+  added.
+- `scan` / `get` no longer walk a short/ directory.
 """
 
 from __future__ import annotations
@@ -21,30 +26,40 @@ from memory.crud.backend import MemoryBackend
 from memory.crud.file_backend import FileBackend
 from memory.crud.primitives import _read_frontmatter
 
-# Backend selection
-# ------------------------------------------------------------------
-# The facade builds a default backend lazily, anchored at <project>/.cbim/memory.
-# Caller may pass an explicit backend or store_dir for tests; in normal
-# operation this delegates to the same default wiring the legacy engine used.
+# Schema version for stats() output. Bumped from 1 (implicit) to 2 when
+# the short bucket was removed.
+STATS_SCHEMA_VERSION = 2
 
-_BACKEND_NAME = "file"  # 4A: only FileBackend wired. ChromaBackend opt-in via env in 4B.
+# Allowed tier values across the read interfaces. "short" is intentionally
+# absent in v2.
+_ALLOWED_TIERS = ("medium", "candidates")
+
+_BACKEND_NAME = "file"
 
 
 def _resolve_store_dir(store_dir: Path | None = None) -> Path:
     if store_dir is not None:
         return Path(store_dir)
     try:
-        # `context.cbim_dir()` walks up to the project root (.cbim/).
         from context import cbim_dir
         return cbim_dir() / "memory"
     except Exception:
-        # Last-ditch fallback for unit tests that don't set up a project.
         return Path.cwd() / ".cbim" / "memory"
 
 
 def _build_backend(store_dir: Path) -> MemoryBackend:
-    # 4A: hard-wired to FileBackend; 4B introduces backend pick via config.
     return FileBackend(store_dir)
+
+
+def _validate_tier(tier: str | None) -> None:
+    """Raise ValueError for any tier the v2 contract doesn't permit."""
+    if tier is None:
+        return
+    if tier not in _ALLOWED_TIERS:
+        raise ValueError(
+            f"tier must be one of {_ALLOWED_TIERS} or None, got {tier!r}; "
+            f"short tier was removed in v2"
+        )
 
 
 # ------------------------------------------------------------------
@@ -63,7 +78,7 @@ def _within_since(ts: float, since_iso: str | None) -> bool:
     try:
         cutoff = datetime.fromisoformat(since_iso.replace("Z", "+00:00")).timestamp()
     except (ValueError, TypeError):
-        return True  # invalid since — don't filter out
+        return True
     return ts >= cutoff
 
 
@@ -75,9 +90,6 @@ def _list_tier_files(store_dir: Path, tier: str) -> list[Path]:
 
 
 def _list_candidates(store_dir: Path) -> list[Path]:
-    # candidates/ uses CandidatesArea; we don't import CandidatesArea here
-    # to keep the facade decoupled from compaction internals — just stat
-    # the directory like every other tier.
     from memory.compaction.candidates import CANDIDATES_SUBDIR
     d = store_dir / CANDIDATES_SUBDIR
     if not d.exists():
@@ -111,18 +123,12 @@ def _entry_dict(path: Path, tier: str) -> dict:
 
 
 def _matches_filter(entry: dict, filt: dict) -> bool:
-    """Apply scan/stats filter: tier → tag/path_prefix/since (in that order).
-
-    The facade contract requires the filter order be tier first, then
-    tag / path_prefix / since. Returning True means "keep".
-    """
     if not filt:
         return True
     if "tier" in filt and entry.get("tier") != filt["tier"]:
         return False
     if "tag" in filt:
         meta = entry.get("metadata", {}) or {}
-        # Tag may live under 'tag' or 'tags' (string or comma list)
         tags_raw = meta.get("tag") or meta.get("tags") or ""
         tags = [t.strip() for t in str(tags_raw).split(",") if t.strip()]
         if filt["tag"] not in tags:
@@ -131,7 +137,6 @@ def _matches_filter(entry: dict, filt: dict) -> bool:
         if not str(entry.get("path", "")).startswith(filt["path_prefix"]):
             return False
     if "since" in filt:
-        # entry.mtime is ISO; parse back to compare
         try:
             ts = datetime.fromisoformat(
                 (entry.get("mtime") or "").replace("Z", "+00:00")
@@ -161,10 +166,10 @@ def query(text: str,
           **_extra_filter) -> list[dict]:
     """Semantic/keyword retrieval. Returns ranked entries (most relevant first).
 
-    The 4A FileBackend returns by mtime (text ignored); ChromaBackend (4B)
-    will honour `text` for true vector search. Callers MUST treat ordering
-    as backend-defined.
+    Defers to the backend (default FileBackend = recency order). Pass
+    `tier="medium"` to restrict scope; `tier="short"` raises ValueError.
     """
+    _validate_tier(tier)
     store_dir = _resolve_store_dir(store_dir)
     backend = backend or _build_backend(store_dir)
     where = {"tier": tier} if tier else None
@@ -180,32 +185,31 @@ def scan(filter: dict | None = None,
          store_dir: Path | None = None) -> list[dict]:
     """Enumerate entries matching `filter`. Sorted by mtime DESC.
 
-    Supported filter keys (per ContextPack §4):
-        tier            : "short" | "medium" | "candidates"
+    Supported filter keys:
+        tier            : "medium" | "candidates" (short removed in v2)
         tag             : exact tag match
         path_prefix     : str prefix
         since           : ISO-8601 cutoff (entry.mtime >= since)
         promote_candidate : truthy → only promote candidates
 
-    Returns a list copy (immutable snapshot for the caller); empty list
-    if nothing matches.
+    Returns a list copy (immutable snapshot); empty list if nothing matches.
     """
     store_dir = _resolve_store_dir(store_dir)
     filt = dict(filter or {})
+    _validate_tier(filt.get("tier"))
 
-    # Decide which tier dirs to walk based on the filter
+    # Decide which tier dirs to walk based on the filter.
     if filt.get("tier") == "candidates" or "promote_candidate" in filt:
         tiers_to_walk = ["candidates"]
     elif filt.get("tier"):
         tiers_to_walk = [filt["tier"]]
     else:
-        tiers_to_walk = ["short", "medium"]
+        tiers_to_walk = ["medium"]
 
     entries: list[dict] = []
     for t in tiers_to_walk:
         if t == "candidates":
             for p in _list_candidates(store_dir):
-                # Candidates are JSON; load minimally so filter sees real metadata.
                 try:
                     import json as _json
                     raw = _json.loads(p.read_text(encoding="utf-8"))
@@ -228,9 +232,8 @@ def scan(filter: dict | None = None,
                 entries.append(_entry_dict(p, t))
 
     out = [e for e in entries if _matches_filter(e, filt)]
-    # Sort by mtime DESC; None mtimes go last.
     out.sort(key=lambda e: e.get("mtime") or "", reverse=True)
-    return list(out)  # explicit copy (snapshot)
+    return list(out)
 
 
 # ------------------------------------------------------------------
@@ -244,7 +247,7 @@ def get(entry_id: str | Path,
 
     `entry_id` may be:
       - a full path (str or Path)
-      - a basename (resolved against short/, medium/, candidates/)
+      - a basename (resolved against medium/, then candidates/)
     """
     store_dir = _resolve_store_dir(store_dir)
     p = Path(entry_id)
@@ -259,18 +262,17 @@ def get(entry_id: str | Path,
         entry["content"] = content
         return entry
 
-    # Treat as basename; search standard tiers.
+    # Treat as basename; search the v2 tier set.
     name = str(entry_id)
-    for t in ("short", "medium"):
-        cand = store_dir / t / name
-        if cand.is_file():
-            try:
-                content = cand.read_text(encoding="utf-8")
-            except OSError:
-                content = ""
-            entry = _entry_dict(cand, t)
-            entry["content"] = content
-            return entry
+    cand = store_dir / "medium" / name
+    if cand.is_file():
+        try:
+            content = cand.read_text(encoding="utf-8")
+        except OSError:
+            content = ""
+        entry = _entry_dict(cand, "medium")
+        entry["content"] = content
+        return entry
 
     # candidates dir uses *.candidate.json — try both bare name and suffixed.
     from memory.compaction.candidates import CANDIDATES_SUBDIR
@@ -305,38 +307,42 @@ def get(entry_id: str | Path,
 def stats(filter: dict | None = None,
           *,
           store_dir: Path | None = None) -> dict:
-    """Memory observation snapshot. See ContextPack §3 for field schema.
+    """Memory observation snapshot.
 
-    Filter order (per contract): tier → tag → path_prefix → since.
-    Never raises — per-field failures fall back to 0/None.
+    v2 schema (schema_version=2):
+      - counts_by_tier  : {medium, candidates}  (no short bucket)
+      - counts_by_status: {distilled, undistilled, promote_candidate}
+      - disk_bytes      : {medium, candidates, index}
+      - last_distill_at, candidate_count, index_age_seconds,
+        oldest_entry_at, newest_entry_at, backend
+
+    Filter order: tier → tag → path_prefix → since. Never raises on
+    per-field failures (falls back to 0/None).
     """
     store_dir = _resolve_store_dir(store_dir)
     filt = dict(filter or {})
+    _validate_tier(filt.get("tier"))
 
-    counts_by_tier = {"short": 0, "medium": 0, "candidates": 0}
+    counts_by_tier = {"medium": 0, "candidates": 0}
     counts_by_status = {
         "distilled": 0,
         "undistilled": 0,
         "promote_candidate": 0,
     }
-    disk_bytes = {"short": 0, "medium": 0, "candidates": 0, "index": 0}
+    disk_bytes = {"medium": 0, "candidates": 0, "index": 0}
     oldest_ts: float | None = None
     newest_ts: float | None = None
     last_distill_at: str | None = None
 
-    # Walk regular tiers
-    for t in ("short", "medium"):
-        # Tier filter (if specified) narrows scope.
-        if filt.get("tier") and filt["tier"] != t:
-            continue
-        for p in _list_tier_files(store_dir, t):
-            entry = _entry_dict(p, t)
+    # Walk medium tier (the only file tier left in v2).
+    if not filt.get("tier") or filt["tier"] == "medium":
+        for p in _list_tier_files(store_dir, "medium"):
+            entry = _entry_dict(p, "medium")
             if not _matches_filter(entry, filt):
                 continue
-            counts_by_tier[t] += 1
-            # Disk bytes (subject to filter).
+            counts_by_tier["medium"] += 1
             try:
-                disk_bytes[t] += p.stat().st_size
+                disk_bytes["medium"] += p.stat().st_size
                 mtime = p.stat().st_mtime
             except OSError:
                 continue
@@ -344,7 +350,6 @@ def stats(filter: dict | None = None,
                 oldest_ts = mtime
             if newest_ts is None or mtime > newest_ts:
                 newest_ts = mtime
-            # Distilled marker — read body for "distilled: YYYY-MM-DD"
             try:
                 raw = p.read_text(encoding="utf-8")
             except OSError:
@@ -373,8 +378,10 @@ def stats(filter: dict | None = None,
             if newest_ts is None or mtime > newest_ts:
                 newest_ts = mtime
 
-    # Disk bytes for index. Per ContextPack §8 #1: branch by backend.
-    # FileBackend → .cbim/memory/.index/ ; ChromaBackend → .cbim/memory/.chroma/
+    # Disk bytes for the local backend index (FileBackend → .index/,
+    # ChromaBackend → .chroma/). The external retrieval index lives under
+    # .cbim/index/ — not the memory store — and is observed via
+    # engine.retrieval.stats(), not here.
     for sub in (".index", ".chroma"):
         d = store_dir / sub
         if d.exists():
@@ -411,6 +418,7 @@ def stats(filter: dict | None = None,
         index_age_seconds = max(0, int(time.time() - index_newest))
 
     return {
+        "schema_version": STATS_SCHEMA_VERSION,
         "counts_by_tier": counts_by_tier,
         "counts_by_status": counts_by_status,
         "last_distill_at": last_distill_at,

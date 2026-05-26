@@ -26,16 +26,16 @@ from engine.dream.api import dream_tick as api
 def isolated_dirs(tmp_path: Path, monkeypatch):
     scheduler_root = tmp_path / "scheduler"
     memory_root = tmp_path / "memory"
-    (memory_root / "short").mkdir(parents=True)
+    transcripts_root = tmp_path / "transcripts"
     (memory_root / "medium").mkdir(parents=True)
     scheduler_root.mkdir(parents=True)
-    # Suppress the MemDistill yield by seeding a fresh .last_distill marker
-    # (Gate's cadence rule fires once per week without one). Tests that
-    # specifically exercise the distill yield should remove the marker or
-    # override the fixture.
-    (memory_root / ".last_distill").write_text("seeded\n", encoding="utf-8")
+    transcripts_root.mkdir(parents=True)
+    # v2: suppress the MemDistill yield by pointing TranscriptScan at an
+    # empty directory. Tests that specifically exercise the distill yield
+    # should drop a JSONL file with mtime > 1 day into transcripts_root.
     monkeypatch.setattr(api, "_scheduler_root", lambda: scheduler_root)
     monkeypatch.setattr(api, "_memory_store_dir", lambda: memory_root)
+    monkeypatch.setattr(api, "_transcripts_dir", lambda: transcripts_root)
     return scheduler_root, memory_root
 
 

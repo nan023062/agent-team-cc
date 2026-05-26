@@ -6,6 +6,8 @@ WORKFLOW-EXECUTION §5: Trace > Timeout > {Retry | Catch}.
 Tree shape (see module.md §"5 分支模式拓扑"):
   Root (Trace > Timeout > RootSeq)
     InitTick
+    CatchContextRetrieval(ContextRetrieval)  # v3.8 — 4-source pull,
+                                              # writes bb.retrieved_context
     ModeClassify
     ModeSwitch (SwitchBranch on bb.mode)
       conversation → DirectReply
@@ -49,6 +51,7 @@ its receipt trailer. All LLM-driven decisions live in
 from __future__ import annotations
 
 from ..actions.arch_exec_yield import ArchExecYield
+from ..actions.context_retrieval import ContextRetrieval
 from ..actions.converge_judge import DEFAULT_MAX_ITERS, ConvergeJudge
 from ..actions.direct_reply import DirectReply
 from ..actions.dispatch_core_agent import DispatchCoreAgent
@@ -76,6 +79,17 @@ def _converge_key(bb) -> str:
 
 def build_root(*, global_timeout_s: int = 1800):
     init = InitTick(name="InitTick")
+    # v3.8 — ContextRetrieval pulls four retrieval sources and writes the
+    # three-bucket bb.retrieved_context. Wrapped in Catch(swallow) so a
+    # retrieval blowup (missing index files, embedding provider crash …)
+    # never aborts the tick: ContextRetrieval itself already absorbs
+    # per-source errors, this is the outer belt for any unexpected
+    # blowup (e.g. import failure on a fresh checkout).
+    context_retrieval = Catch(
+        ContextRetrieval(name="ContextRetrieval"),
+        fallback="swallow",
+        name="CatchContextRetrieval",
+    )
     classify = ModeClassify(name="ModeClassify")
 
     # Conversation branch.
@@ -165,7 +179,10 @@ def build_root(*, global_timeout_s: int = 1800):
         name="ModeSwitch",
     )
 
-    body = Sequence([init, classify, mode_switch], name="RootSeq")
+    body = Sequence(
+        [init, context_retrieval, classify, mode_switch],
+        name="RootSeq",
+    )
 
     return Trace(Timeout(body, seconds=global_timeout_s, name="GlobalTimeout"),
                  name="Root")

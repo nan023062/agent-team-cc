@@ -2,16 +2,18 @@
 
 Owns ``on_resume`` for the memory-distill dispatch path. The Runner's
 two-level (agent_type, subtask_id) routing table lands the
-``("hr", "governance_memory_distill")`` resume here (see
+``("main", "governance_memory_distill")`` resume here (see
 ``api/result.DREAM_AGENT_SUBTASK_TO_LEAF``).
 
 On resume:
-  1. Parse the HR payload through ``loops.memory_distill_governance.parse_response``.
-  2. Validate the report structure (must carry ``mem_distill_report`` or
-     ``error``; every ``medium_written`` / ``medium_updated`` path must exist
-     on disk under store_dir).
-  3. On success: touch ``.last_distill`` marker and store the parsed report
-     on ``bb.mem_distill_result``.
+  1. Parse the main-agent payload through
+     ``loops.memory_distill_governance.parse_response``.
+  2. Validate the report structure (the wrapped value must be a dict
+     carrying the four canonical keys; ``medium_entries_written`` paths
+     are stat-checked for existence so a sloppy report can't sneak past).
+  3. On success: touch ``.last_distill`` marker and store the parsed
+     report on ``bb.mem_distill_result``. ``TranscriptDelete`` will then
+     consume ``bb.mem_distill_result["distilled_paths"]``.
 
 Tick semantics (mirror of CollectArchAdvice / CollectHRAdvice three-branch):
   - Result already on bb → SUCCESS.
@@ -78,8 +80,12 @@ class CollectMemDistill(Node):
             bb.pending_dispatch = None
             return
 
-        # Branch 2: validate medium_written / medium_updated paths exist.
-        missing = _missing_paths(report, self._store_dir)
+        # Branch 2: validate ``medium_entries_written`` paths actually exist.
+        # ``distilled_paths`` are about-to-be-deleted transcripts (still on
+        # disk pre-delete); ``medium_entries_written`` are the freshly-written
+        # medium files — if any are missing, the skill lied and we must NOT
+        # let TranscriptDelete unlink the transcripts that fed them.
+        missing = _missing_medium_paths(report, self._store_dir)
         if missing:
             bb.mem_distill_result = {
                 "error": "missing_medium_files",
@@ -100,34 +106,30 @@ class CollectMemDistill(Node):
             )
         except OSError:
             # Marker write failure is non-fatal — distill itself succeeded.
-            # Next tick's Gate will see no marker and re-fire prematurely,
-            # which is annoying but not corrupting.
             pass
 
-        bb.mem_distill_result = report
+        bb.mem_distill_result = {
+            "skipped": False,
+            **report,
+        }
         bb.pending_dispatch = None
 
 
-def _missing_paths(report: dict, store_dir: Path) -> list[str]:
-    """Return any medium_written / medium_updated paths that don't exist on disk.
+def _missing_medium_paths(report: dict, store_dir: Path) -> list[str]:
+    """Return any ``medium_entries_written`` paths that don't exist on disk.
 
-    Paths in the report are stored relative to ``store_dir`` per the prompt
-    contract; we resolve both ways (absolute + store-relative) so a lax
-    agent that emits absolute paths is still accepted.
+    Paths are absolute per the v2 prompt contract; we tolerate
+    store-relative paths too (older skill versions / lax agents).
     """
     missing: list[str] = []
-    for bucket in ("medium_written", "medium_updated"):
-        for entry in report.get(bucket) or []:
-            if not isinstance(entry, dict):
-                continue
-            rel = entry.get("path")
-            if not rel:
-                continue
-            candidate = Path(rel)
-            if not candidate.is_absolute():
-                candidate = store_dir / rel
-            if not candidate.exists():
-                missing.append(str(candidate))
+    for raw in report.get("medium_entries_written") or []:
+        if not isinstance(raw, str) or not raw:
+            continue
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            candidate = store_dir / raw
+        if not candidate.exists():
+            missing.append(str(candidate))
     return missing
 
 

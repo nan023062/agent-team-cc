@@ -13,7 +13,6 @@ const I18N = {
     nav_knowledge:   '知识',
     nav_log:         '日志',
     filter_all:      '全部',
-    filter_short:    '短期',
     filter_medium:   '中期',
     search_memory:   '搜索记忆...',
     search_agents:   '搜索能力...',
@@ -24,7 +23,6 @@ const I18N = {
     empty_knowledge: '未发现 .dna/ 知识模块。在项目中创建 .dna/ 模块后将在此显示。',
     empty_log:       '当前会话尚无日志输出',
     error_connect:   '无法连接到本地服务\n请通过 CLI 启动 dashboard',
-    badge_short:     '短期',
     badge_medium:    '中期',
     section_user:    '用户能力',
     section_framework:'框架能力',
@@ -46,7 +44,6 @@ const I18N = {
     nav_knowledge:   'Knowledge',
     nav_log:         'Log',
     filter_all:      'All',
-    filter_short:    'Short',
     filter_medium:   'Medium',
     search_memory:   'Search memory...',
     search_agents:   'Search agents...',
@@ -57,7 +54,6 @@ const I18N = {
     empty_knowledge: 'No knowledge modules found. Create .dna/ modules to populate this view.',
     empty_log:       'No log output for the current session yet',
     error_connect:   'Cannot connect to local server\nPlease start dashboard via CLI',
-    badge_short:     'Short',
     badge_medium:    'Medium',
     section_user:    'User agents',
     section_framework:'Framework',
@@ -101,7 +97,6 @@ function applyI18n() {
   document.getElementById('nav-knowledge').textContent   = t('nav_knowledge');
   document.getElementById('nav-log').textContent         = t('nav_log');
   document.getElementById('filter-all').textContent      = t('filter_all');
-  document.getElementById('filter-short').textContent    = t('filter_short');
   document.getElementById('filter-medium').textContent   = t('filter_medium');
   document.getElementById('search-memory').placeholder   = t('search_memory');
   document.getElementById('search-agents').placeholder   = t('search_agents');
@@ -167,11 +162,9 @@ function renderHeader() {
   const el = document.getElementById('header-stats');
   const s = STATE.section;
   if (s === 'memory') {
-    const short  = DATA.memory.filter(e => e.tier === 'short').length;
     const medium = DATA.memory.filter(e => e.tier === 'medium').length;
     el.innerHTML =
       `<span>${t('stat_entries', DATA.memory.length)}</span>` +
-      `<span class="badge badge-short">${t('badge_short')} ${short}</span>` +
       `<span class="badge badge-medium">${t('badge_medium')} ${medium}</span>`;
   } else if (s === 'agents') {
     const totalSkills = DATA.agents.reduce((n, a) => n + a.skills.length, 0);
@@ -220,7 +213,7 @@ function renderMemorySidebar() {
   const sb = document.getElementById('sidebar');
   if (!items.length) { sb.innerHTML = `<div class="empty">${esc(t('empty_memory'))}</div>`; return; }
   sb.innerHTML = items.map(e => {
-    const tierLabel = e.tier === 'short' ? t('badge_short') : t('badge_medium');
+    const tierLabel = t('badge_medium');
     const badge = `<span class="badge badge-${e.tier}">${tierLabel}</span>`;
     const kw    = e.keyword ? `<span class="entry-keyword">#${esc(e.keyword)}</span>` : '';
     const sel   = STATE.selected.memory === e.id ? ' selected' : '';
@@ -329,7 +322,7 @@ function renderMainForSelected() {
 }
 
 function renderMemoryDetail(el, entry) {
-  const tierLabel = entry.tier === 'short' ? t('badge_short') : t('badge_medium');
+  const tierLabel = t('badge_medium');
   const pairs = [
     ['tier', tierLabel], ['date', entry.date],
     ...(entry.keyword ? [['keyword', entry.keyword]] : []),

@@ -36,7 +36,9 @@ def test_root_structure_matches_design():
     names = [n.name for n in _walk(ROOT)]
     expected = [
         "Root", "GlobalTimeout", "RootSeq",
-        "InitTick", "ModeClassify",
+        "InitTick",
+        "CatchContextRetrieval", "ContextRetrieval",
+        "ModeClassify",
         "ModeSwitch",
         # Conversation branch
         "DirectReply",

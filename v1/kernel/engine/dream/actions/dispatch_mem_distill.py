@@ -1,10 +1,11 @@
 """actions/dispatch_mem_distill.py — memory-distill governance dispatcher.
 
 Yields a DispatchRequest(agent_type="main", subtask_id="governance_memory_distill")
-on first tick when ``bb.mem_distill_dispatched`` is True (set by MemDistillGate)
-and ``bb.mem_distill_result`` is not yet populated. On resume the sibling
-CollectMemDistill node owns ``on_resume`` and stores the parsed report on
-``bb.mem_distill_result``.
+on first tick when ``bb.mem_distill_dispatched`` is True (set by the v2
+DistillGate leaf, which fires whenever TranscriptScan found at least one
+mature transcript) and ``bb.mem_distill_result`` is not yet populated.
+On resume the sibling CollectMemDistill node owns ``on_resume`` and
+stores the parsed report on ``bb.mem_distill_result``.
 
 Why ``agent_type="main"`` (not "hr"):
   - Distillation is a memory-source responsibility — the ``memory_distill``
@@ -16,9 +17,9 @@ Why ``agent_type="main"`` (not "hr"):
     embeds the schema; main-agent execution is the canonical path.
 
 Gate semantics:
-  - MemDistillGate already evaluated thresholds upstream. If it set
-    ``mem_distill_dispatched=False`` (and pre-populated ``mem_distill_result``
-    with the skip reason), this node is a SUCCESS no-op.
+  - DistillGate decides upstream. If it set ``mem_distill_dispatched=False``
+    (and pre-populated ``mem_distill_result`` with the skip reason),
+    this node is a SUCCESS no-op.
   - If ``mem_distill_dispatched=True`` and no result yet → yield.
   - If the result is already on bb (idempotent re-entry after resume) →
     SUCCESS no-op.

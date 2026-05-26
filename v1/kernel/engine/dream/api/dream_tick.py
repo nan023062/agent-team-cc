@@ -61,6 +61,34 @@ def _memory_store_dir() -> Path:
         return Path.cwd() / ".cbim" / "memory"
 
 
+def _transcripts_dir() -> Path | None:
+    """Resolve the Claude Code transcripts directory for this project.
+
+    Returns ``~/.claude/projects/<slug>/`` where <slug> follows CC's
+    naming convention (``:`` / ``/`` / ``\\`` → ``-``). The dir may not
+    exist yet — that's a legal empty-scan situation, the TranscriptScan
+    leaf handles it.
+
+    Returns None when the home directory itself is unresolvable (very
+    rare; lets TranscriptScan fall back to its internal default
+    ``~/.claude/projects/<cwd-slug>/`` derivation, same result modulo
+    edge-case home-env handling).
+    """
+    try:
+        home = Path.home()
+    except (OSError, RuntimeError):
+        return None
+    cwd = Path.cwd()
+    slug_chars = []
+    for ch in str(cwd):
+        if ch in (":", "\\", "/"):
+            slug_chars.append("-")
+        else:
+            slug_chars.append(ch)
+    slug = "".join(slug_chars)
+    return home / ".claude" / "projects" / slug
+
+
 def _dream_root() -> Path:
     return _scheduler_root() / "dream"
 
@@ -166,6 +194,7 @@ def dream_tick(reason: str, run_id: str | None = None) -> DreamResult:
         root = build_dream_root(
             scheduler_root=_scheduler_root(),
             memory_store_dir=_memory_store_dir(),
+            transcripts_dir=_transcripts_dir(),
         )
         runner = Runner(
             root,
@@ -232,6 +261,7 @@ def dream_tick_resume(run_id: str, dispatch_result: Any) -> DreamResult:
         root = build_dream_root(
             scheduler_root=_scheduler_root(),
             memory_store_dir=_memory_store_dir(),
+            transcripts_dir=_transcripts_dir(),
         )
         runner = Runner(
             root,

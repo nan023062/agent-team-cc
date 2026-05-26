@@ -1,12 +1,11 @@
 """
 cli.py — Memory command implementations.
 
-These cmd_* functions are dispatched by the unified `engine` CLI
-(see kernel/engine/cli.py). This module no longer exposes a `main()`
-or `__main__` block — invoke via `cbim memory <command>`.
+Dispatched by the unified `engine` CLI (see kernel/engine/cli.py). Invoke
+via `cbim memory <command>`.
 
-Phase 4C: routes directly through crud.primitives / compaction.* and the
-parent facade's `query`. The legacy MemoryEngine adapter is gone.
+v2: only medium tier is writable. Passing `--tier short` is rejected at
+crud.primitives._check_tier with ValueError.
 """
 
 import argparse
@@ -40,7 +39,7 @@ def cmd_create(args: argparse.Namespace) -> int:
 
     from memory.crud.primitives import write as _crud_write
 
-    load_config()  # currently unused here but kept to surface config errors early
+    load_config()  # surfaces config errors early
     backend, store_dir = _build_backend(args)
     tier = args.tier
     slug = args.slug.strip().replace(" ", "-")
@@ -50,7 +49,17 @@ def cmd_create(args: argparse.Namespace) -> int:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(args.content, encoding="utf-8")
 
-    _crud_write(path, tier, backend)
+    try:
+        _crud_write(path, tier, backend)
+    except ValueError as e:
+        # Best to remove the file we just wrote so users don't have an
+        # un-indexed entry lying around after a bad --tier flag.
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     print(path)
     return 0
 
@@ -63,7 +72,11 @@ def cmd_add(args: argparse.Namespace) -> int:
     if not path.exists():
         print(f"error: file not found: {path}", file=sys.stderr)
         return 1
-    _crud_write(path, args.tier, backend)
+    try:
+        _crud_write(path, args.tier, backend)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     print(f"[memory] indexed {path.name} (tier={args.tier})", file=sys.stderr)
     return 0
 
@@ -73,8 +86,12 @@ def cmd_query(args: argparse.Namespace) -> int:
 
     backend, store = _build_backend(args)
     tier = args.tier or None
-    results = _q(args.text, tier=tier, limit=args.top_k,
-                 backend=backend, store_dir=store)
+    try:
+        results = _q(args.text, tier=tier, limit=args.top_k,
+                     backend=backend, store_dir=store)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     for r in results:
         meta = r["metadata"]
         if args.verbose:
@@ -99,16 +116,22 @@ def cmd_delete(args: argparse.Namespace) -> int:
 
 
 def cmd_reindex(args: argparse.Namespace) -> int:
-    # When --store-dir is given, the user is targeting a non-default store and
+    # When --store-dir is given the user is targeting a non-default store and
     # the service (which always resolves <project>/.cbim/memory/) doesn't fit;
-    # fall back to driving compaction.rebuild locally to keep that escape hatch alive.
+    # drive compaction.rebuild_and_verify locally.
     if getattr(args, "store_dir", None):
-        from memory.compaction import rebuild
+        from memory.compaction.rebuilder import rebuild_and_verify
 
         backend, store_dir = _build_backend(args)
-        tier = args.tier or None
-        count = rebuild(store_dir, backend, tier=tier)
-        print(f"[memory] reindexed {count} entries (tier={tier or 'all'})", file=sys.stderr)
+        report = rebuild_and_verify(store_dir, backend)
+        print(
+            f"[memory] reindexed {report.indexed_count} entries; "
+            f"drift checked={report.drift_checked} "
+            f"drifted={report.drift_drifted} "
+            f"repaired={report.drift_repaired} "
+            f"failed={report.drift_failed}",
+            file=sys.stderr,
+        )
         return 0
     from services import memory_reindex
     summary = memory_reindex(tier=args.tier or "")
@@ -122,8 +145,10 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
 
         backend, store_dir = _build_backend(args)
         count = sweep_expired(store_dir, backend, keep_days=args.keep_days)
-        print(f"[memory] deleted {count} short-term entries older than {args.keep_days} days",
-              file=sys.stderr)
+        print(
+            f"[memory] swept {count} stale candidates older than {args.keep_days} days",
+            file=sys.stderr,
+        )
         return 0
     from services import memory_cleanup
     summary = memory_cleanup(keep_days=args.keep_days)

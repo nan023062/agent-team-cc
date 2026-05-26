@@ -1,26 +1,29 @@
 """loops/memory_distill_governance.py — Memory distill governance descriptor.
 
-Topology source: ``cbim/skills/memory_distill/skill.py`` semantic compression
-contract. The MemDistill triad inside MemoryGovernanceStep yields to the
-coordinator (main agent) — distillation is a memory-source responsibility
-and is not outsourced. Semantic short→medium compression is LLM-driven,
-but the canonical executor is the main agent itself (the ``memory_distill``
-skill explicitly declares "Main agent only", and HR's MCP surface lacks
-``memory_get`` so it cannot read short-term entry bodies).
-
-Runs inside the coordinator during governance mode with
-``subtask_id="governance_memory_distill"``. The coordinator reads the
-skill via ``cbim skill show memory_distill`` and posts back a structured
-report the dream-root CollectMemDistill action consumes.
+v2: the prompt now embeds the list of mature transcript paths that
+``TranscriptScan`` collected on ``bb.transcript_paths``, not health
+indicators. Distillation reads transcripts in-place via the main
+agent's ``memory_distill`` skill; the dispatch is a self-yield
+(``agent_type="main"``) so the coordinator executes the skill rather
+than spawning a sub-agent.
 
 This module owns:
-  - ``compose_prompt(bb, store_dir)`` — renders the per-tick distill prompt
-    embedding the current health snapshot;
+  - ``compose_prompt(bb, store_dir)`` — renders the per-tick distill
+    prompt, listing the transcript paths to ingest.
   - ``parse_response(payload)`` — normalizes the reply into
-    ``{"mem_distill_report": {...}}`` for CollectMemDistill.
+    ``{"mem_distill_report": {...}}`` for CollectMemDistill. The
+    skill's reply schema (per cbi/skills/memory_distill/skill.py §步骤 8):
 
-Pairs with ``loops/hr_governance.py`` — same governance step container,
-different executor (HR for capability scans, main agent for distillation).
+        {
+          "distilled_paths":         ["<absolute path>", ...],
+          "medium_entries_written":  ["<absolute path>", ...],
+          "skipped_paths":           [{"path": "...", "reason": "..."}],
+          "errors":                  ["..."]
+        }
+
+    Empty arrays are legal. ``TranscriptDelete`` consumes
+    ``distilled_paths`` exclusively (skipped / errors files stay live
+    for the next tick to retry).
 """
 from __future__ import annotations
 
@@ -31,71 +34,61 @@ from typing import Any
 def compose_prompt(bb, store_dir: str) -> str:
     """Render the memory-distill governance prompt.
 
-    Header marker ``## 治理模式`` matches the dream-loop dispatch convention.
-    The coordinator (main agent) is the executor here — it reads the
-    ``memory_distill`` skill and runs the compression itself using its
-    ``memory_*`` MCP tools (including ``memory_get``, which HR does not
-    have). The ``subtask_id`` ``governance_memory_distill`` discriminates
-    this yield from the capability-governance yield routed to HR.
+    Header marker ``## 治理模式`` matches the dream-loop dispatch
+    convention. The coordinator is the executor — it reads the
+    ``memory_distill`` skill (via ``cbim skill show memory_distill`` or
+    the MCP ``skill_show`` tool) and runs the compression itself using
+    its ``memory_*`` MCP tools.
     """
-    health = bb.mem_health or {}
-    indicators = health.get("indicators") or {}
-    breaches = health.get("breaches") or []
-
-    short_count = indicators.get("short_count")
-    short_bytes = indicators.get("short_bytes")
-    oldest_age_days = indicators.get("oldest_age_days")
-    medium_count = indicators.get("medium_count")
+    paths = bb.transcript_paths or []
+    paths_json = json.dumps(paths, ensure_ascii=False, indent=2)
 
     lines: list[str] = [
         "## 治理模式（主 agent 记忆蒸馏子循环）",
         "",
         "你（主 agent）接到治理子任务。**唯一任务**：执行 `memory_distill` skill —— ",
-        "把 `.cbim/memory/short/` 里达成蒸馏条件的条目压缩进 `.cbim/memory/medium/`。",
+        "把下方 transcript JSONL 文件（mtime 超过 1 天的 Claude Code 会话流）",
+        "蒸馏进 `.cbim/memory/medium/` 的四象限条目。",
         "**不要做能力册扫描**（那是 `governance_capability` 子任务，会派给 HR）。",
         "**不要调** `dna_*` / `agent_*` 工具；只动 `.cbim/memory/`，全程走 `memory_*` MCP 工具。",
         "",
         "### 操作步骤（按序）",
-        "1. 调 `skill_show` MCP 工具读 `memory_distill` 拿完整 skill 指令（等价旧 CLI `cbim skill show memory_distill`）。",
-        "2. 按 skill 规则用 `memory_list` / `memory_query` / `memory_get` 扫 short 候选并读取正文，",
-        "   按语义分类蒸馏成 medium 条目（用 `memory_create` 落盘）。",
-        "3. 已蒸馏的 short 条目按 skill 规则在 frontmatter 打 `distilled: true` 标记，",
-        "   等下一轮 compact / sweep 清理；不要直接 unlink。",
-        "4. 装配下方 schema 回执，调 `dream_tick_resume(run_id, dispatch_result=<json>)` 回交。",
+        "1. 调 `skill_show` MCP 工具读 `memory_distill` 拿完整 skill 指令",
+        "   （等价旧 CLI `cbim skill show memory_distill`）。",
+        "2. 按 skill 步骤 3-6 用 `Read` 工具逐文件读取 transcript，",
+        "   按语义提炼 MUST / WANT / HOW / IS 四象限。",
+        "3. 用 `memory_create` 落盘 medium 条目（tier=\"medium\"，已存在则更新）。",
+        "4. **不要删 transcript、不要改 transcript、不要加任何标记**——",
+        "   删除是治理循环 `TranscriptDelete` 节点的职责，它依赖你回报的 `distilled_paths`。",
+        "5. 装配下方 schema 回执，调 `dream_tick_resume(run_id, dispatch_result=<json>)` 回交。",
         "",
-        "### 记忆库根目录（绝对路径，**只在此根下操作**）",
+        "### 记忆库根目录（绝对路径）",
         f"`{store_dir}`",
         "",
-        "### 本轮健康快照（来自 MemHealthScan）",
-        f"- short_count: `{short_count}`",
-        f"- short_bytes: `{short_bytes}`",
-        f"- medium_count: `{medium_count}`",
-        f"- oldest_age_days: `{oldest_age_days}`",
-        f"- breaches: `{breaches}`",
+        f"### 本轮待蒸馏 transcript 列表（共 {len(paths)} 个，按 mtime 升序）",
+        "```json",
+        paths_json,
+        "```",
         "",
         "### 回执 schema（严格 JSON，键名钉死）",
         "```json",
         "{",
-        '  "mem_distill_report": {',
-        '    "shorts_scanned": 0,',
-        '    "shorts_marked_distilled": 0,',
-        '    "medium_written":  [{"path": "<store_dir 下相对路径>", "type": "capability|decision|business", "sources": 0}],',
-        '    "medium_updated":  [{"path": "<store_dir 下相对路径>", "type": "capability|decision|business", "sources": 0}],',
-        '    "skipped_shorts":  [{"path": "<store_dir 下相对路径>", "reason": "signals_pending|context_specific"}],',
-        '    "summary": "<一段话人类可读的本轮蒸馏摘要>"',
-        "  }",
+        '  "distilled_paths":         ["<已蒸馏的 transcript 绝对路径>", ...],',
+        '  "medium_entries_written":  ["<本轮写入或更新的 medium 文件绝对路径>", ...],',
+        '  "skipped_paths":           [{"path": "<跳过的 transcript>", "reason": "no-signal|too-short|parse-error"}],',
+        '  "errors":                  ["<人类可读错误描述>", ...]',
         "}",
         "```",
         "",
-        "数组允许为空，但所有字段必须存在。",
-        "`medium_written` / `medium_updated` 里每条 `path` **必须**指向真实落盘的文件",
-        "（CollectMemDistill 会做存在性校验，缺失会被判 FAILURE）。",
-        "若整轮无法完成（环境异常 / 工具失败），回 JSON `{\"error\": \"原因\"}`。",
+        "数组允许为空，但所有 4 个键必须存在。",
+        "`distilled_paths` 必须只包含**确实已经成功提炼并写入 medium 的 transcript**——",
+        "`TranscriptDelete` 会无条件删除其中每条路径。**蒸馏失败的不要放进 `distilled_paths`**；",
+        "放进 `skipped_paths` 或 `errors`，下一轮 mtime 仍 > 1 天会再次入选重试。",
         "",
         "### 铁律（必读）",
         "- 只动 `.cbim/memory/`，不调 `dna_*` / `agent_*`；",
-        "- 只蒸馏短期，不删；删交给 compact / sweep；",
-        "- 不发明内容；medium 条目必须来自 short 的真实痕迹。",
+        "- 不删 transcript（删交给 TranscriptDelete）；",
+        "- 不发明内容；medium 条目必须来自 transcript 的真实痕迹。",
     ]
     return "\n".join(lines)
 
@@ -103,12 +96,11 @@ def compose_prompt(bb, store_dir: str) -> str:
 def parse_response(payload: str | dict | None) -> dict:
     """Normalize the distill response into ``{"mem_distill_report": ...}``.
 
-    Same tolerance shape as ``architect_governance.parse_response`` /
-    ``hr_governance.parse_response``:
-      - dict with the expected wrapper key → unwrapped and returned
-      - dict carrying ``error`` → returned as error sentinel
-      - bare dict → wrapped as the report payload
-      - str → JSON-parsed if possible, else wrapped raw
+    Tolerance:
+      - dict with the expected ``distilled_paths`` etc. shape → wrapped
+      - dict with the explicit ``mem_distill_report`` wrapper key → unwrapped
+      - dict carrying ``error`` (no report) → returned as error sentinel
+      - str → JSON-parsed if possible, else treated as raw text error
     """
     if payload is None or (isinstance(payload, str) and not payload.strip()):
         return {"mem_distill_report": None, "error": "empty response"}
@@ -117,19 +109,66 @@ def parse_response(payload: str | dict | None) -> dict:
         try:
             payload = json.loads(payload)
         except (ValueError, TypeError):
-            return {"mem_distill_report": {"raw": payload}}
+            return {
+                "mem_distill_report": None,
+                "error": f"non-json response: {payload[:200]!r}",
+            }
 
     if isinstance(payload, dict):
-        if "error" in payload and "mem_distill_report" not in payload:
-            return {"mem_distill_report": None, "error": str(payload["error"])}
+        # Skill emits the report at the top level (per skill.py §步骤 8);
+        # explicit ``mem_distill_report`` wrapper is also accepted for
+        # backward compatibility with the v1 schema.
         if "mem_distill_report" in payload:
-            return {"mem_distill_report": payload["mem_distill_report"]}
-        return {"mem_distill_report": payload}
+            inner = payload["mem_distill_report"]
+            if isinstance(inner, dict):
+                return {"mem_distill_report": _coerce_report(inner)}
+            return {
+                "mem_distill_report": None,
+                "error": "mem_distill_report must be a dict",
+            }
+        if "error" in payload and not any(
+            k in payload for k in (
+                "distilled_paths", "medium_entries_written",
+                "skipped_paths", "errors",
+            )
+        ):
+            return {"mem_distill_report": None, "error": str(payload["error"])}
+        # Top-level schema.
+        return {"mem_distill_report": _coerce_report(payload)}
 
     if isinstance(payload, list):
-        return {"mem_distill_report": {"items": payload}}
+        return {
+            "mem_distill_report": None,
+            "error": "response was a list, expected JSON object",
+        }
 
-    return {"mem_distill_report": {"raw": repr(payload)}}
+    return {
+        "mem_distill_report": None,
+        "error": f"unsupported response type {type(payload).__name__}",
+    }
+
+
+def _coerce_report(d: dict) -> dict:
+    """Fill missing keys with empty defaults so downstream consumers
+    don't need to .get() everywhere."""
+    return {
+        "distilled_paths": _as_str_list(d.get("distilled_paths")),
+        "medium_entries_written": _as_str_list(d.get("medium_entries_written")),
+        "skipped_paths": _as_list_of_dicts(d.get("skipped_paths")),
+        "errors": _as_str_list(d.get("errors")),
+    }
+
+
+def _as_str_list(v: Any) -> list[str]:
+    if not isinstance(v, list):
+        return []
+    return [str(x) for x in v if isinstance(x, (str, int, float))]
+
+
+def _as_list_of_dicts(v: Any) -> list[dict]:
+    if not isinstance(v, list):
+        return []
+    return [dict(x) for x in v if isinstance(x, dict)]
 
 
 __all__ = [

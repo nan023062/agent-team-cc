@@ -13,6 +13,7 @@
 - v1/kernel/engine/dream
 - v1/kernel/engine/execution
 - v1/kernel/engine/persistence
+- v1/kernel/engine/retrieval
 - v1/kernel/mcp_server
 - v1/kernel/memory
 - v1/kernel/memory/compaction

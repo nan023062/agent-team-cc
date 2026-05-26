@@ -4,8 +4,6 @@
   --border: #e0e0e0;
   --text: #1a1a1a;
   --muted: #6b7280;
-  --short: #2563eb;
-  --short-bg: #eff6ff;
   --medium: #7c3aed;
   --medium-bg: #f5f3ff;
   --agent: #059669;
@@ -112,7 +110,6 @@ header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
   font-size: 11px;
   font-weight: 600;
 }
-.badge-short    { background: var(--short-bg);    color: var(--short); }
 .badge-medium   { background: var(--medium-bg);   color: var(--medium); }
 .badge-agent    { background: var(--agent-bg);    color: var(--agent); }
 .badge-module   { background: var(--module-bg);   color: var(--module); }
@@ -152,7 +149,7 @@ header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
   outline: none;
   max-width: 280px;
 }
-.toolbar input[type="text"]:focus { border-color: var(--short); }
+.toolbar input[type="text"]:focus { border-color: var(--medium); }
 
 .layout { display: flex; flex: 1; overflow: hidden; }
 

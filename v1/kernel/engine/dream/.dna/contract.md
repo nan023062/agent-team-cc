@@ -18,6 +18,16 @@
 | **`"main"` 例外适用范围锁定** | `agent_type="main"` 仅限**以记忆为输入产出的治理子任务**，当前唯一案例为 `governance_memory_distill`。架构治理（`governance_knowledge` → architect）与能力册治理（`governance_capability` → hr）**不**适用此例外，必须经子 agent 派工。新增治理子任务若要复用 `"main"` 走 contract 变更流程、明确表达“该子任务输入仅为记忆”。 |
 | **`last_completed_at` 时间戳是去重锁唯一依据** | SessionStart 补跑判定唯一读 `.cbim/scheduler/dream/last_success.json` 的 `finished_at` 字段；20 小时窗口由此字段计算。该字段写入由 `FinalizeDreamTick` 唯一负责；任何外部工具读该字段是只读契约，不得跨过 `FinalizeDreamTick` 直接写。 |
 
+### v2 重设计：记忆蒙骏输入源从 short 改为 transcript
+
+| 约束 | 说明 |
+|------|------|
+| **`subtask_id="governance_memory_distill"` 的 prompt 样式锁定** | Dispatch 叶必须在 prompt 中传递出超 1 天的 transcript 路径列表（`paths: list[str]`），主 agent 以该列表为唯一蒙骏输入。Prompt 模板归 `actions/dispatch_mem_distill.py` 内部，不进本契约；但“prompt 里带 transcript 路径”这个形状是公共契约。 |
+| **主 agent 返回的 dispatch_result schema** | `{"distilled_paths": list[str], "medium_entries_written": list[str], "skipped_paths": list[{path, reason}], "errors": list[str]}`。`distilled_paths` 是蒙骏成功的 transcript 路径，供 `TranscriptDelete` 逐个删除；schema 锁定，新增字段可追加。 |
+| **TranscriptDelete 只删 `distilled_paths`** | 严禁删“扫描出但蒙骏失败”的 transcript；失败件下轮重试（mtime 依然 > 1 天）。 |
+| **蒙骏输出只写 medium，不写 short** | v2 记忆服务不拥有 short 路径；主 agent 在 skill 内调 `memory_write` 只能传递 `tier="medium"`。 |
+| **TranscriptDelete 同步调 retrieval.index_delete** | 删原件与清索引同步完成才算单个路径处理成功；retrieval 调用失败该路径进 `delete_failed` 不中断后续。 |
+
 ## `dream_tick` — 启动新治理 tick
 
 | 字段 | 内容 |

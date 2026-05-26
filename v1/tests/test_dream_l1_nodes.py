@@ -99,18 +99,16 @@ def test_mem_sweep_expired_returns_success_with_empty_store(bb, store_dir, backe
     assert bb.mem_sweep_result == {"deleted": 0, "keep_days": 3}
 
 
-def test_mem_rebuild_index_skips_when_no_drift(bb, store_dir, backend):
-    bb.mem_health = {"index_drift": False}
+def test_mem_rebuild_index_always_runs(bb, store_dir, backend):
+    """v2: rebuild_and_verify runs every tick (no index_drift skip path).
+
+    Returns a RebuildReport dict containing indexed_count + drift_*
+    fields. Empty store → indexed_count=0 but the call still succeeds.
+    """
     node = MemRebuildIndex(store_dir=store_dir, backend=backend)
     assert node.tick(bb) is Status.SUCCESS
-    assert bb.mem_index_result == {"skipped": True, "reason": "no_index_drift"}
-
-
-def test_mem_rebuild_index_runs_when_drift_truthy(bb, store_dir, backend):
-    bb.mem_health = {"index_drift": True}
-    node = MemRebuildIndex(store_dir=store_dir, backend=backend)
-    assert node.tick(bb) is Status.SUCCESS
-    assert "indexed" in bb.mem_index_result
+    assert "indexed_count" in bb.mem_index_result
+    assert "drift_checked" in bb.mem_index_result
 
 
 # ---------------------------------------------------------------------------

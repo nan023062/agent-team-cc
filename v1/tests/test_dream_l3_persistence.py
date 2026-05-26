@@ -19,16 +19,16 @@ from engine.dream.api import dream_tick as api
 def isolated_dirs(tmp_path: Path, monkeypatch):
     scheduler_root = tmp_path / "scheduler"
     memory_root = tmp_path / "memory"
-    (memory_root / "short").mkdir(parents=True)
+    transcripts_root = tmp_path / "transcripts"
     (memory_root / "medium").mkdir(parents=True)
     scheduler_root.mkdir(parents=True)
-    # Seed .last_distill so MemDistillGate's weekly-cadence rule does not
-    # fire — keeps these persistence tests on the original 2-yield trajectory
+    transcripts_root.mkdir(parents=True)
+    # v2: point TranscriptScan at an empty dir so DistillGate skips, keeping
+    # the persistence tests on the original 2-yield trajectory
     # (architect → HR). Distill-specific behaviour is exercised separately.
-    (memory_root / ".last_distill").write_text("seeded\n", encoding="utf-8")
-
     monkeypatch.setattr(api, "_scheduler_root", lambda: scheduler_root)
     monkeypatch.setattr(api, "_memory_store_dir", lambda: memory_root)
+    monkeypatch.setattr(api, "_transcripts_dir", lambda: transcripts_root)
     return scheduler_root, memory_root
 
 

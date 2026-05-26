@@ -8,9 +8,11 @@ the runner-required scaffolding (bb_status / runner_resume_path / pending_dispat
 Field write-ownership (single-writer rule, validated by code review):
   - run_id, trigger_reason, started_at        ← InitDreamTick
   - mem_health                                  ← MemHealthScan
+  - transcript_paths                            ← TranscriptScan
+  - mem_distill_dispatched                      ← DistillGate / DispatchMemDistill
+  - mem_distill_result                          ← DistillGate (skip) / CollectMemDistill
+  - transcript_delete_errors                    ← TranscriptDelete
   - mem_compact_result                          ← MemCompact (or skip path)
-  - mem_distill_dispatched                      ← MemDistillGate / DispatchMemDistill
-  - mem_distill_result                          ← MemDistillGate (skip) / CollectMemDistill
   - mem_sweep_result                            ← MemSweepExpired
   - mem_index_result                            ← MemRebuildIndex
   - arch_governance_dispatched                  ← DispatchArchGovern
@@ -43,6 +45,11 @@ FIELDS: tuple[str, ...] = (
     "mem_distill_result",
     "mem_sweep_result",
     "mem_index_result",
+    # v2 transcript-driven distill — written by the new TranscriptScan /
+    # CollectMemDistill / TranscriptDelete leaves. Each field has a single
+    # writer (single-writer rule); see Field write-ownership table above.
+    "transcript_paths",
+    "transcript_delete_errors",
     # Knowledge governance step
     "arch_governance_dispatched",
     "arch_governance_report",
@@ -120,7 +127,7 @@ class DreamBlackboard:
                 continue
             fields[f] = v
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "tick_id": self.run_id,
             "created_at": self._created_at,
             "updated_at": self._updated_at,
