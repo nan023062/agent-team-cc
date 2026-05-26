@@ -3,8 +3,7 @@ name: memory
 owner: architect
 description: Project-local memory service: passive data layer with internal CRUD <-> compaction loop; exposes 4 read-only interfaces (query/scan/get/stats).
 keywords: []
-dependencies:
-  - v1/kernel/engine
+dependencies: []
 ---
 
 ## Positioning
