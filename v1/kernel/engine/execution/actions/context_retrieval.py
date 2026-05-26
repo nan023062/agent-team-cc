@@ -85,11 +85,47 @@ class ContextRetrieval(Node):
         agents_hits = _safe_search("agents", query, self._top_k)
         dna_hits = _safe_search("dna", query, self._top_k)
 
-        recent = sorted(
-            transcript_hits + memory_hits,
-            key=lambda h: float(h.get("score") or 0.0),
-            reverse=True,
-        )
+        # BM25 scores are not comparable across independent corpora
+        # (different N, avgdl, IDF scales) — fuse by rank instead.
+        try:
+            from engine.retrieval.index.vector import rrf_fuse
+
+            transcript_ranked = [
+                (h.get("doc_id"), float(h.get("score") or 0.0))
+                for h in transcript_hits
+                if h.get("doc_id") is not None
+            ]
+            memory_ranked = [
+                (h.get("doc_id"), float(h.get("score") or 0.0))
+                for h in memory_hits
+                if h.get("doc_id") is not None
+            ]
+            # Build doc_id → hit lookup. Transcript first so transcript wins
+            # on collision; setdefault preserves first-occurrence semantics.
+            lookup: dict = {}
+            for h in transcript_hits:
+                did = h.get("doc_id")
+                if did is not None:
+                    lookup.setdefault(did, h)
+            for h in memory_hits:
+                did = h.get("doc_id")
+                if did is not None:
+                    lookup.setdefault(did, h)
+            fused = rrf_fuse(
+                [transcript_ranked, memory_ranked],
+                top_k=2 * self._top_k,
+                k=60,
+            )
+            recent = []
+            for doc_id, rrf_score in fused:
+                hit = lookup.get(doc_id)
+                if hit is None:
+                    continue
+                hit = dict(hit)
+                hit["score"] = rrf_score
+                recent.append(hit)
+        except ImportError:
+            recent = transcript_hits + memory_hits
 
         bb.retrieved_context = {
             "recent_memory": recent,

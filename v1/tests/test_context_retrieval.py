@@ -87,13 +87,19 @@ def test_full_pull_buckets_and_orders(bb, monkeypatch):
     assert node.tick(bb) is Status.SUCCESS
 
     ctx = bb.retrieved_context
-    # recent_memory = transcript + memory_medium, sorted by score desc.
+    # recent_memory = transcript + memory_medium, fused via RRF (k=60).
+    # Raw BM25 scores aren't comparable across corpora; rank-based fusion is.
+    # Ranks: transcript=[t1@1], memory=[m1@1, m2@2].
+    # RRF: t1=1/61, m1=1/61, m2=1/62. t1 and m1 tie; stable sort preserves
+    # insertion order — transcript list passed first, so t1 precedes m1.
     recent_scores = [h["score"] for h in ctx["recent_memory"]]
     assert recent_scores == sorted(recent_scores, reverse=True)
     recent_ids = [h["doc_id"] for h in ctx["recent_memory"]]
-    assert recent_ids == ["m1", "a1" if False else "m2", "t1"][:0] + ["m1", "m2", "t1"]
-    # Skip the typo trick — real assertion:
-    assert recent_ids == ["m1", "m2", "t1"]
+    assert recent_ids == ["t1", "m1", "m2"]
+    # Scores are now RRF scores, not the original mock scores.
+    assert recent_scores[0] == pytest.approx(1.0 / 61)
+    assert recent_scores[1] == pytest.approx(1.0 / 61)
+    assert recent_scores[2] == pytest.approx(1.0 / 62)
 
     assert [h["doc_id"] for h in ctx["agents"]] == ["a1"]
     assert [h["doc_id"] for h in ctx["module_knowledge"]] == ["d1"]
@@ -116,8 +122,9 @@ def test_per_source_failure_does_not_kill_others(bb, monkeypatch):
     ctx = bb.retrieved_context
     assert ctx["recent_memory"] == [
         # transcript bombed → only memory_medium contributes.
+        # Score is the RRF score (rank 1 of 1, k=60 → 1/61), not the raw mock 1.0.
         {"doc_id": "memory_medium-1", "source": "memory_medium",
-         "score": 1.0, "content": "", "metadata": {}}
+         "score": pytest.approx(1.0 / 61), "content": "", "metadata": {}}
     ]
     assert [h["doc_id"] for h in ctx["agents"]] == ["agents-1"]
     assert [h["doc_id"] for h in ctx["module_knowledge"]] == ["dna-1"]

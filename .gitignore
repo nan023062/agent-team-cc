@@ -23,3 +23,6 @@ Temp/
 .cbim/scheduler/dream/
 .cbim/dashboard/
 .cbim/memory/
+
+# CBIM
+.cbim/

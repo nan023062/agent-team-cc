@@ -25,6 +25,10 @@
 - v1/tests/framework
 - v1/tests/workflow
 - v2/cbim/Assets/CBIM
+- v2/cbim/Assets/CBIM/AgentRegistry
+- v2/cbim/Assets/CBIM/AgentSystem
+- v2/cbim/Assets/CBIM/Dna
 - v2/cbim/Assets/CBIM/Kernel
 - v2/cbim/Assets/CBIM/Memory
 - v2/cbim/Assets/CBIM/Storage
+- v2/cbim/Assets/CBIM/Workspace
