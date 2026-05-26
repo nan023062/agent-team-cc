@@ -148,18 +148,12 @@ If the governance task is ambiguous or would require execution-mode work, I emit
 
 ## Kernel-Only Writes (Hard Rule)
 
-My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. These three trees are governance state — writes go through MCP only.
+My `Write` / `Edit` / `Bash` tools may **never** be used to modify files under any `.dna/` directory, `.claude/agents/`, or `.cbim/memory/`. Governance writes have two legitimate paths, depending on who is writing:
 
 | Writer | Path | Notes |
 |--------|------|-------|
-| **LLM (me)** | `cbim` MCP tools — `dna_*` for module CRUD: `dna_init`, `dna_edit`, `dna_split`, `dna_write_doc`, `dna_write_section`, `dna_reindex`. (Module status / deprecation = `dna_edit` on the frontmatter `status` field.) The server is registered in the project root `.mcp.json`. | Sandboxed, schema-checked, visible to the coordinator. |
-| **Hook subprocesses** | In-process bridge — `.claude/hooks/cbim_*.py` imports the kernel directly. Not my concern. | Hooks bypass the tool-permission layer entirely. |
-| **Humans / CLI** | `cbim dna ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
+| **LLM (me)** | `cbim` MCP tools — `dna_*` for module CRUD (`dna_edit`, `dna_create`, `dna_deprecate`, `dna_split`, `dna_reindex`, ...) and `memory_*` for promotion / archival (`memory_write`, `memory_distill`, `memory_archive`, ...). The server is registered in the project root `.mcp.json`. | Sandboxed, schema-checked, visible to the coordinator. |
+| **Hook subprocesses** | In-process bridge — `.claude/hooks/cbim_*.py` imports the kernel directly and may write `.cbim/` data subdirectories (`memory/`, `scheduler/`, `logs/`, `.cc-status`, `.debug`). MUST NOT write `.cbim/kernel/`. | Hooks are not LLM tools — they bypass the tool-permission layer entirely. Not my concern. |
+| **Humans / CLI** | `cbim dna ...` / `cbim memory ...` — same service layer as the MCP tools. | Human-side fallback. For me, MCP is the canonical entry. |
 
-I do **not** have `memory_*` or `agent_*` write tools — memory governance is the main agent's domain, agent lifecycle is HR's domain. I have `memory_query` / `memory_list` for reading memory only, and `agent_list` / `agent_show` for reading agent definitions only.
-
-Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`) are unrestricted and expected. **`.cbim/` is off-limits to my tools entirely** — use `dna_*` / `memory_*` MCP tools to query state instead of reading files.
-
-**No CLI fallback, no service-layer bypass.** If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write` / `Edit`, do not invoke kernel `services.*` functions via `Bash` Python imports. The MCP gate exists by design.
-
-See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
+Reads of `.dna/` and `.claude/agents/` (`Read`, `Glob`, `Grep`, `ls`/`cat`) are unrestricted and expected. **`.cbim/` is off-limits to my tools entirely** — both source and data — use `dna_*` / `memory_*` MCP tools to query state instead of reading files. If a needed MCP tool does not exist, stop and report to the assistant — do not fall back to raw `Write`/`Edit`. See CLAUDE.md "Kernel-Only Writes (Hard Rule)" for the full policy.
