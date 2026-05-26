@@ -11,11 +11,15 @@ Temp/
 
 #.claude/
 #CLAUDE.md
-.cbim/memory/short/
+.cbim/.venv/
+.cbim/run
+.cbim/run.cmd
 .cbim/logs/
 .cbim/.debug
 .cbim/.cc-status
+.cbim/index/
 .cbim/scheduler/state.json
 .cbim/scheduler/bt/
+.cbim/scheduler/dream/
 .cbim/dashboard/
-
+.cbim/memory/

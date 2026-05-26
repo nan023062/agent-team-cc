@@ -1,0 +1,464 @@
+"""core/runner.py — Tree driver: tick / yield / resume / persistence orchestration.
+
+Single source of truth for:
+  - calling root.tick(bb)
+  - detecting yield (bb.pending_dispatch != None after RUNNING)
+  - persisting bb.json + resume.json + trace.jsonl through persistence/
+  - reconstructing the runner_resume_path by walking the tree post-yield
+
+The Runner is itself stateless across `run()` calls — bb.json + resume.json
+on disk is the only continuity.
+"""
+
+from __future__ import annotations
+
+import time
+from pathlib import Path
+from typing import Any
+
+from engine.persistence import snapshot, trace as trace_mod
+from ._trace_utils import _append_trace_event, _now_iso_ms
+from .blackboard import Blackboard
+from .node import Node, Status
+
+
+# Sentinel attribute on Node instances that have already had their `tick`
+# wrapped by `_instrument_tree`. Idempotent — re-wrapping would double-emit.
+_INSTRUMENTED_MARK = "_runner_trace_wrapped"
+
+
+class RunResult:
+    """Internal: what Runner.run returns. Translated to BtResult by api layer."""
+
+    __slots__ = ("kind", "user_message", "dispatch_request", "interrupt_reason",
+                 "error_code", "error_message")
+
+    def __init__(self, kind: str, **kw) -> None:
+        self.kind = kind
+        self.user_message = kw.get("user_message")
+        self.dispatch_request = kw.get("dispatch_request")
+        self.interrupt_reason = kw.get("interrupt_reason")
+        self.error_code = kw.get("error_code")
+        self.error_message = kw.get("error_message")
+
+
+DEFAULT_AGENT_TYPE_TO_LEAF: dict[str, str] = {
+    # v3.5: each of the three core-agent branches has its own
+    # DispatchCoreAgent leaf, named with an agent_type suffix so the
+    # resume path resolves unambiguously.
+    "architect": "DispatchCoreAgent#architect",
+    "hr":        "DispatchCoreAgent#hr",
+    "auditor":   "DispatchCoreAgent#auditor",
+    "work":      "WorkAgentLeaf",
+}
+
+
+class Runner:
+    def __init__(
+        self,
+        root: Node,
+        *,
+        scheduler_root: Path,
+        subdir: str = "bt",
+        agent_type_to_leaf: dict[str, str] | None = None,
+        agent_subtask_to_leaf: dict[str, dict[str, str]] | None = None,
+    ) -> None:
+        """Drive `root` through ticks, persisting under `scheduler_root/<subdir>/`.
+
+        `agent_type_to_leaf` maps `pending_dispatch.agent_type` strings to
+        the leaf node name the resume path should target. Defaults to the
+        bt main-loop mapping (Audit/WorkAgentLeaf only — architect/hr are
+        in-process subtrees now and no longer yield). Foreign trees may
+        pass their own mapping; an empty mapping is legal and means
+        "this tree never yields beyond `work`".
+
+        `agent_subtask_to_leaf` is an optional two-level routing table
+        keyed by ``(agent_type, subtask_id)``. When present and a match
+        is found, the resolved leaf name takes precedence over the
+        single-level `agent_type_to_leaf` mapping — this lets one
+        agent_type fan out to multiple Collect leaves (e.g. dream's HR
+        dispatch yields for both governance_capability and
+        governance_memory_distill). Lookup falls back to
+        `agent_type_to_leaf` when the (agent_type, subtask_id) pair is
+        not registered, preserving backward compatibility.
+        """
+        self._root = root
+        self._scheduler_root = scheduler_root
+        self._subdir = subdir
+        self._agent_type_to_leaf = (
+            agent_type_to_leaf
+            if agent_type_to_leaf is not None
+            else DEFAULT_AGENT_TYPE_TO_LEAF
+        )
+        self._agent_subtask_to_leaf = agent_subtask_to_leaf or {}
+        # Wrap every node's tick once at Runner construction so that BT-node
+        # enter/exit events land in bb.trace on every tick, regardless of
+        # which subtree drives them. Idempotent — repeated Runner instances
+        # over the same tree are safe.
+        self._instrument_tree(self._root)
+
+    # ------------------------------------------------------------------
+    # Tree instrumentation (BT-node enter/exit events into bb.trace)
+    # ------------------------------------------------------------------
+
+    def _instrument_tree(self, root: Node) -> None:
+        """Wrap `tick` on every Node reachable from `root` so each invocation
+        emits ``node_enter`` and ``node_exit`` events into ``bb.trace``.
+
+        The wrapper is installed once per Node instance (idempotent via
+        the ``_INSTRUMENTED_MARK`` sentinel). It writes the bound method
+        on the instance — the class-level ABC method is untouched, so
+        nodes still pass isinstance / inheritance checks unchanged.
+
+        Trace event shape (kept small — full payloads stay in bb.json):
+          - ``node_enter``: {event, node, ts}
+          - ``node_exit``:  {event, node, status, dur_ms, ts}
+          - ``node_error``: {event, node, error, dur_ms, ts} — exception
+            re-raised after recording so Runner.run() error-path handles it.
+
+        Trace is best-effort: if bb has no list-typed ``trace`` attribute,
+        the wrapper silently no-ops on the write and still ticks the node.
+        """
+        visited: set[int] = set()
+        stack: list[Node] = [root]
+        while stack:
+            n = stack.pop()
+            if id(n) in visited:
+                continue
+            visited.add(id(n))
+            for ch in n.children():
+                stack.append(ch)
+            if getattr(n, _INSTRUMENTED_MARK, False):
+                continue
+            self._wrap_node_tick(n)
+            try:
+                setattr(n, _INSTRUMENTED_MARK, True)
+            except (AttributeError, TypeError):
+                # Node uses __slots__ and disallows arbitrary attrs — skip
+                # the mark but the bound-method overwrite below still took
+                # effect (the wrapper itself self-guards via closure).
+                pass
+
+    def _wrap_node_tick(self, node: Node) -> None:
+        original = node.tick
+        node_name = node.name or type(node).__name__
+
+        def wrapped(bb, _orig=original, _name=node_name):
+            _append_trace_event(bb, {
+                "event": "node_enter",
+                "node": _name,
+                "ts": _now_iso_ms(),
+            })
+            t0 = time.perf_counter()
+            try:
+                status = _orig(bb)
+            except Exception as e:
+                dur_ms = int((time.perf_counter() - t0) * 1000)
+                _append_trace_event(bb, {
+                    "event": "node_error",
+                    "node": _name,
+                    "error": f"{type(e).__name__}: {e}",
+                    "dur_ms": dur_ms,
+                    "ts": _now_iso_ms(),
+                })
+                raise
+            dur_ms = int((time.perf_counter() - t0) * 1000)
+            _append_trace_event(bb, {
+                "event": "node_exit",
+                "node": _name,
+                "status": status.value if hasattr(status, "value") else str(status),
+                "dur_ms": dur_ms,
+                "ts": _now_iso_ms(),
+            })
+            return status
+
+        try:
+            node.tick = wrapped  # type: ignore[method-assign]
+        except (AttributeError, TypeError):
+            # __slots__ node refused the per-instance method override.
+            # Leave node un-instrumented — instrumentation is best-effort
+            # observability, not load-bearing.
+            pass
+
+    # ------------------------------------------------------------------
+    # Tick driver
+    # ------------------------------------------------------------------
+
+    def run(self, bb: Blackboard) -> RunResult:
+        """Drive the root to its next yield or terminal state, persisting bb
+        + trace + resume.json appropriately."""
+        tick_dir = self._scheduler_root / self._subdir / (bb.identifier or "_unset")
+        tick_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clear stale pending_dispatch from prior tick (resume sets results
+        # then we re-drive).
+        bb.pending_dispatch = None
+
+        # Re-prime bb-dependent composites (e.g. DispatchWork rebuilds its
+        # WorkAgentLeaf children from bb.arch_plan) and re-walk to wrap any
+        # nodes that were not present at Runner construction. Idempotent.
+        _prime_bb_dependent_composites(self._root, bb)
+        self._instrument_tree(self._root)
+
+        try:
+            status = self._root.tick(bb)
+        except Exception as e:
+            bb.bb_status = "error"
+            self._persist(bb, tick_dir)
+            self._flush_trace(bb, tick_dir)
+            return RunResult(
+                "error", error_code="engine_internal",
+                error_message=f"{type(e).__name__}: {e}",
+                interrupt_reason=bb.interrupt_reason,
+            )
+
+        if status is Status.RUNNING and bb.pending_dispatch is not None:
+            # Yield path. Compute resume_path first so it lands in bb.json.
+            bb.bb_status = "running"
+            bb.runner_resume_path = self._build_resume_path(self._root, bb)
+            self._persist(bb, tick_dir)
+            self._persist_resume(bb, tick_dir)
+            # Drain BT-node enter/exit events from bb.trace BEFORE writing
+            # the yield marker — preserves chronological order on disk.
+            self._flush_trace(bb, tick_dir)
+            self._append_trace(bb, tick_dir, {
+                "event": "yield",
+                "dispatch": _summarize_dispatch(bb.pending_dispatch),
+            })
+            return RunResult(
+                "yield",
+                dispatch_request=bb.pending_dispatch,
+            )
+
+        # Terminal — done or error.
+        if bb.interrupt_reason and not bb.final_response:
+            bb.bb_status = "error"
+            self._persist(bb, tick_dir)
+            self._clear_resume(tick_dir)
+            self._flush_trace(bb, tick_dir)
+            return RunResult(
+                "error", error_code="interrupt",
+                error_message=bb.interrupt_reason,
+                interrupt_reason=bb.interrupt_reason,
+            )
+
+        bb.bb_status = "done"
+        self._persist(bb, tick_dir)
+        self._clear_resume(tick_dir)
+        self._flush_trace(bb, tick_dir)
+        return RunResult("done", user_message=bb.final_response or "")
+
+    # ------------------------------------------------------------------
+    # Resume entry
+    # ------------------------------------------------------------------
+
+    def resume(self, bb: Blackboard, dispatch_result: Any) -> RunResult:
+        """Deliver a dispatch_result to the path-tail Action via on_resume,
+        then continue driving."""
+        resume_path = bb.runner_resume_path or []
+        # Prime any composite that depends on bb to expose its children
+        # (e.g. DispatchParallel rebuilds leaves from bb.dispatch_plan).
+        _prime_bb_dependent_composites(self._root, bb)
+        target = _find_node_by_path(self._root, resume_path)
+        if target is None:
+            return RunResult(
+                "error",
+                error_code="dispatch_result_schema_mismatch",
+                error_message=f"resume path not found in tree: {resume_path}",
+            )
+        try:
+            target.on_resume(bb, dispatch_result)
+        except Exception as e:
+            return RunResult(
+                "error",
+                error_code="dispatch_result_schema_mismatch",
+                error_message=f"on_resume failed for {target.name}: {e}",
+            )
+        # Clear pending_dispatch — the engine consumed it.
+        bb.pending_dispatch = None
+        # Re-enter run loop. The resume_path stays on bb so that composites
+        # know to skip to the right child on this tick.
+        return self.run(bb)
+
+    # ------------------------------------------------------------------
+    # Persistence helpers
+    # ------------------------------------------------------------------
+
+    def _persist(self, bb: Blackboard, tick_dir: Path) -> None:
+        if not bb.dirty:
+            return
+        snapshot.write_bb(tick_dir, bb)
+        bb.clear_dirty()
+
+    def _persist_resume(self, bb: Blackboard, tick_dir: Path) -> None:
+        # runner_resume_path was computed and assigned before _persist, so
+        # bb.runner_resume_path is the canonical source.
+        snapshot.write_resume(tick_dir, {
+            "runner_resume_path": bb.runner_resume_path or [],
+            "pending_dispatch": _dispatch_to_dict(bb.pending_dispatch),
+        })
+
+    def _clear_resume(self, tick_dir: Path) -> None:
+        snapshot.delete_resume(tick_dir)
+        # Also clear the in-bb resume path so the next tick (if any reuses the
+        # bb object) does not skip children.
+        # Caller already advanced bb_status to done/error.
+
+    def _append_trace(self, bb: Blackboard, tick_dir: Path, entry: dict) -> None:
+        trace_mod.append(tick_dir, entry)
+
+    def _flush_trace(self, bb, tick_dir: Path) -> None:
+        """Drain any new entries in ``bb.trace`` (those past
+        ``bb._trace_flushed_idx``) to ``trace.jsonl`` and bump the counter.
+
+        Called on every Runner exit point — yield, terminal done, terminal
+        error, exception path. Safe to call multiple times; the counter
+        guards against double-write.
+
+        Best-effort: blackboards without the counter attribute (foreign
+        bb implementations) are skipped silently.
+        """
+        idx = getattr(bb, "_trace_flushed_idx", None)
+        if idx is None:
+            return
+        events = bb.trace if isinstance(bb.trace, list) else []
+        if idx >= len(events):
+            return
+        pending = events[idx:]
+        try:
+            written = trace_mod.append_many(tick_dir, pending)
+        except Exception:
+            # Trace is observational; never let a flush failure break the
+            # tick. Counter is intentionally NOT advanced on failure so
+            # the next exit point retries.
+            return
+        try:
+            object.__setattr__(bb, "_trace_flushed_idx", idx + written)
+        except (AttributeError, TypeError):
+            pass
+
+    # ------------------------------------------------------------------
+    # Resume-path construction
+    # ------------------------------------------------------------------
+
+    def _build_resume_path(self, root: Node, bb) -> list[str]:
+        """Walk the tree and find the path to the deepest RUNNING leaf —
+        identified by `bb.pending_dispatch.subtask_id` (if set) for Parallel
+        cases (e.g. WorkAgentLeaf#t1), then by the leaf-name registered for
+        `pending_dispatch.agent_type` in `self._agent_type_to_leaf`.
+
+        Leaf names are tree-specific; the mapping is injected at Runner
+        construction so foreign trees (dream's governance loop) can plug
+        their own dispatch leaves without modifying this code.
+        """
+        pd = bb.pending_dispatch
+        target_names: list[str] = []
+        if pd is not None:
+            # Priority 1: two-level (agent_type, subtask_id) routing — lets
+            # one agent_type fan out to multiple Collect leaves (dream loop:
+            # hr → governance_capability vs governance_memory_distill).
+            subtask_map = self._agent_subtask_to_leaf.get(pd.agent_type, {})
+            if pd.subtask_id and pd.subtask_id in subtask_map:
+                target_names.append(subtask_map[pd.subtask_id])
+            # Priority 2: bt-style WorkAgentLeaf#<subtask_id> for the parallel
+            # work-agent dispatch case.
+            if pd.subtask_id:
+                base = self._agent_type_to_leaf.get("work", "WorkAgentLeaf")
+                target_names.append(f"{base}#{pd.subtask_id}")
+            # Priority 3: single-level agent_type fallback (architect / hr /
+            # auditor → unique Collect leaf when subtask routing not present).
+            mapped = self._agent_type_to_leaf.get(pd.agent_type, "")
+            if mapped:
+                target_names.append(mapped)
+
+        for tname in target_names:
+            if not tname:
+                continue
+            path = _find_path_to_name(root, tname)
+            if path:
+                return path
+        # Fallback: empty path means "restart from root" — Runner will re-tick
+        # cleanly because Actions check bb state to short-circuit.
+        return []
+
+
+def _prime_bb_dependent_composites(root: Node, bb) -> None:
+    """Inject bb into composites that build their children list from bb
+    (currently: DispatchParallel). Walk both children() and known
+    decorator/composite slots.
+    """
+    visited: set[int] = set()
+    stack: list[Node] = [root]
+    while stack:
+        n = stack.pop()
+        if id(n) in visited:
+            continue
+        visited.add(id(n))
+        # Duck-typed bb injection point.
+        if hasattr(n, "_bb_ref"):
+            try:
+                n._bb_ref = bb
+            except Exception:
+                pass
+        for ch in n.children():
+            stack.append(ch)
+
+
+def _find_path_to_name(node: Node, target: str, acc: list[str] | None = None) -> list[str]:
+    acc = (acc or []) + [node.name]
+    if node.name == target:
+        return acc
+    # Allow target like "WorkAgentLeaf" matching any name starting with it.
+    if target and not target.endswith("#") and "#" in node.name:
+        base = node.name.split("#", 1)[0]
+        if base == target:
+            return acc
+    for ch in node.children():
+        sub = _find_path_to_name(ch, target, acc)
+        if sub:
+            return sub
+    return []
+
+
+def _find_node_by_path(root: Node, path: list[str]) -> Node | None:
+    if not path:
+        return None
+    if root.name != path[0]:
+        return None
+    cur = root
+    for seg in path[1:]:
+        matched = None
+        for ch in cur.children():
+            if ch.name == seg:
+                matched = ch
+                break
+            if "#" in seg and ch.name == seg.split("#", 1)[0]:
+                matched = ch
+                break
+        if matched is None:
+            return None
+        cur = matched
+    return cur
+
+
+def _summarize_dispatch(pd) -> dict:
+    if pd is None:
+        return {}
+    return {
+        "agent_type": pd.agent_type,
+        "agent_file": pd.agent_file,
+        "subtask_id": pd.subtask_id,
+        "prompt_len": len(pd.prompt or ""),
+    }
+
+
+def _dispatch_to_dict(pd) -> dict | None:
+    if pd is None:
+        return None
+    return {
+        "agent_type": pd.agent_type,
+        "agent_file": pd.agent_file,
+        "prompt": pd.prompt,
+        "subtask_id": pd.subtask_id,
+        "timeout_hint_s": pd.timeout_hint_s,
+    }

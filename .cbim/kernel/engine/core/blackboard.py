@@ -1,0 +1,220 @@
+"""core/blackboard.py — Blackboard: the single carrier of cross-node state.
+
+The 13 fields from WORKFLOW-EXECUTION §2.1 (v3) are declared as dataclass-style
+attributes. Dirty tracking: any explicit attribute assignment marks the bb
+dirty; the Runner consults `bb._dirty` to decide whether to rewrite bb.json
+on node exit.
+
+No write barriers are enforced here (the "single writer per field" rule
+is a design-time invariant; runtime enforcement would be ceremonious and
+duplicate static review). Reads are unrestricted.
+
+Schema version: 3 (v3.6 — `agent_assignments` removed alongside hr_exec subtree).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class IdentifiableBB(Protocol):
+    """Minimal contract a Runner needs of any blackboard.
+
+    Lets the bt Runner drive non-bt blackboards (e.g. dream's) without an
+    import-time coupling. The Runner uses `identifier` to name the tick
+    directory and `dirty` / `clear_dirty` to gate snapshot writes.
+    """
+
+    @property
+    def identifier(self) -> str | None: ...
+
+    @property
+    def dirty(self) -> bool: ...
+
+    def clear_dirty(self) -> None: ...
+
+
+SCHEMA_VERSION = 3
+
+
+# Scratch fields stashed on bb.__dict__ that must survive a yield/resume
+# (snapshot.write_bb → read_bb). The canonical FIELDS tuple stays at the
+# v3.6 13-field set; these ride alongside in fields["_extras"]. Additive,
+# backward-readable — old snapshots without `_extras` restore as no-op.
+#
+# Members:
+#   arch_*               — architect-execution subtree intermediate state
+#   hr_*                 — hr-execution remnants (kept for snapshot
+#                          backward compatibility; not written in v3.6+)
+#   convergence,         — PR-C ConvergeJudge → EscalationGate signalling
+#   arch_redo_context    — PR-C arch ↔ work loop-back payload
+#   work_loop_iter       — PR-C LoopSeq iteration counter (public alias)
+_PERSISTED_EXTRAS: tuple[str, ...] = (
+    "arch_plan_draft",
+    "arch_scan_summary",
+    "arch_state",
+    "arch_worth",
+    "hr_agent_inventory",
+    "hr_current_task",
+    "hr_current_match",
+    "hr_assignments_draft",
+    "convergence",
+    "arch_redo_context",
+    "work_loop_iter",
+    # v3.8 — ContextRetrieval leaf writes the three-bucket dict here so
+    # downstream subtrees (ModeClassify, the five mode branches) can read
+    # it without re-querying retrieval. Not a canonical FIELDS entry —
+    # carried as an extra so the schema_version doesn't churn.
+    "retrieved_context",
+)
+
+
+# Canonical field set per WORKFLOW-EXECUTION §2.1 v3.6 (13 fields).
+FIELDS: tuple[str, ...] = (
+    "tick_id",
+    "user_request",
+    "mode",
+    "arch_plan",
+    "work_results",
+    "final_response",
+    "interrupt_reason",
+    "runner_resume_path",
+    "bb_status",
+    "pending_dispatch",
+    "trace",
+    "memory_flush_queue",
+    "audit_report",
+)
+
+
+class Blackboard:
+    """Single in-memory carrier of all cross-node state for one tick.
+
+    Any direct attribute assignment (e.g. `bb.mode = "execution"`) marks the
+    bb dirty for the next Runner snapshot.
+    """
+
+    # NOTE: "__dict__" is included so the bt subtrees (arch_exec / hr_exec)
+    # can stash intermediate scratch fields (arch_scan_summary, arch_state,
+    # arch_plan_draft, hr_agent_inventory, hr_current_task, hr_current_match,
+    # hr_assignments_draft, …) without bloating the canonical 14-field set.
+    # Dirty-tracking still only applies to FIELDS via __setattr__.
+    #
+    # `_trace_flushed_idx`: count of bb.trace entries already drained to
+    # trace.jsonl on disk. Owned and bumped by Runner._flush_trace; not a
+    # canonical field (excluded from to_dict / from_dict). On resume the
+    # counter resets to len(bb.trace) — entries already in bb.trace at
+    # resume time were already flushed in the prior tick.
+    __slots__ = (
+        "_dirty",
+        "_trace_flushed_idx",
+        *FIELDS,
+        "_created_at",
+        "_updated_at",
+        "__dict__",
+    )
+
+    def __init__(self) -> None:
+        # Bypass __setattr__ during init so we don't mark dirty for defaults.
+        object.__setattr__(self, "_dirty", False)
+        object.__setattr__(self, "_trace_flushed_idx", 0)
+        now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        object.__setattr__(self, "_created_at", now)
+        object.__setattr__(self, "_updated_at", now)
+        for f in FIELDS:
+            object.__setattr__(self, f, None)
+        # Sensible empty containers for the few list/dict-typed fields.
+        object.__setattr__(self, "work_results", {})
+        object.__setattr__(self, "trace", [])
+        object.__setattr__(self, "memory_flush_queue", [])
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in FIELDS:
+            object.__setattr__(self, name, value)
+            object.__setattr__(self, "_dirty", True)
+            object.__setattr__(
+                self, "_updated_at",
+                datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            )
+        else:
+            object.__setattr__(self, name, value)
+
+    # ------------------------------------------------------------------
+    # Serialization (consumed by persistence/snapshot.py)
+    # ------------------------------------------------------------------
+
+    def to_dict(self) -> dict:
+        fields = {}
+        for f in FIELDS:
+            v = getattr(self, f)
+            if v is None:
+                continue
+            fields[f] = v
+        # Persist explicit scratch fields + any LoopSeq iteration counters.
+        # The counters use a generated name (_loopseq_<name>_iter) so we
+        # accept the prefix in addition to the explicit allowlist.
+        extras: dict = {}
+        for k, v in self.__dict__.items():
+            if v is None:
+                continue
+            if k in _PERSISTED_EXTRAS or k.startswith("_loopseq_"):
+                extras[k] = v
+        if extras:
+            fields["_extras"] = extras
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "tick_id": self.tick_id,
+            "created_at": self._created_at,
+            "updated_at": self._updated_at,
+            "bb_status": self.bb_status or "running",
+            "fields": fields,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Blackboard":
+        bb = cls()
+        # Restore timestamps without dirtying.
+        object.__setattr__(bb, "_created_at", d.get("created_at", bb._created_at))
+        object.__setattr__(bb, "_updated_at", d.get("updated_at", bb._updated_at))
+        fields = d.get("fields", {}) or {}
+        # Restore canonical fields first, then any scratch extras. Unknown
+        # keys are ignored (forward-compatibility — a newer writer's extra
+        # is harmless to an older reader).
+        extras = fields.get("_extras") or {}
+        for k, v in fields.items():
+            if k == "_extras":
+                continue
+            if k in FIELDS:
+                object.__setattr__(bb, k, v)
+        for k, v in extras.items():
+            # Store on bb.__dict__ without dirtying canonical state.
+            bb.__dict__[k] = v
+        # bb_status sits both at top-level and inside fields per spec; prefer top.
+        if "bb_status" in d:
+            object.__setattr__(bb, "bb_status", d["bb_status"])
+        # Restored blackboards: assume anything currently in bb.trace was
+        # already flushed to disk in the prior tick. The next tick's
+        # instrumentation only appends NEW entries beyond this point.
+        existing = bb.trace if isinstance(bb.trace, list) else []
+        object.__setattr__(bb, "_trace_flushed_idx", len(existing))
+        object.__setattr__(bb, "_dirty", False)
+        return bb
+
+    def clear_dirty(self) -> None:
+        object.__setattr__(self, "_dirty", False)
+
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    @property
+    def identifier(self) -> str | None:
+        """Stable identifier for scheduler tick directory naming.
+
+        Satisfies the IdentifiableBB Protocol so the bt Runner can drive
+        either this Blackboard or a foreign one (e.g. DreamBlackboard)
+        without branching on type.
+        """
+        return self.tick_id
