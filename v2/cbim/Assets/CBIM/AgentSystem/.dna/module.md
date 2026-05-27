@@ -53,9 +53,9 @@ AgentSystem 与 Workspace 是一对正交服务层：
 
 本轮裁决：**三大扩展抽象平级三足鼎立，都是 AgentSystem leaf 子模块**，同为 `agent 能多会一手` 的扩展通道、同装配点（OpenInstance）、同生命周期（绑 AIAgent 实例）、同被 AgentDescription 声明侧引用。物理动作（已随代码落地）：
 
-- `AgentSystem/Skill.cs` → `AgentSystem/Skills/Skill.cs`，namespace = `CBIM.AgentSystem.Skills`。
-- 原 `AgentSystem/McpAdapter/` 移除；新建 `AgentSystem/Mcp/`，namespace = `CBIM.AgentSystem.Mcp`。`McpDescriptor` 升为 abstract 基类 + `StdioMcpDescriptor` / `HttpMcpDescriptor` 两子类 + `McpTransportKind` 枚举。
-- `AgentDescription.cs` using 调为 `CBIM.AgentSystem.Skills` + `CBIM.AgentSystem.Mcp`；SystemTool 仍位于父命名空间 `CBIM.AgentSystem`（本轮代码现状，后续如需才平移到 `CBIM.AgentSystem.StandardTools`）。
+- `AgentSystem/Skill.cs` → `AgentSystem/Skills/Skill.cs`，namespace = `CBIM.Skills`。
+- 原 `AgentSystem/McpAdapter/` 移除；新建 `AgentSystem/Mcp/`，namespace = `CBIM.Mcp`。`McpDescriptor` 升为 abstract 基类 + `StdioMcpDescriptor` / `HttpMcpDescriptor` 两子类 + `McpTransportKind` 枚举。
+- `AgentDescription.cs` using 调为 `CBIM.Skills` + `CBIM.Mcp`；SystemTool 仍位于父命名空间 `CBIM.AgentSystem`（本轮代码现状，后续如需才平移到 `CBIM.Tools.Standard`）。
 
 ## Children
 
@@ -87,9 +87,9 @@ public sealed class AgentDescription
 
 三字段语义：
 
-- **`Skills`**——该 agent 会的手艺（SKILL.md 风格描述），装配时由 AgentSkillsProvider 注入 LLM 上下文。类型来自 `CBIM.AgentSystem.Skills.Skill`。
-- **`SystemTools`**——该 agent 要装哪些 CBIM 内置工具家族（Files / Search / Web / Bash ……）。类型来自 `CBIM.AgentSystem.SystemTool`（现位于父命名空间，后续可平移到 `CBIM.AgentSystem.StandardTools`）。声明 = 该 agent 装配时挂对应家族。
-- **`McpList`**——该 agent 装配时需启动 / 连接的 MCP server 列表。类型来自 `CBIM.AgentSystem.Mcp.McpDescriptor`（抽象基类，实例为 `StdioMcpDescriptor` / `HttpMcpDescriptor`）。
+- **`Skills`**——该 agent 会的手艺（SKILL.md 风格描述），装配时由 AgentSkillsProvider 注入 LLM 上下文。类型来自 `CBIM.Skills.Skill`。
+- **`SystemTools`**——该 agent 要装哪些 CBIM 内置工具家族（Files / Search / Web / Bash ……）。类型来自 `CBIM.AgentSystem.SystemTool`（现位于父命名空间，后续可平移到 `CBIM.Tools.Standard`）。声明 = 该 agent 装配时挂对应家族。
+- **`McpList`**——该 agent 装配时需启动 / 连接的 MCP server 列表。类型来自 `CBIM.Mcp.McpDescriptor`（抽象基类，实例为 `StdioMcpDescriptor` / `HttpMcpDescriptor`）。
 - **三者并列不交并**——都是「能力是 agent 的业务属性」原则的不同落实路径；装配点都是 OpenInstance，生命周期都绑 AIAgent 实例。
 - **未知家族 / 未授 server**：装配时 warning，不阻塞（家族跳过 / MCP server 启失败优雅降级）。
 
@@ -148,8 +148,8 @@ flowchart TD
 namespace CBIM.AgentSystem;
 
 using Microsoft.Agents.AI;
-using CBIM.AgentSystem.Skills;
-using CBIM.AgentSystem.Mcp;
+using CBIM.Skills;
+using CBIM.Mcp;
 
 public sealed class AgentSystemService
 {
@@ -268,10 +268,10 @@ CloseInstance(instanceId):
 - `CBIM.Storage`——AgentDescription / AgentInstance / Session 元数据 IO。
 - `Microsoft.Agents.AI`——`AIAgent` / `AIAgentBuilder` / `ChatClientAgent` / `AgentSession`。
 - `Microsoft.Extensions.AI`——`IChatClient` / `AIFunction` / `AIContextProvider`。
-- `Microsoft.Agents.AI.Mcp`——MCP client（本模块在 OpenInstance 内使用。接口抽象仅使用 `CBIM.AgentSystem.Mcp.McpDescriptor`）。
-- **`CBIM.AgentSystem.Skills`**（子模块）——`Skill` 类型。
-- **`CBIM.AgentSystem.StandardTools`**（子模块）——`StandardToolsService.CreateFamilies` 装配内置工具。
-- **`CBIM.AgentSystem.Mcp`**（子模块）——`McpDescriptor` / `McpTransportKind` / `StdioMcpDescriptor` / `HttpMcpDescriptor`。
+- `Microsoft.Agents.AI.Mcp`——MCP client（本模块在 OpenInstance 内使用。接口抽象仅使用 `CBIM.Mcp.McpDescriptor`）。
+- **`CBIM.Skills`**（子模块）——`Skill` 类型。
+- **`CBIM.Tools.Standard`**（子模块）——`StandardToolsService.CreateFamilies` 装配内置工具。
+- **`CBIM.Mcp`**（子模块）——`McpDescriptor` / `McpTransportKind` / `StdioMcpDescriptor` / `HttpMcpDescriptor`。
 - **不依赖** Workspace / Kernel / Memory——能力维度服务层只依赖自己的子模块 + Storage + Microsoft 包。
 
 依赖方向：能力服务层 → 子模块（Skills / StandardTools / Mcp） → Microsoft 包 + Storage，无反向边。

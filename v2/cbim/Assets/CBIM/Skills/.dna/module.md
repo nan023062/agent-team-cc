@@ -130,7 +130,7 @@ OpenInstance:
 
 ## Origin Context
 
-- **上轮状态**：`Skill.cs` 裸露在 `AgentSystem/`，namespace `CBIM.AgentSystem.Skills`。业务侧以 `Workflow.cs`（独立类型）在 Workspace 下描述业务流程。
+- **上轮状态**：`Skill.cs` 裸露在 `AgentSystem/`，namespace `CBIM.Skills`。业务侧以 `Workflow.cs`（独立类型）在 Workspace 下描述业务流程。
 - **本轮裁决**：提到顶层 + 同抽象复用。理由：
   1. **同抽象**——Workflow 与 Skill 描述形态与语义用途几乎一致（都是「该如何走这项难题」的描述 + 例子），不应双抽象并存。
   2. **跨维度共享**——提到顶层后能力侧 / 业务侧平等引用，不引入跨维度反向依赖。

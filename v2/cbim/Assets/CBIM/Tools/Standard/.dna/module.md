@@ -26,7 +26,7 @@ CBIM 内置标准工具家族的**唯一实现处**——Files / Search 两个 A
 | 维度 | 上一轮 | 本轮 |
 |------|--------|------|
 | 物理路径 | `AgentSystem/StandardTools/` | `Tools/Standard/` |
-| 命名空间 | `CBIM.AgentSystem.StandardTools` | `CBIM.Tools.Standard` |
+| 命名空间 | `CBIM.Tools.Standard` | `CBIM.Tools.Standard` |
 | 父模块 | AgentSystem（能力维度） | Tools（顶层基础能力抽象） |
 | 调用方 | 仅 AgentSystem.OpenInstance | AgentSystem.OpenInstance（合并 agent.SystemTools + module.Tools 后调） |
 
@@ -163,7 +163,7 @@ public static class PathGuard
 
 - **第一阶段**（CBIM v2 早期）：完全无 IO 工具——LLM 拿不到文件 / 搜索能力。
 - **第二阶段**（Workspace 子模块）：误设计为 `Workspace/StandardTools/` —— 当时认为「这个 module 上需要读文件」，故工具挂在 module 上。维度错位。
-- **第三阶段**（迁入 AgentSystem）：纠正——工具是 agent 的能力构成，不是 module 的业务属性。迁到 `AgentSystem/StandardTools/`，namespace `CBIM.AgentSystem.StandardTools`。
+- **第三阶段**（迁入 AgentSystem）：纠正——工具是 agent 的能力构成，不是 module 的业务属性。迁到 `AgentSystem/StandardTools/`，namespace `CBIM.Tools.Standard`。
 - **第四阶段**（本轮 · 顶层化）：再迁——发现业务侧也需要 `Tools` 抽象（`ModuleDescription.Tools` 是「业务专属内置工具家族」，与 Agent.SystemTools 同抽象）。能力侧 / 业务侧同时引用同一个 `Tools` 抽象时，再嵌在 `AgentSystem/` 下会引入跨维度反向引用——故提为顶层。
 
 第四阶段的关键洞察：**「跨维度共享抽象」的物理位置不是「先有它的某个维度」，而是「两个维度对它的共同前置」**。Tool / Skill / Mcp 三者本质都是「LLM 可调能力的描述抽象」——这是两个维度的共同前置概念，不属于任何单一维度。

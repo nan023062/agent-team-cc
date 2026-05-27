@@ -76,15 +76,17 @@ CBIM 把「软件中的角色」分成两个正交维度，并以两套独立服
 
 **已废弃**（代码已物理删）：`SystemTools/`、`Kernel/ExecutionUnit/`、`Kernel/TaskRunner/`、AgentSystem 下原独立的 `McpAdapter/`（本轮重命名并位于 `Mcp/` 三足鼎立中）。
 
-**本轮重要增量**（能力维度三大扩展抽象平级子模块化·代码已落地）：
+**本轮重要增量**（三大基础能力抽象顶层化·代码已落地）：
 
-- `AgentSystem/Skills/`——`Skill` 类从父命名空间 `CBIM.AgentSystem` 迁出，独立为 `CBIM.AgentSystem.Skills`。
-- `AgentSystem/StandardTools/`——已是子模块（本轮未动）。
-- `AgentSystem/Mcp/`——原 `McpAdapter/` 重命名 + 重组。`McpDescriptor` record 抽为 `abstract class` + `StdioMcpDescriptor` / `HttpMcpDescriptor` + `McpTransportKind` 枚举。
+- `Tools/`（顶层）——含 `ToolDescriptor`（原 `SystemTool` 重命名） + `Tools/Standard/` 子模块承载内置工具家族实现（Files / Search）。整体从 `AgentSystem/StandardTools/` 提升为顶层。
+- `Skills/`（顶层）——含 `SkillDescriptor`（原 `Skill` 重命名）。从 `AgentSystem/Skills/` 提升为顶层。
+- `Mcp/`（顶层）——含 `McpDescriptor` abstract + `StdioMcpDescriptor` / `HttpMcpDescriptor` + `McpTransportKind` 枚举。从 `AgentSystem/Mcp/` 提升为顶层。
 
-三子模块**同为「agent 能多会一手」的扩展通道**、**同装配点（OpenInstance）**、**同生命周期（绑 AIAgent 实例）**、**同被 AgentDescription 三字段并列引用**——仅扩展形态不同。
+三顶层模块**同为「扩展能力」基础抽象**、**跨维度共享**（agent 和 module 都各自引用三者列表）、**同被 AgentDescription / ModuleDescription 三字段并列引用**——仅扩展形态不同。
 
-**跨维度共享**：`McpDescriptor` 同时被 `AgentDescription.McpList`（能力维度）与 `ModuleDescription.McpList`（业务维度）引用——CBIM 内唯一跨维度共享抽象。Workspace 反向依赖 `CBIM.AgentSystem.Mcp`（单向，符合 C3）。
+**理由**：上轮把 Skill / SystemTool / Mcp 放在 `AgentSystem/` 子目录下导致维度错位——业务侧（Workspace）想用 McpDescriptor 时只能跨维度反向引用能力侧子模块，语义错位。本轮顶层化后两个维度都平等引用顶层模块，对称清晰。
+
+**跨维度共享**：`McpDescriptor` 同时被 `AgentDescription.McpList`（能力维度）与 `ModuleDescription.McpList`（业务维度）引用——CBIM 内唯一跨维度共享抽象。Workspace 反向依赖 `CBIM.Mcp`（单向，符合 C3）。
 
 ## Child Relationships
 
@@ -171,18 +173,18 @@ flowchart TD
 ## 铁律
 
 1. **三大服务层互不依赖**——跨系统联动走 Kernel.FlowGraph + ContextProviders。
-   - 唯一例外：`Workspace → AgentSystem.Mcp` 跨服务层引用（跨维度共享 `McpDescriptor` 抽象，单向，符合 C3）。
+   - 服务层引用基础能力顶层模块（`CBIM.Tools` / `CBIM.Skills` / `CBIM.Mcp`）是合法依赖——不算服务层互相依赖。
 2. **三大服务层都直接依赖 Storage**——是各自被动存储的唯一 IO 依赖。
 3. **CBIM 不在 Kernel 层发明任何抽象**——`IChatClient` / `AIAgent` / `Workflow` / `Executor` / `AIContextProvider` / `AIFunction` / `McpClient` 全部直接采用 Microsoft。
-4. **不造 IO 工具轮子**——文件 / 搜索 / 网页交 Microsoft.Extensions.AI AIFunction 生态；MSAI 未补齐期由 `AgentSystem/StandardTools/` 子模块暂补。
+4. **不造 IO 工具轮子**——文件 / 搜索 / 网页交 Microsoft.Extensions.AI AIFunction 生态；MSAI 未补齐期由 `Tools/Standard/` 顶层子模块暂补。
 5. **不造业务工作流引擎**——Microsoft.Agents.AI.Workflows 接管，CBIM 仅写业务拓扑装配。
 6. **不造记忆轮子**——Microsoft 已有 ChatHistoryProvider / Compaction / VectorData；CBIM 仅留 MemoryEntry 才平 JSON 后端。
 7. **不造 Agent 装配轮子**——Microsoft `AIAgentBuilder` 接管；CBIM 仅写 OpenInstance 胶水。
 8. **不造交互界面轮子**——Microsoft `AgentSession` 接管；Channel 是薄封装。
 9. **Channel 只依赖 AgentSystem + Kernel.FlowGraph**——不直接访问 Memory / Workspace / Storage / Microsoft 包。
 10. **AgenticOS 仅装配**——不直接驱动。
-11. **不造 MCP 客户端协议轮子**——`Microsoft.Agents.AI.Mcp` 接管；CBIM `AgentSystem/Mcp/` 子模块仅定义 `McpDescriptor` 抽象与传输枚举；启 server / 包 AIFunction / 关 的胶水在装配侧（OpenInstance / 业务 Workflow）直接使用 Microsoft client。
-12. **MCP 抽象归能力维度，但连接目标必须 = task.Where**（关键维度交叉点）——MCP 抽象物理属于 `AgentSystem.Mcp` 子模块（能力维度），但启动时必须连到 `task.Where` 指向的业务实例工作区根（业务维度目标）。这是「能力归能力，目标归业务」原则的唯一明显交点；能力侧装配点是 OpenInstance，workspaceRoot 由 `OpenInstanceOptions.TaskWhere` 透传。
+11. **不造 MCP 客户端协议轮子**——`Microsoft.Agents.AI.Mcp` 接管；CBIM `Mcp/` 顶层模块仅定义 `McpDescriptor` 抽象与传输枚举；启 server / 包 AIFunction / 关 的胶水在装配侧（OpenInstance / 业务 Workflow）直接使用 Microsoft client。
+12. **MCP 抽象顶层共享，但连接目标必须 = task.Where**（关键维度交叉点）——MCP 抽象物理属于 `CBIM.Mcp` 顶层模块（跨维度共享），能力侧 / 业务侧都用同一抽象；但启动时必须连到 `task.Where` 指向的业务实例工作区根。能力侧装配点是 OpenInstance，workspaceRoot 由 `OpenInstanceOptions.TaskWhere` 透传。
 13. **`McpDescriptor` 是 CBIM 唯一跨维度共享抽象**（本轮新增·关键）——`AgentDescription.McpList: IReadOnlyList<McpDescriptor>` 与 `ModuleDescription.McpList: IReadOnlyList<McpDescriptor>` 同一抽象、同类型、同符号。
     - **语义不同**：能力侧跟人走（agent 自带）；业务侧跟业务走（module 接入点）。
     - **装配位置不同**：能力侧在 OpenInstance；业务侧在 Kernel.FlowGraph / ContextProviders。

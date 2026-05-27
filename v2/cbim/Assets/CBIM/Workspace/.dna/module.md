@@ -24,7 +24,7 @@ Workspace 与 AgentSystem 是一对正交服务层：
 
 二者**结构对称**：都以 `Description`（类型描述）+ `Instance`（实例运行态）二元结构组织；都直接依赖 Storage；都不互相依赖；跨维度协同由 Kernel.FlowGraph 在 Task 期组合。
 
-**唯一跨维度共享抽象（本轮重点）**：`McpDescriptor`——业务维度 `ModuleDescription.McpList` 与能力维度 `AgentDescription.McpList` 同类型。Workspace 上向引用 `CBIM.AgentSystem.Mcp.McpDescriptor`，依赖方向 `Workspace → AgentSystem.Mcp`（Workspace 是更易变的业务层，Mcp 是更稳定的能力扩展层，符合 C3 单向依赖）。
+**唯一跨维度共享抽象（本轮重点）**：`McpDescriptor`——业务维度 `ModuleDescription.McpList` 与能力维度 `AgentDescription.McpList` 同类型。Workspace 上向引用 `CBIM.Mcp.McpDescriptor`，依赖方向 `Workspace → AgentSystem.Mcp`（Workspace 是更易变的业务层，Mcp 是更稳定的能力扩展层，符合 C3 单向依赖）。
 
 ## ModuleDescription 三段式语义（本轮重要）
 
@@ -77,7 +77,7 @@ public sealed class ModuleDescription
 
 **`AgentDescription.McpList: IReadOnlyList<McpDescriptor>` 与 `ModuleDescription.McpList: IReadOnlyList<McpDescriptor>` 是同一份抽象**：
 
-- 同抽象类（`CBIM.AgentSystem.Mcp.McpDescriptor`）。
+- 同抽象类（`CBIM.Mcp.McpDescriptor`）。
 - 同两子类实例类型（`StdioMcpDescriptor` / `HttpMcpDescriptor`）。
 - 同 `McpTransportKind` 枚举。
 
@@ -214,7 +214,7 @@ new ModuleDescription(
 
 ## Children
 
-本轮无子模块（上一轮新增的 `StandardTools/` 上一轮已迁出到 `AgentSystem/StandardTools/`——工具归能力维度）。
+本轮无子模块。基础能力三抽象（Tool / Skill / Mcp）已顶层化为 `CBIM/Tools/`、`CBIM/Skills/`、`CBIM/Mcp/` 三个顶层模块——Workspace 跨维度引用它们（与 AgentSystem 平等共享）。早先曾把 StandardTools 放在 Workspace/ 下（"工具属业务"误解），后纠正为放在 AgentSystem/ 下（"工具属能力"），最终本轮提为顶层（"工具属基础能力，跨维度共享"）。
 
 ## Child Relationships
 
@@ -247,7 +247,7 @@ flowchart TD
     class MCP cross;
 ```
 
-依赖方向：Workspace → `CBIM.AgentSystem.Mcp`（唯一反向跨服务层 C# 依赖——Mcp 不反向引 Workspace）。
+依赖方向：Workspace → `CBIM.Mcp`（唯一反向跨服务层 C# 依赖——Mcp 不反向引 Workspace）。
 
 **`ModuleOwners` 对 `AgentDescription.Id` 是字符串反向引用**——不计作 C# 依赖（运行期由派发器查表），跨服务层 C# 类型依赖仍只有 `Workspace → AgentSystem.Mcp` 一条。
 
@@ -303,7 +303,7 @@ status: spec
 ```csharp
 namespace CBIM.Workspace;
 
-using CBIM.AgentSystem.Mcp;
+using CBIM.Mcp;
 
 public sealed class WorkspaceService
 {
@@ -356,7 +356,7 @@ Application.persistentDataPath/.cbim/workspace/
 ## Dependencies
 
 - `CBIM.Storage`——IO + frontmatter 解析。
-- **`CBIM.AgentSystem.Mcp`**（跨维度共享抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。依赖方向：`Workspace → AgentSystem.Mcp`。
+- **`CBIM.Mcp`**（跨维度共享抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。依赖方向：`Workspace → AgentSystem.Mcp`。
 - **不依赖** Kernel / Memory / AgentSystem 主服务 / AgentSystem.Skills / AgentSystem.StandardTools。
 - **无子模块**。
 
@@ -385,7 +385,7 @@ Application.persistentDataPath/.cbim/workspace/
 上轮增量（MCP 集成 · 业务维度偾面 · 代码已落地）：
 
 1. **`ModuleDescription` 增 `McpList: IReadOnlyList<McpDescriptor>` 字段**——业务操作接入点走 C# 层，与 AgentDescription.McpList 同抽象同类型。
-2. **跨维度共享依赖新增**：`CBIM.AgentSystem.Mcp` 抽象被本服务层引用。这是 Workspace 唯一跨服务层的依赖。
+2. **跨维度共享依赖新增**：`CBIM.Mcp` 抽象被本服务层引用。这是 Workspace 唯一跨服务层的依赖。
 3. **`ModuleDna` 退化为纯知识载体**——原隐含的「云模块走 MCP 协议」语义全部迁到 `ModuleDescription.McpList`。`ModuleDna.Protocol` 字段删除（代码已落地——`RemoteModuleDna` 只持 Endpoint + AuthToken）。
 4. **`ModuleDescription` 调为 `class`（非 record）**——代码现状，以代码为准。上一轮描述里的 record 签名过时。
 5. **Storage layout 中 `module.md` 不再包含** 工具 / MCP 协议 frontmatter——纯为工作流程 + 领域知识 文档。
