@@ -45,7 +45,7 @@ namespace CBIM.Workspace
     ///       new HttpMcpDescriptor("cdn-mcp", ..., "https://cdn.example.com/mcp", auth)
     ///     ]);                                          // 实际操作接入点
     ///
-    /// 读取语义不在此类——由 WorkspaceService 按 Kind 分派到对应 reader。
+    /// 读取语义不在此类——由 Workspace 按 Kind 分派到对应 reader。
     /// ModuleDna 保持为纯数据描述符，无 IO 依赖。
     /// </summary>
     public abstract class ModuleDna
