@@ -1,0 +1,140 @@
+[api-updater (non-obsolete-error-filter)] 2026/5/27 11:45:02 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 214.4134ms
+moved types parse time: 30ms
+candidates parse time : 1ms
+C# parse time         : 138ms
+candidates check time : 33ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 11:45:20 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 37.6774ms
+moved types parse time: 29ms
+candidates parse time : 0ms
+C# parse time         : 101ms
+candidates check time : 33ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 11:45:30 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 38.7822ms
+moved types parse time: 27ms
+candidates parse time : 0ms
+C# parse time         : 125ms
+candidates check time : 36ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 11:52:56 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 46.6999ms
+moved types parse time: 28ms
+candidates parse time : 1ms
+C# parse time         : 99ms
+candidates check time : 30ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 12:02:40 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 39.438ms
+moved types parse time: 28ms
+candidates parse time : 0ms
+C# parse time         : 100ms
+candidates check time : 17ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 12:08:07 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 42.6224ms
+moved types parse time: 27ms
+candidates parse time : 0ms
+C# parse time         : 107ms
+candidates check time : 16ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 12:08:52 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 36.9428ms
+moved types parse time: 29ms
+candidates parse time : 0ms
+C# parse time         : 118ms
+candidates check time : 31ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 12:58:52 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 42.2987ms
+moved types parse time: 34ms
+candidates parse time : 0ms
+C# parse time         : 103ms
+candidates check time : 28ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 12:59:24 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 39.8038ms
+moved types parse time: 31ms
+candidates parse time : 0ms
+C# parse time         : 102ms
+candidates check time : 30ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 13:23:47 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 40.2788ms
+moved types parse time: 27ms
+candidates parse time : 0ms
+C# parse time         : 110ms
+candidates check time : 22ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 13:25:37 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 38.9791ms
+moved types parse time: 29ms
+candidates parse time : 0ms
+C# parse time         : 112ms
+candidates check time : 22ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 13:26:26 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 39.9994ms
+moved types parse time: 28ms
+candidates parse time : 0ms
+C# parse time         : 105ms
+candidates check time : 21ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 13:27:43 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 36.9725ms
+moved types parse time: 28ms
+candidates parse time : 0ms
+C# parse time         : 113ms
+candidates check time : 22ms
+console write time    : 0ms
+
+[api-updater (non-obsolete-error-filter)] 2026/5/27 13:28:31 : Starting C:/XDTWorkspace/linan1_Unity.XDT.R_001/WindowsEditor/Data/Tools/ScriptUpdater/APIUpdater.NonObsoleteApiUpdaterDetector.exe
+[api-updater (non-obsolete-error-filter)] 
+----------------------------------
+jit/startup time      : 42.2237ms
+moved types parse time: 25ms
+candidates parse time : 0ms
+C# parse time         : 111ms
+candidates check time : 24ms
+console write time    : 0ms
+

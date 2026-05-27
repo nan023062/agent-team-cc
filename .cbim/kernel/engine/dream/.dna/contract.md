@@ -22,11 +22,13 @@
 
 | 约束 | 说明 |
 |------|------|
-| **`subtask_id="governance_memory_distill"` 的 prompt 样式锁定** | Dispatch 叶必须在 prompt 中传递出超 1 天的 transcript 路径列表（`paths: list[str]`），主 agent 以该列表为唯一蒙骏输入。Prompt 模板归 `actions/dispatch_mem_distill.py` 内部，不进本契约；但“prompt 里带 transcript 路径”这个形状是公共契约。 |
-| **主 agent 返回的 dispatch_result schema** | `{"distilled_paths": list[str], "medium_entries_written": list[str], "skipped_paths": list[{path, reason}], "errors": list[str]}`。`distilled_paths` 是蒙骏成功的 transcript 路径，供 `TranscriptDelete` 逐个删除；schema 锁定，新增字段可追加。 |
-| **TranscriptDelete 只删 `distilled_paths`** | 严禁删“扫描出但蒙骏失败”的 transcript；失败件下轮重试（mtime 依然 > 1 天）。 |
-| **蒙骏输出只写 medium，不写 short** | v2 记忆服务不拥有 short 路径；主 agent 在 skill 内调 `memory_write` 只能传递 `tier="medium"`。 |
-| **TranscriptDelete 同步调 retrieval.index_delete** | 删原件与清索引同步完成才算单个路径处理成功；retrieval 调用失败该路径进 `delete_failed` 不中断后续。 |
+| **`subtask_id="governance_memory_distill"` 的 prompt 样式锁定** | Dispatch 叶必须在 prompt 中传递出超 1 天的 transcript 路径列表（`paths: list[str]`），主 agent 以该列表为唯一蒸馏输入。Prompt 模板归 `actions/dispatch_mem_distill.py` 内部，不进本契约；但“prompt 里带 transcript 路径”这个形状是公共契约。 |
+| **主 agent 返回的 dispatch_result schema** | `{"distilled_paths": list[str], "medium_entries_written": list[str], "skipped_paths": list[{path, reason}], "errors": list[str]}`。`distilled_paths` 是蒸馏成功的 transcript 路径，供 `TranscriptDelete` 逐个删除；schema 锁定，新增字段可追加。 |
+| **`distilled_paths` 是 TranscriptDelete 的权威输入信号** | `CollectMemDistill` 对 `medium_entries_written` 的存在性校验是**观察性**的——任何校验失败（路径不存在、解析不出来）写入 `bb.transcript_delete_errors`（stage="verify_medium"）作为告警，但**不**清空 `distilled_paths`、**不**阻断 `TranscriptDelete` 的删除动作。理由：transcript 重复进入下一轮蒸馏的代价（重复条目 + 计算浪费）远高于偶发观察性误判的代价；删除决定权由 skill 的 `distilled_paths` 唯一持有，校验只负责留痕。 |
+| **TranscriptDelete 只删 `distilled_paths`** | 严禁删“扫描出但蒸馏失败”的 transcript；失败件下轮重试（mtime 依然 > 1 天）。 |
+| **蒸馏输出只写 medium，不写 short** | v2 记忆服务不拥有 short 路径；主 agent 在 skill 内调 `memory_write` 只能传递 `tier="medium"`。 |
+| **TranscriptDelete 同步调 retrieval.index_delete** | 删原件与清索引同步完成才算单个路径处理成功；retrieval 调用失败该路径进 `transcript_delete_errors`（stage="index_delete"）不中断后续。 |
+| **`medium_entries_written` 路径解析允许多策略** | `CollectMemDistill` 在校验 `medium_entries_written` 时按序尝试：(a) 直接绝对路径；(b) `store_dir / raw`（store 相对）；(c) `project_root / raw`（项目根相对，含 `.cbim/memory/...` 形式）；(d) `store_dir / Path(raw).name`（仅 basename）。任一策略命中即视为已落盘——容忍主 agent 在不同上下文下报路径风格不一致。 |
 
 ## `dream_tick` — 启动新治理 tick
 

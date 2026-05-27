@@ -1,0 +1,28 @@
+{
+    "name": "CBIM.AgentSystem.StandardTools",
+    "rootNamespace": "",
+    "references": [
+        "CBIM"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Microsoft.Extensions.AI.dll",
+        "Microsoft.Extensions.AI.Abstractions.dll",
+        "Microsoft.Extensions.FileSystemGlobbing.dll",
+        "Microsoft.Bcl.AsyncInterfaces.dll",
+        "Microsoft.Bcl.Memory.dll",
+        "Microsoft.Extensions.Primitives.dll",
+        "System.Memory.dll",
+        "System.Buffers.dll",
+        "System.Threading.Tasks.Extensions.dll",
+        "System.Runtime.CompilerServices.Unsafe.dll",
+        "System.Text.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

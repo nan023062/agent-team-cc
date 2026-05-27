@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-workspace
 owner: architect
-description: 业务模块系统（CBIM 的 B 维度）服务层门面 spec：管理业务知识、模块图谱、任务工作空间。当前仅 Dna 读侧落地，写侧与任务工作空间门面待后续切片。
+description: 业务模块系统（CBIM 的 B 维度）服务层门面：管理所有实例化的 Module 与 ModuleDescription（模块类型描述）。核心内容 = 业务工作流程 + 领域知识。本轮修正：剥离上一轮误放在 ModuleDescription 上的 standard_tools / external_mcp_servers 字段（工具属能力维度，归 AgentDescription）；StandardTools 子模块迁出至 AgentSystem。
 keywords: []
 dependencies: []
 status: spec
@@ -9,105 +9,186 @@ status: spec
 
 ## Positioning
 
-**业务模块系统是 CBIM 的服务层（B 维度）—— 与记忆系统、能力系统并列的三大核心系统之一。**
+**业务模块系统是 CBIM 的服务层（B 维度）——本轮保留**：CBIM 的 `Module + ModuleDescription` 是项目独有业务知识，Microsoft 不提供等价物。
 
-对应 CBIM 缩写里的 **B（Business）**。负责管理 **业务知识、模块图谱、任务工作空间**——即「**系统里有哪些业务模块、它们的依赖如何、当前进行到哪个任务**」这一整类问题。
+**业务维度的核心内容 = 工作流程 + 领域知识**。不包含工具声明——工具是能力维度（`AgentSystem`）的责任。
 
-名字为什么叫 `Workspace` 而不是 `Business`：CBIM 中「业务」这个词过于宽泛，本服务的本质是为 agent 在“业务仓库”上干活提供工作区——知识查询、模块图谱、任务黑板、交付产出，都是「工作空间」语义。`Workspace` 这个名字能同时装下「知识面」与「任务面」。
+## CBIM 核心对偶中的位置
 
-对外：暴露统一的 CRUD + 查询 + 任务门面——查询模块、查依赖、启动任务、记录任务状态、（未来）提交交付。所有调用方都只通过这一组接口看见业务模块系统。
+Workspace 与 AgentSystem 是一对正交服务层：
 
-对内：当前**仅落地读侧**——由 `Dna/` 子模块承担被动存储，把 `.dna/` 模块树映射到 Unity 的 `persistentDataPath/.cbim/dna/` 之下。写侧（在 Unity 内新建 / 拆分 / 合并模块）与任务工作空间（结合 Kernel BT 黑板记录 architect / work agent 的进展）都是后续切片，本模块以 spec 形态先把架构画清楚。
+| 维度 | 本服务层 | 对偶服务层 | 本维度的内容 |
+|------|---------|----------|--------------|
+| **业务（Business）** | **Workspace**——管理「业务工作区」 | — | **工作流程 + 领域知识** |
+| **能力（Capability）** | — | **AgentSystem**——管理「能力个体」 | **工具 + skill + 专精领域** |
 
-本模块当前 status = `spec`——只承载架构定义、不落代码。
+二者**结构对称**：都以 `Description`（类型描述，落项目知识树）+ `Instance`（实例运行态，落 persistentDataPath）二元结构组织；都直接依赖 Storage；都不互相依赖；跨维度协同由 Kernel.FlowGraph 在 Task 期组合。
 
-## Children（规划 + 现状）
+**关键约束（本轮修正）**：
 
-| 子模块 | 一句话职责 | 当前状态 | 物理路径 |
-|--------|-----------|----------|----------|
-| `Dna` | 长期记忆 · 业务维度被动存储——只读门面，对齐 `.dna/` 模块树 | **已落地（spec）** | `v2/cbim/Assets/CBIM/Dna/` |
-| `DnaLifecycle`（规划） | 模块创建 / 拆分 / 合并 / 弃用工作流，按 architect agent 脚本调用 Dna 写侧 | 未落地 | 未来 `v2/cbim/Assets/CBIM/Workspace/Lifecycle/` |
-| `TaskWorkspace`（规划） | 任务黑板——记录当前任务的上下文、中间产出、交付验收状态；agent 跨 tick 传递状态靠它 | 未落地 | 未来 `v2/cbim/Assets/CBIM/Workspace/Tasks/` |
+- 上一轮设计把 `standard_tools` / `external_mcp_servers` 放在 `ModuleDescription`——**错。本轮全部删除**。
+- 工具能力 / MCP 端点的声明权**属于能力维度**——`AgentDescription.tools` + `AgentDescription.agent_extension_clis`。
+- 本服务层**只负责业务语义**：module 是什么业务、上下间有什么依赖 / 包含关系、该业务块上需要什么领域知识 / 走什么工作流程。「该 module 活动时装哪些工具」**不在本服务层描述**。
 
-> **物理布局说明**：与 AgentSystem / AgentRegistry 的关系同构——`Dna/` 现阶段与 `Workspace/` 并列于 `Assets/CBIM/` 下，合并与否由后续切片决定。不锁死。
+## Responsibility（一句话）
 
-## Child Relationships（规划）
+管理 `.dna/` 模块树（ModuleDescription）+ 业务侧 Module 实例运行态；为 `WorkspaceContextProvider` 提供数据；为 architect 治理工作流提供读侧 + 后续写侧。
+
+## Children
+
+本轮无子模块（上一轮新增的 `StandardTools/` 本轮迁出到 `AgentSystem/StandardTools/`——工具归能力维度）。
+
+## Child Relationships
+
+无子模块。外部依赖关系：
 
 ```mermaid
 flowchart TD
-    WS["Workspace<br/>(B 维度服务门面)"]
-    Dna["Dna<br/>(读侧 · 被动存储)"]
-    DL["DnaLifecycle<br/>(写侧 · 创建 / 拆分 / 合并)"]
-    TW["TaskWorkspace<br/>(任务黑板 · 中间产出)"]
-    Kernel["Kernel<br/>(BT 引擎)"]
-    Storage["Storage<br/>(文件原语)"]
+    WS["WorkspaceService<br/>(ModuleDescription 读侧 + 实例索引)"]
+    Storage["CBIM.Storage"]
+    WCP["Kernel.ContextProviders.WorkspaceContextProvider"]
 
-    WS -.aggregates.-> Dna
-    WS -.aggregates.-> DL
-    WS -.aggregates.-> TW
+    WS --> Storage
+    WCP -. 读 ModuleDescription / 实例 .-> WS
 
-    Dna --> Storage
-    DL --> Dna
-    DL --> Storage
-    TW --> Storage
-    TW -.reads.-> Dna
-    Kernel -.invokes.-> TW
-    Kernel -.invokes.-> DL
-
-    style DL stroke-dasharray: 5 5
-    style TW stroke-dasharray: 5 5
+    classDef self fill:#fffbe6;
+    class WS self;
 ```
 
-虚线 = 规划中未落地；实线 = 已存在。依赖方向铁律：
+## 核心概念
 
-- **Dna 只依赖 Storage**——已有铁律，不变。
-- **DnaLifecycle 依赖 Dna**——写侧调读侧接口，单向。
-- **TaskWorkspace 只读 Dna**，不写 Dna——任务记录不修改模块图谱。这两是两份独立的持久数据。
-- **Kernel 调 DnaLifecycle（治理循环）与 TaskWorkspace（执行循环）**，不反过来。**Workspace 不依赖 Kernel**。
+| 概念 | 形态 | 存储 |
+|------|------|------|
+| **ModuleDescription** | 模块「类型」：职责 / 依赖 / 子模块 / 架构 body / **工作流程描述** / **领域知识描述** | `<project>/<path>/.dna/module.md` |
+| **Module 实例** | 某任务上下文激活后的运行态 | `persistentDataPath/.cbim/workspace/instances/` |
 
-## Origin Context
+**不包含**：工具声明、MCP 端点、沙盒配置——这些都是 AgentDescription 的责任。
 
-用户提出的「CBIM 三大核心系统」框架要求把业务维度提到与记忆系统、能力系统平级。在此之前，v2 子树里只有 `Dna/` 这一个扁平模块，定位是「长期记忆 · 业务维度被动存储」——它只承担「读」这一个面，不管「任务」这一面。
+## Three-Layer Memory Context
 
-但「业务模块系统」远不止读模块文档：它还要管**模块生命周期**（architect agent 的创建 / 拆分 / 合并 / 弃用）和**任务工作空间**（work agent 跨 tick 传递 ContextPack、中间产出、交付验收）。这些职责在 Python 内核里散落在 `v1/kernel/cbi/_primitives/dna/` + `v1/kernel/engine/execution/blackboard.py` + architect agent 的 skill 里，同样没有统一的服务门面。
+本模块承担**长期记忆 · 业务维度**——`.dna/` 模块树 + Module 实例。其他三层归属见 `Memory/.dna/module.md`。
 
-本模块存在的根因：把「业务知识 + 任务上下文」收敛为一个服务门面，与能力系统、记忆系统同构。
+## ModuleDescription Schema
 
-## Service-Layer Extension Model（与 Memory / AgentSystem 同构）
+```yaml
+---
+name: my-module
+owner: architect
+description: ...
+keywords: [...]
+dependencies: [...]
+status: spec
+---
 
-业务模块系统门面 `WorkspaceService`（规划名）承诺对外暴露稳定的接口，内部可挂多种实现：
+## Positioning
+...
 
-| 对外能力 | 当前实现 | 未来可扩展 |
-|----------|----------|-----------|
-| `ListModules() / GetModule(path)` | Dna 直读 | + 跨项目联邦查询 |
-| `QueryModules(text, topK)` | Dna 关键词检索 | + 向量检索 + 语义模块推荐 |
-| `Children(parentPath) / Dependencies(path)` | Dna 图查询 | + 环路检测缓存 |
-| `CreateModule / SplitModule / DeprecateModule`（规划） | 未落地 | DnaLifecycle 写侧 |
-| `StartTask / RecordIntermediate / SubmitDeliverable`（规划） | 未落地 | TaskWorkspace 任务黑板 |
-| `Stats()` | Dna 计数 | + 任务统计 + 生命周期统计 |
+## 工作流程（业务维度核心内容）
+上游如何发起 / 本 module 如何处理 / 下游如何交接。
 
-**铁律**：扩展走「门面内部装配」。写侧 / 任务门面以独立的内部接口（例如 `IDnaMaintenance` / `ITaskWorkspaceController`）暴露给调度层，不污染查询表面——这是 C4。
+## 领域知识（业务维度核心内容）
+该业务块独有的术语 / 规则 / 常识。
+```
+
+C# 端记录（本轮修正 —— 删除 `StandardTools` / `ExternalMcpServers` 字段）：
+
+```csharp
+public sealed record ModuleDescription(
+    string Path,
+    string Name,
+    string Owner,
+    string Kind,
+    string Description,
+    IReadOnlyList<ModuleDependency> Dependencies,
+    string BodyExcerpt);
+```
+
+**上一轮错误字段的修正说明**：
+
+- `standard_tools: [Files, Search]`——本轮**删除**。工具归属能力维度，请在 `AgentDescription.tools` 声明。
+- `external_mcp_servers: [...]`——本轮**删除**。MCP / 外部进程能力同属能力维度，后续在 AgentDescription 体系下落地（首轮以 `agent_extension_clis` 带 CLI 白名单的形式出现）。
+
+迁移说明：现有 `.dna/module.md` 中若仍含这两个 frontmatter 字段，下轮 reindex 时 warning 且忽略；architect 治理趋势上渐渐清除。
+
+## Contract Surface
+
+```csharp
+namespace CBIM.Workspace;
+
+public sealed class WorkspaceService
+{
+    // ModuleDescription（类型）
+    IReadOnlyList<ModuleDescription> ListDescriptions();
+    ModuleDescription? GetDescription(string path);
+    IReadOnlyList<ModuleDescription> QueryDescriptions(string text, int topK);
+    IReadOnlyList<ModuleDescription> Children(string parentPath);
+    IReadOnlyList<ModuleDependency> Dependencies(string path);
+
+    // Module 实例
+    IReadOnlyList<ModuleInstance> ListInstances();
+    ModuleInstance? GetInstance(string instanceId);
+
+    WorkspaceStats Stats();
+}
+
+public sealed record ModuleDescription(
+    string Path,
+    string Name,
+    string Owner,
+    string Kind,
+    string Description,
+    IReadOnlyList<ModuleDependency> Dependencies,
+    string BodyExcerpt);
+```
+
+写侧（`SaveDescription` / `CreateModule` / `SplitModule` / `DeprecateModule`）是后续切片——Unity 侧暂走 Python `dna_*` MCP 工具，本服务定期 reindex 拉最新快照。
+
+## Storage Layout
+
+```
+<project>/<module-path>/.dna/
+  module.md          ← ModuleDescription（工作流程 + 领域知识）
+  contract.md        ← 可选
+
+Application.persistentDataPath/.cbim/workspace/
+  descriptions-index.json
+  instances/<id>.json
+  instances-index.json
+```
 
 ## Dependencies
 
-- **聚合关系**：`Dna/`、未来的 `DnaLifecycle/`、未来的 `TaskWorkspace/`。
-- **不依赖 Kernel、不依赖 Memory、不依赖 AgentSystem、不依赖 AgentRegistry**——服务层互不依赖。
-- `Storage` 是子模块依赖（Dna 已声明）。
+- `CBIM.Storage`——IO + frontmatter 解析。
+- **不依赖** Kernel / Memory / AgentSystem。
+- **无子模块**（上一轮新增的 StandardTools 本轮迁出）。
 
-## Emergent Insights（跨子模块视角）
+## 铁律
 
-1. **业务数据有「知识面」和「任务面」两个独立形态。** 知识面是长期记忆（模块文档），变动慢；任务面是中期状态（任务黑板），每个 tick 都可能变。两者交集仅在「任务带上模块上下文」这一点上——但 schema 、生命周期、查询形态都不同，不能装一个存储里。这是 Dna 与 TaskWorkspace 不能合并为一的原因。
-2. **TaskWorkspace 与 Memory 中期记忆是不同物种。** 中期记忆是「会话跨会话沉淀后的事实」；TaskWorkspace 是「当前任务进行中的中间变量」。后者生命周期随任务交付而结束，前者被 distill 后長期保存。不能把任务上下文 distill 进 Memory——那是跨边界隐式多态。
-3. **三大系统中只有 Workspace 同时接「治理」与「执行」两条循环。** Memory / AgentSystem 只接治理循环（CRUD 主要发生在治理阶段）；Workspace 的 DnaLifecycle 连治理循环，TaskWorkspace 连执行循环。这两条路径在 Workspace 内需要干净划开——不能让 TaskWorkspace 的黑板 schema 泄到 DnaLifecycle 里反之亦然。
+- Service 同步方法，无 `Update()` / `StartCoroutine`。
+- ModuleDescription 与 ModuleInstance schema 互不混淆。
+- 不持记忆条目 / AgentDescription——是 Memory / AgentSystem 的事。
+- **不持工具声明 / MCP 端点 / 沙盒配置**——本轮铁律——工具归能力维度，请看 AgentDescription。
+- 写侧未落地——通过 Python MCP 工具 + 本服务 reindex。
 
-## Non-Goals（本模块 spec 范围）
+## Origin Context
 
-- **不落任何代码。** 架构 spec，代码落在子模块（Dna 已落、Lifecycle / TaskWorkspace 后续）。
-- **不重新定义 `DnaModule` schema。** schema 归 Dna 拥有；本服务面只透传。
-- **不接手 BT 黑板本身的实现。** BT 黑板是 Kernel 的事；TaskWorkspace 是黑板中「业务脸」那一部分的沉淀门面，两者是不同抽象层。
-- **不持有 agent 能力数据。** 那是 AgentSystem 的事。
+上轮已合并 `Dna/` 子模块进本模块。上一轮又新增 `StandardTools/` 子模块 + `standard_tools` / `external_mcp_servers` schema——本轮裁决该设计维度归属错位，全部退回：
 
-## Mirror in Python kernel
+1. 本模块继续保留——Microsoft 不提供「业务模块知识图谱」抽象，这是 CBIM 独有的业务知识管理。
+2. 写侧仍走 Python MCP 工具 + reindex。
+3. **删除 `StandardTools/` 子模块在本下的在籍**——本轮重大修正。原裁决「工具能力是 module 业务属性」被覆反：工具能力是 **agent** 业务属性。
+4. **删除 `standard_tools` / `external_mcp_servers` 两个 frontmatter 字段**。
+5. 本轮重申业务维度的核心内容——**工作流程 + 领域知识**；ModuleDescription body 重点在这两件事。
 
-Python 侧同样没有显式的「Workspace 门面类」。`v1/kernel/cbi/_primitives/dna/` 接知识面；`v1/kernel/engine/execution/blackboard.py` 接任务面；architect agent skill 接生命周期。Unity 移植提出了比 Python 更明确的门面收敛——后续是否 Python 侧同步收敛为 `WorkspaceService`，交由 Python 侧 architect 决定。
+## Emergent Insights
 
+1. **工具能力是 agent 业务属性，不是 module 业务属性**——「能不能读文件 / 能不能联网」与「谁」相关，不与「在哪」相关。同一 module 被不同 agent 处理时可能调用完全不同的工具集——例如 architect 处理 module 只需读文件，programmer 处理同一 module 需要写 + git + dotnet CLI。这进一步证明工具不应在 module schema。
+2. **业务维度核心价值 = 工作流程边界 + 领域知识封装**——这是 Microsoft / 任何通用框架不提供的，也是 CBIM Workspace 保留的唯一原因。
+3. **维度错位是常见架构陷阱**——「看起来与哪个东西伴生」不等于「应在该东西的 schema 内」。工具总伴随 Task 上下文出现，但上下文由多个维度同时提供（who+where+what）。谁拥有 schema 声明权 ≠ 谁与其一同出现。本轮修正是该原则的具象落地。
+
+## Non-Goals
+
+- 不实现 Unity 侧 `.dna/` 写侧（走 Python MCP）。
+- 不持有任务黑板（后续 `TaskWorkspace/` 子模块话题，本轮不发）。
+- 不持有 Agent / 记忆数据。
+- **不持有工具声明 / MCP 端点**——本轮裁决。

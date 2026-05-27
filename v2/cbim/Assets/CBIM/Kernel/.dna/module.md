@@ -1,90 +1,115 @@
 ---
 name: cbim-unity-kernel
 owner: architect
-description: CBIM execution engine: BT primitives (Node/Status/Composite/Decorator), Blackboard, Runner, and the execution/dream root flowcharts. Depends on Storage for snapshots and on Memory's read/write API for the CRUD sub-loop.
+description: CBIM 驱动层总名（parent）。以 Microsoft.Agents.AI + Microsoft.Agents.AI.Workflows 为底层引擎，CBIM 仅保留 3 个业务胶水子模块：TaskScheduler（CbimTask 数据类）+ FlowGraph（Microsoft Workflows 适配 + CbimTaskExecutor）+ ContextProviders（CBIM 上下文 → AIContextProvider 桥）。原 TaskRunner / ExecutionUnit 本轮废弃。
 keywords: []
 dependencies: []
 status: spec
+kind: parent
 ---
-
 ## Positioning
 
-CBIM 的原生 C# 执行引擎。承载行为树原语（Node / Status / Composite / Decorator / Blackboard / Runner）、执行根流程图拓扑、记忆 CRUD 子循环。唯一入口是 `Engine.Tick(blackboard)`——形态与 Python 的 `Runner.run(bb)` 一致。
+Kernel 是 CBIM Agent OS 的**驱动层总名**——上接入口层（Channel）与能力系统（AgentSystem），下调记忆系统（Memory）、业务模块系统（Workspace）。本模块本身**不承载任何执行细节**——只作为业务胶水子模块的组合项存在。
 
-严格对齐 `v1/kernel/engine/`。每一个原语（Status 枚举、Node 基类、Sequence、Selector、LoopSeq、SwitchBranch、ForEach、AlwaysSuccess、ModeBranch、Trace、Timeout、Retry、Catch）都有 1:1 的 C# 对照，**同名同语义**。Python 的 `main_loop.py` 拓扑被翻译成 C# 的 `BuildExecutionRoot()` 构造器。读 Python 源码就是 C# 移植版的文档。
+## 本轮重大精简：彻底贯穿「不造轮子」
 
-## Responsibility（一句话）
+上轮 Kernel 重构已将 LlmEngine / Pipeline / INode 等下沉到 Microsoft.Agents.AI。本轮**再进一步**：
 
-以 tick 驱动流程图，承载快照 / yield / resume，向 host（Unity 场景或 LLM 客户端）抛出派工请求。
+| 已下沉到 Microsoft（不再有 CBIM 对应模块） | 由 Microsoft 哪个包 |
+|---|---|
+| LLM 调用抽象 | `Microsoft.Extensions.AI.IChatClient` |
+| Agent 执行体 / thread / run | `Microsoft.Agents.AI.AIAgent` |
+| 工具调用闭环 | `Microsoft.Agents.AI.FunctionInvokingChatClient` |
+| 上下文 Provider 抽象 | `Microsoft.Extensions.AI.AIContextProvider` |
+| 业务工作流引擎 / Executor / Edge / 路由 | `Microsoft.Agents.AI.Workflows.Workflow` |
+| 暂停-恢复 / checkpoint | Microsoft Workflows 内建 |
+| 会话压缩 | Microsoft Compaction 策略 |
+| IO 工具（文件 / 搜索 / 网页） | `Microsoft.Extensions.AI.AIFunction` 生态（社区包） |
 
-## Sub-Areas（仅为子目录，不再切 asmdef）
+CBIM 在 Kernel 子树里**只写 3 样东西**：
 
-从 `.dna/` 视角这是 leaf 模块（只对应一个 asmdef `CBIM.Server.Kernel`），但代码内部按目录与 Python 布局对齐，方便交叉对照：
+| # | CBIM 子模块 | 一句话职责 |
+|---|---|---|
+| 1 | `TaskScheduler/` | CbimTask 不可变 record：who（AIAgent）+ where（模块列表）+ what（Requirement） |
+| 2 | `FlowGraph/` | 以 Microsoft.Agents.AI.Workflows 为底层，CBIM 写 `CbimTaskExecutor` + 业务 Workflow 装配类 |
+| 3 | `ContextProviders/` | 三个 `AIContextProvider` 实现，把 Workspace / Memory / Session 注入 AIAgent 调用 |
 
-| 目录 | 用途 | Python 对应物 |
-|------|------|--------------|
-| `Core/` | Node / Status / Blackboard / 组合节点 / 装饰器 / Runner。铁律：跨 tick 无状态。 | `v1/kernel/engine/core/` |
-| `Execution/Actions/` | 叶节点——InitTick、ModeClassify、DirectReply、DispatchCoreAgent、DispatchWork、ArchExecYield、ConvergeJudge、Respond、FlushMemory、ContextRetrieval | `v1/kernel/engine/execution/actions/` |
-| `Execution/Tree/` | `BuildExecutionRoot()`——静态拓扑构造器 | `v1/kernel/engine/execution/tree/main_loop.py` |
-| `Execution/Loops/` | 进程内驱动的子循环（首批是 MemoryCrud；ArchExec / HrExec 在 v3.5+ 是进程外 yield） | `v1/kernel/engine/execution/loops/` |
-| `Persistence/` | 黑板 JSON 快照、resume.json、trace.jsonl——全部经 Storage | `v1/kernel/engine/persistence/` |
-| `Api/` | 公共表面：`Engine.Tick`、`Engine.Resume`、`BtResult`、`DispatchRequest`、`Task` | `v1/kernel/engine/execution/api/` |
+## 本轮废弃
 
-以目录而非嵌套 asmdef 组织，是为了避免 asmdef 依赖图臃肿；C1 边界落在**模块层**（即 asmdef），不落在每个子目录。模块内部类用 C# `internal` 可见性在 asmdef 内强制封装。
+- `ExecutionUnit/`（上轮已 deprecated，本轮物理删）
+- `TaskRunner/`（**本轮新废弃**）——其「装 ContextProvider + 调 RunAsync + 写 Session」三步折入 `CbimTaskExecutor`；不走 Workflow 时调用者直接两行代码即可
 
-## Public Contract
+## Children
 
-```csharp
-public static class Engine
-{
-    BtResult Tick(string userRequest);                            // 新 tick
-    BtResult Resume(string tickId, object dispatchResult);         // 继续 yielded tick
-    IReadOnlyList<TickStatus> ListRunningTicks();
-    void Abort(string tickId, string reason);
-}
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `TaskScheduler/` | CbimTask 数据类定义家 | spec |
+| `FlowGraph/` | Microsoft.Agents.AI.Workflows 业务拓扑装配 + CbimTaskExecutor | spec |
+| `ContextProviders/` | CBIM 三大上下文 → Microsoft AIContextProvider 桥 | spec |
+| ~~`TaskRunner/`~~ | 本轮废弃，胶水折入 CbimTaskExecutor | deprecated |
+| ~~`ExecutionUnit/`~~ | 上轮废弃 | deprecated |
+
+## Child Relationships
+
+```mermaid
+flowchart TD
+    subgraph K["Kernel（驱动层 · 3 业务胶水子模块）"]
+        TS["TaskScheduler<br/>(CbimTask 数据类)"]
+        FG["FlowGraph<br/>(Microsoft Workflows 适配 +<br/>CbimTaskExecutor)"]
+        CP["ContextProviders<br/>(CBIM 上下文 → AIContextProvider)"]
+        FG --> TS
+        FG --> CP
+    end
+
+    MSW["Microsoft.Agents.AI.Workflows<br/>(Workflow / Executor / Edge /<br/>WorkflowHost / checkpoint)"]
+    MSA["Microsoft.Agents.AI<br/>(AIAgent / IChatClient /<br/>FunctionInvokingChatClient)"]
+    MSE["Microsoft.Extensions.AI<br/>(AIContextProvider / AIFunction)"]
+
+    AS["AgentSystem<br/>(装配 AIAgent + Session 写)"]
+    Mem["Memory"]
+    WS["Workspace"]
+
+    FG -.基于.-> MSW
+    FG -.调 RunAsync.-> MSA
+    FG -.写 Session.-> AS
+    CP -.实现.-> MSE
+    CP --> Mem
+    CP --> WS
+    CP --> AS
 ```
 
-`BtResult.Kind ∈ {Done, Yield, Error}`。当 `Yield` 时，host 读 `BtResult.DispatchRequest`（agent_type、agent_file、prompt、subtask_id、required_capability），然后按自己想要的方式跑那个 agent（在 Unity 里大概率是经场景侧适配器走 HTTP 调 LLM 提供商），再调 `Resume(tickId, dispatchResult)` 续跑。**契约形态与 Python 的 `bt_tick` / `bt_tick_resume` 完全相同。**
+**依赖单调**：`FlowGraph → {TaskScheduler, ContextProviders, AgentSystem}`；`ContextProviders → {Memory, Workspace, AgentSystem, TaskScheduler}`。反向严禁。
 
-## Dependencies
+## Origin Context
 
-- `CBIM.Memory`——CRUD 子循环的读写叶与 FlushMemory 动作经此调用。
-- `CBIM.Storage`——黑板 / resume / trace 持久化经此落盘。
-- `Core/` **不准用任何 Unity 引擎 API**（引擎必须能在纯 C# 的 Edit Mode 下测）；只有 `Persistence/` 与 `Api/` 才允许通过 Storage 间接触到 `Application.persistentDataPath`。
+「不造轮子」是 CBIM 顶层裁决——所有能用 Microsoft Agent Framework 生态替代的都替代，CBIM 只保留业务独有的业务胶水。上一轮 Kernel 已下沉 LLM 引擎 / 节点抽象 / 工具闭环；本轮发现 Microsoft.Agents.AI.Workflows 已提供完整业务工作流引擎，于是：
 
-## 铁律
+1. **FlowGraph 重写**：从「CBIM 自建 IFlowGraph + Next 路由」改为「Microsoft Workflows 适配 + CbimTaskExecutor」。
+2. **TaskRunner 砍掉**：其 ~30 行胶水折入 CbimTaskExecutor（本就是 Microsoft Executor 标准形态）。
+3. **SystemTools 砍掉**：所有 IO 工具交给 Microsoft.Extensions.AI AIFunction 生态（社区包覆盖文件 / 搜索 / 网页等）；Shell 因 net8-only 暂搁置。
 
-1. **节点对象 `self` 上不存任何跨 tick 状态。** 这条对齐 Python README §2。每个 tick 内部的局部变量没事，但活过 tick 的实例字段一律禁止。这条铁律是"组合节点能从 resume.json 重建"的根本前提。
-2. **`bb.RunnerResumePath` 的唯一写者是 Runner。** 组合节点读它来跳过已完成的子节点，**绝不**改它。
-3. **本模块不嵌 LLM 客户端**——与 Python 内核 PR-D 之后的形态一致。ModeClassify 只走规则（规则没命中即 "execution"）；任何 LLM 驱动的决策只发生在 yield 出去由外部 agent 完成的位点。
-4. **进程内子循环不准 yield。** MemoryCrud 是纯进程内子循环，**不走** Runner 往返。进程外的工作（ArchExecYield、DispatchWork、DispatchCoreAgent）通过设置 `bb.PendingDispatch` 并返回 `RUNNING` 来 yield。
+剩下的 3 件 CBIM 真正不可替代的事：
+- **CbimTask 数据形态**（who/where/what 三元组——CBIM 业务词汇）
+- **业务工作流装配**（ChatWorkflow / DispatchWorkflow 等业务拓扑——CBIM 业务知识）
+- **CBIM 上下文注入桥**（Workspace / Memory / Session 三个 Provider 实现——CBIM 服务层独有）
 
-## Implementation Order（本模块内部）
+## Emergent Insights
 
-对齐父模块整体顺序的第 3-5 步：
+1. **CbimTaskExecutor 是 CBIM 与 Microsoft 的唯一胶水点**——所有 `AIAgent.RunAsync` 调用与 Session 写入都汇集于此。这是 C5（共同重用）的极致落点：未来升级 Microsoft 包 / 接新 Provider / 加 telemetry 只动一处。
+2. **CBIM 在 Kernel 层不再发明任何抽象**——`IChatClient` / `AIAgent` / `Workflow` / `Executor` / `AIContextProvider` / `AIFunction` 全部直接采用 Microsoft 接口。CBIM 仅在「业务词汇」（CbimTask）、「业务拓扑」（业务 Workflow）、「业务上下文桥」（三 Provider）三件事上写代码。
+3. **「业务工作流引擎」也下沉了**——原本认为是 CBIM 独有的「FlowGraph 路由」，本轮裁决与 LLM 调用抽象同命：本质上是公共抽象，已有成熟实现。CBIM 保留的仅是「业务拓扑装配的具体内容」，不是「装配机制」。
+4. **`status: spec` 子模块仍是少数民族**——本轮 Kernel 三子模块均 spec 阶段，代码切片才进入 implemented。
 
-1. `Core/` 原语——Status、Node、Blackboard、Sequence、Selector、SwitchBranch、ForEach、LoopSeq、AlwaysSuccess。（装饰器下一步发。）
-2. `Core/` 装饰器——Trace、Timeout、Retry、Catch。
-3. `Core/Runner.cs` + `Persistence/`——快照 / resume / trace。
-4. `Execution/Actions/` 最小集——InitTick、ModeClassify、DirectReply、Respond。足够跑通对话分支。
-5. `Execution/Tree/BuildExecutionRoot.cs`——把上述节点装成 v3.5 拓扑。执行分支的叶（DispatchWork、ArchExecYield、ConvergeJudge、FlushMemory）此阶段先以 yield 桩件存在，由 host 在外部完成。
-6. `Execution/Loops/MemoryCrud.cs`——进程内子循环，接 `CBIM.Memory.MemoryService`。
-7. `Api/Engine.cs` + `BtResult` / `DispatchRequest` / `Task` 数据类——公共表面。
+## Dependencies（作为父模块）
 
-## Mirror in Python kernel
+Kernel 本模块本身不依赖任何同级模块——依赖下沉到子模块。**不提供父级门面**——不存在 `Kernel.Engine` 这样的总门面类型。上层 import 路径仅能指向 3 个子模块。
 
-按以下顺序读 Python 源码，即可定位每个 C# 部件的语义来源：
+## Non-Goals
 
-| C# 类 | Python 源文件 |
-|-------|--------------|
-| `Status`、`Node` | `v1/kernel/engine/core/node.py` |
-| `Blackboard` | `v1/kernel/engine/core/blackboard.py` |
-| `Sequence` / `Selector` / `LoopSeq` / `SwitchBranch` / `ForEach` / `AlwaysSuccess` / `ModeBranch` | `v1/kernel/engine/core/composite.py` |
-| `Trace` / `Timeout` / `Retry` / `Catch` | `v1/kernel/engine/core/decorator.py` |
-| `Runner` | `v1/kernel/engine/core/runner.py` |
-| `BuildExecutionRoot` | `v1/kernel/engine/execution/tree/main_loop.py` |
-| `Engine.Tick` / `Engine.Resume` | `v1/kernel/engine/execution/api/bt_tick.py` |
-| `BtResult` / `DispatchRequest` / `Task` | `v1/kernel/engine/execution/api/result.py` |
-| `MemoryCrud` 子循环 | `v1/kernel/engine/execution/loops/memory_crud.py` |
-
-这套 1:1 映射就是本模块的交付物：Python 与 C# 两套内核同步前进，`design/` 下的设计稿对两边同时适用。
+- **不提供 Kernel 级公共抽象**。
+- **不重新引入 LlmEngine / Pipeline / INode / IFlowGraph / IKernelEngine / ITaskRunner 任何抽象**。
+- **不自写业务工作流引擎**——Microsoft.Agents.AI.Workflows 是唯一执行底层。
+- **不自写工具调用闭环**——`FunctionInvokingChatClient` 已统一。
+- **不自写会话压缩**——Microsoft Compaction 策略。
+- **不自写 IO 工具层**——SystemTools 已整体废弃，交给 Microsoft.Extensions.AI AIFunction 生态。
+- **不描述 Microsoft Agent Framework 本身的抽象词汇**——这些是下游技术，不进入 .dna/。

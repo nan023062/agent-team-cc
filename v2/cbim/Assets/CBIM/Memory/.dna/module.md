@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-memory
 owner: architect
-description: Passive memory store: write / query / scan / get / stats. Depends only on Storage. Does NOT own any loop or timer — driven by Kernel's CRUD sub-loop.
+description: CBIM 记忆服务层（M 维度）。本轮大幅瘦身：Microsoft 已有 ChatHistoryProvider + Compaction + VectorData 整套生态。CBIM Memory 仅保留 AIContextProvider 的可装配后端实现（平文件 JSON 条目存储 + Query/Write CRUD 薄门面），用于被 CBIM 自己的 MemoryContextProvider 读。依赖仅 Storage。
 keywords: []
 dependencies: []
 status: spec
@@ -9,130 +9,115 @@ status: spec
 
 ## Positioning
 
-**记忆系统是 CBIM 的服务层（M 维度）—— 不是一个具体的存储实现，而是一个可扩展的服务门面。**
+**Memory 是 CBIM 的服务层（M 维度）——本轮大幅瘦身后退化为「业务胶水」：CBIM 独有的中期记忆条目（distill 后的事实 / 决策 / 原则）的扁平 JSON 存储与查询，被 `MemoryContextProvider` 读取后注入 Microsoft AIAgent。**
 
-对外：暴露统一的 CRUD 接口（write / get / query / scan / stats），允许外部世界注入记忆数据、访问记忆数据。所有调用方都只通过这一组接口看见记忆系统。
+## CBIM 核心对偶中的位置
 
-对内：可以抽象和扩展各种记忆库或算法——当前以「中期记忆扁平 JSON 条目」这一形态落地，未来可以增挂向量索引、关系图、分级缓存、远端同步等不同后端，全部隐藏在 `MemoryService` 门面之后。新增后端不破坏对外契约，老调用方零修改。
+Memory 是 CBIM 三大服务系统中**唯一不参与「能力 / 业务对偶」**的一个——它是**跨能力、跨业务、跨会话**的事实沉淀层：
 
-这套门面定位对应 CBIM 三大核心系统中的 **M（Memory）维度**。完整三系统切分见 v2 Unity 子树的根模块文档（`v2/cbim/Assets/CBIM/.dna/module.md` §「CBIM 三大核心系统」）。
+| 维度 | 服务层 | 关注边界 |
+|------|--------|----------|
+| 能力（C） | AgentSystem | 谁能动 |
+| 业务（B） | Workspace | 在哪里动、能动什么 |
+| **记忆（M）** | **Memory** | **跨上述两者的事实 / 决策 / 原则** |
 
-C# 移植起步只覆盖**中期记忆这一层**的存储后端落地。**MemoryService 不是 actor**：不持有定时器、不跑循环、不开后台线程。CRUD 子循环与治理子循环都归 `Kernel/`，本模块只负责响应那些循环发出的调用。
+**为什么 Memory 不走 MCP 动态注入模型**：
 
-对齐 `v1/kernel/memory/` 但做了坑缩：Python 那侧切了 `crud/` + `compaction/` + `jsonl_source/` 三个子目录；Unity 移植起步只发一个被动门面 + 单后端，compaction 与 jsonl_source 只在 Unity 侧真正出现需求时再以独立切片落地。
+- 动态注入模型（工具 / MCP 端点）按 Task 期装配——绑定 Module、仅本次 RunAsync 生效。这种模型对「工具」适用，因为工具的「能不能调」按业务边界划分。
+- 但记忆是**跨业务跨能力**的——一段事实在 Module A 里被 distill 出来，在 Module B 的会话里仍可能相关。如果按 Task 期装配，记忆就被切割成多个不连通的子集，违反记忆的本质。
+- 因此 Memory 走 **ContextProvider 主动按需读** 模式：`MemoryContextProvider` 实现 Microsoft `AIContextProvider`，在每次 LLM 调用前根据当前 query 主动检索 `Memory.Query(text, topK)`，把相关条目拼进上下文。
+- 这套模式由 Microsoft 抽象统一管理（token budget / 检索时机），CBIM Memory 服务层只暴露纯被动 CRUD + Query 门面，**完全无 Task / Module / Agent 感知**——这是它能成为「跨维度记忆」的前提。
 
-## Service-Layer Extension Model（服务层扩展模型）
+## 本轮重要变动：不再造记忆轮子
 
-记忆系统是服务层，不是存储实现。外部只看见门面，内部可以随需颠换后端。这是本模块最核心的架构约束。
+Microsoft 已提供以下能力，CBIM **不再重造**：
 
-```
-        外部世界（Kernel 子循环 / Unity 场景 / 外部工具）
-                              │
-                              ▼
-                  ┌────────────────────┐
-                  │   MemoryService    │  ←─唯一公共门面（C1 开闭原则）
-                  │   write / get /    │
-                  │   query / scan /   │
-                  │   stats            │
-                  └───────┬────────────┘
-                          │
-          ┌───────────────┼─────────────────┐    ←─ 内部可插拔后端
-          ▼               ▼                 ▼
-  扁平 JSON 后端     向量检索后端       未来：远端同步 / 关系图 /
-  （当前唯一实现）    （后续切片）          分级缓存 / 其他
-```
+| 已下沉到 Microsoft | 由哪个抽象 |
+|---|---|
+| 会话 transcript / thread 历史 | `Microsoft.Agents.AI.AgentThread` 与 `ChatHistoryProvider` |
+| 会话压缩 / summarization | Microsoft Compaction 策略 |
+| 向量检索 / 语义查询 | `Microsoft.Extensions.VectorData` + 各 VectorStore 实现 |
+| token-budget 合并 | `AIContextProvider` 内建 |
 
-**后端插拔原则**：
+CBIM Memory **只保留**：
+1. **中期记忆条目存储**——distill 后的 `MemoryEntry`（事实 / 决策 / 原则 / 过程），扁平 JSON 落到 `persistentDataPath/.cbim/memory/medium/`。这是 CBIM 独有的「跨会话浓缩事实」语义，Microsoft 不感知。
+2. **极薄 CRUD 门面**——Write / Get / Query / Scan / Stats 五方法，供 `MemoryContextProvider`（在 Kernel/ContextProviders/）读、以及治理子循环的 distill 作业写。
+3. **可选未来后端**——向量检索时直接 host Microsoft `IVectorStore`，不自写。
 
-1. **后端只实现内部接口 `IMemoryBackend`**，不暴露给外部调用方。
-2. **新增后端不允许拓宽公共门面。** 要补一个「按标签查」能力，先在 `Query` / `Scan` 参数上拓展，不开新方法。
-3. **后端之间不允许互相依赖。** 多后端共存时，以装配顺序 / 路由策略决定谁响应。
-4. **多后端路由由服务类本身决定**，不交给调用方。调用方从不需要知道「我现在查的是哪个后端」。
-5. **迁移 / 重建 / 同步** 走独立的内部接口 `IMemoryMaintenance`，只被 Kernel 治理子循环持有——这是 C4（接口隔离原则）。
+## Three-Layer Memory（重画）
 
-**存储实现路线图**（仅供设计参考，不是实现承诺）：
+| 层 | 形态 | 归属（本轮重画后） |
+|----|------|------------------|
+| 短期 | thread 历史 / chat transcript | **Microsoft AgentThread + ChatHistoryProvider**（CBIM 不再 host） |
+| 中期 | distill 后的 MemoryEntry | **本模块**（扁平 JSON）|
+| 长期 · 能力 · 类型/实例 | AgentDescription + AgentInstance | `AgentSystem/` |
+| 长期 · 能力 · 运行轨迹 | Session 事件流 | `AgentSystem/` 内置 |
+| 长期 · 业务 | ModuleDescription + Module 实例 | `Workspace/` |
 
-| 阶段 | 后端 | 场景 |
-|------|------|------|
-| 1（本切片） | 扁平 JSON | 单机 Unity、桌面原型 |
-| 2 | + 关键词 / 向量检索 | 中型记忆量，需要语义查询 |
-| 3 | + 远端同步（例如 SQLite / 云存储） | 多设备 / 多场景共享 |
-| 4 | + 分级缓存 / 热冷分离 | 高负载，只在被证实需要后才动 |
-
-**这与 Python 内核对齐**：那侧的 `v1/kernel/memory/_facade.py` 也是单一门面，未来如果需要加向量检索 / 远端同步，同样走「门面内部插拔后端」路子，不动公共门面。
-
-## Three-Layer Memory Architecture（三层记忆体系 · 完整定义）
-
-CBIM 把「记忆系统」的覆盖面划为三层。本模块当前只为中间一层提供存储后端；**以下表是三层记忆架构的唯一权威定义**，其他模块只能引用、不能重新解释：
-
-| 层 | 名称 | 形态 | Unity 侧归属 | Python 侧对照 |
-|----|------|------|--------------|--------------|
-| 1 | **短期记忆** | 当前会话 context（LLM transcript / 对话缓冲） | **不归本模块**——Unity 场景的 LLM host 适配层持有；进程内对象，不落盘 | Claude Code 原生 `~/.claude/projects/<slug>/*.jsonl`，亦不归 `v1/kernel/memory/` 拥有 |
-| 2 | **中期记忆** | session 压缩 / distill 后的持久条目（事实、决策、原则、过程） | **本模块** `MemoryService`，落到 `Application.persistentDataPath/.cbim/memory/medium/`（及 `candidates/`） | `v1/kernel/memory/`（medium + candidates） |
-| 3a | **长期记忆 · 能力维度** | 组织架构图谱：agent 能力、角色、关系 | **不归本模块**——由 `AgentSystem/` 服务门面承担，当前只读侧由 `AgentRegistry/` 落地 | `v1/kernel/cbi/agents/` + `.claude/agents/*.md` |
-| 3b | **长期记忆 · 业务维度** | 模块知识图谱：`.dna/` 模块树 + 模块间依赖 | **不归本模块**——由 `Workspace/` 服务门面承担，当前只读侧由 `Dna/` 落地 | `v1/kernel/cbi/_primitives/dna/` + 各模块 `.dna/`，由 `dna_*` MCP 工具读写 |
-
-**三层之间的流动**：短期→中期走 distill（会话结束时提炼事实）；中期→长期走知识提升（architect / hr 在治理循环里把中期条目提炼进 `.dna/` 或 `.claude/agents/`）。这两条流动都是跨模块工作流，不在任一记忆模块内部完成。
-
-**铁律**：本模块只读写 `medium/` 与 `candidates/` 两个目录下的扁平 JSON 条目（或未来内部扩展的等价后端）。不持有 agent 元数据、不持有模块依赖图、不暴露图查询接口。任何「能力图」或「模块图」的需求都要在 `Memory/` **之外**新开模块，不准把它们的 schema 塑进 `MemoryEntry`。
-
-这套切分对齐 Python 内核：那侧 `v1/kernel/memory/` 同样只管 medium + candidates，能力与业务两张图各自有独立顶层。Unity 移植不要在这个边界上发明新形态。
+> **变动**：上轮短期记忆「不归 CBIM」的说法本轮**显式化为「归 Microsoft」**——AgentThread + ChatHistoryProvider 是 Microsoft 标准抽象，CBIM 不需要为短期记忆操心。
 
 ## Responsibility（一句话）
 
-对外暴露中期记忆的统一 CRUD 门面；对内可插拔后端实现；**不持有任何流控**。
+提供中期记忆条目的统一 CRUD + Query 门面；条目以扁平 JSON 落盘；供 `MemoryContextProvider` 读、distill 作业写。**不再扩展为通用记忆系统**。
 
-## Contract Surface（规划）
+## Contract Surface
 
-暴露一个公共类 `MemoryService`，承载五个方法。全部同步——批量 / 节流是调用方的事。
+```csharp
+namespace CBIM.Memory;
 
-| 方法 | 用途 |
-|------|------|
-| `void Write(MemoryEntry entry)` | 落盘一条；tier 从 entry 推断 |
-| `MemoryEntry Get(string id)` | 按 id 查；不存在返回 null |
-| `IReadOnlyList<MemoryEntry> Query(string text, int topK, string tierFilter)` | 自由文本检索；拓扑对齐 Python `memory_query` |
-| `IReadOnlyList<MemoryEntry> Scan(MemoryScanFilter filter)` | 结构化过滤（source / tier / 日期区间） |
-| `MemoryStats Stats()` | 计数、上次 distill 摘要、健康指标 |
+public sealed class MemoryService
+{
+    void Write(MemoryEntry entry);
+    MemoryEntry? Get(string id);
+    IReadOnlyList<MemoryEntry> Query(string text, int topK);    // 关键词检索；未来可挂 Microsoft VectorStore
+    IReadOnlyList<MemoryEntry> Scan(MemoryScanFilter filter);
+    MemoryStats Stats();
+}
 
-维护接口（`Compact()` / `Sweep()` / `RebuildIndex()`）**独立**于公共 CRUD 表面，通过内部接口 `IMemoryMaintenance` 暴露——只有 Kernel 的治理子循环持有它。这是 C4（接口隔离原则）：CRUD 调用方不会**意外**触发维护操作。
-
-后端契约（内部）：`IMemoryBackend` —— `Write` / `Get` / `Scan` / `Query` / `Stats` 五对应方法 + 路由提示（例如 `Supports(MemoryScanFilter)`）。后端互不感知，互不依赖；多后端编排由 `MemoryService` 装配根决定。
-
-## Storage Layout（规划）
-
-第一阶段「扁平 JSON 后端」落到 `Application.persistentDataPath/.cbim/memory/` 之下：
-
-```
-memory/
-  short/      ← 手记条目（用户手写的笔记）
-  medium/     ← distill 后的条目
-  candidates/ ← compaction 工作区（后续切片）
-  index.json  ← 索引
+public sealed record MemoryEntry(
+    string Id,
+    string Source,           // "distill" / "manual" / ...
+    DateTime CreatedAt,
+    string Text,
+    IReadOnlyList<string> Tags);
 ```
 
-与 Python `v1/kernel/memory/` 的布局对齐——这样未来跨运行时的工具能同时读两边。单条记忆的 schema 由 `MemoryEntry` 定义（数据类，字段 `id` / `tier` / `source` / `created_at` / `text` / `tags`）。
+**砍掉的接口**：
+- 多 tier / short tier（短期归 Microsoft AgentThread）
+- 维护接口（`Compact` / `Sweep` / `RebuildIndex`）—— Microsoft Compaction 策略接管
+- 多后端插拔模型（保留「未来可挂 Microsoft VectorStore」一行路径，但本轮不抽象 `IMemoryBackend` 接口）
 
-后续后端（向量索引 / 远端同步 / 分级缓存）有各自的落地路径，由各自的后端实现决定；公共门面对此无感。
+## Storage Layout
+
+```
+Application.persistentDataPath/.cbim/memory/
+  medium/<id>.json    ← MemoryEntry 一文件
+  index.json          ← id → 文件路径 + 摘要
+```
+
+无 `short/` / `candidates/` 目录——前者归 Microsoft，后者属未来 distill 作业话题。
 
 ## Dependencies
 
-- `CBIM.Storage`——用于原子写、JSON 序列化、路径解析。
-- **此外什么都不依赖。** Memory 不准引用 Kernel、不准引用 AgentRegistry、不准引用 Dna、不准引用 AgentSystem / Workspace——asmdef 层面强约束。
+- `CBIM.Storage`——原子写、JSON。
+- **不依赖** Kernel / AgentSystem / Workspace——服务层互不依赖。
 
 ## 铁律
 
-- Service 对象没有 `Update()`、没有 `StartCoroutine`、不开 `Task.Run` 做后台。每个公共方法**同步返回**。调用方要异步——调用方自己包，不是本模块的事。
-- **公共门面是 `MemoryService`，是唯一的对外面**。任何后端实现细节不得泄露为公共类型。
-- **新增后端走「门面内部插拔」**，不允许通过"另开一个 Service"绕过门面。
+- **不持短期记忆**——AgentThread / ChatHistoryProvider 是 Microsoft 职责。
+- **不写 Compaction**——Microsoft 接管。
+- **不写向量检索**——未来需要直接挂 `Microsoft.Extensions.VectorData` 的 IVectorStore 实现，不自抽象。
+- **不持能力 / 业务图谱**——是 AgentSystem / Workspace 的事。
+- **同步方法**——异步调用方自己包。
 
-## Mirror in Python kernel
+## Origin Context
 
-Python 对应物是 `v1/kernel/memory/_facade.py`。C# 移植保持同样的五方法公共表面——`design/WORKFLOW-MEMORY.zh-CN.md` 这份设计稿对两边逐条适用。差异：Unity 侧暂无 jsonl_source 子后端（Claude Code 的 session JSONL 在 Unity 上下文中根本不存在）；也暂无 compaction。
+上一轮 Memory 设计为「服务门面 + 可插拔后端」全功能架构，预留多 tier、维护接口、IMemoryBackend 抽象。本轮裁决：CBIM 在记忆层无业务独有价值（除「跨会话浓缩的 MemoryEntry 这一种东西」），所有通用能力交给 Microsoft。门面退化为「MemoryEntry 的 CRUD」+ 一份将来挂 VectorStore 的连接点。
 
-## 不干的事（Non-Goals）
+## Non-Goals
 
-- **不持有短期记忆。** 会话 context 是 LLM host 适配层的事；MemoryService 不提供「追加一轮对话」这类接口。
-- **不持有能力图谱（长期记忆 / 能力维度）。** agent 能力、角色、关系由 `AgentSystem/` 门面承担，当前读侧由 `AgentRegistry/` 落地。本模块不接受 `entry.kind == "agent"` 这类隐式多态使用。
-- **不持有业务图谱（长期记忆 / 业务维度）。** `.dna/` 模块树与依赖图由 `Workspace/` 门面承担，当前读侧由 `Dna/` 落地。本模块不读写 `.dna/` 下任何文件。
-- **不是检索引擎。** 向量检索 / BM25 是后端实现细节，何时上线由路线图决定；公共门面无感。
+- 不实现 Compaction / Sweep / RebuildIndex。
+- 不实现向量检索本身——未来挂 Microsoft VectorStore。
+- 不抽象 IMemoryBackend——本模块就是「直接 Storage 后端」，未来若需多后端走「门面装 IVectorStore」即可。
+- 不持有 agent / module 图谱。
 
