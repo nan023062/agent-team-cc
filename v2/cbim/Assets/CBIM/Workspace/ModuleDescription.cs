@@ -10,7 +10,7 @@ namespace CBIM.Workspace
     /// 模块描述（ModuleDescription）——CBIM 业务维度的核心对象。
     /// 一份 ModuleDescription 对应一种业务工作区类型（不是实例），声明：
     ///   - 它是什么业务（Id / Name）
-    ///   - 它的业务知识在哪（Dna）
+    ///   - 它的业务知识在哪（Metadata）
     ///   - 它支持哪些业务流程（Workflows = SkillDescriptor 在业务语境下的别名）
     ///   - 它有哪些业务专属工具（Tools，可选）
     ///   - 它的业务操作接入点（McpList，类型与 Agent 的 McpList 同抽象）
@@ -18,7 +18,7 @@ namespace CBIM.Workspace
     ///
     /// 与 AgentSystem.AgentDescription 完全对称：
     ///   AgentDescription（能力单位）= Soul + Skills + SystemTools + McpList
-    ///   ModuleDescription（业务区）  = Dna  + Workflows + Tools + McpList + Owners
+    ///   ModuleDescription（业务区）  = Metadata + Workflows + Tools + McpList + Owners
     ///
     /// 三大基础能力抽象（Tool / Skill / Mcp）跨维度共享：
     ///   - 都定义在 CBIM/Tools, CBIM/Skills, CBIM/Mcp 顶层模块
@@ -26,14 +26,14 @@ namespace CBIM.Workspace
     ///   - 业务侧用：ModuleDescription.Tools     / Workflows / McpList
     ///
     /// 关键设计原则：
-    ///   1. Dna 是纯知识载体（文档 / spec），不夹带操作协议
+    ///   1. Metadata 是纯知识载体（文档 / spec），不夹带操作协议
     ///   2. Workflow 是业务流程**语义声明**，本质就是 SkillDescriptor，业务语境下叫"工作流"
     ///   3. McpList 是业务的**操作接入点**——和 Agent.McpList 同抽象同类型
     ///   4. Tools 是业务专属的内置工具（如 CDN 业务可绑专门的 CDN AIFunction 包装）
     ///
     /// 任务装配时：
     ///   Task = Agent + ModuleList(ModuleDescription[]) + Requirement
-    ///   ContextProviders 读 ModuleDescription.Dna 注入 agent 上下文（业务知识）
+    ///   ContextProviders 读 ModuleDescription.Metadata 注入 agent 上下文（业务知识）
     ///   AgentSystem.OpenInstance 合并：
     ///     Agent.SystemTools + Module.Tools（去重）→ ChatOptions.Tools 一部分
     ///     Agent.Skills + Module.Workflows → ContextProvider 注入
@@ -44,7 +44,7 @@ namespace CBIM.Workspace
     ///   new ModuleDescription(
     ///     id: "cdn-storage-prod",
     ///     name: "生产 CDN 存储",
-    ///     dna: new LocalModuleDna(".dna/module.md"),
+    ///     metadata: new LocalModuleMetadata(".dna/module.md"),
     ///     workflows: [upload, download, query],
     ///     mcpList: [
     ///       new HttpMcpDescriptor("cdn-mcp", "CDN MCP", "操作 CDN",
@@ -65,10 +65,10 @@ namespace CBIM.Workspace
 
         /// <summary>
         /// 业务知识 DNA（纯知识载体）。
-        /// LocalModuleDna：本地 .dna/module.md 文档；
-        /// RemoteModuleDna：远端业务文档 / spec endpoint。
+        /// LocalModuleMetadata：本地 .dna/module.md 文档；
+        /// RemoteModuleMetadata：远端业务文档 / spec endpoint。
         /// </summary>
-        public ModuleDna Dna { get; }
+        public ModuleMetadata Metadata { get; }
 
         /// <summary>
         /// 业务流程列表（本质是 SkillDescriptor，业务语境下叫"工作流"）。可为空。
@@ -99,7 +99,7 @@ namespace CBIM.Workspace
         public ModuleDescription(
             string id,
             string name,
-            ModuleDna dna,
+            ModuleMetadata metadata,
             IReadOnlyList<SkillDescriptor> workflows = null,
             IReadOnlyList<ToolDescriptor> tools = null,
             IReadOnlyList<McpDescriptor> mcpList = null,
@@ -109,12 +109,12 @@ namespace CBIM.Workspace
                 throw new ArgumentException("ModuleDescription.Id 不能为空", nameof(id));
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("ModuleDescription.Name 不能为空", nameof(name));
-            if (dna == null)
-                throw new ArgumentNullException(nameof(dna), "ModuleDescription.Dna 不能为空——business module 必须有业务知识载体");
+            if (metadata == null)
+                throw new ArgumentNullException(nameof(metadata), "ModuleDescription.Metadata 不能为空——business module 必须有业务知识载体");
 
             Id = id;
             Name = name;
-            Dna = dna;
+            Metadata = metadata;
             Workflows = workflows ?? Array.Empty<SkillDescriptor>();
             Tools = tools ?? Array.Empty<ToolDescriptor>();
             McpList = mcpList ?? Array.Empty<McpDescriptor>();
@@ -122,6 +122,6 @@ namespace CBIM.Workspace
         }
 
         public override string ToString() =>
-            $"ModuleDescription({Id}, dna={Dna.Kind}, workflows={Workflows.Count}, tools={Tools.Count}, mcp={McpList.Count}, owners={(Owners?.ToString() ?? "<unassigned>")})";
+            $"ModuleDescription({Id}, meta={Metadata.Kind}, workflows={Workflows.Count}, tools={Tools.Count}, mcp={McpList.Count}, owners={(Owners?.ToString() ?? "<unassigned>")})";
     }
 }

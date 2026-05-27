@@ -55,7 +55,7 @@ CBIM 把「软件中的角色」分成两个正交维度，并以两套独立服
 | 字段 | 类比 |
 |------|------|
 | `WorkspaceRoot` | **办公位位置** —— 哪间办公室哪张桌子 |
-| `Description.Dna` | **工作资料 + 操作说明** —— 贴在墙上的规章 |
+| `Description.Metadata` | **工作资料 + 操作说明** —— 贴在墙上的规章 |
 | `Description.Workflows` | **工作流程** —— 标准作业流程清单 |
 | `Description.Tools` | **办公设备** —— 打印机 / 扫描仪 / 专用屏 |
 | `Description.McpList` | **接入业务系统** —— 连企业 ERP / CDN 控制台 |

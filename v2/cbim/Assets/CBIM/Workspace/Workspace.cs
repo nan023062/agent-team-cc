@@ -26,7 +26,7 @@ namespace CBIM.Workspace
     ///   4. 释放实例时清理本地状态（无外部资源需关）
     ///
     /// 不做的事（其他模块的责任）：
-    ///   - Dna 内容读取 → 由 Kernel/ContextProviders.WorkspaceContextProvider 按需读
+    ///   - Metadata 内容读取 → 由 Kernel/ContextProviders.WorkspaceContextProvider 按需读
     ///   - Module 的 Tools/Mcp 实例化 → 由 AgentSystem.OpenInstance 在装配 Agent 时合并
     ///   - Owners 解析（开发/审计派给谁）→ 由派发器（未来 TaskRunner）按 fallback 规则处理
     /// </summary>
@@ -80,7 +80,7 @@ namespace CBIM.Workspace
         /// 激活一个 Module：把 ModuleDescription 绑定到具体工作区根路径。
         ///
         /// 不做任何 IO 操作——纯数据组装。
-        /// 如需读 Dna 内容、扫描文件，由 ContextProvider 按需进行（不在激活时做）。
+        /// 如需读 Metadata 内容、扫描文件，由 ContextProvider 按需进行（不在激活时做）。
         /// </summary>
         /// <param name="descriptionId">要激活的 ModuleDescription Id。</param>
         /// <param name="workspaceRoot">本次激活的绝对工作区根路径（沙盒根）。</param>
