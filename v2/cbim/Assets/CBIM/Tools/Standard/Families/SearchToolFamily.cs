@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.FileSystemGlobbing;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // Search 工具族——纯 C# 实现的 Grep + Glob，不启动外部进程。
     //

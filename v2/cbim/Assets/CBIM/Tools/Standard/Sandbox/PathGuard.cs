@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // 路径规范化 + 沙箱包含性校验。
     //

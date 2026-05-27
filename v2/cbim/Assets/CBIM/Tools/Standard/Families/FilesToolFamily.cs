@@ -7,7 +7,7 @@ using System.Text.Json;
 using CBIM.Storage;
 using Microsoft.Extensions.AI;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // Files 工具族——5 个工具，让 agent 检视并修改沙箱内文件系统。
     // 所有入口都先把 path 参数过一遍 PathGuard；越界尝试会以

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using CBIM.Storage;
 using Microsoft.Extensions.AI;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // 无状态门面：把一组族名 + 沙箱转成一份扁平的 AIFunction 列表。
     // 没有任何可变静态状态——可以在任意线程并发调用。

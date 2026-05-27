@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // 不可变的、按模块隔离的沙箱描述符。承载路径前缀白名单
     // 以及每个工具族都会用到的若干硬性上限。

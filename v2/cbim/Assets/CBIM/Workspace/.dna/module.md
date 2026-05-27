@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-workspace
 owner: architect
-description: 业务模块系统（CBIM 的 B 维度）服务层门面：管理所有实例化的 Module 与 ModuleDescription（模块类型描述）。核心内容 = 业务工作流程 + 领域知识。本轮修正：剥离上一轮误放在 ModuleDescription 上的 standard_tools / external_mcp_servers 字段（工具属能力维度，归 AgentDescription）；StandardTools 子模块迁出至 AgentSystem。
+description: 业务模块系统（CBIM 的 B 维度）服务层门面。ModuleDescription 四段式：Dna（是什么）+ Workflows[SkillDescriptor]（能做什么）+ Tools/McpList（怎么做）+ Owners（谁来做）。三大基础能力抽象（Tool/Skill/Mcp）已提为顶层模块（CBIM.Tools/Skills/Mcp），Workspace 跨维度引用三者，依赖方向单向不反向。
 keywords: []
 dependencies: []
 status: spec
@@ -11,7 +11,7 @@ status: spec
 
 **业务模块系统是 CBIM 的服务层（B 维度）——本轮保留**：CBIM 的 `Module + ModuleDescription` 是项目独有业务知识，Microsoft 不提供等价物。
 
-**业务维度的核心内容 = 工作流程 + 领域知识**。不包含工具声明——工具是能力维度（`AgentSystem`）的责任。
+**业务维度的核心内容 = 工作流程 + 领域知识 + 业务操作接入点**。工具仍不在业务维度——工具是能力维度（`AgentSystem`）的责任。但业务维度可以有自己的 **MCP 接入点**——描述业务本身的外部端点（云服务 / SaaS 接入点），与 agent 能不能调用那端点是两件事。
 
 ## CBIM 核心对偶中的位置
 
@@ -19,24 +19,202 @@ Workspace 与 AgentSystem 是一对正交服务层：
 
 | 维度 | 本服务层 | 对偶服务层 | 本维度的内容 |
 |------|---------|----------|--------------|
-| **业务（Business）** | **Workspace**——管理「业务工作区」 | — | **工作流程 + 领域知识** |
+| **业务（Business）** | **Workspace**——管理「业务工作区」 | — | **工作流程 + 领域知识 + 业务 MCP 接入点** |
 | **能力（Capability）** | — | **AgentSystem**——管理「能力个体」 | **工具 + skill + 专精领域** |
 
-二者**结构对称**：都以 `Description`（类型描述，落项目知识树）+ `Instance`（实例运行态，落 persistentDataPath）二元结构组织；都直接依赖 Storage；都不互相依赖；跨维度协同由 Kernel.FlowGraph 在 Task 期组合。
+二者**结构对称**：都以 `Description`（类型描述）+ `Instance`（实例运行态）二元结构组织；都直接依赖 Storage；都不互相依赖；跨维度协同由 Kernel.FlowGraph 在 Task 期组合。
 
-**关键约束（本轮修正）**：
+**唯一跨维度共享抽象（本轮重点）**：`McpDescriptor`——业务维度 `ModuleDescription.McpList` 与能力维度 `AgentDescription.McpList` 同类型。Workspace 上向引用 `CBIM.AgentSystem.Mcp.McpDescriptor`，依赖方向 `Workspace → AgentSystem.Mcp`（Workspace 是更易变的业务层，Mcp 是更稳定的能力扩展层，符合 C3 单向依赖）。
 
-- 上一轮设计把 `standard_tools` / `external_mcp_servers` 放在 `ModuleDescription`——**错。本轮全部删除**。
-- 工具能力 / MCP 端点的声明权**属于能力维度**——`AgentDescription.tools` + `AgentDescription.agent_extension_clis`。
-- 本服务层**只负责业务语义**：module 是什么业务、上下间有什么依赖 / 包含关系、该业务块上需要什么领域知识 / 走什么工作流程。「该 module 活动时装哪些工具」**不在本服务层描述**。
+## ModuleDescription 三段式语义（本轮重要）
 
-## Responsibility（一句话）
+```csharp
+public sealed class ModuleDescription
+{
+    public string Id { get; }
+    public string Name { get; }
 
-管理 `.dna/` 模块树（ModuleDescription）+ 业务侧 Module 实例运行态；为 `WorkspaceContextProvider` 提供数据；为 architect 治理工作流提供读侧 + 后续写侧。
+    // 是什么：业务知识 DNA（纯知识载体）
+    public ModuleDna Dna { get; }
+
+    // 能做什么：业务流程语义声明
+    public IReadOnlyList<Workflow> Workflows { get; }
+
+    // 怎么做：业务操作接入点 MCP（跨维度共享抽象）
+    public IReadOnlyList<McpDescriptor> McpList { get; }
+
+    // 谁来做：模块负责人编制（可为 null —— 缺省走 LLM 自动匹配）
+    public ModuleOwners Owners { get; }
+}
+```
+
+本轮**新增第四段「谁来做」**——`Owners`。三段式正式升为**四段式**：
+
+| 段 | 字段 | 语义 | 类比 |
+|----|------|------|------|
+| 是什么 | `Dna` | 业务知识载体 | 项目说明书 |
+| 能做什么 | `Workflows` | 业务流程语义声明 | 项目里能开哪些工单类型 |
+| 怎么做 | `McpList` | 业务操作接入点 | 项目自带的工具 / API endpoint |
+| **谁来做** | **`Owners`** | **模块人事编制** | **项目第一负责人 + 审计负责人** |
+
+四段式对照 AgentDescription：
+
+| 维度 | 是什么 | 能做什么 | 怎么做 | 谁来做 |
+|------|------|---------|------|------|
+| AgentDescription（能力）| Soul + Identity | Skills | SystemTools + McpList | — |
+| ModuleDescription（业务）| Dna（文档）| Workflows（流程声明）| McpList（操作接入点）| **Owners（负责人编制）** |
+
+注意「谁来做」这一段只业务侧有——因为能力侧自己就是「谁」，不需要再指向另一个谁；业务侧反向引用能力侧的 `AgentDescription.Id` 即把「谁」明示出来。
+
+四者责任边界：
+
+1. **`Dna` 是纯知识载体**——只描述「是什么 / 规则 / SLA」，不夹带任何操作协议。
+2. **`Workflows` 是业务流程语义声明**——执行实例由 Kernel/FlowGraph 装配。
+3. **`McpList` 是业务操作接入点**——与 Agent.McpList 同抽象同类型，但**语义归属不同**（业务自带跟业务走；agent 自带跟人走）。
+4. **`Owners` 是模块人事编制**——可空 + 字段可空，缺失走 LLM 自动匹配 + 警告。详见「模块负责人编制」节。
+
+## McpDescriptor 跨维度共享（本轮重点裁决）
+
+**`AgentDescription.McpList: IReadOnlyList<McpDescriptor>` 与 `ModuleDescription.McpList: IReadOnlyList<McpDescriptor>` 是同一份抽象**：
+
+- 同抽象类（`CBIM.AgentSystem.Mcp.McpDescriptor`）。
+- 同两子类实例类型（`StdioMcpDescriptor` / `HttpMcpDescriptor`）。
+- 同 `McpTransportKind` 枚举。
+
+**语义归属不同**：
+
+| 使用侧 | 语义 | 典型例 |
+|--------|------|--------|
+| `AgentDescription.McpList`（能力维度）| **跟人走**——agent 自带的 MCP，装配 AIAgent 时启。例：git-mcp（agent 会用 git）。| `unity-programmer` agent 要 `unity-mcp` |
+| `ModuleDescription.McpList`（业务维度）| **跟业务走**——业务模块本身的外部端点，同业务上下文生命周期。例：cdn-prod-mcp（这个具体 CDN 实例的接入点）。| `cdn-storage-prod` module 有 `cdn-prod-mcp` |
+
+**为什么共享**：MCP server 本质是「一个可调工具集的外部端点」——无论 agent 自带还是 business 自带，server 本身的形态（command/args/env 或 endpoint/auth）完全一致。共享同一份描述类比双份定义更简洁。
+
+**装配位置不同**（同 descriptor，不同上下文）：
+
+- `AgentDescription.McpList` → `AgentSystem.OpenInstance` 装配 AIAgent 时启动 + 包 AIFunction → 挂 AIAgent.Tools。
+- `ModuleDescription.McpList` → 业务 Workflow / Kernel.ContextProviders 装配时按需启动 + 包 AIFunction → 挂当前 task 上下文（具体装配点由 Kernel/ContextProviders 切片决定）。
+
+
+## 模块负责人编制（本轮新增）
+
+**类比真实团队的项目工单制度**——每个 module 是一个项目，项目有**第一负责人（开发）** + **第二负责人（审计）**。`ModuleOwners` 抽象该制度。
+
+```csharp
+public sealed class ModuleOwners
+{
+    public string Primary { get; }    // 开发负责人：AgentDescription.Id 字符串引用
+    public string Secondary { get; }  // 审计负责人：AgentDescription.Id 字符串引用
+    public bool HasPrimary { get; }
+    public bool HasSecondary { get; }
+}
+```
+
+### 关键设计点
+
+1. **字符串引用 `AgentDescription.Id`**——不持 AgentDescription 实例，**避免业务侧 → 能力侧的反向 C# 依赖**。跨服务层引用仅限 `AgentSystem.Mcp.McpDescriptor` 一条；`AgentDescription.Id` 为字符串引用不计作 C# 依赖边。
+2. **forward reference 允许**——引用一个尚不存在的 agent id 不报错，派发时再校验（错不存在走 LLM 自匹配 + ERROR 警告）。
+3. **可空 + 双层 fallback**：整个 `Owners` 可空；Primary / Secondary 各自可空。
+4. **派发时 task.Who 明指可覆盖 owner**：`Task = Agent + ModuleList + Requirement` 中的 Agent 字段如被调用方明指，owner 只作为「默认派发对象」，覆盖时 emit info 日志，不阻塞。
+
+### fallback 警告级别表（派发器层责任）
+
+派发器（未来的 `TaskRunner` / `DispatchWorkflow`）在读取 `ModuleOwners` 后按以下级别 emit 警告：
+
+| Owners 状态 | fallback 行为 | 警告级别 | 语义 |
+|--------------|---------------|-----------|------|
+| `Owners == null`（整个字段未设）| LLM 同时自动匹配开发 + 审计两位 agent | ⚠️ **ERROR-style** | 模块完全未指派人，是架构部署中的明显缺口——应在部署后立即补齐 |
+| `Owners != null` 且 `Primary == null` | LLM 自动匹配开发 agent | ⚠️ **WARNING** | 开发负责人是任务主路的执行者，缺失会明显影响可预测性 |
+| `Owners != null` 且 `Secondary == null` | LLM 自动匹配审计 agent | ⚠️ **INFO** | 审计负责人是质量门，缺失可接受；提示建议补齐 |
+| `Owners != null` 且 Primary/Secondary 均有 | 直接走 owner | 无警告 | 理想状态 |
+| `task.Who` 明指覆盖 owner | 走 `task.Who` | INFO（派发记录）| 给调用方保留灵活性，但记入 Session 供审计 |
+
+**警告 emission 点 = 派发器层**——本服务层（Workspace）只持 `ModuleOwners` 数据，**不 emit 警告**。警告走派发器（TaskRunner / DispatchWorkflow）是因为：
+
+- 只有派发时才能看到「本次 task.Who 是否覆盖」。
+- 只有派发时才有上下文拼接「LLM 自动匹配了哪个 agent」。
+- Workspace 读侧不绑会话，emit 警告不到位。
+
+警告不阻塞执行——是渐进约束制：落地阶段允许「待定」逐步补齐，不强制一步到位。
+
+### CDN 示例（含 Owners）
+
+```csharp
+new ModuleDescription(
+    id: "cdn-storage-prod",
+    name: "生产 CDN 存储",
+    dna: new LocalModuleDna(".dna/module.md"),
+    workflows: [upload, download, query],
+    mcpList: [new HttpMcpDescriptor("cdn-mcp", ...)],
+    owners: new ModuleOwners(
+        primary:   "backend-programmer",   // 开发责任
+        secondary: "sre-auditor"));         // 审计责任
+```
+
+默认 dispatch 走 `backend-programmer`，audit 阶段走 `sre-auditor`；Session 记 `owner_resolution=explicit`。
+
+### 设计意图
+
+Owners 是「人 / module 绑定」的明示化：Task 三元组 `Agent + ModuleList + Requirement` 中的 agent 是调用方临时指定的；加 `Owners` 后，**业务 module 本身携带「默认项目人」**——调用方可以不必每次重复指定「这个 CDN 模块谁来处理」；同时保留 task.Who 覆盖能力以应对临时调度。
+
+## ModuleDna 是纯知识载体（本轮裁决）
+
+**`ModuleDna` 退化为纯文档 / spec 载体**，不再夹带任何业务操作协议字段：
+
+```csharp
+public enum ModuleDnaKind { Local, Remote }
+
+public abstract class ModuleDna
+{
+    public abstract ModuleDnaKind Kind { get; }
+    public abstract string Location { get; }   // Local: filepath；Remote: endpoint URL
+}
+
+public sealed class LocalModuleDna : ModuleDna   // .dna/module.md 本地文档
+{
+    public string FilePath { get; }
+    public override ModuleDnaKind Kind => Local;
+    public override string Location => FilePath;
+}
+
+public sealed class RemoteModuleDna : ModuleDna  // 远端 spec endpoint（云工作区的知识载体）
+{
+    public string Endpoint { get; }
+    public string AuthToken { get; }
+    public override ModuleDnaKind Kind => Remote;
+    public override string Location => Endpoint;
+}
+```
+
+**上一轮 ModuleDna.Protocol 字段删除**——原「Remote 云模块的 MCP 协议声明」迁出到 `ModuleDescription.McpList`。RemoteModuleDna 只持远端文档 endpoint + AuthToken（不是操作 MCP，是文档 / spec 读侧服务表为例）。
+
+**「云工作区」设计意图**：
+
+- 一个 Module 在 CBIM 系统里可以只是一些「声明」（基本元信息 + 远端文档指针）。
+- 真实业务知识在远端服务上托管（如内部 wiki / OpenAPI 文档服务 / spec registry）。
+- CBIM 启动时不必本地保存所有 module 文档，按需远端拉取。
+- **注意**：业务**操作**走 `ModuleDescription.McpList`，不走 Dna。Dna 只负责描述「什么业务 / 规则 / 领域知识」。
+
+## CDN 业务示例（完整三段式）
+
+```csharp
+new ModuleDescription(
+    id: "cdn-storage-prod",
+    name: "生产 CDN 存储",
+    dna: new LocalModuleDna(".dna/module.md"),   // 这个 CDN 业务是什么、规则、SLA
+    workflows: [upload, download, query],         // 业务流程语义
+    mcpList: [
+        new HttpMcpDescriptor("cdn-mcp", "CDN MCP", "操作 CDN",
+            endpoint: "https://cdn.example.com/mcp",
+            authToken: "...")                     // 实际操作接入点
+    ]);
+```
+
+三者各只有一个职责，不交叉不覆盖。
 
 ## Children
 
-本轮无子模块（上一轮新增的 `StandardTools/` 本轮迁出到 `AgentSystem/StandardTools/`——工具归能力维度）。
+本轮无子模块（上一轮新增的 `StandardTools/` 上一轮已迁出到 `AgentSystem/StandardTools/`——工具归能力维度）。
 
 ## Child Relationships
 
@@ -44,31 +222,55 @@ Workspace 与 AgentSystem 是一对正交服务层：
 
 ```mermaid
 flowchart TD
-    WS["WorkspaceService<br/>(ModuleDescription 读侧 + 实例索引)"]
+    WS["WorkspaceService\n(ModuleDescription 读侧 + 实例索引)"]
+    MD["ModuleDescription\n(Id + Name + Dna + Workflows + McpList + Owners)"]
+    DNA["ModuleDna\n(Local: filepath\nRemote: endpoint + auth)"]
+    WF["Workflow\n(业务流程语义)"]
+    OWN["ModuleOwners\n(Primary + Secondary\n= AgentDescription.Id 字符串)"]
+    MCP["AgentSystem.Mcp.McpDescriptor\n(跨维度共享抽象)"]
     Storage["CBIM.Storage"]
     WCP["Kernel.ContextProviders.WorkspaceContextProvider"]
 
+    WS --> MD
+    MD --> DNA
+    MD --> WF
+    MD --> OWN
+    MD -- 跨维度引用 --> MCP
+    OWN -. 字符串反向引用\nAgentDescription.Id .-> MCP
     WS --> Storage
     WCP -. 读 ModuleDescription / 实例 .-> WS
 
     classDef self fill:#fffbe6;
-    class WS self;
+    classDef cross fill:#e0f0ff;
+    classDef strref fill:#f5f0ff;
+    class WS,MD,DNA,WF,OWN self;
+    class MCP cross;
 ```
+
+依赖方向：Workspace → `CBIM.AgentSystem.Mcp`（唯一反向跨服务层 C# 依赖——Mcp 不反向引 Workspace）。
+
+**`ModuleOwners` 对 `AgentDescription.Id` 是字符串反向引用**——不计作 C# 依赖（运行期由派发器查表），跨服务层 C# 类型依赖仍只有 `Workspace → AgentSystem.Mcp` 一条。
 
 ## 核心概念
 
 | 概念 | 形态 | 存储 |
 |------|------|------|
-| **ModuleDescription** | 模块「类型」：职责 / 依赖 / 子模块 / 架构 body / **工作流程描述** / **领域知识描述** | `<project>/<path>/.dna/module.md` |
+| **ModuleDescription** | 模块「类型」：Id / Name / Dna / Workflows / McpList / **Owners** | 代码实例化；Dna 为 Local 时点向 `<project>/<path>/.dna/module.md` |
+| **ModuleDna** | 纯知识载体：Local（filepath）或 Remote（endpoint + AuthToken）| Local：.dna/module.md 文件；Remote：远端文档服务 |
+| **Workflow** | 业务流程语义声明 | 代码实例 |
+| **McpList**（跨维度共享）| `McpDescriptor` 列表——业务操作接入点 | 代码实例 |
+| **ModuleOwners**（本轮新增）| Primary + Secondary：AgentDescription.Id 字符串引用，都可空 | 代码实例；不持 AgentDescription 实例 |
 | **Module 实例** | 某任务上下文激活后的运行态 | `persistentDataPath/.cbim/workspace/instances/` |
 
-**不包含**：工具声明、MCP 端点、沙盒配置——这些都是 AgentDescription 的责任。
+**不包含**：工具声明、沙盒配置——这些都是 AgentDescription 的责任。
 
 ## Three-Layer Memory Context
 
 本模块承担**长期记忆 · 业务维度**——`.dna/` 模块树 + Module 实例。其他三层归属见 `Memory/.dna/module.md`。
 
-## ModuleDescription Schema
+## ModuleDescription Schema（文档侧）
+
+ModuleDna 为 Local 时指向 `<project>/<path>/.dna/module.md`，该文档纯为纯知识载体（不含工具 / 不含 MCP 启动参数）：
 
 ```yaml
 ---
@@ -90,39 +292,25 @@ status: spec
 该业务块独有的术语 / 规则 / 常识。
 ```
 
-C# 端记录（本轮修正 —— 删除 `StandardTools` / `ExternalMcpServers` 字段）：
+**负面示例（本轮明确禁止）**：
 
-```csharp
-public sealed record ModuleDescription(
-    string Path,
-    string Name,
-    string Owner,
-    string Kind,
-    string Description,
-    IReadOnlyList<ModuleDependency> Dependencies,
-    string BodyExcerpt);
-```
-
-**上一轮错误字段的修正说明**：
-
-- `standard_tools: [Files, Search]`——本轮**删除**。工具归属能力维度，请在 `AgentDescription.tools` 声明。
-- `external_mcp_servers: [...]`——本轮**删除**。MCP / 外部进程能力同属能力维度，后续在 AgentDescription 体系下落地（首轮以 `agent_extension_clis` 带 CLI 白名单的形式出现）。
-
-迁移说明：现有 `.dna/module.md` 中若仍含这两个 frontmatter 字段，下轮 reindex 时 warning 且忽略；architect 治理趋势上渐渐清除。
+- `standard_tools: [Files, Search]`——本轮**删除**。工具归属能力维度，请在 `AgentDescription.SystemTools` 声明。
+- `external_mcp_servers: [...]`——本轮**删除 frontmatter 字段**。MCP 接入点是业务维度的责任不错，但存放在 **C# 层 `ModuleDescription.McpList`**（跨维度共享 `McpDescriptor` 抽象），不再放在 `ModuleDna` 文档侧 frontmatter。
+- `protocol: mcp`（RemoteModuleDna）——本轮**删除**。Remote DNA 只是文档载体不是操作载体。
 
 ## Contract Surface
 
 ```csharp
 namespace CBIM.Workspace;
 
+using CBIM.AgentSystem.Mcp;
+
 public sealed class WorkspaceService
 {
     // ModuleDescription（类型）
     IReadOnlyList<ModuleDescription> ListDescriptions();
-    ModuleDescription? GetDescription(string path);
+    ModuleDescription? GetDescription(string id);
     IReadOnlyList<ModuleDescription> QueryDescriptions(string text, int topK);
-    IReadOnlyList<ModuleDescription> Children(string parentPath);
-    IReadOnlyList<ModuleDependency> Dependencies(string path);
 
     // Module 实例
     IReadOnlyList<ModuleInstance> ListInstances();
@@ -131,14 +319,23 @@ public sealed class WorkspaceService
     WorkspaceStats Stats();
 }
 
-public sealed record ModuleDescription(
-    string Path,
-    string Name,
-    string Owner,
-    string Kind,
-    string Description,
-    IReadOnlyList<ModuleDependency> Dependencies,
-    string BodyExcerpt);
+public sealed class ModuleDescription
+{
+    public string Id { get; }
+    public string Name { get; }
+    public ModuleDna Dna { get; }                              // 纯知识载体
+    public IReadOnlyList<Workflow> Workflows { get; }          // 业务流程声明
+    public IReadOnlyList<McpDescriptor> McpList { get; }       // 业务操作接入点（跨维度共享）
+    public ModuleOwners Owners { get; }                        // 模块负责人编制（可 null）
+}
+
+public sealed class ModuleOwners
+{
+    public string Primary { get; }      // 开发负责人：AgentDescription.Id 引用，可 null/空
+    public string Secondary { get; }    // 审计负责人：AgentDescription.Id 引用，可 null/空
+    public bool HasPrimary { get; }
+    public bool HasSecondary { get; }
+}
 ```
 
 写侧（`SaveDescription` / `CreateModule` / `SplitModule` / `DeprecateModule`）是后续切片——Unity 侧暂走 Python `dna_*` MCP 工具，本服务定期 reindex 拉最新快照。
@@ -147,7 +344,7 @@ public sealed record ModuleDescription(
 
 ```
 <project>/<module-path>/.dna/
-  module.md          ← ModuleDescription（工作流程 + 领域知识）
+  module.md          ← ModuleDna 为 Local 时的文档（工作流程 + 领域知识）
   contract.md        ← 可选
 
 Application.persistentDataPath/.cbim/workspace/
@@ -159,36 +356,61 @@ Application.persistentDataPath/.cbim/workspace/
 ## Dependencies
 
 - `CBIM.Storage`——IO + frontmatter 解析。
-- **不依赖** Kernel / Memory / AgentSystem。
-- **无子模块**（上一轮新增的 StandardTools 本轮迁出）。
+- **`CBIM.AgentSystem.Mcp`**（跨维度共享抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。依赖方向：`Workspace → AgentSystem.Mcp`。
+- **不依赖** Kernel / Memory / AgentSystem 主服务 / AgentSystem.Skills / AgentSystem.StandardTools。
+- **无子模块**。
 
 ## 铁律
 
 - Service 同步方法，无 `Update()` / `StartCoroutine`。
 - ModuleDescription 与 ModuleInstance schema 互不混淆。
 - 不持记忆条目 / AgentDescription——是 Memory / AgentSystem 的事。
-- **不持工具声明 / MCP 端点 / 沙盒配置**——本轮铁律——工具归能力维度，请看 AgentDescription。
+- **不持工具声明 / 沙盒配置**——本轮铁律——工具归能力维度。
+- **MCP 接入点走 C# 层 `ModuleDescription.McpList`**——不再在 `ModuleDna` 文档侧夹带。
+- **共用 `AgentSystem.Mcp.McpDescriptor` 但不反向依赖能力侧**——跨维度共享是抽象复用，不是耦合。
+- **`ModuleOwners.Primary` / `Secondary` 仅持 `AgentDescription.Id` 字符串**——不持实例引用，避免业务侧 → 能力侧的反向 C# 依赖边。forward reference 允许，派发期校验。
+- **Owners fallback 警告 emission 不在本服务层发**——Workspace 只持数据；ERROR / WARNING / INFO 三级警告由派发器（TaskRunner / DispatchWorkflow）在读取后发出。
 - 写侧未落地——通过 Python MCP 工具 + 本服务 reindex。
 
 ## Origin Context
 
-上轮已合并 `Dna/` 子模块进本模块。上一轮又新增 `StandardTools/` 子模块 + `standard_tools` / `external_mcp_servers` schema——本轮裁决该设计维度归属错位，全部退回：
+上轮已合并 `Dna/` 子模块进本模块。上一轮又新增 `StandardTools/` 子模块 + `standard_tools` / `external_mcp_servers` schema——那轮裁定该设计维度归属错位，全部退回。上一轮裁决：
 
-1. 本模块继续保留——Microsoft 不提供「业务模块知识图谱」抽象，这是 CBIM 独有的业务知识管理。
+1. 本模块继续保留——Microsoft 不提供「业务模块知识图谱」抽象。
 2. 写侧仍走 Python MCP 工具 + reindex。
-3. **删除 `StandardTools/` 子模块在本下的在籍**——本轮重大修正。原裁决「工具能力是 module 业务属性」被覆反：工具能力是 **agent** 业务属性。
-4. **删除 `standard_tools` / `external_mcp_servers` 两个 frontmatter 字段**。
-5. 本轮重申业务维度的核心内容——**工作流程 + 领域知识**；ModuleDescription body 重点在这两件事。
+3. 删除 `StandardTools/` 在本下的在籍；UI、责任阁一般「工具能力是 module 业务属性」被覆反。
+4. 删除 `standard_tools` / `external_mcp_servers` 两个 frontmatter 字段。
+5. 重申业务维度的核心内容——工作流程 + 领域知识。
+
+上轮增量（MCP 集成 · 业务维度偾面 · 代码已落地）：
+
+1. **`ModuleDescription` 增 `McpList: IReadOnlyList<McpDescriptor>` 字段**——业务操作接入点走 C# 层，与 AgentDescription.McpList 同抽象同类型。
+2. **跨维度共享依赖新增**：`CBIM.AgentSystem.Mcp` 抽象被本服务层引用。这是 Workspace 唯一跨服务层的依赖。
+3. **`ModuleDna` 退化为纯知识载体**——原隐含的「云模块走 MCP 协议」语义全部迁到 `ModuleDescription.McpList`。`ModuleDna.Protocol` 字段删除（代码已落地——`RemoteModuleDna` 只持 Endpoint + AuthToken）。
+4. **`ModuleDescription` 调为 `class`（非 record）**——代码现状，以代码为准。上一轮描述里的 record 签名过时。
+5. **Storage layout 中 `module.md` 不再包含** 工具 / MCP 协议 frontmatter——纯为工作流程 + 领域知识 文档。
+
+**本轮增量**（`Owners` 人事编制 · 代码已落地）：
+
+1. **`ModuleDescription` 新增 `Owners: ModuleOwners` 字段**（可 null）——类比项目工单制度，为每个模块定金第一负责人（开发）+ 第二负责人（审计）。三段式升为四段式——是什么 + 能做什么 + 怎么做 + **谁来做**。
+2. **新增 `ModuleOwners` 类**：Primary + Secondary 两字段，均为 `AgentDescription.Id` 字符串引用，均可空。
+3. **字符串引用 + forward reference**——避免业务侧 → 能力侧的反向 C# 依赖；引用尚不存在的 agent id 不报错，派发期校验。
+4. **三级 fallback 警告**：Owners null → ERROR-style；Primary null → WARNING；Secondary null → INFO。警告 emission 点不在本服务层，在派发器层（未来 TaskRunner / DispatchWorkflow）。
+5. **task.Who 明指可覆盖 owner**：owner 仅为「默认派发对象」，调用方明示指定 Agent 时优先 task.Who + Session 记 info 供审计。
 
 ## Emergent Insights
 
-1. **工具能力是 agent 业务属性，不是 module 业务属性**——「能不能读文件 / 能不能联网」与「谁」相关，不与「在哪」相关。同一 module 被不同 agent 处理时可能调用完全不同的工具集——例如 architect 处理 module 只需读文件，programmer 处理同一 module 需要写 + git + dotnet CLI。这进一步证明工具不应在 module schema。
-2. **业务维度核心价值 = 工作流程边界 + 领域知识封装**——这是 Microsoft / 任何通用框架不提供的，也是 CBIM Workspace 保留的唯一原因。
-3. **维度错位是常见架构陷阱**——「看起来与哪个东西伴生」不等于「应在该东西的 schema 内」。工具总伴随 Task 上下文出现，但上下文由多个维度同时提供（who+where+what）。谁拥有 schema 声明权 ≠ 谁与其一同出现。本轮修正是该原则的具象落地。
+1. **工具能力是 agent 业务属性，不是 module 业务属性**——「能不能读文件 / 能不能联网」与「谁」相关，不与「在哪」相关。同一 module 被不同 agent 处理时可能调用完全不同的工具集。
+2. **业务维度核心价值 = 工作流程边界 + 领域知识封装 + 业务操作接入点 + 人事编制**——这是 Microsoft / 任何通用框架不提供的，也是 CBIM Workspace 保留的唯一理由。**本轮增加「人事编制」到该核心列表**——三段式（是什么 / 能做什么 / 怎么做）被补为四段式（+ 谁来做）。
+3. **跨维度共享抽象的边界控制**——McpDescriptor 被两个维度共享，但依赖方向严格单向（Workspace → AgentSystem.Mcp，不反向）。共享抽象不意味跨维度耦合，是同一类型被两个维度独立调用。
+4. **维度错位是常见架构陷阱**——「看起来与哪个东西伴生」不等于「应在该东西的 schema 内」。谁拥有 schema 声明权 ≠ 谁与其一同出现。本轮修正是该原则的具象落地。
+5. **字符串引用允许跨维度「指名透过」但不引入 C# 依赖边**（本轮新增）——`ModuleOwners.Primary / Secondary` 是 `AgentDescription.Id` 字符串引用而非实例引用，这让业务侧在不引入反向 C# 依赖的前提下仍能明示「谁来做」。运行期查表由派发器负责——这是「跨维度」与「跨服务层 C# 依赖」是两件事的典型例。
+6. **可空 fallback + LLM 自动匹配是「渐进约束」的架构表达**（本轮新增）——不要求部署初期所有 module 都必补齐 owner，但用三级警告（ERROR / WARNING / INFO）让「待定」状态可见且可被逐步补齐。架构强制质量门 ≠ 架构拒绝临时状态。
 
 ## Non-Goals
 
 - 不实现 Unity 侧 `.dna/` 写侧（走 Python MCP）。
 - 不持有任务黑板（后续 `TaskWorkspace/` 子模块话题，本轮不发）。
 - 不持有 Agent / 记忆数据。
-- **不持有工具声明 / MCP 端点**——本轮裁决。
+- **不持有工具声明**——本轮裁决。
+- **不含 MCP 启 / 停 / 接连胶水**——装配胶水在能力侧（AgentSystem.OpenInstance）或业务 Workflow（Kernel.FlowGraph / ContextProviders）中调 `Microsoft.Agents.AI.Mcp` client。

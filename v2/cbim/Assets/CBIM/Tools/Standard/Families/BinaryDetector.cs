@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace CBIM.AgentSystem.StandardTools
+namespace CBIM.Tools.Standard
 {
     // 启发式的二进制/文本判别器。作用于文件前 N 个字节
     //（N 由调用方决定，通常 8 KB）。
