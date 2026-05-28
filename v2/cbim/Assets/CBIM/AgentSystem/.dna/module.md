@@ -9,6 +9,8 @@ status: spec
 
 ## Positioning
 
+**AgentSystem 是 CBIM 的内置 Agent 引擎装配家**——专管 `Microsoft.Agents.AI` 路径下的 AIAgent 装配（Soul / Identity / Skills / SystemTools / McpList → `AIAgentBuilder` → `AIAgent`）。**外部 Agent 引擎（Claude Code / Cursor / Codex 等）由平级模块 `CBIM.ExternalAdapter` 装配**，二者**互不感知、互不依赖**，统一以 `task.Who` 形式被 Kernel / FlowGraph 调度。AgentSystem 与 ExternalAdapter 是「Agent 引擎装配家」家族的两条平级路径——一条管自家亲生（Microsoft 内置），一条管领养（外部进程）。
+
 **能力系统是 CBIM 的服务层（C 维度）**：Microsoft 已提供 `AIAgentBuilder` / `ChatClientAgent` / `AgentSession` 整套，CBIM AgentSystem 退化为：
 
 1. **AgentDescription**——CBIM 独有的 agent 类型描述 schema，以 C# 类实例化（不是 frontmatter yaml，这是 Unity 侧 schema 表达方式）：包含 `Id` / `Name` / `Soul` / `Identity` + 能力维度三大扩展字段（`Skills` / `SystemTools` / `McpList`）。
@@ -324,6 +326,7 @@ CloseInstance(instanceId):
 - **MCP server 生命周期严格绑 AgentInstance**——OpenInstance 启 / CloseInstance 必 DisposeAsync。异常路径也走，否则进程泄漏。
 - **Agent 必须专精**——`SystemTools` / `Skills` / `McpList` / 专精领域跨度 / `Soul` 长度任一维度超阈值，HR 立即裂变。
 - **`McpDescriptor` 是唯一跨维度共享抽象**——`AgentDescription.McpList` 与 `ModuleDescription.McpList` 同类型；上上说然，共用不代表跨维度耦合——是同一「外部端点」抽象被两个维度各自声明使用。
+- **AgentSystem 不引用 ExternalAdapter、不知其存在**——外部 Agent 引擎装配是平级模块 `CBIM.ExternalAdapter` 的职责。本模块只负责装配 Microsoft 内置引擎下的 AIAgent；遇到 task.Who 指向外部引擎的 task，Kernel/FlowGraph 路由给 ExternalAdapter，与本模块无关。反向亦然——ExternalAdapter 也不引用 AgentSystem。
 
 ## Origin Context
 
@@ -336,21 +339,26 @@ CloseInstance(instanceId):
 
 上轮增量（MCP 集成）：能力维度的「工具来源」上上轮识别了两类（StandardTools / agent_extension_clis），上轮补第三类：外部 MCP server。新增 `mcp_servers` 字段、`OpenInstanceOptions.TaskWhere` 字段、`AgentSystem/McpAdapter/` 子模块；裂变阈值表增 `mcp_servers 数 > 3` 一行。
 
-**本轮重大调整**（三大扩展抽象平级子模块化 · 代码已落地）：
+**上一轮重大调整**（三大扩展抽象平级子模块化 · 代码已落地）：
 
 1. **AgentDescription 以 C# 类实例化**（不是 frontmatter yaml 字串）：Id / Name / Soul / Identity + `Skills: List<Skill>` + `SystemTools: List<SystemTool>` + `McpList: List<McpDescriptor>` 三能力字段。代替上轮的字串名列表调用。
-2. **`mcp_servers: [name]` 名字串 + IMcpRegistry 二级查棅取消**——`AgentDescription.McpList` 直接持 `McpDescriptor` 实例（`Stdio` 或 `Http`）。理由：Unity 项目内 cfg 与 agent 共存，二级表反增同步成本。
+2. **`mcp_servers: [name]` 名字串 + IMcpRegistry 二级查棚取消**——`AgentDescription.McpList` 直接持 `McpDescriptor` 实例（`Stdio` 或 `Http`）。理由：Unity 项目内 cfg 与 agent 共存，二级表反增同步成本。
 3. **原 `McpAdapter/` 子模块 → `Mcp/`**：名字与 Skills / StandardTools 对齐（都是「该抽象的家」）。
 4. **`McpDescriptor` record → abstract 基类 + 两子类 + `McpTransportKind` 枚举**：Stdio / Http 两形态明确区分，形态识别从「字段是否存在」升为「类型判别」。
 5. **`Skill` 从裸露在 AgentSystem/ 迁到 Skills/ 子模块**，namespace 独立。
 6. **跨维度共享**：`Workspace.ModuleDescription.McpList: List<McpDescriptor>` 新增，同 `AgentDescription.McpList` 类型；`ModuleDna` 退为纯知识载体（不再夹带 MCP 协议信息）。
 7. **McpServerAdapter / McpServerHandle 本轮未随代码落地**：装配侧（OpenInstance / 业务 Workflow）直接调 Microsoft.Agents.AI.Mcp client。后续如出现重复胶水再抽取。
 
+**本轮增量（装配家平级化 · ExternalAdapter 锡兴）**：
+
+8. **新增平级模块 `CBIM.ExternalAdapter`**（task-1 产出）接管外部 Agent 引擎的装配（Claude Code / Cursor / Codex 等）。本模块当夜同步明确身份：“内置 Microsoft AIAgent 装配家”，不拽上外部引擎责。Positioning / 铁律 / Emergent Insights 同步锁定“互不感知、互不依赖、由 Kernel/FlowGraph 以 task.Who 路由」这套平级装配家范式。本模块 Dependencies / Mermaid / Contract Surface **不引用 ExternalAdapter**——这本身是上述铁律的体现。
+
 ## Emergent Insights
 
 1. **三足鼎立后能力维度的扩展轴看一眼就明**——三个子目录在 AgentSystem 下并列，agent 要「多会一手」三条路径，互不交叉互不覆盖。上一轮 Skill 裸露 / McpAdapter 孤为子模块的不对称状态被拉齐。
 2. **跨维度共享抽象不是耦合**——McpDescriptor 被 AgentDescription 与 ModuleDescription 同时使用，不意味能力维度与业务维度耦合——是同一抽象被两个维度独立调用。跨维度共享只限 `McpDescriptor`，其余抽象（Skill / SystemTool）不跨维度。
 3. **Mcp 子模块只出抽象、不出胶水**（本轮治理后状态）——胶水可能被能力侧 / 业务侧两处重复调 Microsoft.Agents.AI.Mcp，未来如出现明显重复代码再抽取为 Adapter 类。现阶段“类型从业务中退出”十分充足。
+4. **装配家平级化原则**——Agent 引擎可以有多个装配家（本模块管 Microsoft、ExternalAdapter 管 Claude Code / Cursor / Codex、未来可能还有别的），**它们永远平级、永远互不感知**。装配家之间不需要公共抽象基类——它们的「共同点」不在模块间，而在 Kernel/FlowGraph 侧：同为 `task.Who` 的可调度目标、同走 Session 记录协议。跨装配家的统一在上层调度器达成，而不是在装配家之间建立抽象层——后者会逆转依赖方向，把亲生装配家（本模块）裹挨上领养装配家的生命周期问题。
 
 ## Non-Goals
 

@@ -1,0 +1,41 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.Agents.AI;
+
+namespace CBIM.Kernel.TaskScheduler
+{
+    public sealed record CbimTask(
+        string TaskId,
+        AIAgent Who,
+        IReadOnlyList<string> Where,
+        string What,
+        string ParentTaskId = null,
+        string OriginChannel = null,
+        IReadOnlyDictionary<string, object> Params = null,
+        DateTime CreatedAt = default)
+    {
+        public static CbimTask Create(
+            AIAgent who,
+            IEnumerable<string> where,
+            string what,
+            string parentTaskId = null,
+            string originChannel = null,
+            IDictionary<string, object> @params = null)
+        {
+            if (who is null) throw new ArgumentNullException(nameof(who));
+            if (where is null) throw new ArgumentNullException(nameof(where));
+            if (string.IsNullOrWhiteSpace(what)) throw new ArgumentException("what must be non-empty.", nameof(what));
+
+            return new CbimTask(
+                TaskId: Guid.NewGuid().ToString("N"),
+                Who: who,
+                Where: where.ToList().AsReadOnly(),
+                What: what,
+                ParentTaskId: parentTaskId,
+                OriginChannel: originChannel,
+                Params: @params is null ? null : new Dictionary<string, object>(@params),
+                CreatedAt: DateTime.UtcNow);
+        }
+    }
+}

@@ -44,10 +44,11 @@ flowchart TB
         CP["ContextProviders<br/>3 个 AIContextProvider 实现"]
     end
 
-    subgraph ServiceLayer["🎯 三大服务层 (M/C/B)"]
+    subgraph ServiceLayer["🎯 四足服务层 (M/C/B/E)"]
         MEM["Memory<br/>MemoryEntry CRUD"]
-        AS["✅ AgentSystem<br/>管人<br/>━━━━━<br/>AgentDescription<br/>Agent<br/>AgentSystem"]
+        AS["✅ AgentSystem<br/>管人（内置引擎）<br/>━━━━━<br/>AgentDescription<br/>Agent<br/>AgentSystem"]
         WS["✅ Workspace<br/>管办公位<br/>━━━━━<br/>ModuleDescription<br/>Module / Metadata<br/>Owners / Workspace"]
+        EA["ExternalAdapter<br/>管外部引擎<br/>━━━━━<br/>IExternalEngineAdapter<br/>ExternalAgentHandle<br/>三策略实现"]
     end
 
     subgraph CapabilityLayer["🧩 三大基础能力 (顶层共享)"]
@@ -69,8 +70,16 @@ flowchart TB
         MSFn["AIFunction"]
     end
 
+    subgraph ExternalEngines["🌐 外部 Agent 引擎（黑盒·非 MS.Agents.AI）"]
+        direction LR
+        EXT_CC["Claude Code CLI"]
+        EXT_CUR["Cursor"]
+        EXT_COD["Codex / 任意 HTTP LLM"]
+    end
+
     %% Entry → Driver / Service
     AOS --> CH
+    AOS --> EA
     CH --> AS
     CH --> FG
     CH -.RunAsync.-> MSAgent
@@ -108,19 +117,31 @@ flowchart TB
     MEM --> STG
     T --> STG
 
+    %% ExternalAdapter 跨维度引用三大基础能力 + Workspace（只读）
+    EA --> SK
+    EA --> T
+    EA --> MCP
+    EA -.reads metadata.-> WS
+    EA --> STG
+
+    %% ExternalAdapter → 外部引擎（三策略·全部虚线 = 协议/进程边界）
+    EA -.策略A·提示词注入.-> EXT_CC
+    EA -.策略B·MCP 桥接.-> EXT_CUR
+    EA -.策略C·能力网关.-> EXT_COD
+
     class AOS,CH entry
     class TS,FG,CP driver
-    class AS,WS,MEM service
+    class AS,WS,MEM,EA service
     class T,SK,MCP capability
     class STG io
     class MSAgent,MSChat,MSWF,MSCP,MSFn msai
-    class TS,FG,CP,AOS,CH,MEM pending
+    class EXT_CC,EXT_CUR,EXT_COD,TS,FG,CP,AOS,CH,MEM,EA pending
 ```
 
 **图例：**
-- 🟧 入口层 / 🟩 驱动层 / 🟦 服务层 / 🟨 基础能力 / 🟪 IO 基底 / 🟥 Microsoft 框架
+- 🟧 入口层 / 🟩 驱动层 / 🟦 服务层（M/C/B/E 四足）/ 🟨 基础能力 / 🟪 IO 基底 / 🟥 Microsoft 框架 / 🌐 外部引擎黑盒
 - **`✅`** 代码已落地 / **虚线框** 待实施
-- **实线箭头** 直接代码依赖 / **虚线箭头** 实现接口 / 使用关系 / 跨维度共享
+- **实线箭头** 直接代码依赖 / **虚线箭头** 实现接口 / 使用关系 / 跨维度共享 / 跨进程协议边界
 
 ---
 
@@ -135,11 +156,12 @@ flowchart TB
 ### 依赖单调向下
 
 ```
-入口 → 驱动 → 服务 → 基础能力 → Storage
+入口 → 驱动 → 服务(M/C/B/E) → 基础能力 → Storage
                 ↘                ↗
                  共享基础能力（无反向）
                 ↘                ↗
-                 Microsoft 框架
+                 Microsoft 框架  ←  ExternalAdapter →  外部引擎进程
+                                    （E 仅外向访问，不被任何稳定层反向引用）
 ```
 
 ### 跨维度共享点（CBIM 唯一）
@@ -147,6 +169,19 @@ flowchart TB
 `AgentSystem` 和 `Workspace` 都引用 `Tools/Skills/Mcp`，但 Tools/Skills/Mcp 不反向引用任何一边。
 
 完全对称——能力侧和业务侧地位平等。
+
+### 四足服务层（M / C / B / E）
+
+CBIM 服务层从 v2 上轮的 M/C/B 三足扩展为 **M/C/B/E 四足**，四者平级、互不依赖、共享同一组基础能力（Tools/Skills/Mcp）：
+
+| 缩写 | 服务层 | 职责 | 引擎来源 |
+|------|--------|------|---------|
+| **M** | `Memory/` | MemoryEntry CRUD | 无 |
+| **C** | `AgentSystem/` | 装配 Microsoft AIAgent（内置引擎家） | Microsoft.Agents.AI（一种） |
+| **B** | `Workspace/` | 业务模块知识图谱 | 无 |
+| **E** | `ExternalAdapter/` | 适配非 MS.Agents.AI 外部引擎（外部引擎家） | Claude Code / Cursor / Codex / ...（多种） |
+
+**对偶要点：** C 和 E 都产出 `task.Who`（可被 Kernel 调度的执行体），但来源不同——C 装内置 AIAgent，E 装外部 Agent 句柄；Kernel/FlowGraph 调度时不区分二者。这是 CBIM 实现『引擎无关编排』的关键拼图，详「十二·外部引擎扩展」节。
 
 ### Microsoft 框架的位置
 
@@ -244,6 +279,13 @@ CBIM = 业务薄胶水 + MS 框架内核
 
 **铁律：依赖单向** —— `Workspace → CBIM.Tools/Skills/Mcp`，反向严禁。
 
+> **注脚（E 服务层共用同抽象）：** `ExternalAdapter` 作为 E 服务层，与 C/B 平等地**消费同一组基础能力抽象**——
+> 三策略适配器都通过 `CBIM.Tools` / `CBIM.Skills` / `CBIM.Mcp` 读取工具/技能/MCP 端点的元数据，
+> 再按自身策略（提示词渲染 / MCP server 暴露 / AIFunction 代理）投喂给外部引擎。
+> 外部 Agent 不享受任何特权通道，所有副作用必须穿过 `Tools.Standard` 或 `Mcp`——
+> 与内置 AIAgent 同等待遇。详「十二·外部引擎扩展」节。
+> 依赖方向：`ExternalAdapter → CBIM.Tools/Skills/Mcp/Workspace(只读)`，反向严禁。
+
 ---
 
 ## 七、装配链路（Task 触发后）
@@ -303,7 +345,12 @@ Task 结束：
    ├── Channel (AgentSession 薄封装)
    ├── AgenticOS (装配根)
    ├── Memory (MemoryEntry CRUD)
-   └── Mcp/McpRuntime + McpServerHandle (运行时启动器，等真用时再写)
+   ├── Mcp/McpRuntime + McpServerHandle (运行时启动器，等真用时再写)
+   └── ExternalAdapter (第 4 服务层 · E)
+       ├── IExternalEngineAdapter 接口 + ExternalAgentHandle 抽象
+       ├── 策略 A · PromptInjectionAdapter (Claude Code CLI 最小可用版本)
+       ├── 策略 B · McpBridgeAdapter (Cursor / 原生 MCP 客户端)
+       └── 策略 C · CapabilityGatewayAdapter (Codex / 任意 HTTP LLM 包装)
 
 ⏳ 长期补全
    ├── AgentSystem.OpenInstance 三源装配
@@ -474,7 +521,140 @@ LLM 看到的 prompt =
 ## 十一、参考文档
 
 - 各模块 `.dna/module.md` —— 单模块完整设计
+  - `ExternalAdapter/.dna/module.md` —— 外部引擎适配层完整契约（含 `IExternalEngineAdapter` C# 草案）
 - `ThirdParty/MsExtensionsAI/_README.md` —— DLL 清单 + 升级路径
 - `ThirdParty/MsExtensionsAI/_MSAI_Architecture.md` —— Microsoft Agent Framework 架构图
 - `ThirdParty/MsExtensionsAI/_MSAI_ClassReference.md` —— Microsoft 类参考手册
 - `ThirdParty/MsExtensionsAI/_MCP_EVAL_REPORT.md` —— MCP 包 Unity 兼容性评估
+
+---
+
+## 十二、外部引擎扩展（External Adapter）
+
+> CBIM 服务层从 M/C/B 三足扩展为 **M/C/B/E 四足**——`ExternalAdapter` 是第 4 服务层（E = External Engine）。
+> 完整设计见 `ExternalAdapter/.dna/module.md`；本节给出**架构级**摘要。
+
+### 12.1 为什么独立成顶层（不并入 AgentSystem）
+
+CBIM v2 的核心承诺是『让任何 Agent 都能成为治理体系中的可调度执行体』。但 AgentSystem 的稳定职责是**装配 Microsoft AIAgent**——若把外部引擎（Claude Code / Cursor / Codex / 各 SaaS Agent）适配塞进 AgentSystem，会迫使稳定的能力系统反向依赖**高频变化**的外部 SDK / CLI 协议，违反 C3 单向依赖。
+
+```
+稳定 ←────────────────────────────────────────────── 易变
+
+Kernel  ──→  AgentSystem ──→ Microsoft.Agents.AI SDK   （稳定耦合）
+        ──→  Workspace                                  （稳定耦合）
+        ──→  Memory                                     （稳定耦合）
+        ──→  ExternalAdapter ──→ Claude Code CLI       （高频变化）
+                            ──→ Cursor MCP schema       （高频变化）
+                            ──→ Codex HTTP API          （高频变化）
+                            ──→ 各 SaaS Agent SDK       （高频变化）
+```
+
+**结论：** 独立顶层让 AgentSystem 不感知外部引擎存在；外部引擎的版本变迁、协议升级、新增 SaaS 接入，全部隔离在 ExternalAdapter 内部。
+
+### 12.2 与 AgentSystem 的对偶
+
+| 维度 | `AgentSystem` (C) | `ExternalAdapter` (E) |
+|------|-------------------|------------------------|
+| 引擎来源 | Microsoft.Agents.AI（一种） | 任意第三方引擎（多种） |
+| 句柄类型 | `AIAgent`（Microsoft 类型） | `ExternalAgentHandle`（本模块自定义不透明类型） |
+| 工具集成方式 | 直接 `AIAgentBuilder.AddTools(...)` | 三策略二选一（提示词渲染 / MCP server / AIFunction 代理） |
+| 稳定性层级 | 稳定（跟 Microsoft 框架版本） | 易变（跟外部引擎版本与协议） |
+| 对 Kernel 的可见性 | 透明——产出 `task.Who` | 透明——产出 `task.Who` |
+
+**`AgentSystem ⊕ ExternalAdapter = 完整的 task.Who 来源域`** —— Kernel/FlowGraph 在调度层面不再区分『谁来执行』。
+
+### 12.3 三大集成策略对比
+
+这是 **同一个 `IExternalEngineAdapter` 接口的三种实现策略**，不是三个子模块。选哪种取决于外部引擎对『CBIM 工具集』的接入能力。
+
+| 维度 | 策略 A · PromptInjection | 策略 B · McpBridge | 策略 C · CapabilityGateway |
+|------|--------------------------|---------------------|-----------------------------|
+| **目标引擎** | 只接受 prose 的引擎（Claude Code CLI / Cursor 编辑器模式） | 原生支持 MCP 协议的引擎（Cursor MCP / Claude Code MCP client） | headless / 程序化引擎（Codex API / 自研 LLM 包装 / 任意 HTTP LLM） |
+| **工具暴露方式** | 把 Skills/Tools/Workspace metadata **渲染为提示词** | CBIM 自起 **MCP server**，把 Tools/Skills/Workspace 子集暴露为标准 MCP tools | 把每个 CBIM 工具用 `AIFunction` **包成代理**（外部引擎调代理 → CBIM 同步执行） |
+| **工具调用环** | 外部引擎自家闭环（CBIM 不在调用链路中） | 走 MCP 协议（CBIM 在 server 侧响应每次调用） | 全程经 CBIM（强实时） |
+| **CBIM 对账方式** | 结果解析 + 回放 Session 写（**事后对账**） | MCP server 端日志即 Session（**实时对账**） | 调用链路即 Session（**强实时对账**） |
+| **侵入性** | 零侵入 | 零侵入 | 零侵入 |
+| **治理强度** | 弱（依赖外部引擎遵守提示词） | 中（受 MCP 协议约束） | 强（CBIM 全程在路径上） |
+| **典型用例** | Claude Code 当作『带 CBIM Skills 上下文的 prose Agent』 | Cursor 接成『能调 CBIM 工具的 IDE Agent』 | Codex API 包成『CBIM 治理下的 headless worker』 |
+
+**集成策略 = 治理强度滑块。** 选哪种本质是『用户愿意把多少治理权让渡给外部引擎』的权衡，不是技术选型问题。
+
+### 12.4 策略选型决策树
+
+```
+                         接入新外部引擎
+                              │
+                              ▼
+              ┌───────『引擎是否原生支持 MCP？』
+              │                              │
+             否                              是
+              │                              │
+              ▼                              ▼
+   ┌──『引擎是否暴露函数调用 API？』      策略 B · McpBridge
+   │                              │       （治理中，零侵入）
+  否                              是
+   │                              │
+   ▼                              ▼
+策略 A · PromptInjection      策略 C · CapabilityGateway
+（治理弱，仅 prose）          （治理强，全程在链路）
+```
+
+**决策原则：**
+- 引擎越封闭（只吃 prose）→ 只能用策略 A → CBIM 治理最弱；
+- 引擎越开放（原生 MCP / 函数调用 API）→ 可上策略 B/C → CBIM 治理最强。
+- 这条等式给出 CBIM 评估『是否值得接入某个外部引擎』的硬指标——**可治理性 ∝ 工具协议开放度**。
+
+### 12.5 Tool 层是唯一安全边界
+
+**铁律：** 无论内置 AIAgent 还是外部引擎，**所有副作用最终都必须穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`**。
+
+- **外部 Agent 无特权通道。** Claude Code / Cursor / Codex 等不能绕过 CBIM 安全层直接访问文件 / 网络 / shell——仅能通过 ExternalAdapter 三策略提供的 `Tools.Standard` / `Mcp` 接口调用。
+- **与内置 AIAgent 同等待遇。** 外部引擎不享受任何『黑名单豁免』或『快通道』——与 CBIM 内置 Agent 共享同一沙盒 / 审计 / 追踪体系。
+- **为什么是『唯一』？** 外部引擎独立进程 / 内部不可控 → CBIM 唯一可控点只能是『外部引擎发起的副作用』，那仅能在 Tool/MCP 层拦截。如果外部引擎可以绕过 Tool 直接访问文件 / 网络 / shell，那所有安全事都是空谈——这是『Tool 是唯一安全边界』从经验现象上升为架构刚纲的逻辑起源。
+- **本条为 CBIM 多引擎家接入的设计刚纲。** 任何新增引擎适配（增加路由、代理、提示词注入点）都不得绕过 Tool/MCP 边界。**违反本条 = 违反架构**，没有商量余地。
+
+### 12.6 生命周期（外部 Agent 实例）
+
+```
+组合根 AgenticOS
+   │
+   ▼
+ExternalAdapter.OpenInstance(desc, opts)
+   │  ├─ 选 Adapter (按 EngineId + Strategy)
+   │  ├─ 启动底层（启 CLI 子进程 / 建 MCP client / 建 HTTP session）
+   │  └─ 渲染上下文（按策略把 Tools/Skills/Workspace 投喂给引擎）
+   ▼
+ExternalAgentHandle (不透明)
+   │
+   ▼
+组合根包装为 task.Who
+   │
+   ▼
+Kernel/FlowGraph 调度（与内置 AIAgent 不区分）
+   │
+   ▼
+adapter.RunAsync(handle, task, ct)
+   │  ├─ 调外部引擎（按策略 A/B/C 各自调用链）
+   │  ├─ 工具调用回写 Session（策略 A 事后回放 / B/C 实时）
+   │  └─ 归一异常为 CBIM 故障类型
+   ▼
+AgentRunResponse (与 AgentSystem 同形)
+   │
+   ▼
+Task 结束：adapter.CloseInstanceAsync(handle)
+   └─ 关 CLI 子进程 / 注销 MCP 客户端 / 释放 SaaS session
+```
+
+**契约不变量：**
+- `RunAsync` 必须返回 `AgentRunResponse`——与内置 Agent 一致，Kernel 不知道是哪种引擎。
+- Adapter 不得把外部引擎特有异常 / 类型（`ClaudeCodeProcess` / `CursorWebSocket` / ...）穿透出去。
+- Adapter 必须在 `RunAsync` 期间把工具调用 / 模型输出回写为 CBIM Session 记录。
+- `ExternalAgentHandle` 必须不透明；外部引擎特有概念封装在 Adapter 内部。
+
+### 12.7 涌现性洞见
+
+1. **集成策略不是技术选型，是治理强度滑块。** 策略 A→弱 / B→中 / C→强，选哪种是权衡。
+2. **外部引擎的可治理性 ∝ 它对工具协议的开放度。** 给出『是否值得接入』的硬指标。
+3. **AgentSystem ⊕ ExternalAdapter = 完整的 task.Who 来源域。** Kernel 不必区分谁来执行——CBIM 实现引擎无关编排的关键拼图。
+4. **CBIM.Mcp 同时被两种角色使用——server 与 client。** 内置场景下 Mcp 作 client 调外部 MCP server；策略 B 让 Mcp 反过来作 server 被外部引擎拉。这要求 `CBIM.Mcp` **双向健壮**——从 AgentSystem 视角看不见，只有从 ExternalAdapter 视角才显现。

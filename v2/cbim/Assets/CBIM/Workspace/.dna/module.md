@@ -195,6 +195,36 @@ public sealed class RemoteModuleMetadata : ModuleMetadata  // 远端 spec endpoi
 - CBIM 启动时不必本地保存所有 module 文档，按需远端拉取。
 - **注意**：业务**操作**走 `ModuleDescription.McpList`，不走 Metadata。Metadata 只负责描述「什么业务 / 规则 / 领域知识」。
 
+### 本地文件夹 vs 云端空间（对称叙述 · 本轮显式）
+
+**`ModuleMetadata` 的两个子类是 Workspace 的两支对偶形态**——同一抽象（「业务知识从哪里来」）的两个落地点，调用方透过统一的 `metadata.Location` 接口透明消费。
+
+| 子类 | 形态隐喻 | Location 语义 | 知识载体物理位置 | 用户图中对应概念 |
+|------|---------|---------------|-------------------|--------------------|
+| **`LocalModuleMetadata`** | **本地文件夹** | 文件系统路径（`<project>/<path>/.dna/module.md`）| 项目仓库内 `.dna/` 树 | 「本地工作区」——人在本地编辑 / git 管理的 module 知识 |
+| **`RemoteModuleMetadata`** | **云端空间（虚拟网关模块）** | 远端文档服务 URL（`https://...`）+ `AuthToken` | 远端 wiki / spec registry / OpenAPI 文档服务 | 「云端空间 / 虚拟网关模块」——在 CBIM 里只是一份「指向云端的声明」，知识真身在云端托管 |
+
+**对称性**：
+
+- **同一 Workspace 服务层平等托管两支**——`WorkspaceService.ListDescriptions()` 返回的 `ModuleDescription` 不区分本地 / 云端，调用方对 metadata 形态透明。
+- **同一 `Location` 抽象访问入口**——本地走文件路径，云端走 endpoint URL；读侧实现各自接入但调用方语义一致（「这块业务知识在哪里」）。
+- **同一四段式语义结构**——无论 metadata 是 Local 还是 Remote，`ModuleDescription` 的其余三段（Workflows / McpList / Owners）均按相同方式存在；云端模块的「操作接入点」依然走 `ModuleDescription.McpList`，**不走 `RemoteModuleMetadata.Endpoint`**（后者纯为文档源 endpoint）。
+
+**RemoteModuleMetadata = 虚拟网关模块**——「虚拟」体现在：
+
+1. **本地无知识真身**——CBIM 启动时不必预先下载所有 module 的文档；按需远端拉取。
+2. **对外透明**——agent / 派发器 / Workflow 调用 `metadata.Location` 时不感知本地 vs 云端的差别；远端拉取由读侧适配器统一封装。
+3. **网关角色**——`Endpoint + AuthToken` 是「通往云端业务知识源」的入口，不是业务操作通道。业务操作通道是 `ModuleDescription.McpList`（同抽象不同语义归属，见 McpDescriptor 跨维度共享节）。
+
+**两支的职责分离严格遵守**：
+
+| 关注点 | 走哪条 |
+|--------|--------|
+| 「这块业务知识的源头在哪、怎么读取文档」 | `ModuleMetadata.Location`（Local: filepath / Remote: doc endpoint）|
+| 「这块业务怎么被操作、调用方怎么发请求」 | `ModuleDescription.McpList`（HttpMcpDescriptor / StdioMcpDescriptor）|
+
+知识源 endpoint 与操作 endpoint **物理上可同主机但语义上互不混淆**——这是「云端模块」对称设计的关键约束。
+
 ## CDN 业务示例（完整三段式）
 
 ```csharp
@@ -407,6 +437,9 @@ Application.persistentDataPath/.cbim/workspace/
 5. **字符串引用允许跨维度「指名透过」但不引入 C# 依赖边**（本轮新增）——`ModuleOwners.Primary / Secondary` 是 `AgentDescription.Id` 字符串引用而非实例引用，这让业务侧在不引入反向 C# 依赖的前提下仍能明示「谁来做」。运行期查表由派发器负责——这是「跨维度」与「跨服务层 C# 依赖」是两件事的典型例。
 6. **可空 fallback + LLM 自动匹配是「渐进约束」的架构表达**（本轮新增）——不要求部署初期所有 module 都必补齐 owner，但用三级警告（ERROR / WARNING / INFO）让「待定」状态可见且可被逐步补齐。架构强制质量门 ≠ 架构拒绝临时状态。
 
+7. **本地文件夹 vs 云端空间的对称是 Workspace 的隐藏第二维度**（本轮新增）——`LocalModuleMetadata` / `RemoteModuleMetadata` 不是「主流形态 + 边角扩展」，而是对偶的两支：本地 `.dna/` 树承载「人在本地编辑」的业务知识；`RemoteModuleMetadata` 作为「虚拟网关模块」承载「云端托管」的业务知识。同一 `Location` 抽象接入，同一四段式语义结构，调用方对 metadata 形态透明。
+8. **「知识源 endpoint」与「业务操作 endpoint」物理可同主机但语义严格分流**（本轮新增）——`RemoteModuleMetadata.Endpoint` 是文档读侧通道；`ModuleDescription.McpList` 是业务操作通道。同一云端服务可同时暴露 doc endpoint + mcp endpoint，但 CBIM 里这两条路径**抽象上彼此不知**——任何把「云端模块就走 RemoteMetadata.Endpoint 调 MCP」的简化都会重演上轮已纠正的「Metadata 夹带操作协议」错位。对称设计天然抗这类回退。
+
 ## Non-Goals
 
 - 不实现 Unity 侧 `.dna/` 写侧（走 Python MCP）。
@@ -414,3 +447,4 @@ Application.persistentDataPath/.cbim/workspace/
 - 不持有 Agent / 记忆数据。
 - **不持有工具声明**——本轮裁决。
 - **不含 MCP 启 / 停 / 接连胶水**——装配胶水在能力侧（AgentSystem.OpenInstance）或业务 Workflow（Kernel.FlowGraph / ContextProviders）中调 `Microsoft.Agents.AI.Mcp` client。
+

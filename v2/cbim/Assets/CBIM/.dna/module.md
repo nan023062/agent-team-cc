@@ -122,6 +122,7 @@ CBIM 把「软件中的角色」分成两个正交维度，并以两套独立服
 | `Memory/` | MemoryEntry 才平 JSON CRUD（M 服务层瘦身后）| 服务层 | spec |
 | `AgentSystem/` | AgentDescription（Id+Name+Soul+Identity + Skills/SystemTools/McpList 三能力扩展）+ OpenInstance 装配 + Session 写；子模块三足鼎立：**Skills/** + **StandardTools/** + **Mcp/**（C 服务层 + 能力维度扩展三源）| 服务层 | spec |
 | `Workspace/` | ModuleDescription（业务工作流程 + 领域知识 + McpList 业务操作接入点）+ 实例读侧（B 服务层）| 服务层 | spec |
+| `ExternalAdapter/` | 外部 Agent 引擎适配层（提示词注入 / MCP 桥接 / 能力网关三策略），把外部引擎（Claude Code / Codex / Cursor / Aider 等）纳入 CBIM 治理，所有副作用最终穿过 CBIM.Tools.Standard 或 CBIM.Mcp | 服务层 | spec |
 | `Kernel/` | 驱动层 parent：TaskScheduler + FlowGraph + ContextProviders 3 业务胶水 | 驱动层 | spec |
 | `Channel/` | 入口层：Microsoft AgentSession 薄封装 + SendAsync 调用约定 | 入口层 | spec |
 | `AgenticOS.cs` | 组合根门面 | 门面 | stub |
@@ -167,6 +168,8 @@ flowchart TD
     Mem["Memory\n(MemoryEntry CRUD)"]
     WS["Workspace\n(ModuleDescription:\nDna + Workflows + McpList)"]
 
+    EA["ExternalAdapter\n(外部 Agent 引擎适配层 · E)\n三策略：提示词注入 / MCP 桥接 / 能力网关"]
+
     Storage["Storage\n(IO 原语 · root 注入)"]
 
     AOS --> CH
@@ -195,13 +198,27 @@ flowchart TD
     ST -. AIFunction .-> MSAF
     MC -. Microsoft.Agents.AI.Mcp .-> MSAF
 
+    %% ExternalAdapter（E 服务层）——外部引擎纳入 CBIM 治理
+    AOS --> EA
+    EA -- 三策略读能力源 --> SK
+    EA -- 三策略读工具源 --> ST
+    EA -- 三策略读 MCP 接入 --> MC
+    EA -- 查业务上下文 --> WS
+    EA -. 策略一：提示词注入\n（Claude Code / Codex CLI）.-> EXT_PROMPT["外部引擎\n（黑盒）"]
+    EA -. 策略二：MCP 桥接\n（Cursor / Aider）.-> EXT_MCP["外部引擎\n（远程 MCP）"]
+    EA -. 策略三：能力网关\n（CBIM Server 代理）.-> EXT_GATE["外部引擎\n（网关路由）"]
+
     classDef base fill:#e0f0ff;
     class Storage base;
     classDef cap fill:#fffbe6;
     class SK,ST,MC cap;
+    classDef ext fill:#ffe0e0;
+    class EA ext;
+    classDef external fill:#f0f0f0,stroke-dasharray:5 5;
+    class EXT_PROMPT,EXT_MCP,EXT_GATE external;
 ```
 
-依赖单调：`AgenticOS → Channel → {Kernel.FlowGraph, AgentSystem(+Skills, +StandardTools, +Mcp)} → {Memory, Workspace, Storage, Microsoft 包}`。跨服务层依赖仅一条：`Workspace → AgentSystem.Mcp`（跨维度共享 `McpDescriptor` 抽象）。无反向边。
+依赖单调：`AgenticOS → {Channel, ExternalAdapter} → {Kernel.FlowGraph, AgentSystem(+Skills, +StandardTools, +Mcp)} → {Memory, Workspace, Storage, Microsoft 包}`。跨服务层依赖仅两条：`Workspace → AgentSystem.Mcp`（跨维度共享 `McpDescriptor` 抽象）与 `ExternalAdapter → {Skills, Tools.Standard, Mcp, Workspace}`（外部引擎适配需读三能力源 + 业务上下文）。无反向边。
 
 **本轮重要增量**（能力维度三大扩展抽象平级化）：
 
@@ -210,7 +227,14 @@ flowchart TD
 - `McpDescriptor` 抽为 abstract 基类，加 `StdioMcpDescriptor` / `HttpMcpDescriptor` 子类 + `McpTransportKind` 枚举。
 - `Workspace.ModuleDescription` 增 `McpList` 字段，业务操作接入点从 `ModuleDna` 迁出。`ModuleDna` 退化为纯知识载体。
 - McpServerAdapter 装配胶水本轮未随代码落地——能力侧 OpenInstance / 业务侧 Workflow 各自直接调 Microsoft.Agents.AI.Mcp client。
-- AgentSystem 读 AgentDescription.mcp_servers 名字串 + IMcpRegistry 二级查棅全部取消——直接持 `McpDescriptor` 实例列表。
+- AgentSystem 读 AgentDescription.mcp_servers 名字串 + IMcpRegistry 二级查棜全部取消——直接持 `McpDescriptor` 实例列表。
+
+**本轮本次重要增量**（外部引擎纳入 · E 服务层）：
+
+- 新增 `ExternalAdapter/` 作为第四服务层（E = External Engine），M/C/B 三足服务扩为 M/C/B/E 四足。
+- 三策略适配：提示词注入（Claude Code / Codex CLI 类外部代理按 prompt 驱动） / MCP 桥接（Cursor / Aider 类走远程 MCP） / 能力网关（CBIM Server 统一代理路由）。
+- 依赖方向：ExternalAdapter 读三能力顶层（Skills / Tools.Standard / Mcp）+ Workspace；不反向。
+- **关键约束**：无论内置 AIAgent 还是外部引擎，所有副作用最终都穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`——详「铁律」第 15 条。
 
 ## 三大服务系统（M / C / B）
 
@@ -244,6 +268,11 @@ flowchart TD
     - **仅限 `McpDescriptor`**：其余抽象（Skill / SystemTool）**不**跨维度；能力侧三子模块中仅 `Mcp/` 被 Workspace 引用。
     - **共享不代表耦合**：同一「外部端点」抽象被两维度独立使用，业务侧不感知能力侧使用、能力侧不感知业务侧使用。
 14. **能力维度三大扩展抽象平级**（本轮新增）——Skills / StandardTools / Mcp 三子模块同层级、同装配点、同生命周期、同被 AgentDescription 三字段并列引用；平级三足鼎立，三者互不引用。
+15. **Tool 是唯一安全边界**（本轮新增·外部引擎纳管的铁证）——**所有副作用最终都穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`**，无论是内置 AIAgent（能力侧 OpenInstance 装配）还是外部引擎（ExternalAdapter 适配）。
+    - **外部 Agent 无特权通道**：Claude Code / Codex / Cursor / Aider 等外部引擎不能绕过 CBIM 安全层直接访问文件 / 网络 / shell——仅能通过 ExternalAdapter 三策略提供的 Tools.Standard / Mcp 接口调用。
+    - **与内置 AIAgent 同等待遇**：外部引擎不享受任何“黑名单豁免”或“快通道”——与 CBIM 内置 Agent 吉选同一奋水平的沙盒 / 审计 / 追踪。
+    - **服务层拓展 M/C/B → M/C/B/E**：E（External Engine）作为第四服务层与 M/C/B 平级，依赖三能力顶层 + Workspace；不反向。
+    - **本条为 CBIM 多引擎家接入的设计刚纲**——任何新增引擎适配（增加路由、代理、提示词注入点）都不得绕过 Tool/MCP 边界。违反本条 = 违反架构。
 
 ## 能力 / 业务对偶铁律（本轮重申，修正上一轮维度错位）
 
@@ -296,6 +325,12 @@ CBIM v2 Unity 移植的演进线：
 - 上轮加一条：**「凡某个能力伴随某个维度出现，不等于该能力应在该维度描述」**。维度归属看「谁发起」不看「谁伴生」。
 - **本轮加一条**：**「同一抽象被多维度调用 ≠ 多维度耦合」**。共享 `McpDescriptor` 是 CBIM 唯一跨维度共享点；共享不等于耦合——两个维度独立调用同一抽象，依赖方向仍严格单向（`Workspace → AgentSystem.Mcp`）。
 
+15. **本轮多引擎家纳管（本轮本次裁决）**：
+    - **背景**：CBIM 不只面向内置 Microsoft.Agents.AI ChatClientAgent，还需接入外部 Agent 引擎（Claude Code / Codex CLI / Cursor / Aider 等）。这些外部引擎各自有独立进程 / 独立运行时 / 独立安全层，不能简单装配进 1 OpenInstance。
+    - **裁决**：新增 `ExternalAdapter/` 作为服务层第四足（E），M/C/B 三足服务扩为 M/C/B/E 四足。三策略对外适配：提示词注入（外部代理按 prompt 驱动）、MCP 桥接（远程 MCP server 对接）、能力网关（CBIM Server 统一代理路由）。
+    - **关键铁证**：无论是内置 AIAgent 还是外部引擎，所有副作用最终都须穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`——Tool 是唯一安全边界（诪「铁律」第 15 条）。外部 Agent 不享受任何特权通道，与内置 Agent 同等待遇。
+    - **补辩主线**：不造轮子不仅对 Microsoft 生态，同样对其他引擎家族——CBIM 不抢 LLM Agent 本体的实现赛道，仅提供安全 + 业务维度的纳管能力。
+
 ## Emergent Insights
 
 1. **「不造轮子」是 C6（稳定抽象）在生态层面的应用**——Microsoft.Agents.AI 是业界连续迭代的公共抽象，CBIM 重造永远落后。CBIM 真正的价值在「CBIM 独有的业务词汇 + 业务拓扑 + 上下文桥」。
@@ -308,6 +343,11 @@ CBIM v2 Unity 移植的演进线：
 8. **维度错位是架构师日常陷阱**（上轮新增）——`standard_tools` 看起来与 module 伴生（「这个 module 上需要读文件」），但实际上「读文件」能力是调用者（agent）的能力。识别原则：**「谁发起该能力」才是 schema 归属的右答，不是「该能力伴随谁出现」**。
 9. **能力维度三足鼎立后能看明扩展轴**（本轮新增）——Skills / StandardTools / Mcp 三个平级子目录在 AgentSystem 下并列，看一眼就明「agent 能多会一手」的三条路径，互不交叉互不覆盖。上轮 Skill 裸露 / McpAdapter 孤为子模块的不对称状态被拉齐——架构对称设计以对称语义齐齐列。
 10. **跨维度共享抽象是「抽象复用」而非「耦合」**（本轮新增）——`McpDescriptor` 同时被 AgentDescription 与 ModuleDescription 使用，不意味能力维度与业务维度耦合——是同一抽象被两个维度独立调用。跨维度共享严格限定 `McpDescriptor`，其余抽象（Skill / SystemTool）不跨维度；依赖方向严格单向（`Workspace → AgentSystem.Mcp`）保证不引入反向边。
+
+11. **多引擎家族平级化 · Tool 是唯一安全边界**（本轮新增）——CBIM 一旦接入外部 Agent 引擎，内置 AIAgent 与外部引擎（Claude Code / Codex / Cursor / Aider 等）在中枢看是**平等公民**、都只是「另一个 Agent 实现」。它们互不依赖、独立进程、独立安全层，但都被同一道安全事装纳管——**所有副作用穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`**。这个洞见交付三重价值：
+    - **架构对称**：M/C/B/E 四服务层平级对称——外部引擎与内置 Agent 同为 CBIM 业务公民。举一可推二：将来可加 G（Gateway）/ A（Auth）等服务层，同调同型纳入。
+    - **外部引擎理性选型**：CBIM 不抢 LLM Agent 本体的赛道——不造轮子从 Microsoft 生态拓到其他引擎家族。CBIM 唯一唯一唯一的价值位是「安全 + 业务上下文 + 任务调度 + 记忆」这几件业务独有事，其余交给业界。
+    - **Tool 是唯一安全边界是代价后的唯一可能**——外部引擎独立进程 / 内部不可控 → CBIM 唯一可控点只能是「外部引擎发起的副作用」，那仅能在 Tool/MCP 层拦截。如果外部引擎可以绕过 Tool 直接访问文件 / 网络 / shell，那所有安全事都是空谈——这是「Tool 是唯一安全边界」从选择现象上升为架构刚纲的逻辑起源。
 
 ## Implementation Sequence（知识 → 代码）
 
