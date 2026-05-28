@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace CBIM.Mcp
 {
@@ -20,12 +21,16 @@ namespace CBIM.Mcp
         /// <summary>可选鉴权 token。空表示无鉴权。</summary>
         public string AuthToken { get; }
 
+        /// <summary>额外 HTTP 请求头。可为空。</summary>
+        public IReadOnlyDictionary<string, string> Headers { get; }
+
         public HttpMcpDescriptor(
             string id,
             string name,
             string description,
             string endpoint,
-            string authToken = null)
+            string authToken = null,
+            IReadOnlyDictionary<string, string> headers = null)
             : base(id, name, description)
         {
             if (string.IsNullOrWhiteSpace(endpoint))
@@ -33,6 +38,7 @@ namespace CBIM.Mcp
 
             Endpoint = endpoint;
             AuthToken = authToken ?? string.Empty;
+            Headers = headers ?? new Dictionary<string, string>();
         }
     }
 }

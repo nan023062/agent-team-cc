@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-skills
 owner: architect
-description: 基础能力三抽象之「技能（Skill）」——CBIM 顶层模块，跨维度共享抽象。SkillDescriptor 是语义级声明（Id/Name/Description/Content，SKILL.md 风格内容），能力侧用作 AgentDescription.Skills、业务侧用作 ModuleDescription.Workflows（业务语境下的同抽象别名）。装配时 Content 注入 LLM 上下文（AgentSkillsProvider 后续落地）。Skill 不直接挂 AIFunction——但描述里可指引 LLM 何时调用某些工具，所以语义上 Skill 比 Tool 更高级、Skill 内部可包含 Tool。
+description: 基建层三抽象之「技能（Skill）」——本轮出两类抽象（1）描述符：SkillDescriptor（Id/Name/Description/Content · SKILL.md 风格内容）；（2）配置仓储：ISkillStore + FileSkillStore（默认本地后端，云后端预留）。不出「实例管理器」——Skill 是配置类资产（纯文本），「运行期实例」与「配置」同一物。能力侧 AgentDescription.Skills 与业务侧 ModuleDescription.Workflows 同抽象复用。
 keywords: []
 dependencies: []
 status: spec
@@ -63,11 +63,24 @@ CBIM 三大基础能力（顶层平级）：
 
 ## Children
 
-本模块**无下级**（leaf）。现阶段只有一个 `SkillDescriptor.cs`。
+本模块**无下级**（leaf）。本轮新增后包含以下文件：
+
+```
+Skills/
+├── SkillDescriptor.cs        ← 原有：描述符 POCO
+├── ISkillStore.cs            ← 本轮新增：配置仓储接口
+└── FileSkillStore.cs         ← 本轮新增：默认本地后端实现
+```
+
+**为什么不拆出子模块**：
+
+- 三个文件的**演化频率一致**（SkillDescriptor / ISkillStore / FileSkillStore 同步变动）。
+- 三者**使用上高度耦合**（Store 出 Descriptor，Store 的默认实现生产该抽象的唯一概徵才有意义）——符合 C5。
+- 拆子模块会引入三个 `.dna/` + asmdef，为三个文件的高频联动增加杀伤过大。
 
 后续可能出现的子模块（本轮不发）：
 
-- `Standard/`——CBIM 官方背书的标准技能集（如 `code-review` / `mermaid-diagram` / `commit-message` 等通用技能）。中期设计点不设计。
+- `Cloud/`——云后端实现集（S3SkillStore / HttpSkillStore / CompositeSkillStore）。仅当云后端实现的体量 >2 文件 + 依赖云 SDK 时才拆出。
 - `Loader/`——从某个目录加载 SKILL.md 转为 `SkillDescriptor` 实例的加载器。现阶段装配侧直读。
 
 ## Child Relationships
@@ -75,23 +88,35 @@ CBIM 三大基础能力（顶层平级）：
 ```mermaid
 flowchart TD
     SD["SkillDescriptor\n(Id+Name+Description+Content)"]
+    ISS["ISkillStore\n(配置仓储抽象\nGet/List/Query/Put/Delete)"]
+    FSS["FileSkillStore\n(默认本地后端\nJSON 于 <root>/skills/)"]
+    CLOUD["S3SkillStore / HttpSkillStore\n(云后端预留位)"]
     AD["AgentDescription.Skills\n(能力侧引用)"]
     MD["ModuleDescription.Workflows\n(业务侧引用)"]
-    SKP["AgentSkillsProvider\n(未来落地：注入 LLM 上下文)"]
+    STG["CBIM.Storage\n(FileBackend + StorageJson)"]
+    SKP["AgentSkillsProvider\n(未来装配侧：从 Store 拉取 + 注入 LLM 上下文)"]
     MS["Microsoft.Extensions.AI\n(AIContextProvider)"]
 
     AD --> SD
     MD --> SD
-    SKP -. 读 .-> SD
+    ISS --> SD
+    FSS -. 实现 .-> ISS
+    CLOUD -. 实现 .-> ISS
+    FSS --> STG
+    SKP -. 读 .-> ISS
     SKP -. 实现 .-> MS
 
     classDef self fill:#fffbe6;
-    class SD self;
+    classDef pending fill:#f0f0f0,stroke-dasharray:5 5;
+    class SD,ISS,FSS self;
+    class CLOUD,SKP pending;
 ```
 
-依赖单向：`AgentDescription` / `ModuleDescription` → `Skills.SkillDescriptor`。本模块不依赖 CBIM 其他模块。
+依赖单向：`AgentDescription` / `ModuleDescription` → `SkillDescriptor`；`ISkillStore` → `SkillDescriptor`；`FileSkillStore` → `ISkillStore` + `CBIM.Storage`。本模块不反向依赖 CBIM 其他模块。
 
 ## Contract Surface
+
+### 描述符（语义级抽象 · 已落地）
 
 ```csharp
 namespace CBIM.Skills;
@@ -107,7 +132,66 @@ public sealed class SkillDescriptor
 }
 ```
 
-装配侧（未来 `AgentSkillsProvider`）读。其本身不同调 LLM / 不启进程 / 不启调用。
+描述符本身是不可变 POCO；不调 LLM、不启进程、不持 IO。
+
+### 配置管理器（ISkillStore · 本轮新增）
+
+Skill 是「配置类资产」——可被作者本地维护，也可统一在云端集中管理后下发各 Agent。本模块提供**配置仓储抽象**：
+
+```csharp
+namespace CBIM.Skills;
+
+public interface ISkillStore
+{
+    // 查
+    SkillDescriptor Get(string id);                  // 找不到返回 null
+    IReadOnlyList<SkillDescriptor> List();           // 当前后端全量
+    IReadOnlyList<SkillDescriptor> Query(string text, int topK);  // 可选简单子串匹配；后端可选实现
+
+    // 增 / 改（按 Id upsert）
+    void Put(SkillDescriptor descriptor);
+
+    // 删
+    bool Delete(string id);                          // 不存在返回 false
+}
+```
+
+**实现规约**：
+
+- 同步方法——本模块不引入 Task / async（Storage 也是同步）。云后端如需异步，包装层在 Agent / Workspace 侧自己处理。
+- 描述符不可变——`Put` 替换整条记录；不支持 in-place 字段更新。
+- `Query` 是可选能力——本地后端可只做最简 substring 匹配；接 Pinecone / Weaviate 时再做向量检索。
+
+### 默认实现：FileSkillStore
+
+```csharp
+namespace CBIM.Skills;
+
+using CBIM.Storage;
+
+public sealed class FileSkillStore : ISkillStore
+{
+    public FileSkillStore(FileBackend backend, string subdir = "skills");
+    // 落盘形态：<root>/skills/<id>.json （StorageJson 序列化）
+    // 启动时全量扫一次进内存索引；Put/Delete 同步更新索引 + 落盘
+}
+```
+
+**默认后端定位**：本地文件 + JSON 序列化，依赖 `CBIM.Storage.FileBackend`。**不预设 root 路径**——由调用方注入（Agent 装配根 / Unity Composition Root / 测试用临时目录）。
+
+### 云后端预留位
+
+`ISkillStore` 接口稳定后，**下切片**可派生：
+
+- `S3SkillStore`（云对象存储后端 —— 后端如 AWS S3 / 阿里云 OSS / 七牛云）
+- `HttpSkillStore`（基于 HTTP CDN 的只读后端）
+- `CompositeSkillStore`（云上拉 + 本地缓存）
+
+云后端无须改动 Agent / Workspace 调用代码——它们只看 `ISkillStore` 接口。这是 C6（稳定抽象）在本模块的具体兑现。
+
+### 装配读侧（未来 `AgentSkillsProvider`）
+
+装配侧从 `ISkillStore` 拉取 SkillDescriptor 实例集合，再合并 `AgentDescription.Skills` / `ModuleDescription.Workflows` 后注入 LLM 上下文。本模块只出 Store；装配方决定何时读、读哪几个 Id。
 
 ## 装配模型（后续落地）
 
@@ -142,20 +226,25 @@ OpenInstance:
 ## Emergent Insights
 
 1. **「同抽象业务别名」是抽象复用的高阶形式**——不是「两者类似所以复用」，是「两者本质是同一件事，不同维度叫不同名」。识别这种同抽象需要看「描述形态 + 装配方式 + LLM 看到的体验」是否一致。
-2. **Skill 不接管 Tool 调用，只提供「使用指引」**——这使 Skill 与 Tool 解耦：同一 Skill 可以被不同工具集实现（例：「code-review」技能在某 agent 上调 git-mcp，在另一个 agent 上调 svn-mcp）。这是 LLM 能力描述与能力实现的必要隔离。
+2. **Skill 不接管 Tool 调用，只提供「使用指引」**——这使 Skill 与 Tool 解耦：同一 Skill 可以被不同工具集实现（例：「code-review」技能在某 agent 上调 git-mcp，在另一个上调 svn-mcp）。这是 LLM 能力描述与能力实现的必要隔离。
 3. **`Workflow` 独立类型被废弃是「抽象心智收敛」的体现**——“这个业务能走什么流程”与“这个 agent 会什么手艺”本质是同件事——“这件事能不能被走”。拍三个抽象（Skill / Workflow / Capability）、三个类型、三个语义是低阶设计。
+4. **「Skill 只需 Store、不需 InstanceManager」是抽象本质决定的不对称**（本轮新增）——Skill 是纯文本配置，「读取」即「使用」，不存在「启动 / 接连 / 释放」生命周期。这与 Mcp（持有外部进程 / 连接，需 ref-count）与 Tool（实例化开销 ≈ 0，不需复用）并列看才出现：三大基建抽象的「是否需要实例管理器」是受「资源是否有进程 / 连接」决定，不是抽象级别决定。这个不对称是抽象忠实于资源本质的体现。
 
 ## Dependencies
 
-- **仅依赖自身**——`SkillDescriptor` 是纯 POCO，无外部依赖。
-- **不依赖** Tools / Mcp / AgentSystem / Workspace / Storage。
-- AgentSkillsProvider（未来）落地时才会依赖 `Microsoft.Extensions.AI.AIContextProvider`——不影响本抽象层。
+- `SkillDescriptor` POCO：仅依赖自身（无外部依赖）。
+- `ISkillStore` 接口：仅依赖自身 + `SkillDescriptor`。
+- `FileSkillStore` 默认实现：依赖 `CBIM.Storage.FileBackend` + `CBIM.Storage.StorageJson`（读写 / 原子性 / JSON 序列化）。
+- **不依赖** Tools / Mcp / AgentSystem / Workspace / Microsoft.Extensions.AI。
+- `AgentSkillsProvider`（未来装配侧）落地时才侚依赖 `Microsoft.Extensions.AI.AIContextProvider`——不影响本模块抽象层。
+
+依赖方向：`AgentDescription` / `ModuleDescription` → `CBIM.Skills`；`CBIM.Skills.FileSkillStore` → `CBIM.Storage`。不反向。
 
 ## Non-Goals
 
 - **不实现 AgentSkillsProvider**——后续切片，本轮仅抽象。
-- **不从磁盘加载 SKILL.md**——现阶段代码实例化即可；Loader 后续设计。
-- **不实现技能补颁 / 推荐**——LLM 看到 Skill 描述后自行决定是否调。
+- **不从磁盘加载 SKILL.md**——现阶段代码实例化即可；SKILL.md 加载器后续设计。
+- **不实现技能推荐 / 补颁**——LLM 看到 Skill 描述后自行决定是否调。
 - **不处理技能依赖**——Skill 之间不设依赖语义；agent 怎么组合由 LLM 决定。
 - **不会变成「另一个工作流引擎」**——Skills 只是语义描述，执行在 Kernel.FlowGraph。
-
+- **`ISkillStore` 不处理运行期实例生命周期**——Skill 是配置类资产（纯文本），装配侧读取后即丢引用，不存在「运行期实例」语义。这与 Mcp 需要 `IMcpInstanceManager` 的本质区别：Skill 的「实例」就是它的「配置」，二者合为一体。

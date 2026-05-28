@@ -11,7 +11,7 @@ namespace CBIM.Tools.Standard
     //
     // 族注册表是一张固定的 IToolFamilyFactory 表。要加新族就扩这张表；
     // 按设计不开放插件点（module.md "Iron Rule 1"）。
-    public static class StandardToolsService
+    public static class StandardTools
     {
         private static readonly IToolFamilyFactory[] Factories = new IToolFamilyFactory[]
         {
