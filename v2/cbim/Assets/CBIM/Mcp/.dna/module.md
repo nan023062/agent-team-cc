@@ -9,7 +9,9 @@ status: spec
 
 ## Positioning
 
-**Mcp 是 CBIM 三大基础能力抽象之一**——与 `Tools/` / `Skills/` 平级，同为顶层模块、同为跨维度共享抽象。
+**Mcp 是 CBIM 基建层四件套抽象之一**（v2 三层模型）——与 `Tools/` / `Skills/` / `Memory/` 平级，同为顶层模块、同为「类型契约 / 抽象接口」。
+
+**本轮重定位**：MCP 重新明确为「外部 server 接入点描述的协议级类型契约」——具体 MCP 实例集合由 Agent 与 Workspace 各自独立持有（per-Agent McpList、per-Module McpList）。
 
 本模块只承载**「MCP 服务」这个协议级抽象本身**：
 
@@ -224,3 +226,4 @@ foreach handle in instance.McpHandles:
 - **不持工具发现缓存**——每次 `OpenInstance` 重启 server 重 `tools/list`，简单可预测；不引入「缓存 + 失效」复杂度。
 - **不持远端 endpoint 健康检查**——健康监测是装配侧 / ops 层职责，不在描述符抽象层。
 - **不为不同 LLM 提供商优化**——MCP 协议本身与 LLM 提供商解耦，Microsoft 客户端已处理。
+

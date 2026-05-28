@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.Agents.AI;
+using CBIM.AgentSystem;
 
 namespace CBIM.Kernel.TaskScheduler
 {
     public sealed record CbimTask(
         string TaskId,
-        AIAgent Who,
+        Agent Who,
         IReadOnlyList<string> Where,
         string What,
         string ParentTaskId = null,
@@ -16,7 +16,7 @@ namespace CBIM.Kernel.TaskScheduler
         DateTime CreatedAt = default)
     {
         public static CbimTask Create(
-            AIAgent who,
+            Agent who,
             IEnumerable<string> where,
             string what,
             string parentTaskId = null,

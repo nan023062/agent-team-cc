@@ -1,304 +1,349 @@
 ---
 name: cbim-unity-agentos
 owner: architect
-description: CBIM Agent OS · Unity 原生 C# 实现。本轮顶层重构：彻底贯穿「不造轮子」原则——以 Microsoft.Agents.AI + Microsoft.Agents.AI.Workflows + Microsoft.Extensions.AI 生态为底层，CBIM 仅保留业务独有部分。SystemTools / ExecutionUnit / TaskRunner 本轮废弃；Memory / AgentSystem / Channel 大幅瘦身。组成根：Channel（入口）+ Kernel（3 子模块胶水）+ AgentSystem / Memory / Workspace（三服务层）+ Storage（IO 原语）。
+description: CBIM Agent OS · Unity 原生 C# 实现。本轮顶层重构（三层模型 v2）：六层架构 → 三层架构（基建层 / Agent / Workspace）。基建层 = 类型约定（Tool接口 / Skill接口 / MCP协议 / IMemoryService / FileBackend）；Agent 层 = 虚拟人代理（多个脑区共享一份 Memory 实例 + Tool/Skill/MCP 集合）；Workspace 层 = 工作区 / 项目（模块树 + 模块对象，模块持自身 MCP/Skill 实例）。本轮仅修订架构与 .dna 层，代码迁移（Memory 接口抽取 / AgentSystem → Agent 重命名 / Workspace 业务 Skill+MCP 接线）下切片处理。
 keywords: []
 dependencies: []
 status: spec
 ---
-
 ## Positioning
 
 CBIM Agent OS 的 Unity 原生 C# 实现。本模块是组合根，自身**不承载任何业务逻辑**——只做装配。
 
-**本轮顶层重构**：彻底贯穿「不造轮子」——所有能用 Microsoft Agent Framework 生态替代的全部交出去，CBIM 只保留真正业务独有的部分。
+**本轮顶层重构（v2 三层模型）**：把之前的「6 层架构（调度/引擎/业务/能力/基座/扩展）」收敛为**三层架构**——
 
-## 核心对偶：能力 / 业务
+```
+基建层（Infrastructure Primitives）  类型约定 / 抽象接口 / 标准协议
+   ↑
+Agent 层（虚拟人代理）              人 = 多脑区共享一份 Memory + Tool/Skill/MCP 集合
+   ↑
+Workspace 层（工作区 / 项目）        模块树 + 模块对象（模块自身的 MCP / Skill 挂载点）
+```
 
-CBIM 把「软件中的角色」分成两个正交维度，并以两套独立服务层承载：
+之前的六层并未消失——它们退化为「三层 + 横切关注点」的内部细分：调度（行为树）和外部 Agent 适配仍存在，但作为 Agent 层内部的子结构出现；不再被宣传为顶层概念。**真正的顶层心智模型只有三个名字：基建、Agent、Workspace**。
 
-| 维度 | 概念 | 服务层 | 本维度内容 | 物理形态 |
-|------|------|--------|------------|----------|
-| **能力（Capability）** | Agent —— 具有特定领域能力的「个体」 | `AgentSystem/`（C 维度） | **Soul / Identity + Skills + SystemTools + McpList + 专精领域** | `AgentDescription`（C# 类实例化） + `AgentInstance` |
-| **业务（Business）** | Module —— 特定业务类型的「工作区」 | `Workspace/`（B 维度） | **Dna + Workflows + McpList** | `ModuleDescription` + `ModuleInstance` |
-| **记忆（Memory）** | 跨能力跨业务的事实 / 决策 / 原则沉淀 | `Memory/`（M 维度） | 事实 / 决策 entries | `MemoryEntry` 才平 JSON |
+## CBIM 认知框架（顶层 mental model）
 
-**对偶的核心约束**：
+> **CBIM 是一个「复合 Agent」——一个拥有全知全能的人。**
 
-- 能力维度回答「**谁**能动 + 拿什么工具动」——工具是 agent 的能力构成。
-- 业务维度回答「在**什么样的工作区**里动、能动**什么**（业务流程 + 领域知识 + 业务接入点）」——不持 agent 工具。
-- 一件任务由二者交叉成立——`Task = Agent + ModuleList + Requirement`。三大服务系统互不依赖，跨系统协同走 Kernel.FlowGraph + ContextProviders。
+| 隐喻 | CBIM 对应物 | 三层归属 |
+|------|-------------|----------|
+| **这个全能的人** | CBIM 整体（`AgenticOS` 装配根） | — |
+| **大脑皮层 / 协调中枢** | 行为树调度（`Kernel/FlowGraph` + `Kernel/TaskScheduler`） | Agent 层内部 |
+| **脑干 / 小脑 / 各专项脑区** | 内部各 Agent 实例 / 外部 Agent 句柄 | Agent 层 |
+| **长期记忆** | Memory 实例（绑定 Agent） | 基建抽象（IMemoryService）+ Agent 持实例 |
+| **工具与武器** | Tool 接口 / Skill 接口 / MCP 协议 | 基建（类型约定）+ Agent/Workspace 各自实例化 |
+| **办公位 / 工作空间** | Module 模块对象 | Workspace 层 |
+| **当下思考流** | AgentSession 运行态 | Agent 层（Microsoft AgentSession host） |
 
-**唯一跨维度共享抽象（本轮重点）**：`McpDescriptor`——同抽象、同类型、同符号；被 `AgentDescription.McpList`（能力侧：agent 自带、跟人走）与 `ModuleDescription.McpList`（业务侧：module 接入点、跟业务走）同时引用。依赖方向严格单向：`Workspace → AgentSystem.Mcp`。
+### 核心三定理（沿用不变）
 
-**维度错位的反面教材**：上一轮把工具声明放在 `ModuleDescription.standard_tools`，本轮推翻——详「能力 / 业务对偶铁律」节。记住：「看起来与某维度伴生」 ≠ 「应在该维度 schema 内」。
+1. **皮层定理（行为树 = 协调）**——复合 Agent 的跨脑区协作由行为树调度驱动；行为树边即「皮层突触」，不是 prompt 里的「请决定下一步」。
+2. **脑区定理（子 Agent = ReAct）**——每个内部 Agent 只做 Reason-Act 自身循环，不调度其他子 Agent，不感知行为树。
+3. **武器库定理（Tool / Skill / MCP = 共享标准 + 私有实例）**——**接口标准跨场景共享**（基建层），**实例集合各方独立持有**（Agent 持自己的 Tool/Skill/MCP 集合，Workspace 模块也持自己的 MCP/Skill 集合）。同一标准、不同实例——这是三层模型对原「跨维度共享抽象」的精确化。
 
-## 类比助记：人 + 办公位 = 任务场景
+### 命名收敛与新表达
 
-抽象描述都对，但难记。换个 mental model——CBIM 一次任务的两个主角，是**一个人坐到一个办公位上干活**。
+| 旧表达 | 新表达 | 说明 |
+|--------|--------|------|
+| 「6 层架构」（调度/引擎/业务/能力/基座/扩展） | 「三层架构」（基建/Agent/Workspace） | 顶层心智收敛 |
+| 「能力层 Tool/Skill/MCP」 | 「基建层类型约定 Tool/Skill/MCP」 | Tool/Skill/MCP 不是「能力」，是「能力的类型契约」 |
+| 「引擎层 AgentSystem」 | 「Agent 层（原 AgentSystem 服务层）」 | 服务层名称仍叫 AgentSystem，但概念上承载「Agent = 虚拟人」语义 |
+| 「业务层 Workspace」 | 「Workspace 层」 | 名字未变；本轮明确「模块也持自己的 MCP/Skill 实例」 |
+| 「Memory 横切关注点」 | 「IMemoryService 基建接口 + Agent 持 Memory 实例」 | Memory 不再是全局服务，而是 per-Agent 实例 |
 
-### `AgentInstance` = 一个人
+## 三层模型详解
 
-| 字段 | 类比 |
-|------|------|
-| `Agent`（MS AIAgent）| **大脑** —— 决策思考 |
-| `Description.Soul` / `Identity` | **人格 / 身份** —— 性格与角色 |
-| `Description.Skills` | **经验技能** —— 会做的事 |
-| `Description.SystemTools` | **随身工具** —— 笔记本 / IDE |
-| `Description.McpList` | **协作能力** —— 接外部系统的本事 |
-| `Session` | **当下思考记录** —— 这次对话的脑中状态 |
-| `McpHandles` | **启动中的工具进程** —— 跑着的 MCP server |
-| `DisposeAsync` | **下班关电脑** —— 释放资源 |
+### 基建层（Infrastructure Primitives）
 
-### `ModuleInstance` = 一个办公位
+基建层 = **类型契约 / 抽象接口 / 标准协议**。本层不承载任何业务行为；只定义「Agent 层和 Workspace 层共同遵守的标准」。
 
-| 字段 | 类比 |
-|------|------|
-| `WorkspaceRoot` | **办公位位置** —— 哪间办公室哪张桌子 |
-| `Description.Metadata` | **工作资料 + 操作说明** —— 贴在墙上的规章 |
-| `Description.Workflows` | **工作流程** —— 标准作业流程清单 |
-| `Description.Tools` | **办公设备** —— 打印机 / 扫描仪 / 专用屏 |
-| `Description.McpList` | **接入业务系统** —— 连企业 ERP / CDN 控制台 |
-| `Description.Owners` | **工位负责人** —— 开发 + 审计 |
-| `ActivatedByTaskId` | **这次工单** —— 派给本工位的活儿 |
+| 子模块 | 提供的类型契约 | 物理位置 |
+|--------|---------------|----------|
+| `Tools/` | `ToolDescriptor`——工具家族声明抽象 | 顶层模块 |
+| `Skills/` | `SkillDescriptor`——技能 / 工作流描述抽象 | 顶层模块 |
+| `Mcp/` | `McpDescriptor`（abstract + Stdio/Http 子类）——MCP server 接入点抽象 | 顶层模块 |
+| `Memory/`（接口部分） | `IMemoryService`——记忆服务接口 + `MemoryEntry` 记录类型 | 顶层模块（接口） |
+| `Memory/`（默认实现） | `FileMemoryBackend`——基于 FileBackend 的默认 IMemoryService 实现 | 顶层模块（实现） |
+| `Storage/` | `FileBackend`——文件系统原语（原子写 / JSON / 路径解析） | 顶层模块 |
 
-### 关键差别：主动 vs 被动
+**基建层铁律：**
 
-| | 人（Agent） | 办公位（Module） |
-|--|------------|-----------------|
-| 主动性 | **主动**：有大脑会思考 | **被动**：等人来用 |
-| 资源生命周期 | 重——启动 MCP / 维护 Session / 需 Dispose | 轻——纯激活记录，无运行态 |
-| 谁能离开 | 下班关电脑（DisposeAsync） | 工位不关电脑，等下一个人坐 |
+- 基建层模块**不依赖**任何 Agent 层 / Workspace 层模块——它是依赖图最稳定的底层。
+- 基建层只定义类型与接口，**不持业务状态**（FileBackend 持有 root 路径不算业务状态；那是 IO 配置）。
+- 基建抽象一旦定义稳定，Agent 层 / Workspace 层可自由派生具体实例；后续接入 Pinecone / 第三方 MCP server / 自定义工具家族都不需要改基建层。
+- **Tool / Skill / MCP / Memory 四件套不再被叫做「能力层」**——它们是「能力的类型契约」。能力（具体的 Tool 实例集合）属于谁，看谁实例化谁。
 
-### Task = 工单
+### Agent 层（虚拟人代理）
 
-`Task = 派 [某个人] 去 [一个或多个办公位] 干 [某件事]`
+Agent 层 = **「人」的能力**。一个 Agent 实例代表一个虚拟人代理，由以下五件事拼装：
 
-- 人**带着**自己的经验/工具/MCP（跟人走）到办公位
-- 用办公位的**资料 / 设备 / 接入系统**（跟工位走）完成工单
-- 同一个人坐不同办公位 → 经验通用 + 工位资源不同
-- 同一个办公位被不同人坐 → 工位资源通用 + 经验不同
+```
+Agent 实例 = {
+   思维对象集合：封装 Microsoft AIAgent（多个 ChatClientAgent 共享 ↓ 下方 4 项资源）
+   Memory 实例：实现基建 IMemoryService 接口
+   Tool 集合：按基建 Tool 标准派生（per-Agent 独立实例集）
+   MCP 集合：按基建 MCP 标准派生（per-Agent 独立实例集）
+   Skill 集合：按基建 Skill 标准派生（per-Agent 独立实例集）
+}
+```
 
-**为什么这个类比关键**：
-1. **解释了"工具双重来源"的合理性**——人带笔记本，工位有打印机，两个都用很自然
-2. **解释了"为什么 MCP 跨维度共享"**——MCP 协议本身就是"接入某个系统"，不论这个能力是人会的（git）还是工位接好的（公司 CRM）
-3. **解释了"为什么 AgentInstance 重而 ModuleInstance 轻"**——人有大脑要维护，工位是死的
-4. **解释了"为什么 Skills 在两侧都有"**——人有经验技能，工位有作业流程，都是"知道怎么做某件事"
+**思维对象集合 = 多脑区** —— 一个 Agent 内部可装配多个 Microsoft `AIAgent`（如 Reasoner + Critic + Summarizer），这些「脑区」**共享同一份** Memory / Tool / MCP / Skill 资源池。这是「复合 Agent 的脑区共用同一具身」的物理落地——人有左右脑，但记忆和身体是一份。
 
-## 本轮整体砍 / 留
+**Agent 层物理模块构成：**
 
-| 类别 | 模块 | 决定 |
-|------|------|------|
-| **完全砍掉** | `SystemTools/` | Files/Search/Web 交给 Microsoft.Extensions.AI AIFunction 生态；Shell 因 net8-only 暂搁置 |
-| **完全砍掉** | `Kernel/ExecutionUnit/` | 上轮已 deprecated，本轮物理删 |
-| **完全砍掉** | `Kernel/TaskRunner/` | 30 行胶水折入 FlowGraph 的 CbimTaskExecutor（Microsoft Workflows Executor）|
-| **大幅瘦身** | `Memory/` | 退化为 MemoryEntry 扁平 JSON CRUD + 将来挂 Microsoft VectorStore 的连接点；短期记忆 / Compaction / 向量检索全部交 Microsoft |
-| **大幅瘦身** | `AgentSystem/` | 保留 AgentDescription schema + OpenInstance 装配胶水 + Session 写侧；AIAgentBuilder / ChatClientAgent / AgentThread / AgentSession 由 Microsoft 接管 |
-| **大幅瘦身** | `Channel/` | 退化为 Microsoft `AgentSession` 的薄封装 |
-| **重写** | `Kernel/FlowGraph/` | 基于 Microsoft.Agents.AI.Workflows，CBIM 仅写 CbimTaskExecutor + 业务 Workflow 装配类 |
-| **重写** | `Kernel/TaskScheduler/` | 仅 CbimTask 不可变 record |
-| **保留** | `Kernel/ContextProviders/` | 三 AIContextProvider 实现（CBIM 上下文 → Microsoft 抽象）|
-| **保留** | `Workspace/` | CBIM 独有业务模块知识图谱 |
-| **解耦** | `Storage/` | root path 注入，去 Unity 耦合 |
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `AgentSystem/` | **Agent 装配服务层**（旧名 AgentSystem，本轮明确语义为「Agent 层服务门面」）。包含 AgentDescription schema + 装配胶水 OpenInstance + Session 写侧。**目录名是否同步重命名为 `Agent/` 见「AgentSystem → Agent 重命名决策」节** | spec |
+| `ExternalAdapter/` | 外部 Agent 引擎适配层（Claude Code / Cursor / Codex 三策略）——同样是 Agent 层的一支，只是「人」由外部引擎驱动 | spec |
+| `Kernel/` | Agent 层的内部协调子结构（行为树调度 + ContextProviders）——皮层落在 Agent 层内部 | spec |
+| `Channel/` | Agent 层入口（Microsoft AgentSession 薄封装） | spec |
 
-## CBIM 真正不可替代的东西
+**Agent 层依赖基建层**：AgentSystem 引用 `CBIM.Tools` / `CBIM.Skills` / `CBIM.Mcp` / `CBIM.Memory.IMemoryService`；不反向。
 
-经过本轮裁决，CBIM 在 Unity 侧只写以下业务独有内容：
+### Workspace 层（工作区 / 项目）
 
-1. **CbimTask 三元组**（who/where/what）—— CBIM 业务词汇
-2. **业务 Workflow 装配**（ChatWorkflow / DispatchWorkflow / ArchExecWorkflow 等）—— CBIM 业务拓扑
-3. **三个 AIContextProvider 实现**（Workspace / Memory / Session）—— CBIM 上下文桥
-4. **AgentDescription schema + OpenInstance 装配**—— CBIM 能力定义与装配胶水
-5. **MemoryEntry 扁平 JSON 后端**—— CBIM 中期记忆条目（distill 后事实）
-6. **ModuleDescription 读侧 + reindex**—— CBIM 业务模块知识图谱
-7. **Channel 薄封装**—— Unity 场景层的 OpenChannel/SendAsync 调用约定
-8. **Storage 文件 IO 原语**—— 跨平台原子写
+Workspace 层 = **「工位」+「工位上贴的规章」+「工位接的外部系统」**。
 
-## Children
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `Workspace/` | 模块树 + 模块对象（ModuleDescription / ModuleMetadata / ModuleOwners / 模块自身的 MCP & Skill 挂载点） | spec |
 
-| 子模块 | 一句话职责 | 层级 | 状态 |
-|--------|----------|------|------|
-| `Storage/` | IO 原语（root 注入）| 最底层 | spec |
-| `Memory/` | MemoryEntry 才平 JSON CRUD（M 服务层瘦身后）| 服务层 | spec |
-| `AgentSystem/` | AgentDescription（Id+Name+Soul+Identity + Skills/SystemTools/McpList 三能力扩展）+ OpenInstance 装配 + Session 写；子模块三足鼎立：**Skills/** + **StandardTools/** + **Mcp/**（C 服务层 + 能力维度扩展三源）| 服务层 | spec |
-| `Workspace/` | ModuleDescription（业务工作流程 + 领域知识 + McpList 业务操作接入点）+ 实例读侧（B 服务层）| 服务层 | spec |
-| `ExternalAdapter/` | 外部 Agent 引擎适配层（提示词注入 / MCP 桥接 / 能力网关三策略），把外部引擎（Claude Code / Codex / Cursor / Aider 等）纳入 CBIM 治理，所有副作用最终穿过 CBIM.Tools.Standard 或 CBIM.Mcp | 服务层 | spec |
-| `Kernel/` | 驱动层 parent：TaskScheduler + FlowGraph + ContextProviders 3 业务胶水 | 驱动层 | spec |
-| `Channel/` | 入口层：Microsoft AgentSession 薄封装 + SendAsync 调用约定 | 入口层 | spec |
-| `AgenticOS.cs` | 组合根门面 | 门面 | stub |
+**模块对象的组成（本轮明确）：**
 
-**已废弃**（代码已物理删）：`SystemTools/`、`Kernel/ExecutionUnit/`、`Kernel/TaskRunner/`、AgentSystem 下原独立的 `McpAdapter/`（本轮重命名并位于 `Mcp/` 三足鼎立中）。
+```
+Module 实例 = {
+   元数据（ModuleMetadata）+ 物理工作区（WorkspaceRoot）  // 是什么 + 在哪
+   模块 Skill（ModuleDescription.Workflows: SkillDescriptor[]）  // 业务流程声明（按基建 Skill 标准派生）
+   模块 MCP   （ModuleDescription.McpList: McpDescriptor[]）     // 业务操作接入点（按基建 MCP 标准派生）
+   模块负责人 （ModuleOwners）                                   // 谁来做
+}
+```
 
-**本轮重要增量**（三大基础能力抽象顶层化·代码已落地）：
+**与基建层的派生关系**：模块的 Skill 集合和 MCP 集合**实例**归属 Workspace 模块，**类型契约**来自基建层。这是「类型共享 / 实例不共享」原则的具象落地。
 
-- `Tools/`（顶层）——含 `ToolDescriptor`（原 `SystemTool` 重命名） + `Tools/Standard/` 子模块承载内置工具家族实现（Files / Search）。整体从 `AgentSystem/StandardTools/` 提升为顶层。
-- `Skills/`（顶层）——含 `SkillDescriptor`（原 `Skill` 重命名）。从 `AgentSystem/Skills/` 提升为顶层。
-- `Mcp/`（顶层）——含 `McpDescriptor` abstract + `StdioMcpDescriptor` / `HttpMcpDescriptor` + `McpTransportKind` 枚举。从 `AgentSystem/Mcp/` 提升为顶层。
+**与 Agent 层的关系**：Workspace 模块**不依赖** Agent 层——一个工位独立于坐进来的人存在。Agent 实例进入某 Workspace 模块执行任务时，Agent 自带的 Tool/MCP/Skill 与 Workspace 自带的 Skill/MCP 在装配点合并（去重 by Id）——这是 task 期的临时组合，不是模块间的静态依赖。
 
-三顶层模块**同为「扩展能力」基础抽象**、**跨维度共享**（agent 和 module 都各自引用三者列表）、**同被 AgentDescription / ModuleDescription 三字段并列引用**——仅扩展形态不同。
+**Workspace 层依赖基建层**：Workspace 引用 `CBIM.Mcp` + `CBIM.Skills`（两个基建抽象），用于声明业务 MCP 与业务 Skill。不依赖 Agent 层。
 
-**理由**：上轮把 Skill / SystemTool / Mcp 放在 `AgentSystem/` 子目录下导致维度错位——业务侧（Workspace）想用 McpDescriptor 时只能跨维度反向引用能力侧子模块，语义错位。本轮顶层化后两个维度都平等引用顶层模块，对称清晰。
+## 关键变化点（v2 三层模型 vs 旧六层模型）
 
-**跨维度共享**：`McpDescriptor` 同时被 `AgentDescription.McpList`（能力维度）与 `ModuleDescription.McpList`（业务维度）引用——CBIM 内唯一跨维度共享抽象。Workspace 反向依赖 `CBIM.Mcp`（单向，符合 C3）。
+### 变化 1：Tool / Skill / MCP 重新定位为「基建类型约定」
 
-## Child Relationships
+- **旧**：被叫做「能力层 Tool/Skill/MCP」，作为顶层模块跨维度共享。
+- **新**：仍是顶层模块，但语义重定位为「基建层类型约定」——它们不是「能力」，它们是「能力描述的类型契约」。具体能力实例由 Agent 与 Workspace 各自派生持有。
+- **物理影响**：无（位置不变）。
+- **认知影响**：消除「Tool/Skill/MCP 属于哪个维度」的反复纠缠——它们不属于任何维度，只是类型契约。
+- **类型 vs 实例**：基建层一份抽象 + 多份派生实例（Agent 一套、每个 Module 一套）。
+
+### 变化 2：Memory 从「具体服务」抽象为「接口 + 默认实现」
+
+- **旧**：`MemoryService` 是单例服务，跨 Agent 共享一份扁平 JSON 后端。
+- **新**：`IMemoryService` 是基建接口，`FileMemoryBackend`（基于 FileBackend）是默认实现。**每个 Agent 实例持一个 IMemoryService 实例**。
+- **目的**：
+  1. 接入第三方记忆库（Pinecone / Weaviate / Chroma）只需新实现 IMemoryService，不改 Agent 层代码。
+  2. 不同 Agent 可以接不同后端（轻量 Agent 用 FileBackend，重型 Agent 用向量库）。
+  3. 「这个人的记忆」语义化——记忆与 Agent 绑定，符合「人 = Memory + 工具集」的认知模型。
+- **物理影响**：
+  - `Memory/` 模块拆出 `IMemoryService` 接口 + `MemoryEntry` 类型 + `FileMemoryBackend` 默认实现。
+  - `AgentSystem.AgentDescription` 增 Memory 字段（`IMemoryService` 配置 / 实例引用）。
+  - `Agent` 实例持 `IMemoryService` 字段。
+- **依赖方向**：`Agent → IMemoryService`；`FileMemoryBackend → IMemoryService + FileBackend`。无反向。
+
+### 变化 3：AgentSystem 概念上重命名为 Agent
+
+- **概念层**：「AgentSystem」改称「Agent 层」——服务层管理的是「一个个虚拟人」，名字应该反映对象本身，而不是「produces agents 的系统」。
+- **物理目录是否同步改名（`AgentSystem/` → `Agent/`）**：见下文「AgentSystem → Agent 重命名决策」节——本轮决策保留物理目录名，下一切片再决定是否改名。
+- **影响范围**：
+  - 文档/术语：所有提到「AgentSystem」的位置，明确语义是「Agent 层服务门面」。
+  - C# 命名空间：本轮不动（`CBIM.AgentSystem` 命名空间仍有效）。
+  - 类名：本轮不动（`AgentSystemService` 等仍有效）。
+
+### 变化 4：Workspace 模块明确「业务 MCP + 业务 Skill 挂载点」
+
+- **旧状态**：`ModuleDescription` 已含 `McpList: McpDescriptor[]` 和 `Workflows: SkillDescriptor[]`——业务 MCP 已存在，业务 Skill 以「Workflows」别名存在。
+- **本轮变化**：术语统一为「业务 MCP + 业务 Skill」——`Workflows` 字段语义上 = 业务 Skill 集合；MCP 字段语义上 = 业务 MCP 集合。基建标准（`McpDescriptor` / `SkillDescriptor`）不变。
+- **物理影响**：无（字段已存在）；只更新文档表达。
+
+### 变化 5：派生侧 Tool/Skill/MCP 集合各自独立
+
+- **本轮明确**：Agent 持的 Tool/Skill/MCP 实例集合 与 Workspace 模块持的 MCP/Skill 实例集合 **是独立的**——同一基建标准、不同实例。
+- **去重时机**：仅在 task 期装配点合并（Agent 自带 + 当前 task.Where 模块自带），按 Id 去重；模块间 / Agent 间互不感知彼此的实例集合。
+- **跨维度共享的精确表达**：共享的是「类型 / 接口 / 协议」（基建层一份），不共享「实例集合」（Agent / 各 Module 各持各的）。
+
+## AgentSystem → Agent 重命名决策（本轮裁决）
+
+**裁决：本轮保留物理目录名 `AgentSystem/`；下一切片视代码迁移成本再决定是否改名。**
+
+**理由：**
+
+1. **物理改名成本**：`AgentSystem/` → `Agent/` 涉及目录、asmdef、C# 命名空间（`CBIM.AgentSystem` → `CBIM.Agent`）、所有 using 语句、类名（`AgentSystemService` → `AgentService`）、测试文件。本轮重构焦点在「概念三层模型 + Memory 接口抽取」，不宜与改名工程混合，否则一处编译失败拖累整轮 .dna 与 _ARCHITECTURE.md 验证。
+2. **概念已重命名**：术语层面已把「AgentSystem 服务层」明确为「Agent 层」——读者看到「AgentSystem」时知道它是「Agent 层的服务门面」，不是「Agent 本身」。物理改名是表达上的精确化，不改语义。
+3. **可逆性**：保留物理目录名 = 保留可选项；下一切片若代码迁移已稳定，可统一改名（或决定永远不改——「AgentSystem 服务层装配 Agent 实例」也读得通，类比「PersonnelSystem 装配 Person」）。
+
+**改名/不改名的对比表：**
+
+| 维度 | 改名（`Agent/`） | 不改名（`AgentSystem/` 保留） |
+|------|------------------|-------------------------------|
+| 概念清晰度 | 更直接（目录名 = 概念名） | 需要文档说明（目录是服务层名） |
+| 代码迁移成本 | 高（命名空间 + 类名 + 引用链） | 零 |
+| 与 ExternalAdapter 对称性 | 一般（Agent vs ExternalAdapter 不对称） | 现状（AgentSystem vs ExternalAdapter 都以 -System/-Adapter 收尾） |
+| Channel / Kernel 引用更新 | 需要 | 不需要 |
+
+**下一切片若决定改名**：作为独立的代码迁移任务执行，搭配 `Agent` namespace 的全局 rename + asmdef 重写 + 全部测试一次过。
+
+## Children（本轮三层归属）
+
+### 基建层
+
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `Storage/` | 文件系统原语（FileBackend + 原子写 + JSON） | spec |
+| `Tools/` | `ToolDescriptor` 工具家族抽象 + `Standard/` 内置实现 | spec |
+| `Skills/` | `SkillDescriptor` 技能 / 工作流描述抽象 | spec |
+| `Mcp/` | `McpDescriptor` abstract + Stdio/Http 子类 + Transport 枚举 | spec |
+| `Memory/` | `IMemoryService` 接口 + `MemoryEntry` 类型 + `FileMemoryBackend` 默认实现 | spec |
+
+### Agent 层
+
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `AgentSystem/` | Agent 装配服务门面（AgentDescription + OpenInstance + Session 写侧；持 IMemoryService 实例） | spec |
+| `ExternalAdapter/` | 外部 Agent 引擎适配（Claude Code / Cursor / Codex 三策略） | spec |
+| `Kernel/` | 行为树调度 + CbimTask + ContextProviders | spec |
+| `Channel/` | Microsoft AgentSession 薄封装 | spec |
+
+### Workspace 层
+
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `Workspace/` | ModuleDescription + ModuleMetadata + ModuleOwners + 模块自身的 MCP/Skill 挂载点 | spec |
+
+### 门面
+
+| 子模块 | 一句话职责 | 状态 |
+|--------|----------|------|
+| `AgenticOS.cs` | 组合根门面（装配三层） | stub |
+
+**已废弃**（代码已物理删）：`SystemTools/`、`Kernel/ExecutionUnit/`、`Kernel/TaskRunner/`、AgentSystem 下原独立的 `McpAdapter/`。
+
+## Child Relationships（三层架构图）
 
 ```mermaid
 flowchart TD
-    AOS["AgenticOS\n(组合根 · 装配)"]
-    CH["Channel\n(入口 · AgentSession 薄封装)"]
+    classDef infra fill:#d1c4e9,stroke:#311b92,color:#000;
+    classDef agent fill:#c8e6c9,stroke:#1b5e20,color:#000;
+    classDef workspace fill:#bbdefb,stroke:#0d47a1,color:#000;
+    classDef msai fill:#f8bbd0,stroke:#880e4f,color:#000;
 
-    subgraph K["Kernel（3 业务胶水子模块）"]
-        TS["TaskScheduler\n(CbimTask record)"]
-        FG["FlowGraph\n(Microsoft Workflows 适配 +\nCbimTaskExecutor)"]
-        CP["ContextProviders\n(CBIM 上下文桥)"]
-        FG --> TS
-        FG --> CP
+    subgraph L1["基建层（类型约定 / 抽象接口 / 标准协议）"]
+        STG["Storage<br/>FileBackend"]
+        T["Tools<br/>ToolDescriptor (+ Standard 实现)"]
+        SK["Skills<br/>SkillDescriptor"]
+        MC["Mcp<br/>McpDescriptor (abstract)"]
+        MEM["Memory<br/>IMemoryService 接口 +<br/>MemoryEntry +<br/>FileMemoryBackend 默认实现"]
+        MEM --> STG
+        T --> STG
     end
 
-    MSAF["Microsoft.Agents.AI +\n.Workflows + Extensions.AI +\n.Mcp （IChatClient / AIAgent / AgentSession /\nWorkflow / AIContextProvider / AIFunction /\nMcpClient）"]
-
-    subgraph ASG["AgentSystem（C 能力服务层）"]
-        AS["AgentSystemService\n(AgentDescription 含\nSkills / SystemTools / McpList +\nOpenInstance + Session 写)"]
-        SK["Skills/\nSkill"]
-        ST["StandardTools/\nSystemTool + AIFunction 家族"]
-        MC["Mcp/\nMcpDescriptor（abstract）\n+ Stdio/Http 子类\n+ McpTransportKind"]
+    subgraph L2["Agent 层（虚拟人代理 · 人的能力）"]
+        AS["AgentSystem<br/>(AgentDescription 持 Memory/Tool/Skill/MCP)<br/>(OpenInstance 装配 + Session 写)"]
+        EA["ExternalAdapter<br/>(外部引擎三策略)"]
+        K["Kernel<br/>(FlowGraph + TaskScheduler + ContextProviders)"]
+        CH["Channel<br/>(AgentSession 薄封装)"]
+        K --> AS
+        CH --> AS
+        CH --> K
+        AS --> MEM
+        AS --> T
+        AS --> SK
+        AS --> MC
+        EA --> T
+        EA --> SK
+        EA --> MC
     end
 
-    Mem["Memory\n(MemoryEntry CRUD)"]
-    WS["Workspace\n(ModuleDescription:\nDna + Workflows + McpList)"]
+    subgraph L3["Workspace 层（工作区 / 项目）"]
+        WS["Workspace<br/>(ModuleDescription:<br/>Metadata + Workflows[Skill] + McpList[Mcp] + Owners)"]
+        WS --> MC
+        WS --> SK
+    end
 
-    EA["ExternalAdapter\n(外部 Agent 引擎适配层 · E)\n三策略：提示词注入 / MCP 桥接 / 能力网关"]
+    subgraph MSAI["Microsoft Agent Framework（横向底座）"]
+        MSAgent["AIAgent / AgentSession"]
+        MSChat["IChatClient"]
+        MSWF["Workflow / Executor"]
+        MSFn["AIFunction"]
+        MSCP["AIContextProvider"]
+        MSMcp["Mcp Client"]
+    end
 
-    Storage["Storage\n(IO 原语 · root 注入)"]
+    AS -.AsAIAgent.-> MSAgent
+    AS -.consumes.-> MSChat
+    K -.基于.-> MSWF
+    K -.实现.-> MSCP
+    T -.produces.-> MSFn
+    MC -.Microsoft.Agents.AI.Mcp.-> MSMcp
 
+    AOS["AgenticOS<br/>(组合根)"]
     AOS --> CH
-    CH --> AS
-    CH --> FG
-    CH -. 调 AgentSession / RunAsync .-> MSAF
-
-    FG -. 基于 .-> MSAF
-    FG --> AS
-    CP --> Mem
-    CP --> WS
-    CP --> AS
-    CP -. 实现 AIContextProvider .-> MSAF
-
-    AS -. 装配 AIAgent .-> MSAF
-    AS --> Storage
-    AS -- 读 Skills --> SK
-    AS -- 读 SystemTools --> ST
-    AS -- 读 McpList --> MC
-    AS -. CreateFamilies .-> ST
-
-    Mem --> Storage
-    WS --> Storage
-    WS -- 跨维度共享 McpDescriptor --> MC
-    ST --> Storage
-    ST -. AIFunction .-> MSAF
-    MC -. Microsoft.Agents.AI.Mcp .-> MSAF
-
-    %% ExternalAdapter（E 服务层）——外部引擎纳入 CBIM 治理
     AOS --> EA
-    EA -- 三策略读能力源 --> SK
-    EA -- 三策略读工具源 --> ST
-    EA -- 三策略读 MCP 接入 --> MC
-    EA -- 查业务上下文 --> WS
-    EA -. 策略一：提示词注入\n（Claude Code / Codex CLI）.-> EXT_PROMPT["外部引擎\n（黑盒）"]
-    EA -. 策略二：MCP 桥接\n（Cursor / Aider）.-> EXT_MCP["外部引擎\n（远程 MCP）"]
-    EA -. 策略三：能力网关\n（CBIM Server 代理）.-> EXT_GATE["外部引擎\n（网关路由）"]
 
-    classDef base fill:#e0f0ff;
-    class Storage base;
-    classDef cap fill:#fffbe6;
-    class SK,ST,MC cap;
-    classDef ext fill:#ffe0e0;
-    class EA ext;
-    classDef external fill:#f0f0f0,stroke-dasharray:5 5;
-    class EXT_PROMPT,EXT_MCP,EXT_GATE external;
+    class STG,T,SK,MC,MEM infra;
+    class AS,EA,K,CH agent;
+    class WS workspace;
+    class MSAgent,MSChat,MSWF,MSFn,MSCP,MSMcp msai;
 ```
 
-依赖单调：`AgenticOS → {Channel, ExternalAdapter} → {Kernel.FlowGraph, AgentSystem(+Skills, +StandardTools, +Mcp)} → {Memory, Workspace, Storage, Microsoft 包}`。跨服务层依赖仅两条：`Workspace → AgentSystem.Mcp`（跨维度共享 `McpDescriptor` 抽象）与 `ExternalAdapter → {Skills, Tools.Standard, Mcp, Workspace}`（外部引擎适配需读三能力源 + 业务上下文）。无反向边。
+**依赖单调（C3 铁律）：**
 
-**本轮重要增量**（能力维度三大扩展抽象平级化）：
+```
+Workspace 层 → 基建层
+Agent 层    → 基建层
+Agent 层    → ⊥（不依赖 Workspace 层；二者跨层协同在 task 期由 AgenticOS / Kernel 组合）
+基建层      → ⊥（不依赖任何 CBIM 同级层）
+组合根      → 三层（仅装配；不参与运行期数据流）
+```
 
-- AgentSystem 下由上轮两位（StandardTools + McpAdapter）伸展为三位**平级**：Skills + StandardTools + Mcp。
-- `McpAdapter/` 重命名为 `Mcp/`（与 Skills / StandardTools 命名风格对齐——都是「该抽象的家」）。
-- `McpDescriptor` 抽为 abstract 基类，加 `StdioMcpDescriptor` / `HttpMcpDescriptor` 子类 + `McpTransportKind` 枚举。
-- `Workspace.ModuleDescription` 增 `McpList` 字段，业务操作接入点从 `ModuleDna` 迁出。`ModuleDna` 退化为纯知识载体。
-- McpServerAdapter 装配胶水本轮未随代码落地——能力侧 OpenInstance / 业务侧 Workflow 各自直接调 Microsoft.Agents.AI.Mcp client。
-- AgentSystem 读 AgentDescription.mcp_servers 名字串 + IMcpRegistry 二级查棜全部取消——直接持 `McpDescriptor` 实例列表。
+**跨层关系澄清：**
 
-**本轮本次重要增量**（外部引擎纳入 · E 服务层）：
+- **Agent 层 ⊥ Workspace 层**——二者**互不依赖**。Task 执行时 Agent 进入某 Workspace 模块，由 Kernel 的 ContextProvider 把 Workspace 模块的 Skill/MCP/Metadata 注入到 Agent 的运行上下文——这是**运行期组合**，不是**编译期依赖**。
+- **跨层共享抽象 = 基建层**——Tool/Skill/MCP/IMemoryService 同时被 Agent 层与 Workspace 层引用；依赖方向严格单向（两层都 → 基建层）。
+- **Workspace 不引用 IMemoryService**——记忆是 Agent 的，不是模块的。模块只有规章、流程、接入点；没有「模块的记忆」。
 
-- 新增 `ExternalAdapter/` 作为第四服务层（E = External Engine），M/C/B 三足服务扩为 M/C/B/E 四足。
-- 三策略适配：提示词注入（Claude Code / Codex CLI 类外部代理按 prompt 驱动） / MCP 桥接（Cursor / Aider 类走远程 MCP） / 能力网关（CBIM Server 统一代理路由）。
-- 依赖方向：ExternalAdapter 读三能力顶层（Skills / Tools.Standard / Mcp）+ Workspace；不反向。
-- **关键约束**：无论内置 AIAgent 还是外部引擎，所有副作用最终都穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`——详「铁律」第 15 条。
+## 三层架构铁律
 
-## 三大服务系统（M / C / B）
+1. **基建层不依赖任何其他 CBIM 层**——基建是依赖图最稳定底层；变更基建抽象 = 全栈影响，需高度审慎。
+2. **基建抽象稳定优于完整**——`IMemoryService` 优先暴露最小必要接口；进化时不破坏既有实现（C6 开放/封闭）。
+3. **Agent 层与 Workspace 层互不依赖**——所有跨层协同走运行期组合（Kernel / ContextProvider / 组合根），不走静态引用。
+4. **类型契约共享 / 实例集合独立**——同一基建抽象的派生实例由各方独立持有，仅在 task 期装配点合并去重。
+5. **Agent 持 IMemoryService 实例**——记忆与 Agent 绑定；不再有「全局 MemoryService 单例」概念。
+6. **基建 IMemoryService 默认实现 = FileMemoryBackend**——本地文件后端；接 Pinecone / VectorStore 通过实现新 IMemoryService 派生。
+7. **Module 持自身 MCP / Skill 实例**——Module 自带的接入点与流程都是 Module 的财产；Agent 进入此 Module 时按需借用，离开不带走。
+8. **Tool 是唯一安全边界（沿用）**——无论 Agent 自带还是 Module 自带，所有副作用最终都穿过 `Tools/Standard` 或 `Mcp`。基建层的「Tool 接口」是这条铁律在抽象层的体现。
+9. **AgentSystem 服务层名称 ≠ Agent 实例**——AgentSystem 是「装配 Agent 的服务层门面」，类比「PersonnelService 装配 Person」。术语澄清，本轮不改物理目录名。
+10. **三层模型不破坏既有跨维度共享判断**——「跨维度共享」一类判断由基建层承接（抽象在基建、实例在各层）；旧文档里「跨维度共享 McpDescriptor」的判断**完全保留**，只是表达更精准。
+11. **复合 Agent 三定理沿用不变**——皮层定理 / 脑区定理 / 武器库定理是顶层认知铁律，与三层模型正交（三层是源码组织视角，三定理是行为视角）。
 
-| 缩写 | 系统 | 模块 | 本轮瘦身后职责 |
-|------|------|------|---------------|
-| **M** | 记忆系统 | `Memory/` | MemoryEntry 扁平 JSON CRUD；短期归 Microsoft AgentThread；向量挂 Microsoft VectorStore |
-| **C** | 能力系统 | `AgentSystem/` | AgentDescription schema + OpenInstance 装配 + Session 写；AIAgentBuilder / AgentSession 由 Microsoft 接管 |
-| **B** | 业务模块 | `Workspace/` | ModuleDescription 读侧 + 后续写侧；Microsoft 不提供等价物 |
+## 历史层级名词的折叠
 
-三大系统：互不依赖；都直接依赖 Storage；都不依赖 Kernel；都不依赖 Microsoft 包以外的同级模块。
+为避免老文档与新表达冲突，老六层名词与新三层名词的对应表如下：
 
-## 铁律
+| 旧六层名词 | 新三层位置 | 备注 |
+|------------|-----------|------|
+| 行为树调度层 | Agent 层 / Kernel 子模块 | 皮层落在 Agent 层内部 |
+| 引擎层（AgentSystem / ExternalAdapter） | Agent 层 / AgentSystem + ExternalAdapter | 两支并入 Agent 层 |
+| 业务层（Workspace / Channel） | Workspace 层（Workspace） + Agent 层（Channel） | Channel 是 Agent 入口，归 Agent 层 |
+| 能力层（Skills / Mcp） | 基建层（Skills / Mcp） | 重定位为「类型约定」 |
+| 基座层（Tools / Storage） | 基建层（Tools / Storage） | 名字最贴 |
+| 扩展层（ExternalAdapter） | Agent 层（ExternalAdapter） | 外部引擎本质是「另一种 Agent 实现」 |
+| 横切关注点（Memory） | 基建层（IMemoryService 接口）+ Agent 层（持实例） | 接口在基建、实例归 Agent |
 
-1. **三大服务层互不依赖**——跨系统联动走 Kernel.FlowGraph + ContextProviders。
-   - 服务层引用基础能力顶层模块（`CBIM.Tools` / `CBIM.Skills` / `CBIM.Mcp`）是合法依赖——不算服务层互相依赖。
-2. **三大服务层都直接依赖 Storage**——是各自被动存储的唯一 IO 依赖。
-3. **CBIM 不在 Kernel 层发明任何抽象**——`IChatClient` / `AIAgent` / `Workflow` / `Executor` / `AIContextProvider` / `AIFunction` / `McpClient` 全部直接采用 Microsoft。
-4. **不造 IO 工具轮子**——文件 / 搜索 / 网页交 Microsoft.Extensions.AI AIFunction 生态；MSAI 未补齐期由 `Tools/Standard/` 顶层子模块暂补。
-5. **不造业务工作流引擎**——Microsoft.Agents.AI.Workflows 接管，CBIM 仅写业务拓扑装配。
-6. **不造记忆轮子**——Microsoft 已有 ChatHistoryProvider / Compaction / VectorData；CBIM 仅留 MemoryEntry 才平 JSON 后端。
-7. **不造 Agent 装配轮子**——Microsoft `AIAgentBuilder` 接管；CBIM 仅写 OpenInstance 胶水。
-8. **不造交互界面轮子**——Microsoft `AgentSession` 接管；Channel 是薄封装。
-9. **Channel 只依赖 AgentSystem + Kernel.FlowGraph**——不直接访问 Memory / Workspace / Storage / Microsoft 包。
-10. **AgenticOS 仅装配**——不直接驱动。
-11. **不造 MCP 客户端协议轮子**——`Microsoft.Agents.AI.Mcp` 接管；CBIM `Mcp/` 顶层模块仅定义 `McpDescriptor` 抽象与传输枚举；启 server / 包 AIFunction / 关 的胶水在装配侧（OpenInstance / 业务 Workflow）直接使用 Microsoft client。
-12. **MCP 抽象顶层共享，但连接目标必须 = task.Where**（关键维度交叉点）——MCP 抽象物理属于 `CBIM.Mcp` 顶层模块（跨维度共享），能力侧 / 业务侧都用同一抽象；但启动时必须连到 `task.Where` 指向的业务实例工作区根。能力侧装配点是 OpenInstance，workspaceRoot 由 `OpenInstanceOptions.TaskWhere` 透传。
-13. **`McpDescriptor` 是 CBIM 唯一跨维度共享抽象**（本轮新增·关键）——`AgentDescription.McpList: IReadOnlyList<McpDescriptor>` 与 `ModuleDescription.McpList: IReadOnlyList<McpDescriptor>` 同一抽象、同类型、同符号。
-    - **语义不同**：能力侧跟人走（agent 自带）；业务侧跟业务走（module 接入点）。
-    - **装配位置不同**：能力侧在 OpenInstance；业务侧在 Kernel.FlowGraph / ContextProviders。
-    - **依赖方向严格单向**：`Workspace → AgentSystem.Mcp`，不反向。
-    - **仅限 `McpDescriptor`**：其余抽象（Skill / SystemTool）**不**跨维度；能力侧三子模块中仅 `Mcp/` 被 Workspace 引用。
-    - **共享不代表耦合**：同一「外部端点」抽象被两维度独立使用，业务侧不感知能力侧使用、能力侧不感知业务侧使用。
-14. **能力维度三大扩展抽象平级**（本轮新增）——Skills / StandardTools / Mcp 三子模块同层级、同装配点、同生命周期、同被 AgentDescription 三字段并列引用；平级三足鼎立，三者互不引用。
-15. **Tool 是唯一安全边界**（本轮新增·外部引擎纳管的铁证）——**所有副作用最终都穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`**，无论是内置 AIAgent（能力侧 OpenInstance 装配）还是外部引擎（ExternalAdapter 适配）。
-    - **外部 Agent 无特权通道**：Claude Code / Codex / Cursor / Aider 等外部引擎不能绕过 CBIM 安全层直接访问文件 / 网络 / shell——仅能通过 ExternalAdapter 三策略提供的 Tools.Standard / Mcp 接口调用。
-    - **与内置 AIAgent 同等待遇**：外部引擎不享受任何“黑名单豁免”或“快通道”——与 CBIM 内置 Agent 吉选同一奋水平的沙盒 / 审计 / 追踪。
-    - **服务层拓展 M/C/B → M/C/B/E**：E（External Engine）作为第四服务层与 M/C/B 平级，依赖三能力顶层 + Workspace；不反向。
-    - **本条为 CBIM 多引擎家接入的设计刚纲**——任何新增引擎适配（增加路由、代理、提示词注入点）都不得绕过 Tool/MCP 边界。违反本条 = 违反架构。
-
-## 能力 / 业务对偶铁律（本轮重申，修正上一轮维度错位）
-
-15. **工具归能力，流程归业务**——金样铁律。
-    - **能力维度（Agent）** 责任：Skills（语义）+ SystemTools（AIFunction）+ McpList（外部端点）+ 专精领域。schema 落 `AgentDescription`（C# 类实例化，不是 frontmatter yaml）。
-    - **业务维度（Module）** 责任：Dna（知识载体）+ Workflows（流程声明）+ McpList（业务操作接入点）。schema 落 `ModuleDescription`。
-    - `ModuleDescription` 不持工具声明、不持 sandbox 配置。
-    - `AgentDescription` 不持业务流程、不持 module 路径。
-    - **例外一句话**：MCP 接入点在能力侧与业务侧都可被声明——跨维度共享 `McpDescriptor` 抽象，但语义归属不同（agent 自带 vs module 接入点）。共享抽象不跨维度耦合。
-16. **工具动态性通过 Task.Who 实现**——`Task = Agent + ModuleList + Requirement`；同一任务选不同 agent → 自带不同工具集，间接实现「按需装配」。`Task.Where` 仅为业务上下文（+ MCP 启动 workspaceRoot），不参与工具装配选择。
-17. **OpenInstance 是能力装配唯一胶水点**——读 `AgentDescription.Skills` / `SystemTools` / `McpList` 三能力源 → 拼接 → 注入 `AIAgentBuilder`。仅在本次 AIAgent 生命周期生效，无全局注入。
-   - Skills: AgentSkillsProvider 注入 LLM 上下文（未来落地）。
-   - SystemTools: `StandardToolsService.CreateFamilies` 按 per-agent 沙盒返回 AIFunction。
-   - McpList: `Microsoft.Agents.AI.Mcp` client 启 server + 握手 + tools/list + 包 AIFunction。
-
-## Agent 裂变铁律（本轮新增，防「全能 agent」维度贪吃）
-
-18. **Agent 必须专精**——不做 `ProgrammerAgent` 一个吃全宇宙，而是 `UnityProgrammerAgent` / `BlenderArtistAgent` / `BackendProgrammerAgent` 各管一摊。
-19. **三能力源广度超阈值 → 裂变**——阈值与裂变范式详 `AgentSystem/.dna/module.md`「裂变规则」一节。
-    - `SystemTools` 家族 > 4 / `McpList` server > 3 / `Skills` > 8 / 专精领域跨 2+ 主领域 / `Soul` > 3000 token——任一命中即裂。
-    - HR 主持裂变审议与执行（hr_agents skill），architect 提供阈值与架构原则。
-20. **通用 agent 轻、专精 agent 允宽但需单领域聚焦**——通用角色（coordinator / hr / architect / auditor）SystemTools ≤ 2、Skills ≤ 4、McpList ≤ 1；专精角色 SystemTools ≤ 4、Skills ≤ 8、McpList ≤ 3 且 capabilities 单领域。
+老的 `_ARCHITECTURE.md` 顶层文档将由下一个 Work Agent 任务（doc_writer）重写以匹配三层模型。
 
 ## Origin Context
 
-CBIM v2 Unity 移植的演进线：
+CBIM v2 Unity 移植的演进线（截至本轮）：
 
 1. **最初**：Storage / Memory / Kernel 三模块。
 2. **拆出 AgentRegistry / Dna**——长期记忆同级。
@@ -310,68 +355,61 @@ CBIM v2 Unity 移植的演进线：
 8. **新增 SystemTools**——IO 工具收敛（这一步随后被否）。
 9. **Kernel 重构为 Microsoft.Agents.AI 之上的 4 业务胶水**。
 10. **顶层精简**：彻底贯穿不造轮子。SystemTools 砍、TaskRunner 砍、FlowGraph 基于 Microsoft Workflows、Memory/AgentSystem/Channel 大幅瘦身。
-11. **补 IO 工具**：发现 MSAI Tools 几乎缺位，新增 StandardTools 子模块——**当时误放在 `Workspace/` 下**。
-12. **上轮维度修正**：StandardTools 从 `Workspace/` 迁到 `AgentSystem/` 下；`ModuleDescription.standard_tools` / `external_mcp_servers` 字段删除；`AgentDescription.tools` + `agent_extension_clis` 字段新增；Agent 裂变铁律入能力维度顶层设计。
-13. **上轮增量 MCP 集成**：新增 `AgentDescription.mcp_servers` 名字串 + `OpenInstanceOptions.TaskWhere`；新增 `AgentSystem/McpAdapter/` 子模块。
-14. **本轮三足鼎立 + 代码落地 + 跨维度共享**（本轮重要调整）：
-    - **能力维度三大扩展抽象平级子模块化**——`Skill` 从裸露 `CBIM.AgentSystem` 迁到 `Skills/`；`McpAdapter/` 重命名为 `Mcp/` 且抽象重组；StandardTools 位置不变。三者同层级三足鼎立。
-    - **`McpDescriptor` 抽为 abstract 基类**——拆 `StdioMcpDescriptor` / `HttpMcpDescriptor` 两子类 + `McpTransportKind` 枚举。原 record 形态升为 abstract class。
-    - **AgentDescription 以 C# 类实例化**（不是 frontmatter yaml 字串）：`Id` / `Name` / `Soul` / `Identity` + `Skills` / `SystemTools` / `McpList` 三能力字段。上轮的 `tools` / `agent_extension_clis` / `mcp_servers` 名字串列表、`IMcpRegistry` 二级表全部取消。
-    - **跨维度共享 `McpDescriptor`**：`Workspace.ModuleDescription.McpList: IReadOnlyList<McpDescriptor>` 新增；`ModuleDna.Protocol` 字段删（代码已落地）。业务操作接入点从 DNA 迁到 ModuleDescription。`ModuleDna` 退化为纯知识载体（LocalModuleDna FilePath + RemoteModuleDna Endpoint+AuthToken）。
-    - **McpServerAdapter / McpServerHandle 装配胶水本轮未随代码落地**——能力侧 OpenInstance / 业务侧 Workflow 各自直接调 Microsoft.Agents.AI.Mcp client。Mcp 子模块仅供类型与传输枚举，胶水后续如出现重复再抽取。
+11. **补 IO 工具**：发现 MSAI Tools 几乎缺位，新增 StandardTools 子模块——当时误放在 `Workspace/` 下。
+12. **维度修正**：StandardTools 从 `Workspace/` 迁到 `AgentSystem/` 下；`ModuleDescription.standard_tools` / `external_mcp_servers` 字段删除；`AgentDescription.tools` + `agent_extension_clis` 字段新增；Agent 裂变铁律入能力维度顶层设计。
+13. **MCP 集成**：新增 `AgentDescription.mcp_servers` 名字串 + `OpenInstanceOptions.TaskWhere`；新增 `AgentSystem/McpAdapter/` 子模块。
+14. **三足鼎立 + 代码落地 + 跨维度共享**：能力维度三大扩展抽象平级子模块化，`McpDescriptor` 抽为 abstract，`Workspace.ModuleDescription.McpList` 新增。
+15. **顶层化 Tool/Skill/Mcp**：从 `AgentSystem/` 子目录提升为顶层模块；当时表述为「能力层 + 跨维度共享」。
+16. **多引擎家纳管**：新增 `ExternalAdapter/` 作为第四服务层，三策略适配外部引擎。
+17. **复合 Agent 认知**：提出「CBIM 整体 = 复合 Agent」顶层 mental model；提出复合 Agent 三定理。
 
-每一步的共同主线是「凡公共抽象交出去 / 凡 CBIM 独有业务保留」。补辩主线：
+**本轮（三层模型 + Memory 接口抽取）**：
 
-- 上轮加一条：**「凡某个能力伴随某个维度出现，不等于该能力应在该维度描述」**。维度归属看「谁发起」不看「谁伴生」。
-- **本轮加一条**：**「同一抽象被多维度调用 ≠ 多维度耦合」**。共享 `McpDescriptor` 是 CBIM 唯一跨维度共享点；共享不等于耦合——两个维度独立调用同一抽象，依赖方向仍严格单向（`Workspace → AgentSystem.Mcp`）。
+18. **顶层心智从 6 层收敛到 3 层**——之前的「调度/引擎/业务/能力/基座/扩展」六层是源码组织的精确分类，但顶层心智过宽（读者得记 6 个层、6 个职责、6 套铁律）。本轮收敛为「基建 / Agent / Workspace」三层——三个名字、三句话、三个清晰职责。六层并未消失，只是退化为三层内部的子结构。
+19. **Tool/Skill/MCP 重新定位为「基建类型约定」**——之前叫「能力层」隐含「这些是能力本身」，与「Agent 是能力个体」的另一表达冲突。本轮明确：Tool/Skill/MCP 是「能力的类型契约」（基建），具体能力实例由 Agent 与 Workspace 各自派生持有。
+20. **Memory 抽象为 IMemoryService 接口 + 默认 FileBackend 实现**——为接入第三方记忆库（Pinecone / Weaviate / Chroma 等）开口；每个 Agent 持一个 IMemoryService 实例，从「全局服务」改为「per-Agent 实例」，与「人 = 拥有自己记忆」的认知模型对齐。
+21. **AgentSystem 概念上重命名为 Agent**——服务层管理的对象是「一个个虚拟人」，名字应反映对象本身。物理目录改名留下切片决定（见「AgentSystem → Agent 重命名决策」节）。
+22. **Workspace 模块明确「业务 MCP + 业务 Skill 挂载点」**——之前 `ModuleDescription.Workflows + McpList` 已存在但术语不统一；本轮把这两个字段明确为「业务 Skill 集合 + 业务 MCP 集合」，类型来自基建。
+23. **「类型 vs 实例」原则取代「跨维度共享」表达**——之前「跨维度共享 McpDescriptor」表达虽精确但绕；本轮直接说「类型契约由基建层提供一份，实例集合由 Agent / Workspace 各自独立持有」——更易记、更易讲。
 
-15. **本轮多引擎家纳管（本轮本次裁决）**：
-    - **背景**：CBIM 不只面向内置 Microsoft.Agents.AI ChatClientAgent，还需接入外部 Agent 引擎（Claude Code / Codex CLI / Cursor / Aider 等）。这些外部引擎各自有独立进程 / 独立运行时 / 独立安全层，不能简单装配进 1 OpenInstance。
-    - **裁决**：新增 `ExternalAdapter/` 作为服务层第四足（E），M/C/B 三足服务扩为 M/C/B/E 四足。三策略对外适配：提示词注入（外部代理按 prompt 驱动）、MCP 桥接（远程 MCP server 对接）、能力网关（CBIM Server 统一代理路由）。
-    - **关键铁证**：无论是内置 AIAgent 还是外部引擎，所有副作用最终都须穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`——Tool 是唯一安全边界（诪「铁律」第 15 条）。外部 Agent 不享受任何特权通道，与内置 Agent 同等待遇。
-    - **补辩主线**：不造轮子不仅对 Microsoft 生态，同样对其他引擎家族——CBIM 不抢 LLM Agent 本体的实现赛道，仅提供安全 + 业务维度的纳管能力。
+每一步的共同主线是「凡公共抽象交出去 / 凡 CBIM 独有业务保留」。本轮加一条：**「凡顶层心智模型，能用 3 个词说清就不用 6 个」**——架构演进的最后一英里是认知简化。
 
-## Emergent Insights
+## Emergent Insights（本轮新增）
 
-1. **「不造轮子」是 C6（稳定抽象）在生态层面的应用**——Microsoft.Agents.AI 是业界连续迭代的公共抽象，CBIM 重造永远落后。CBIM 真正的价值在「CBIM 独有的业务词汇 + 业务拓扑 + 上下文桥」。
-2. **能力 / 业务对偶让 CBIM 不再陷入「agent 全能化」误区**——业界常见做法是把工具 / MCP / 记忆全部挂到一个「万能 agent」上，导致 agent 越长越胖且职责混乱。CBIM 的金样铁律是**「工具归能力维度 + agent 必须专精」**：agent 描述「我是谁 + 我拿哪些工具」，业务 module 描述「我是什么业务流程 + 领域知识」；agent 肥了就裂变成专精多个，不让单 agent 多领域贪吃。
-3. **「动态工具注入」的本质是 Task-期 × 同一 agent 生命周期 × 无全局**——传统做法是启动时全局注入、绑定 agent、全程生效。CBIM 是装配时按 AgentDescription 注入、绑定本次 AIAgent 生命周期、RunAsync 后释放。「同一 task 选不同 agent 则工具集不同」是“动态”的间接体现。三重收益：agent 只看见自身应有工具（上下文窗口干净）；agent 类型自带工具集由设计者在 `.claude/agents/` 声明（不需改调度代码）；不同任务选不同 agent 自动获得不同工具（无全局污染）。
-4. **三大服务系统对称性进一步增强**——三者都退化为「业务独有 schema + 极薄 CRUD + 可选挂 Microsoft 后端」结构；AgentSystem / Workspace 还共享「Description（类型）+ Instance（实例）」二元结构。
-5. **Kernel 子树缩到 3 个胶水模块**——CbimTask（词汇）+ FlowGraph（业务拓扑装配 + Task 期调度 RunAsync）+ ContextProviders（上下文桥）。再无第四个理由存在的子模块。
-6. **Channel + AgentSession 关系类比终端 + 终端历史**——Channel 是 TTY，AgentSession 是 TTY 的 history buffer；进程 = AIAgent；进程日志 = AgentSystem 内 Session。四层显式拆开。
-7. **预计 Unity 侧 CBIM 代码量大幅下降**——本轮裁决等于把 CBIM 在 Unity 侧的工程量降至「业务独有部分」，从 4 个数量级缩到3 个。
-8. **维度错位是架构师日常陷阱**（上轮新增）——`standard_tools` 看起来与 module 伴生（「这个 module 上需要读文件」），但实际上「读文件」能力是调用者（agent）的能力。识别原则：**「谁发起该能力」才是 schema 归属的右答，不是「该能力伴随谁出现」**。
-9. **能力维度三足鼎立后能看明扩展轴**（本轮新增）——Skills / StandardTools / Mcp 三个平级子目录在 AgentSystem 下并列，看一眼就明「agent 能多会一手」的三条路径，互不交叉互不覆盖。上轮 Skill 裸露 / McpAdapter 孤为子模块的不对称状态被拉齐——架构对称设计以对称语义齐齐列。
-10. **跨维度共享抽象是「抽象复用」而非「耦合」**（本轮新增）——`McpDescriptor` 同时被 AgentDescription 与 ModuleDescription 使用，不意味能力维度与业务维度耦合——是同一抽象被两个维度独立调用。跨维度共享严格限定 `McpDescriptor`，其余抽象（Skill / SystemTool）不跨维度；依赖方向严格单向（`Workspace → AgentSystem.Mcp`）保证不引入反向边。
+1. **「类型契约 vs 实例集合」是比「跨维度共享」更精确的描述**——之前「跨维度共享 McpDescriptor」总让人误以为「Agent 和 Workspace 共享同一份 McpList 实例」；新表达「类型在基建、实例各自独立」一句话讲清，无歧义。
+2. **Memory per-Agent 实例化是「物理人 = 物理记忆」的认知落地**——人有自己的记忆是常识；之前 Memory 作为全局服务是工程便利，但破坏了认知模型。本轮回归到「每个人持有自己的记忆实例」——同时打开了第三方后端接入的能口。
+3. **三层模型让「为什么要有调度层」的答案更短**——「行为树调度层是 Agent 层内部的脑皮层」——一句话讲完。之前六层中「调度层」作为顶层是认知层级错配（调度本质是 Agent 自身的脑功能，不是与 Agent 平级的另一物种）。
+4. **「Agent 层 vs Workspace 层互不依赖」是 v2 顶层架构的最重要约束之一**——这条铁律保证「人」和「工位」是两件相互独立的资产，能各自演化、各自接入第三方实现。Kernel 在 task 期负责把二者组合——这是「皮层」职能的精确定义。
+5. **基建层抽象稳定 = 整个系统的稳定底层**——把 Tool/Skill/MCP/Memory 接口都放在基建层，意味着这四个接口的版本变更需要双层审视（Agent + Workspace 都受影响）。这反过来鼓励基建接口设计追求「最小完整」——能不暴露就不暴露。
+6. **AgentSystem → Agent 概念重命名暴露了「服务层命名 vs 实例命名」的张力**——`AgentSystem` 是服务层名（产生 Agent 的家），`Agent` 是实例名（被产生的对象）。两者在文档里随意混用会让读者迷惑。本轮分离概念（语义层）与物理（目录层）的处理方式——「概念已改、物理待议」——为下次类似改名留下了模板。
 
-11. **多引擎家族平级化 · Tool 是唯一安全边界**（本轮新增）——CBIM 一旦接入外部 Agent 引擎，内置 AIAgent 与外部引擎（Claude Code / Codex / Cursor / Aider 等）在中枢看是**平等公民**、都只是「另一个 Agent 实现」。它们互不依赖、独立进程、独立安全层，但都被同一道安全事装纳管——**所有副作用穿过 `CBIM.Tools.Standard` 或 `CBIM.Mcp`**。这个洞见交付三重价值：
-    - **架构对称**：M/C/B/E 四服务层平级对称——外部引擎与内置 Agent 同为 CBIM 业务公民。举一可推二：将来可加 G（Gateway）/ A（Auth）等服务层，同调同型纳入。
-    - **外部引擎理性选型**：CBIM 不抢 LLM Agent 本体的赛道——不造轮子从 Microsoft 生态拓到其他引擎家族。CBIM 唯一唯一唯一的价值位是「安全 + 业务上下文 + 任务调度 + 记忆」这几件业务独有事，其余交给业界。
-    - **Tool 是唯一安全边界是代价后的唯一可能**——外部引擎独立进程 / 内部不可控 → CBIM 唯一可控点只能是「外部引擎发起的副作用」，那仅能在 Tool/MCP 层拦截。如果外部引擎可以绕过 Tool 直接访问文件 / 网络 / shell，那所有安全事都是空谈——这是「Tool 是唯一安全边界」从选择现象上升为架构刚纲的逻辑起源。
+## Implementation Sequence（本轮 .dna 修订 → 下切片代码迁移）
 
-## Implementation Sequence（知识 → 代码）
+本轮（架构修订）：
 
-按稳定性自底向上：
+1. ✅ 根 `.dna/module.md` 切换为三层模型描述。
+2. ✅ `AgentSystem/.dna/module.md` 明确「Agent 层服务门面 + 持 IMemoryService 实例」。
+3. ✅ `Workspace/.dna/module.md` 明确「业务 MCP + 业务 Skill 挂载点」+ 与 Agent 层的解耦关系。
+4. ✅ `Memory/.dna/module.md` 切换为「IMemoryService 接口 + FileMemoryBackend 默认实现 + per-Agent 实例化」。
+5. ✅ `Tools/.dna/module.md` / `Skills/.dna/module.md` / `Mcp/.dna/module.md` 顶部加「基建层定位」段落（保留原内容，仅重定位）。
+6. 由 Work Agent 重写 `_ARCHITECTURE.md`（doc_writer 任务）。
 
-1. **Storage**（root 注入构造器 + 原子写 + JSON）。
-2. **Memory**（MemoryEntry + 扁平 JSON CRUD + 关键词 Query）。
-3. **Workspace**（ModuleDescription 读侧 + reindex）。
-4. **AgentSystem**（AgentDescription schema + 实例索引；OpenInstance 装配在第 7 步前 stub）。
-5. **Kernel/TaskScheduler**（CbimTask record）。
-6. **Kernel/ContextProviders**（三 Provider 实现）。
-7. **Kernel/FlowGraph**（CbimTaskExecutor + ChatWorkflow 装配 + AgentSystem.OpenInstance 实装）。
-8. **Channel**（host Microsoft AgentSession + SendAsync）。
-9. **AgenticOS** 组合根——OpenChannel + SendAsync 便捷封装。
-10. **后续切片**：DispatchWorkflow / ArchExecWorkflow / TaskWorkspace / 写侧 API / Shell（如 .NET 升级）。
+下切片（代码迁移，本轮不发）：
+
+1. `Memory/` 拆出 `IMemoryService.cs` 接口 + `FileMemoryBackend.cs` 默认实现；`MemoryService` 类改名为 `FileMemoryBackend` 或保留为 facade。
+2. `AgentDescription` 增 Memory 配置字段（实例引用 / 工厂方法）；`AgentSystem.OpenInstance` 装配 Agent 时绑定 IMemoryService 实例。
+3. `Agent` 实例类（运行时）持 `IMemoryService` 字段；释放时（如有 IDisposable backend）按 IAsyncDisposable 协议关闭。
+4. `Channel`、`Kernel.ContextProviders` 引用 IMemoryService 接口（不再引用具体 MemoryService 类）。
+5. （可选）`AgentSystem/` → `Agent/` 物理目录改名 + 命名空间 + asmdef + 全部 using 更新。本轮裁决「下切片再议」。
 
 ## Non-Goals（本轮）
 
+- **不实施代码迁移**——本轮仅 .dna + _ARCHITECTURE.md；具体 IMemoryService 抽取、AgentSystem 改名、Agent 类持 Memory 字段等留下切片。
 - **不重新引入** LlmEngine / Pipeline / INode / IFlowGraph / IKernelEngine / ITaskRunner / IFileTools / IShellTools 任何抽象。
-- **不自写** 业务工作流引擎、工具调用闭环、会话压缩、Yield/Resume 机制、IO 工具层。
+- **不自写** 业务工作流引擎、工具调用闭环、会话压缩、IO 工具层。
 - **不引入 MCP 服务端**——Unity 进程内直调 Microsoft。
 - **不发治理循环代码**——本轮仅业务执行。
 - **AgentSystem / Workspace 不发写侧**——Unity 侧暂走 Python `dna_*` / `agent_*` MCP 工具。
 - **AgentDescription `chat_client_config` schema 详细演进**留后续切片。
 - **Shell AIFunction**——Microsoft Tools.Shell 当前 net8-only，本轮 Unity 主线接受「无 Shell」约束。
-- **Python 侧是否同步 Microsoft.Agents.AI**——Python architect 后续话题。
-
+- **不为接入 Pinecone 写实现**——本轮仅暴露 `IMemoryService` 接口，具体后端接入是业务方按需自行派生。

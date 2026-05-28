@@ -9,14 +9,16 @@ status: spec
 
 ## Positioning
 
-**Skills 是 CBIM 三大基础能力抽象之一**——与 `Tools/` / `Mcp/` 平级，同为顶层模块、同为跨维度共享抽象。
+**Skills 是 CBIM 基建层四件套抽象之一**（v2 三层模型）——与 `Tools/` / `Mcp/` / `Memory/` 平级，同为顶层模块、同为「类型契约 / 抽象接口」。
+
+**本轮重定位**：Skill 重新明确为「技能 / 工作流程描述的类型契约」——具体技能实例由 Agent 与 Workspace 各自派生持有。
 
 本模块只承载**「技能」这个语义级抽象本身**：
 
 - `SkillDescriptor`——技能描述符（Id / Name / Description / Content）。`Content` 是 SKILL.md 风格的使用指引 / 示例 / 注意事项，会被装配时注入 LLM 上下文。
-- **能力侧与业务侧同抽象复用**：
-  - `AgentDescription.Skills: IReadOnlyList<SkillDescriptor>`——agent 会的手艺
-  - `ModuleDescription.Workflows: IReadOnlyList<SkillDescriptor>`——同抽象在业务语境下叫「工作流」
+- **Agent 侧与 Workspace 侧同抽象复用**：
+  - `AgentDescription.Skills: IReadOnlyList<SkillDescriptor>`——agent 会的手艺。
+  - `ModuleDescription.Workflows: IReadOnlyList<SkillDescriptor>`——同抽象在业务语境下叫「工作流」。
 
 ## 为什么「工作流 = 技能」
 

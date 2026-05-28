@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-workspace
 owner: architect
-description: 业务模块系统（CBIM 的 B 维度）服务层门面。ModuleDescription 四段式：Metadata（是什么）+ Workflows[SkillDescriptor]（能做什么）+ Tools/McpList（怎么做）+ Owners（谁来做）。三大基础能力抽象（Tool/Skill/Mcp）已提为顶层模块（CBIM.Tools/Skills/Mcp），Workspace 跨维度引用三者，依赖方向单向不反向。
+description: Workspace 层（v2 三层模型）。本轮重定位：Workspace 是三层中的「工作区 / 项目」层，与 Agent 层互不依赖；二者在 task 期由 Kernel 组合。模块对象明确持「业务 Skill 集合 + 业务 MCP 集合」两个挂载点（类型来自基建层 CBIM.Skills / CBIM.Mcp，实例 per-Module 独立持有）。ModuleDescription 四段式（是什么 + 能做什么 + 怎么做 + 谁来做）不变：Metadata + Workflows[SkillDescriptor] + McpList[McpDescriptor] + Owners。本模块依赖基建层 CBIM.Skills / CBIM.Mcp / CBIM.Storage；不依赖 Agent 层。
 keywords: []
 dependencies: []
 status: spec
@@ -9,9 +9,35 @@ status: spec
 
 ## Positioning
 
-**业务模块系统是 CBIM 的服务层（B 维度）——本轮保留**：CBIM 的 `Module + ModuleDescription` 是项目独有业务知识，Microsoft 不提供等价物。
+**Workspace 是 CBIM 的 Workspace 层**（v2 三层模型中的三层之一）——管理模块树 + 模块对象。该层与 Agent 层**互不依赖**——二者是 v2 三层中两个独立资产，在 task 期由 Kernel 以 ContextProvider 组合。
 
-**业务维度的核心内容 = 工作流程 + 领域知识 + 业务操作接入点**。工具仍不在业务维度——工具是能力维度（`AgentSystem`）的责任。但业务维度可以有自己的 **MCP 接入点**——描述业务本身的外部端点（云服务 / SaaS 接入点），与 agent 能不能调用那端点是两件事。
+**业务维度的核心内容 = 工作流程 + 领域知识 + 业务操作接入点**。工具仍不在业务维度——工具是 Agent 层的责任。但业务维度可以有自己的 **MCP 接入点**与**业务 Skill 集合**——描述业务本身的外部端点（云服务 / SaaS 接入点）与业务标准作业流程清单。
+
+## v2 三层模型中的位置
+
+```
+基建层（类型契约）：Tool / Skill / Mcp / IMemoryService / Storage
+   ↑ 本模块依赖
+Workspace 层（本模块）——与 Agent 层平级互不依赖
+Agent 层：AgentSystem / ExternalAdapter / Kernel / Channel
+```
+
+**本模块依赖**：`CBIM.Skills` + `CBIM.Mcp` + `CBIM.Storage`（三个基建层抽象）。
+**本模块不依赖**：Agent 层任何模块（包括 AgentSystem / ExternalAdapter / Kernel / Channel）。
+**本模块不持**：IMemoryService——记忆是 Agent 的，不是模块的；模块只有规章 / 流程 / 接入点，没有「模块的记忆」。
+
+## 与旧「能力 / 业务对偶」的表达表关系
+
+旧「能力维度 vs 业务维度」表达（以 C/B 对偶开头）是 v2 三层模型下的**一个视角**，不被本轮推翻：
+
+| 表达 | 本轮重表述 |
+|------|------------|
+| 能力维度（C）= AgentSystem | Agent 层服务门面 |
+| 业务维度（B）= Workspace | Workspace 层 |
+| 记忆维度（M）= Memory | 拆为「基建层 IMemoryService 接口 + Agent 层持实例」两个方面 |
+| 跨维度共享 `McpDescriptor` | “类型契约由基建层提供一份，实例集合由 Agent 与 Workspace 各自独立持有” |
+
+**v2 三层模型是顶层心智收敛**；能力/业务 对偶在三层下仍是有效描述（Agent 层 ⋬ 能力侧，Workspace 层 ⋬ 业务侧），但不再是顶层划分词汇。
 
 ## CBIM 核心对偶中的位置
 
@@ -72,6 +98,31 @@ public sealed class ModuleDescription
 2. **`Workflows` 是业务流程语义声明**——执行实例由 Kernel/FlowGraph 装配。
 3. **`McpList` 是业务操作接入点**——与 Agent.McpList 同抽象同类型，但**语义归属不同**（业务自带跟业务走；agent 自带跟人走）。
 4. **`Owners` 是模块人事编制**——可空 + 字段可空，缺失走 LLM 自动匹配 + 警告。详见「模块负责人编制」节。
+
+
+## 业务 Skill + 业务 MCP 挂载点（本轮明确）
+
+v2 三层模型明确“模块对象持自身的 MCP 集合与 Skill 集合”。这两个集合在 `ModuleDescription` 中的映射如下：
+
+| 术语（v2） | `ModuleDescription` 字段 | 类型来源 | 语义 |
+|--------------|---------------------------|----------|------|
+| **业务 Skill 集合** | `Workflows: IReadOnlyList<SkillDescriptor>` | `CBIM.Skills.SkillDescriptor`（基建层） | 该业务模块能走什么业务流程（贴在墙上的标准作业流程）。`Workflows` 是该集合的字段名，术语上 = 业务 Skill 集合。 |
+| **业务 MCP 集合** | `McpList: IReadOnlyList<McpDescriptor>` | `CBIM.Mcp.McpDescriptor`（基建层） | 该业务模块接入哪些外部业务系统（企业 ERP / CDN 控制台 / Jira）。 |
+
+**关键点**：
+
+1. **实例独立**——每个 Module 持自己的 `Workflows` 列表和 `McpList` 列表。不同 Module 之间、Module 与 Agent 之间都不共享这些集合实例。
+2. **类型共享**——仅 `SkillDescriptor` / `McpDescriptor` 两个抽象类型来自基建层，被 Agent.Skills / Agent.McpList 与 Module.Workflows / Module.McpList 同时引用。同抽象、不同实例。
+3. **装配期合并**——task 期 Agent 进入某 Module。Agent 自带的 Skills/McpList 与 Module 自带的 Workflows/McpList 在装配点合并（按 Id 去重）。Module 离开后 Agent 不携带 Module 资源。
+4. **业务 Skill 为什么不叫 `BusinessSkills` 字段**——历史原因：业务侧的 Skill 被叫作「工作流程」更贴近业务说法，所以字段名保留 `Workflows`。下切片如需重命名可议（例 `BusinessSkills`），不是本轮事。
+
+**为什么 v2 三层模型明确这两个挂载点：**
+
+之前表达为「跨维度共享 McpDescriptor」/ 「Workspace 上向引用 AgentSystem.Mcp」——含难以表达的「共享中包含实例共享」误解。v2 三层模型拆清吗：
+- **类型契约** → 基建层一份（`SkillDescriptor` / `McpDescriptor`）。
+- **实例集合** → Module 一份 + 每个 Agent 一份，独立。
+
+表达上更准、读者不再需要「跨维度共享」这个烧脑术语。
 
 ## McpDescriptor 跨维度共享（本轮重点裁决）
 
@@ -386,9 +437,15 @@ Application.persistentDataPath/.cbim/workspace/
 ## Dependencies
 
 - `CBIM.Storage`——IO + frontmatter 解析。
-- **`CBIM.Mcp`**（跨维度共享抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。依赖方向：`Workspace → AgentSystem.Mcp`。
-- **不依赖** Kernel / Memory / AgentSystem 主服务 / AgentSystem.Skills / AgentSystem.StandardTools。
+- **`CBIM.Mcp`**（基建层抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。业务 MCP 集合装载点。
+- **`CBIM.Skills`**（基建层抽象 · 本轮明确）——`SkillDescriptor`。业务 Skill 集合（`ModuleDescription.Workflows`）装载点。
+- **不依赖** Agent 层任何模块（AgentSystem / ExternalAdapter / Kernel / Channel）。Agent 层 ⊥ Workspace 层，仅由组合根 / Kernel 在 task 期组合。
+- **不依赖** Memory ——记忆是 Agent 的，模块不持。
 - **无子模块**。
+
+依赖方向：Workspace → 基建层（Skills / Mcp / Storage） → ⚥。反向严禁。
+
+**与旧描述的差别**：旧描述「Workspace → AgentSystem.Mcp」（因为 Tool/Skill/Mcp 曾是 AgentSystem 子模块）本轮修正为「Workspace → CBIM.Skills + CBIM.Mcp」——三大基建抽象顶层化之后，依赖方向看起来更顺（业务层 → 基建层，不是业务层 → Agent 层子模块）。
 
 ## 铁律
 

@@ -9,7 +9,9 @@ status: spec
 
 ## Positioning
 
-**Tools 是 CBIM 三大基础能力抽象之一**——与 `Skills/` / `Mcp/` 平级，同为顶层模块、同为跨维度共享抽象。
+**Tools 是 CBIM 基建层四件套抽象之一**（v2 三层模型）——与 `Skills/` / `Mcp/` / `Memory/` 平级，同为顶层模块、同为「类型契约 / 抽象接口 / 标准协议」。
+
+**本轮重定位**：上轮被当作「能力层 Tool/Skill/Mcp」隘含「这些是能力本身」，与「Agent = 能力个体」的另一表达冲突。本轮明确：**Tool / Skill / Mcp 是「能力的类型契约」**，具体能力实例由 Agent 与 Workspace 各自派生持有。
 
 本模块只承载**「工具」这个基础抽象本身**：
 

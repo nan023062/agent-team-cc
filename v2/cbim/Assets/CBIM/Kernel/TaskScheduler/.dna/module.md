@@ -54,11 +54,11 @@ Kernel 下的 **Task 不可变数据类定义家**。一份 POCO，三元组：w
 ```csharp
 namespace CBIM.Kernel.TaskScheduler;
 
-using Microsoft.Agents.AI;
+using CBIM.AgentSystem;   // Agent
 
 public sealed record CbimTask(
     string TaskId,
-    Microsoft.Agents.AI.AIAgent Who,
+    CBIM.AgentSystem.Agent Who,        // CBIM 运行时壳（AIAgent + InstanceId + Session）
     IReadOnlyList<string> Where,
     string What,
     string? ParentTaskId = null,
@@ -67,7 +67,7 @@ public sealed record CbimTask(
     DateTime CreatedAt = default)
 {
     public static CbimTask Create(
-        AIAgent who,
+        Agent who,
         IEnumerable<string> where,
         string what,
         string? parentTaskId = null,
@@ -76,17 +76,26 @@ public sealed record CbimTask(
 }
 ```
 
+**为什么 `Who` 是 `CBIM.AgentSystem.Agent`而非 Microsoft `AIAgent`**：
+
+- CbimTaskExecutor 写 Session 需要 `Agent.InstanceId`（CBIM 自生成 GUID，是 Session 文件名的唯一来源）。
+- `AIAgent.Id` 是 Microsoft 每次 AsAIAgent 重新生成的 GUID，与 Agent / AgentDescription 不可反查，不能代替。
+- 若 `Who` 仅存 `AIAgent`，Executor 需要额外的 `instanceId` 参数才能写 Session——这就是「同一实体拆成两个字段」的坏味道。直接存 `Agent` 反而语义完整。
+- 依赖方向：`Kernel.TaskScheduler → AgentSystem`。AgentSystem 是能力维度服务层（更稳定）；TaskScheduler 仅定义三元组数据类，变动频率低但依赖 AgentSystem 的运行时壳是结构上合理的。
+- AgentSystem 不依赖 TaskScheduler，无环。
+
 ## Dependencies
 
-- **Microsoft.Agents.AI**——仅引用 `AIAgent` 类型，不调任何方法。
-- **无 CBIM 同级依赖**——这让 CbimTask 作为「最稳定底层」成立。
+- **`CBIM.AgentSystem`**——`Agent` 运行时壳类型（`CbimTask.Who` 字段的类型）。选存运行时壳而非 Microsoft `AIAgent` 的理由见 Public Contract 章节。
+- **不依赖 Microsoft.Agents.AI**——该类型透过 `Agent.AIAgent` 跨过去，由 AgentSystem 代为依赖。
 - **不依赖 Unity**——纯 C# POCO。
+- **不依赖 Workspace / Memory / Kernel 其他子模块**——作为「三大服务系统协同的词汇」仅需能力维度 Agent 作为身份。
 
 ## 铁律
 
 1. **`CbimTask` 是不可变 record**。需要调整则创建新 CbimTask（记 `ParentTaskId`）。
 2. **本模块无行为**。不含派发 / 调度 / 状态转迁。
-3. **`Who` 是 Microsoft `AIAgent`**——不接受字符串 agentInstanceId。
+3. **`Who` 是 `CBIM.AgentSystem.Agent`**（CBIM 运行时壳，含 AIAgent + InstanceId + Session）——**不接受裸 `Microsoft.Agents.AI.AIAgent`，也不接受字符串 agentInstanceId**。理由：Executor 写 Session 需 `Agent.InstanceId`，拆开会造成「同一实体被拆为两个字段」的不一致风险。
 4. **不重新引入状态机**。Pending / Running / Done 是 `AIAgent.RunAsync` 的返回值职责。
 5. **不提供 TaskRegistry / TaskHistory**。历史查询走 AgentSystem 的 Session。
 6. **类名前缀 Cbim**——避免与 `System.Threading.Tasks.Task` 同名冲突。
