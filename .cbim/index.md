@@ -26,6 +26,7 @@
 - v1/tests/workflow
 - v2/cbim/Assets/CBIM
 - v2/cbim/Assets/CBIM/Agent
+- v2/cbim/Assets/CBIM/Agent/Brain
 - v2/cbim/Assets/CBIM/Channel
 - v2/cbim/Assets/CBIM/ExternalAdapter
 - v2/cbim/Assets/CBIM/Kernel

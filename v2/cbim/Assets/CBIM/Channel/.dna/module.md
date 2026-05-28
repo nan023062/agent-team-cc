@@ -6,6 +6,7 @@ keywords: []
 dependencies: []
 status: spec
 ---
+
 ## Positioning
 
 **Channel 是 CBIM 的入口层**——一个 Channel = 用户打开的一个交互界面实例，绑定一个 Microsoft `AIAgent`，承载 IO 流。
@@ -97,3 +98,42 @@ public sealed record ChannelOutcome(string ResultText, bool IsError, string? Err
 - 不持久化 Channel——纯进程内对象。
 - 不实现 Channel 之间协作——多 Agent 协作走 Workflow。
 - 不感知 Microsoft Compaction / ContextProvider 装配——是 OpenInstance / Workflow 职责。
+
+## 关于脑区的注解（本轮新增）
+
+Channel 是 Microsoft `AgentSession` 的薄封装——本轮 Agent OS 重构后，一个 Agent 由多个脑区组成（本轮采用大脑解剖学专业名：PrefrontalCortex 前额叶皮层 / ParietalLobe 顶叶 / Hippocampus 海马体 / MotorCortex 运动皮层 以及未来预留的 Cerebellum / AnteriorCingulateCortex）。Channel 不感知脑区的存在——这是 Channel 薄封装铁律的顺其自然体现。
+
+### 明确提示：Channel.Agent 实际指向 PrefrontalCortex 的 AIAgent
+
+```csharp
+// Channel 实现中：
+var instance = await _agentSystem.OpenInstanceAsync(agentDescriptionName, options);
+channel.Agent = instance.Prefrontal.Agent;   // 上轮：instance.Cortex · 上中轮：instance.Master.Agent · 本轮：instance.Prefrontal.Agent
+channel.Session = ...;
+```
+
+上一轮主脑叫 Cortex；上中轮 Brain 重构后主脑重命名为 Master 并提升为具体类 `MasterBrain : NativeBrain : BrainBase`；本轮再次重命名为 `PrefrontalCortex : BrainBase`（采用大脑解剖学专业名，同时中间抽象层 NativeBrain 取消——BrainBase 已含 msai 装配，所有脑区天生具备 LLM 思维链）。Channel 拿到的 `AIAgent` 句柄永远是 `instance.Prefrontal.Agent`。其他脑区（ParietalLobe / Hippocampus / MotorCortex.* / ExternalMotorCortex 子类）对 Channel 不可见。
+
+### SendAsync 的投递路径
+
+```
+User 调 channel.SendAsync(userMessage)
+   → Channel 包 CbimTask (who = AgentInstance, what = userMessage, where = workspaceRoot)
+   → 调 channel.Agent.RunAsync(channel.Session, userMessage)
+       ≡ instance.Prefrontal.Agent.RunAsync(...)
+   → PrefrontalCortex 内部是 ChatClientAgent + FunctionInvokingChatClient（基类已含 msai 装配）推理
+   → LLM 判该调哪个子脑区 → 调 __brain_call_motor_cortex_native(...) / __brain_call_parietal_lobe(...) / __brain_call_hippocampus(...)
+   → 子脑区 (BrainBase.InvokeAsync) 返 BrainOutcome
+   → BrainOutcome.Summary 作为 ToolMessage 回填 LLM 接续推理
+   → 主脑拼接最终输出 → 返 Channel
+   → Channel 产 ChannelOutcome 上报 OnOutput
+```
+
+**Channel 代码路径不需要任何脑区意识**——脑区调度是 PrefrontalCortex 内部 LLM + AIFunction 闭环，与 Channel 属不同抽象层。Channel 看到的众是「一个 AIAgent + RunAsync 接口」。
+
+### 与薄封装铁律的一致性
+
+Channel 薄封装铁律要求：不动 Memory / Workspace / Storage；不加业务路由；API 仅「四件事」。
+
+脑区编织是 Agent 内部事务，为 Channel 额外推送「调脑区」 API 会违反该铁律。本轮仅在本节以文档形式作作者注解，不动 Channel.cs 实现。
+

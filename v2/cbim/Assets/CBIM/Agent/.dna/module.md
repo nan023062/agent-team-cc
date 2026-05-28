@@ -1,7 +1,7 @@
 ---
 name: cbim-unity-agent-system
 owner: architect
-description: Agent 层服务门面（v2 三层模型）。本轮重定位：AgentSystem 是“Agent 虚拟人代理”的装配服务层门面（可类比 PersonnelService 装配 Person）。依然负责 AgentDescription schema + OpenInstance 装配胶水 + Session 写侧；本轮增重要职能为“Agent 实例绑定 IMemoryService 实例”（per-Agent Memory）。AgentDescription 仍以 C# 类实例化，含 Id/Name/Soul/Identity + Skills/SystemTools/McpList + 本轮新增 Memory 配置/工厂。Tool/Skill/Mcp 仍为基建层顶层模块（重定位为“类型约定”）。物理目录名 AgentSystem/ 本轮保留；是否同步改名为 Agent/ 留下切片重议。
+description: Agent 层服务门面（v2 三层模型）。本模块是「Agent 虚拟人代理」装配服务层门面，负责 AgentDescription schema + OpenInstance 装配胶水 + Session 写侧 + per-Agent Memory。脑区重构（本轮再次修正 · 合并方案）：Brain 子模块从「拆 7 个 leaf」收敛为「一份 .dna 通览全局」，使用大脑解剖学专业名（PrefrontalCortex 主脑 / ParietalLobe 架构脑 / Hippocampus 记忆学习脑 / MotorCortex 运动皮层）。类型系统重调：BrainBase 已含 msai 装配（所有脑区天生具备 LLM 思维链）；Native/External 分支仅下沉到 MotorCortex 一支（NativeMotorCortex + ExternalMotorCortex，首发桥接 ClaudeCodeMotorCortex）——原 NativeBrain/ExternalBrain 中间抽象层取消。Agent 层服务门面本轮仅接受字段名面变动（AgentInstance.Master → Prefrontal；IBrainRegistry 保留），装配胶水仍按描述符子类分派。
 keywords: []
 dependencies: []
 status: spec
@@ -80,9 +80,32 @@ AgentSystem 与 Workspace 是一对正交服务层：
 
 ## Children
 
-AgentSystem 本身不再含「能力维度三大扩展抽象」子模块——Tool / Skill / Mcp 已交由基建层顶层模块负责（`CBIM/Tools/` / `CBIM/Skills/` / `CBIM/Mcp/`）。本模块实际成为 leaf（仅含服务层门面 + AgentDescription/AgentInstance schema + OpenInstance 胶水）。
+AgentSystem 本身不再含「能力维度三大扩展抽象」子模块——Tool / Skill / Mcp 已交由基建层顶层模块负责（`CBIM/Tools/` / `CBIM/Skills/` / `CBIM/Mcp/`）。
 
-上轮「能力维度三大扩展抽象三足鼎立」描述在本轮三层模型下被重表述为「基建层四件套抽象（Tool / Skill / Mcp / Memory）」——同一集抽象、不同层级划分。Memory 作为第四件加入基建集（之前作为三大服务系统之一独立存在）。
+**本轮调整 (Brain 重构 · 合并方案)**：
+
+| 子模块 | 一句话职责 | 状态 |
+|--------|------------|------|
+| `Brain/` | Agent 内部脑区组装层——本轮从「拆 7 个 leaf」收敛为「一份 .dna 通览全局」；使用大脑解剖学专业名（PrefrontalCortex / ParietalLobe / Hippocampus / MotorCortex）；BrainBase 已含 msai 装配；Native/External 仅在 MotorCortex 下分支（NativeMotorCortex + ExternalMotorCortex·ClaudeCodeMotorCortex） | spec |
+
+**Brain/ 下本轮不再含 leaf 子模块**——上一轮的 7 个 leaf（Base / Master / Architect / MemoryLearning / Motor (parent) / Motor/Default / Motor/ClaudeCode）本轮全部被删除，所有脑区契约合并入 `Brain/.dna/module.md` 通览全局。原因：脑区结构是紧耦合的有机体，不是 7 个独立子系统；分散破坏「大脑作为一个整体」的可读性、也增加维护成本。实装期如某子分支代码量极大（如 ClaudeCodeMotorCortex Adapter），可在代码层独立文件——但 .dna 一份保持整体性。
+
+**职责重新分配（上一轮 leaf → 本轮脑区）**：
+
+- Brain/Master → **PrefrontalCortex**（前额叶皮层 · 主脑 · 调度中枢）
+- Brain/Architect → **ParietalLobe**（顶叶 · 架构设计 + 结构推理）
+- Brain/MemoryLearning → **Hippocampus**（海马体 · 记忆学习 + Dream 裂变）
+- Brain/Motor + Default + ClaudeCode → **MotorCortex 抽象 + NativeMotorCortex + ExternalMotorCortex·ClaudeCodeMotorCortex**
+- Brain/Base → **合并入 Brain/.dna 的 BrainBase 契约节**
+- HRBrain / AuditorBrain 候选 → **Cerebellum（小脑）/ AnteriorCingulateCortex（前扣带回 · ACC）预留，本轮不实装**
+
+上一轮 「思维对象集合」 预留 (`AgentInstance.AIAgents: IReadOnlyList<AIAgent>`) 本轮以 `Brains: IReadOnlyList<BrainBase>` 实现；Brain parent 负责设计原则与编织铁律，本服务门面负责 OpenInstance 装配胶水中「为多脑区产生 N 个 BrainBase + 注入 __brain_call_* AIFunction + 启动 Memory 桥 MCP」部分。
+
+上一轮「能力维度三大扩展抽象三足鼎立」描述在本轮三层模型下被重表述为「基建层四件套抽象（Tool / Skill / Mcp / Memory）」——同一集抽象、不同层级划分。Memory 作为第四件加入基建集（之前作为三大服务系统之一独立存在）。
+
+## 六脑区编织对本服务门面的增量变更（本轮）
+
+**本节标题保留以便历史可查；下文内容已随 `Agent/Brain/` 本轮重构（合并方案 + 大脑解剖学命名）同步更新**。脑区从「分散 leaf」重走为「一份 .dna 通览全局 + 4 脑初始集」；名字换为大脑解剖学专业名；BrainBase 已含 msai 装配；Native/External 仅在 MotorCortex 下分支。
 
 ## Mermaid
 
@@ -132,6 +155,7 @@ using CBIM.Skills;
 using CBIM.Tools;
 using CBIM.Mcp;
 using CBIM.Memory;
+using CBIM.AgentSystem.Brain;
 
 public sealed class AgentSystemService
 {
@@ -164,32 +188,43 @@ public sealed class AgentDescription
     public IReadOnlyList<ToolDescriptor> SystemTools { get; }
     public IReadOnlyList<McpDescriptor> McpList { get; }
 
-    // 本轮新增：Memory 配置工厂
+    // Memory 配置工厂
     // null 时默认用 FileMemoryBackend（基建层默认实现）。
-    // 调用方可传入自定义工厂，生成 Pinecone / VectorStore / In-Memory 等任意 IMemoryService 实现。
     public Func<string, IMemoryService>? MemoryFactory { get; }
+
+    // 脑区编织蓝图 (上中轮新增 · 本轮保留)。
+    // null → 单脑区 Agent（向下兼容）
+    // non-null → 多脑区 Agent（默认 4 脑）
+    public BrainConfig? BrainConfig { get; }
 }
 
 /// AgentInstance —— 运行期实例
-/// 本轮重要增量：多脑区共享一份 Memory 资源池
-/// (动机 = “Agent = 一个虚拟人” 认知模型落地)
+/// 本轮重要变动：从「持 N 个 AIAgent」重定义为「持 N 个 BrainBase + 1 个 PrefrontalCortex 句柄」。
 public sealed class AgentInstance : IAsyncDisposable
 {
     public string InstanceId { get; }
     public string DescriptionId { get; }
 
-    // 思维对象集合（本轮新视角）——一个 Agent 可含多个 AIAgent 脑区
-    public IReadOnlyList<AIAgent> AIAgents { get; }
+    // 脑区集合（本轮字段重定义）——一个 Agent 含多个 BrainBase
+    public IReadOnlyList<BrainBase> Brains { get; }
 
-    // Memory 实例（per-Agent）——该 Agent 的记忆资源池，上面多个 AIAgent 共享访问
+    // 主脑句柄（本轮字段重命名）：上中轮 instance.Master → 本轮 instance.Prefrontal
+    // 类型固定为 PrefrontalCortex 具体类。
+    public PrefrontalCortex Prefrontal { get; }
+
+    // Dream 裂变产出的新脑区动态注册点
+    public IBrainRegistry BrainRegistry { get; }
+
+    // Memory 实例（per-Agent）——该 Agent 的记忆资源池，上面多个 BrainBase 共享访问
     public IMemoryService MemoryService { get; }
 
-    // MCP server 句柄绑生命周期（依赖原有设计）
+    // MCP server 句柄绑生命周期
     public IReadOnlyList<IAsyncDisposable> McpHandles { get; }
 
     public AgentSession Session { get; }
 
-    public ValueTask DisposeAsync();   // 释放顺序：McpHandles → MemoryService → Session
+    // 释放顺序：MotorCortex 类 → 其他脑区 → Prefrontal → Memory → McpHandles → Session
+    public ValueTask DisposeAsync();
 }
 
 public sealed record OpenInstanceOptions(
@@ -198,14 +233,14 @@ public sealed record OpenInstanceOptions(
     IReadOnlyList<Microsoft.Extensions.AI.AIFunction>? Tools = null,
     IReadOnlyList<Microsoft.Extensions.AI.AIContextProvider>? Providers = null,
     string? TaskWhere = null,                              // MCP server 启动 workspaceRoot（task.Where）
-    Func<string, IMemoryService>? MemoryFactoryOverride = null);  // 本轮新增：覆盖 AgentDescription 中的默认工厂
+    Func<string, IMemoryService>? MemoryFactoryOverride = null);  // 覆盖 AgentDescription 中的默认工厂
 ```
 
 **SessionEvent**：本模块定义薄基类 + 几个子类（UserInput / LlmCall / ToolInvocation / Output / Error），落盘策略可走 Microsoft AgentSession 或本模块直接 jsonl。本轮初期实现可直接 jsonl，待 Microsoft AgentSession API 稳定后切换为 host。
 
 **OpenInstanceOptions.TaskWhere**：MCP server 启动需 workspaceRoot——该值固定取 `task.Where`，由调用方（CbimTaskExecutor / Channel 业务逻辑）透传。不允许 agent / OpenInstance 内部猜。若 `McpList` 非空且未传 `TaskWhere` → throw `InvalidOperationException`。
 
-**OpenInstanceOptions.MemoryFactoryOverride**（本轮新增）：覆盖 AgentDescription 中的 MemoryFactory。优先级：Override > Description.MemoryFactory > 默认 FileMemoryBackend。这为 Composition Root 在测试 / 开发 / 生产环境不同后端提供了顶层控制。
+**OpenInstanceOptions.MemoryFactoryOverride**：覆盖 AgentDescription 中的 MemoryFactory。优先级：Override > Description.MemoryFactory > 默认 FileMemoryBackend。这为 Composition Root 在测试 / 开发 / 生产环境不同后端提供了顶层控制。
 
 ## Service-Layer Extension Model
 
@@ -401,6 +436,20 @@ public IMemoryService Memory { get; }   // 接口字段，不跳出抽象
 - **Agent 必须专精**——`SystemTools` / `Skills` / `McpList` / 专精领域跨度 / `Soul` 长度任一维度超阈值，HR 立即裂变。
 - **`McpDescriptor` 是唯一跨维度共享抽象**——`AgentDescription.McpList` 与 `ModuleDescription.McpList` 同类型；上上说然，共用不代表跨维度耦合——是同一「外部端点」抽象被两个维度各自声明使用。
 - **AgentSystem 不引用 ExternalAdapter、不知其存在**——外部 Agent 引擎装配是平级模块 `CBIM.ExternalAdapter` 的职责。本模块只负责装配 Microsoft 内置引擎下的 AIAgent；遇到 task.Who 指向外部引擎的 task，Kernel/FlowGraph 路由给 ExternalAdapter，与本模块无关。反向亦然——ExternalAdapter 也不引用 AgentSystem。
+
+### 六脑区编织铁律（本轮新增，完整定义见 `Agent/Brain/.dna/module.md`）
+
+**本节标题保留以便历史可查**。本轮 Brain 重构后，脑区从「分散 leaf」收敛为「一份 .dna 通览全局 + 4 脑初始集」，采用大脑解剖学专业名；BrainBase 含 msai 装配；Native/External 仅在 MotorCortex 下分支。最新铁律完整描述在 `Agent/Brain/.dna/module.md`。本服务门面需从外部看到的铁律要点：
+
+- **主脑唯一调度**——只有 PrefrontalCortex 可调其他脑区；其他脑区互不通讯。跨脑区数据流必须经主脑中转。
+- **副作用唯一出口 = MotorCortex 家族**——所有「改变世界状态」动作（文件写 / MCP / HTTP / Workspace 变动 / .dna 写入）走 MotorCortex (NativeMotorCortex / ExternalMotorCortex) 任一子类。例外：Hippocampus 可直接 IMemoryService.Write；所有脑区都可调 IMemoryService.Query（只读不是动作）。
+- **共享一份 Memory + 一份 task.Where**——标准脑区直接注入 BrainBase.Memory；ExternalMotorCortex 通过 MemoryShareMode 桥 (默认 McpServer) 共享访问同一实例。
+- **主脑类型固定 PrefrontalCortex**——BrainConfig 构造期验证必须有且仅有一个 `StandardBrainDescriptor.IsPrefrontal = true`。主脑不存在 External 变体（类型系统层面杜绝）。
+- **至少一个 MotorCortex**——BrainConfig 验证至少一个脑区 `BrainId` 以 `"motor-cortex."` 开头。无 MotorCortex 意味着 Agent 无法执行任何动作。
+- **默认 4 脑装载**——`BrainConfig.Default(agentName)` 产出 [PrefrontalCortex, ParietalLobe, Hippocampus, NativeMotorCortex] 军定装载；`BrainConfig.Custom(...).WithClaudeCode(...)` 可额外加入 ClaudeCodeMotorCortex。
+- **裂变仅限 MotorCortex + Workspace Module**——Dream 裂变出的新东西仅限两类：MotorCortex (能力侧) 与 Workspace Module (知识侧)。不裂主脑 / 架构脑 / Hippocampus 本身（避免递归）。
+- **Pool / Cap=4 机制本轮废除**——多 MotorCortex 实例由 Dream 裂变动态产生 → IBrainRegistry 注册。
+- **Native/External 仅在 MotorCortex 下分支**——其他脑区只能 Native。原因：外部 AI 工具本质是「会干活的肌肉」，没有主脑调度 / 记忆训练 / 架构设计能力，只在皮层适配符合本质。
 
 ## Origin Context
 
