@@ -294,6 +294,50 @@ CloseInstance(instanceId):
 
 **Memory + MCP 是唯二需显式释放的源**——前者可能持外部连接（Pinecone client），后者持外部 server 进程 / 连接。不释放 = 资源泄漏。CloseInstance 接口存在的最强动机是二者。
 
+
+## 代码与本轮描述的名词对齐（实现备注）
+
+本轮描述用 `AgentSystemService` / `AgentInstance` / `OpenInstance` 等名词表达架构意图。现有代码中的具体类名保持不变：
+
+| 描述名 | 代码名 | 说明 |
+|--------|--------|------|
+| `AgentSystemService` | `AgentSystem` | Agent 层服务门面（`namespace CBIM.AgentSystem`） |
+| `AgentInstance` | `Agent` | 运行期实例（谁 + 状态） |
+| `OpenInstance` | `OpenInstanceAsync` | Microsoft AIAgent 装配是异步的，代码加 Async 后缀 |
+| `CloseInstance` | `CloseInstanceAsync` | 同上 |
+| `MemoryService` （实例字段） | `Memory` | Agent.cs 本轮新增实例字段采用短名 `Memory`，类型 = `CBIM.Memory.IMemoryService` |
+
+下切片只动代码、不动描述名词（描述侧习惯名保留其三层模型可读性）。
+
+### 本轮 OpenInstance API 扩展形态
+
+保留现有重载 `OpenInstanceAsync(string descriptionId, string activatedByTaskId = null)`（默认装配 FileMemoryBackend），**额外引入** `OpenInstanceOptions` 重载供高级召带插 MemoryFactory / TaskWhere：
+
+```csharp
+public sealed record OpenInstanceOptions
+{
+    public string ActivatedByTaskId { get; init; }
+    public string TaskWhere { get; init; }                                  // workspaceRoot for MCP (本轮未启用 MCP 可为 null)
+    public Func<string, IMemoryService> MemoryFactoryOverride { get; init; } // null 时 fallback Description.MemoryFactory 再 fallback 默认 FileMemoryBackend
+}
+
+public Task<Agent> OpenInstanceAsync(string descriptionId, OpenInstanceOptions options);
+```
+
+优先级：`options.MemoryFactoryOverride` > `desc.MemoryFactory` > 默认 `instanceId => new FileMemoryBackend(storage, $"memory/{instanceId}")`。
+
+**默认工厂需 storage 注入**——现有 `AgentSystem(IEnumerable<AgentDescription>, IChatClient)` 重载未提供 `FileBackend`，此时若未显式传入 `MemoryFactoryOverride` / `Description.MemoryFactory`——下切片 programmer 应 抛 `InvalidOperationException`（迬迫 Composition Root 明确选择），而不是 silent fallback 到一个空实现。
+
+### Memory 实例字段出口点
+
+`Agent` 类（运行期实例）增实例字段：
+
+```csharp
+public IMemoryService Memory { get; }   // 接口字段，不跳出抽象
+```
+
+`Agent.DisposeAsync` 释放顺序调为：McpHandles → `Memory.DisposeAsync()` → Session。`Memory` 为 null 时跳过（应不出现但防护性判空）。
+
 ## Dependencies
 
 - `CBIM.Storage`——AgentDescription / AgentInstance / Session 元数据 IO。

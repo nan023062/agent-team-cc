@@ -3,31 +3,32 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using CBIM.Storage;
 
 namespace CBIM.Memory
 {
     /// <summary>
-    /// Memory 服务（M 维度门面）——CBIM 中期记忆条目的扁平 JSON CRUD + Query。
+    /// <see cref="IMemoryService"/> 的本地文件后端实现——CBIM 中期记忆条目的扁平 JSON CRUD + Query。
     ///
     /// 本轮大幅瘦身后退化为「业务胶水」：
     ///   - 短期记忆 / Compaction / 向量检索 全交给 Microsoft（AgentThread / ChatHistoryProvider / VectorData）
     ///   - 本模块只持「distill 后的 MemoryEntry」一种东西
     ///   - 完全无 Task / Module / Agent 感知——这是它能跨业务跨能力的前提
     ///
-    /// 落盘布局：
-    ///   &lt;root&gt;/.cbim/memory/medium/&lt;id&gt;.json   ← 一条目一文件
-    ///   &lt;root&gt;/.cbim/memory/index.json           ← id → { fileName, source, createdAt, tags }
+    /// 落盘布局（subDir 默认 <c>"memory/medium"</c>）：
+    ///   &lt;root&gt;/.cbim/&lt;subDir&gt;/&lt;id&gt;.json   ← 一条目一文件
+    ///   &lt;root&gt;/.cbim/&lt;subDirParent&gt;/index.json ← id → { fileName, source, createdAt, tags }
     ///
-    /// 同步方法——异步调用方自己包。
-    /// 关键词检索为字符串子串匹配，未来挂 Microsoft VectorStore 时替换 <see cref="Query"/> 实现即可，
-    /// 不抽象 IMemoryBackend。
+    /// 同步方法——异步调用方自己包。<see cref="DisposeAsync"/> 仅为 <see cref="IAsyncDisposable"/>
+    /// 契约提供，本实现无异步资源可释（返回完成的 <see cref="ValueTask"/>），多次调用幂等。
+    /// 关键词检索为字符串子串匹配，未来挂 Microsoft VectorStore 时换一个 <see cref="IMemoryService"/> 实现即可。
     /// </summary>
-    public sealed class MemoryService
+    public sealed class FileMemoryBackend : IMemoryService
     {
-        private const string MemoryDir = ".cbim/memory";
-        private const string MediumSubDir = "medium";
+        private const string CbimDir = ".cbim";
         private const string IndexFileName = "index.json";
+        private const string DefaultSubDir = "memory/medium";
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -35,25 +36,40 @@ namespace CBIM.Memory
         };
 
         private readonly FileBackend _storage;
+        private readonly string _subDir;
+        private readonly string _indexParentSubDir;
         private readonly object _gate = new object();
         private readonly Dictionary<string, MemoryEntry> _entries = new Dictionary<string, MemoryEntry>(StringComparer.Ordinal);
+        private bool _disposed;
 
         /// <summary>
         /// 构造服务并从磁盘加载已有条目。
         /// </summary>
         /// <param name="storage">文件后端（共享）。根目录由调用方注入。</param>
-        public MemoryService(FileBackend storage)
+        /// <param name="subDir">
+        /// 条目落盘相对 <c>.cbim/</c> 的子目录，默认 <c>"memory/medium"</c>——
+        /// 保持与历史落盘布局一致。<c>index.json</c> 放在该子目录的父目录下。
+        /// 允许 <c>/</c> 或 <c>\</c> 分隔多级。
+        /// </param>
+        public FileMemoryBackend(FileBackend storage, string subDir = DefaultSubDir)
         {
             _storage = storage ?? throw new ArgumentNullException(nameof(storage));
+            if (string.IsNullOrWhiteSpace(subDir))
+                throw new ArgumentException("subDir 不能为空", nameof(subDir));
+
+            _subDir = subDir.Replace('\\', '/').Trim('/');
+            if (_subDir.Length == 0)
+                throw new ArgumentException("subDir 不能为空", nameof(subDir));
+
+            int lastSlash = _subDir.LastIndexOf('/');
+            _indexParentSubDir = lastSlash > 0 ? _subDir.Substring(0, lastSlash) : string.Empty;
+
             LoadFromDisk();
         }
 
         // ===== CRUD 门面 =====
 
-        /// <summary>
-        /// 写入或覆盖一条记忆条目。
-        /// 落盘：先原子写 &lt;id&gt;.json，再原子写 index.json。
-        /// </summary>
+        /// <inheritdoc />
         public void Write(MemoryEntry entry)
         {
             if (entry == null) throw new ArgumentNullException(nameof(entry));
@@ -71,7 +87,7 @@ namespace CBIM.Memory
             }
         }
 
-        /// <summary>按 Id 取条目。找不到返 null。</summary>
+        /// <inheritdoc />
         public MemoryEntry Get(string id)
         {
             if (string.IsNullOrWhiteSpace(id)) return null;
@@ -81,12 +97,10 @@ namespace CBIM.Memory
             }
         }
 
-        /// <summary>
-        /// 关键词检索——返回与 <paramref name="text"/> 最匹配的前 K 条。
-        ///
-        /// 当前实现：忽略大小写的词条匹配，按命中词数排序；命中数相同按 CreatedAt 倒序。
-        /// 未来如挂 Microsoft VectorStore，仅此方法体替换，签名不变。
-        /// </summary>
+        /// <inheritdoc />
+        /// <remarks>
+        /// 当前实现：忽略大小写的词条匹配，按命中词数排序；命中数相同按 <see cref="MemoryEntry.CreatedAt"/> 倒序。
+        /// </remarks>
         public IReadOnlyList<MemoryEntry> Query(string text, int topK)
         {
             if (topK <= 0) return Array.Empty<MemoryEntry>();
@@ -124,7 +138,7 @@ namespace CBIM.Memory
             return result;
         }
 
-        /// <summary>按结构化过滤条件枚举条目（AND 各字段）。结果按 CreatedAt 倒序。</summary>
+        /// <inheritdoc />
         public IReadOnlyList<MemoryEntry> Scan(MemoryScanFilter filter)
         {
             List<MemoryEntry> snapshot;
@@ -167,7 +181,7 @@ namespace CBIM.Memory
             return q.OrderByDescending(e => e.CreatedAt).ToList();
         }
 
-        /// <summary>仓库聚合快照——总数 + 最早 / 最新 CreatedAt。</summary>
+        /// <inheritdoc />
         public MemoryStats Stats()
         {
             lock (_gate)
@@ -188,17 +202,50 @@ namespace CBIM.Memory
             }
         }
 
+        /// <summary>
+        /// 释放资源——本实现无异步资源可释。仅清空内存缓存以释引用，幂等：多次调用不抛。
+        /// </summary>
+        public ValueTask DisposeAsync()
+        {
+            lock (_gate)
+            {
+                if (_disposed) return default;
+                _entries.Clear();
+                _disposed = true;
+            }
+            return default;
+        }
+
         // ===== 内部：加载 / 持久化 =====
 
-        private string EntryPath(string id) =>
-            _storage.ResolveCbimPath(MemoryDir, MediumSubDir, id + ".json");
+        private string EntryPath(string id)
+        {
+            // 把 subDir 拆段后交给 ResolveCbimPath，复用其分隔符 / 根目录处理。
+            var segments = _subDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var all = new string[segments.Length + 2];
+            all[0] = CbimDir;
+            Array.Copy(segments, 0, all, 1, segments.Length);
+            all[all.Length - 1] = id + ".json";
+            return _storage.ResolveCbimPath(all);
+        }
 
-        private string IndexPath() =>
-            _storage.ResolveCbimPath(MemoryDir, IndexFileName);
+        private string IndexPath()
+        {
+            if (_indexParentSubDir.Length == 0)
+            {
+                return _storage.ResolveCbimPath(CbimDir, IndexFileName);
+            }
+            var segments = _indexParentSubDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var all = new string[segments.Length + 2];
+            all[0] = CbimDir;
+            Array.Copy(segments, 0, all, 1, segments.Length);
+            all[all.Length - 1] = IndexFileName;
+            return _storage.ResolveCbimPath(all);
+        }
 
         private void LoadFromDisk()
         {
-            // 优先按 index.json 加载；index 缺失或损坏时退回扫描 medium/ 目录重建。
+            // 优先按 index.json 加载；index 缺失或损坏时退回扫描条目目录重建。
             string indexPath = IndexPath();
             string indexJson = _storage.ReadOrNull(indexPath);
             bool indexUsable = false;
@@ -233,10 +280,10 @@ namespace CBIM.Memory
 
         private void RebuildFromDirectory()
         {
-            string mediumDir = Path.GetDirectoryName(EntryPath("__probe"));
-            if (string.IsNullOrEmpty(mediumDir) || !Directory.Exists(mediumDir)) return;
+            string entryDir = Path.GetDirectoryName(EntryPath("__probe"));
+            if (string.IsNullOrEmpty(entryDir) || !Directory.Exists(entryDir)) return;
 
-            foreach (var file in Directory.EnumerateFiles(mediumDir, "*.json", SearchOption.TopDirectoryOnly))
+            foreach (var file in Directory.EnumerateFiles(entryDir, "*.json", SearchOption.TopDirectoryOnly))
             {
                 string id = Path.GetFileNameWithoutExtension(file);
                 var loaded = TryLoadEntry(id);

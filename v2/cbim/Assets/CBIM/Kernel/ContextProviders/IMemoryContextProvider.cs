@@ -4,7 +4,7 @@ using CBIM.Kernel.TaskScheduler;
 namespace CBIM.Kernel.ContextProviders
 {
     /// <summary>
-    /// CBIM 上下文桥之一：以 Task.What 为 query 调 <c>MemoryService.Query</c> 取前 K 条
+    /// CBIM 上下文桥之一：以 Task.What 为 query 调 <c>IMemoryService.Query</c> 取前 K 条
     /// MemoryEntry，拼成 prompt 片段注入。
     ///
     /// 函数式工厂——For(task) 是纯函数；topK 由 <see cref="CbimContextOptions.MemoryTopK"/> 决定，

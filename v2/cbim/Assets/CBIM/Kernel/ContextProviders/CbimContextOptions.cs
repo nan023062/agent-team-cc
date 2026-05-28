@@ -10,7 +10,7 @@ namespace CBIM.Kernel.ContextProviders
     /// <param name="IncludeWorkspace">是否装配 WorkspaceContextProvider。默认 true。</param>
     /// <param name="IncludeMemory">是否装配 MemoryContextProvider。默认 true。</param>
     /// <param name="IncludeSession">是否装配 SessionContextProvider。默认 true。</param>
-    /// <param name="MemoryTopK">MemoryService.Query 的 topK 参数。默认 5。</param>
+    /// <param name="MemoryTopK">IMemoryService.Query 的 topK 参数。默认 5。</param>
     /// <param name="SessionTailN">ReadSessionTail 的 N 参数。默认 20。</param>
     public sealed record CbimContextOptions(
         bool IncludeWorkspace = true,

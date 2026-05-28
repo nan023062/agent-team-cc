@@ -11,23 +11,23 @@ namespace CBIM.Kernel.ContextProviders
     /// <summary>
     /// Memory 维度 ContextProvider 工厂。
     ///
-    /// 数据源：构造期注入的 <see cref="MemoryService"/>。
+    /// 数据源：构造期注入的 <see cref="IMemoryService"/>。
     /// For(task) 产出一个轻量子类，调用时以 task.What 为 query 调
-    /// MemoryService.Query(text, topK=5)（topK 默认值；如需调参由调用方在
+    /// IMemoryService.Query(text, topK=5)（topK 默认值；如需调参由调用方在
     /// <see cref="CbimContextOptions"/> 一层透传——本切片暂以固定默认值 5 实现，
     /// 后续切片可把 options 透到 ctor）。
     ///
     /// 拼装：每条 MemoryEntry 一行——Id + Text 截断到 200 字内（避免单条噪声打爆 prompt）。
-    /// 不做向量检索、不维护游标、不持任何缓存——MemoryService 内部自有策略。
+    /// 不做向量检索、不维护游标、不持任何缓存——IMemoryService 实现内部自有策略。
     /// </summary>
     public sealed class MemoryContextProvider : IMemoryContextProvider
     {
         private const int DefaultTopK = 5;
         private const int MaxTextSnippet = 200;
 
-        private readonly MemoryService _memory;
+        private readonly IMemoryService _memory;
 
-        public MemoryContextProvider(MemoryService memory)
+        public MemoryContextProvider(IMemoryService memory)
         {
             _memory = memory ?? throw new ArgumentNullException(nameof(memory));
         }
@@ -40,10 +40,10 @@ namespace CBIM.Kernel.ContextProviders
 
         private sealed class Provider : AIContextProvider
         {
-            private readonly MemoryService _memory;
-            private readonly CbimTask      _task;
+            private readonly IMemoryService _memory;
+            private readonly CbimTask       _task;
 
-            public Provider(MemoryService memory, CbimTask task)
+            public Provider(IMemoryService memory, CbimTask task)
             {
                 _memory = memory;
                 _task = task;

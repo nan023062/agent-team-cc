@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CBIM.Skills;
 using CBIM.Mcp;
 using CBIM.Tools;
+using CBIM.Memory;
 
 namespace CBIM.AgentSystem
 {
@@ -60,6 +61,18 @@ namespace CBIM.AgentSystem
         /// <summary>MCP 服务列表。可为空（agent 不一定需要外接 MCP）。</summary>
         public IReadOnlyList<McpDescriptor> McpList { get; }
 
+        /// <summary>
+        /// 记忆服务工厂（可空）。入参为 <c>instanceId</c>（Agent 实例的 GUID），
+        /// 返回该实例专属的 <see cref="IMemoryService"/>。
+        ///
+        /// 缺省（null）时，<c>AgentSystem.OpenInstance</c> 自动 new 一个
+        /// <c>FileMemoryBackend</c>——按 instanceId 隔离的独立后端。
+        ///
+        /// 多 Agent 共享同一记忆后端：让 Factory 始终返回同一个
+        /// <see cref="IMemoryService"/> 实例即可（例如团队级共享记忆池）。
+        /// </summary>
+        public Func<string, IMemoryService> MemoryFactory { get; }
+
         public AgentDescription(
             string id,
             string name,
@@ -67,7 +80,8 @@ namespace CBIM.AgentSystem
             string identity,
             IReadOnlyList<SkillDescriptor> skills = null,
             IReadOnlyList<ToolDescriptor> systemTools = null,
-            IReadOnlyList<McpDescriptor> mcpList = null)
+            IReadOnlyList<McpDescriptor> mcpList = null,
+            Func<string, IMemoryService> memoryFactory = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("AgentDescription.Id 不能为空", nameof(id));
@@ -85,6 +99,7 @@ namespace CBIM.AgentSystem
             Skills = skills ?? Array.Empty<SkillDescriptor>();
             SystemTools = systemTools ?? Array.Empty<ToolDescriptor>();
             McpList = mcpList ?? Array.Empty<McpDescriptor>();
+            MemoryFactory = memoryFactory;
         }
 
         public override string ToString() =>

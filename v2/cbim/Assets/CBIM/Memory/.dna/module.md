@@ -6,6 +6,7 @@ keywords: []
 dependencies: []
 status: spec
 ---
+
 ## Positioning
 
 **Memory 是 CBIM 基建层四件套之一**——与 `Tools/` / `Skills/` / `Mcp/` 平级，同为顶层模块、同为「类型契约 / 抽象接口」。
@@ -194,13 +195,27 @@ var agent = agentSystem.OpenInstance("research-scholar", new OpenInstanceOptions
 
 ## Storage Layout（默认实现）
 
+### 默认实例化路径（per-Agent）
+
 ```
-<storageRoot>/.cbim/memory/<agentInstanceId>/
-  <entryId>.json   ← MemoryEntry 一文件
-  index.json       ← entry id → 摘要的快速索引
+<storageRoot>/.cbim/memory/<agentInstanceId>/<entryId>.json
+<storageRoot>/.cbim/memory/<agentInstanceId>/index.json
 ```
 
-若多个 Agent 共享同一 storageRoot 子目录，则共享记忆（用户配置时主动让 MemoryFactory 返回指向同一目录的 backend 实例）。
+当 AgentSystem 默认装配 `new FileMemoryBackend(storage, subDir: $"memory/{instanceId}")` 时按此布局——每个 Agent 一个子目录。
+
+### 兼容旧布局（FileMemoryBackend 默认 ctor）
+
+```
+<storageRoot>/.cbim/memory/medium/<entryId>.json
+<storageRoot>/.cbim/memory/medium/index.json
+```
+
+`FileMemoryBackend` 构造函数 `subDir` 形参默认值 = `"memory/medium"`——**保留与旧 `MemoryService` 完全一致的落盘布局**，确保已有 `.cbim/memory/medium/*.json` 数据无须迁移即可继续读写。
+
+### 多 Agent 共享数据
+
+若希望多个 Agent 看到同一份记忆，让 `MemoryFactory` 返回指向同一 `subDir` 的 `FileMemoryBackend` 实例（例如 `subDir: "memory/shared"`）；不再按 instanceId 拆目录即可。
 
 ## Dependencies
 
@@ -256,3 +271,4 @@ var agent = agentSystem.OpenInstance("research-scholar", new OpenInstanceOptions
 - 不持有 agent / module 图谱。
 - 不为第三方后端预写实现——业务方自行派生 IMemoryService 接入；本模块不假设具体后端形态。
 - 不暴露 token 预算 / 上下文窗口管理——这些是 Microsoft AIContextProvider 的事，不是 IMemoryService 的事。
+

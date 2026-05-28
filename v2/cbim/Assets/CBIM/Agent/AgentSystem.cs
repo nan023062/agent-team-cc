@@ -6,10 +6,34 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
+using CBIM.Memory;
 using CBIM.Storage;
 
 namespace CBIM.AgentSystem
 {
+    /// <summary>
+    /// <see cref="AgentSystem.OpenInstanceAsync(string, OpenInstanceOptions)"/>
+    /// 的可选装配参数。所有字段可空（null = 走默认逻辑）。
+    ///
+    /// <see cref="MemoryFactoryOverride"/> 优先级最高（per-call 覆盖）；
+    /// 其次是 <see cref="AgentDescription.MemoryFactory"/>（per-description 默认）；
+    /// 最后落到 <see cref="AgentSystem"/> 的默认工厂（要求构造时注入了 FileBackend）。
+    /// </summary>
+    public sealed record OpenInstanceOptions
+    {
+        /// <summary>触发本次激活的 Task ID。透传给 <see cref="Agent.ActivatedByTaskId"/>。</summary>
+        public string ActivatedByTaskId { get; init; }
+
+        /// <summary>预留：本次实例参与的 Task where 条件（用于未来上下文过滤）。</summary>
+        public IReadOnlyList<string> TaskWhere { get; init; }
+
+        /// <summary>
+        /// 单次调用覆盖的记忆工厂——优先级高于 <see cref="AgentDescription.MemoryFactory"/>。
+        /// 入参为新生成的 instanceId。
+        /// </summary>
+        public Func<string, IMemoryService> MemoryFactoryOverride { get; init; }
+    }
+
     /// <summary>
     /// AgentSystem 服务（能力维度门面）——CBIM 能力侧的总入口。
     ///
@@ -130,10 +154,27 @@ namespace CBIM.AgentSystem
         ///   - Skills 注入：Microsoft AgentSkillsProvider
         ///   - ContextProviders：Kernel/ContextProviders 注入 Workspace / Memory / Session 上下文
         /// </summary>
-        public async Task<Agent> OpenInstanceAsync(
+        public Task<Agent> OpenInstanceAsync(
             string descriptionId,
             string activatedByTaskId = null)
+            => OpenInstanceAsync(descriptionId, new OpenInstanceOptions { ActivatedByTaskId = activatedByTaskId });
+
+        /// <summary>
+        /// 完整装配重载：除常规字段外允许 per-call 覆盖记忆工厂。
+        ///
+        /// 记忆工厂选择优先级：
+        ///   1. <see cref="OpenInstanceOptions.MemoryFactoryOverride"/>（本次调用显式给的）
+        ///   2. <see cref="AgentDescription.MemoryFactory"/>（描述符自带）
+        ///   3. AgentSystem 默认工厂——按 <c>memory/&lt;instanceId&gt;</c> 子目录新建
+        ///      <see cref="FileMemoryBackend"/>，要求构造 AgentSystem 时注入 <see cref="FileBackend"/>
+        /// </summary>
+        public async Task<Agent> OpenInstanceAsync(
+            string descriptionId,
+            OpenInstanceOptions options)
         {
+            if (string.IsNullOrWhiteSpace(descriptionId))
+                throw new ArgumentException("descriptionId 不能为空", nameof(descriptionId));
+
             var desc = GetDescription(descriptionId);
             if (desc == null)
                 throw new ArgumentException($"未找到 AgentDescription: {descriptionId}", nameof(descriptionId));
@@ -153,15 +194,23 @@ namespace CBIM.AgentSystem
             // 3. 创建 Session（agent 用 ValueTask 返回，await 自动适配）
             var session = await aiAgent.CreateSessionAsync().ConfigureAwait(false);
 
-            // 4. 包成 Agent
+            // 4. 选定记忆工厂并实例化（优先级：override → description → 默认）
             var instanceId = Guid.NewGuid().ToString();
+            Func<string, IMemoryService> factory =
+                options?.MemoryFactoryOverride
+                ?? desc.MemoryFactory
+                ?? DefaultMemoryFactory();
+            IMemoryService memory = factory(instanceId);
+
+            // 5. 包成 Agent
             var instance = new Agent(
                 instanceId: instanceId,
                 description: desc,
                 aiAgent: aiAgent,
                 session: session,
                 mcpHandles: null,
-                activatedByTaskId: activatedByTaskId);
+                activatedByTaskId: options?.ActivatedByTaskId,
+                memory: memory);
 
             lock (_instancesLock)
             {
@@ -169,6 +218,22 @@ namespace CBIM.AgentSystem
             }
 
             return instance;
+        }
+
+        /// <summary>
+        /// 默认记忆工厂——按 instanceId 隔离的 <see cref="FileMemoryBackend"/>。
+        /// 要求构造 AgentSystem 时注入了 <see cref="FileBackend"/>；否则在调用点抛
+        /// <see cref="InvalidOperationException"/>，强制 Composition Root 显式选择策略。
+        /// </summary>
+        private Func<string, IMemoryService> DefaultMemoryFactory()
+        {
+            if (_fileBackend == null)
+                throw new InvalidOperationException(
+                    "AgentSystem cannot construct default Memory: " +
+                    "no FileBackend was injected, and neither AgentDescription.MemoryFactory " +
+                    "nor OpenInstanceOptions.MemoryFactoryOverride was provided. " +
+                    "Composition Root must explicitly choose a MemoryFactory.");
+            return instanceId => new FileMemoryBackend(_fileBackend, $"memory/{instanceId}");
         }
 
         /// <summary>

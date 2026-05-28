@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace CBIM.Memory
 {
     /// <summary>
-    /// <see cref="MemoryService.Scan"/> 的过滤参数。
+    /// <see cref="IMemoryService.Scan"/> 的过滤参数。
     /// 多字段同时给定时取交集（AND）；字段为 null 表示不约束该维度。
     /// </summary>
     /// <param name="SourceEquals">仅返回 Source 等于此值的条目。</param>

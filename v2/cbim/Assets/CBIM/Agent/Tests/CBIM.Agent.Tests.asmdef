@@ -1,0 +1,33 @@
+{
+    "name": "CBIM.Agent.Tests",
+    "rootNamespace": "",
+    "references": [
+        "CBIM"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "nunit.framework.dll",
+        "Microsoft.Agents.AI.dll",
+        "Microsoft.Agents.AI.Abstractions.dll",
+        "Microsoft.Extensions.AI.dll",
+        "Microsoft.Extensions.AI.Abstractions.dll",
+        "Microsoft.Bcl.AsyncInterfaces.dll",
+        "System.Memory.dll",
+        "System.Text.Json.dll",
+        "System.Threading.Tasks.Extensions.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": true,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

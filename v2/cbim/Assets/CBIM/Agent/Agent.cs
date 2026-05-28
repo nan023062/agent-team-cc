@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using CBIM.Memory;
 using Microsoft.Agents.AI;
 
 namespace CBIM.AgentSystem
@@ -61,6 +62,15 @@ namespace CBIM.AgentSystem
         /// </summary>
         public IReadOnlyList<IAsyncDisposable> McpHandles { get; }
 
+        /// <summary>
+        /// CBIM Agent 的记忆实例——本 Agent 持一个 <see cref="IMemoryService"/>，
+        /// 同一 Agent 内 N 个 <see cref="AIAgent"/>（同质子代理）共享此实例
+        /// （per-Agent，非 per-AIAgent）。
+        /// 由 <c>AgentSystem.OpenInstance</c> 注入；调用方应保证非 null，
+        /// 字段层为容错允许 null。
+        /// </summary>
+        public IMemoryService Memory { get; }
+
         /// <summary>激活时间戳。</summary>
         public DateTimeOffset CreatedAt { get; }
 
@@ -73,7 +83,8 @@ namespace CBIM.AgentSystem
             AIAgent aiAgent,
             AgentSession session,
             IReadOnlyList<IAsyncDisposable> mcpHandles = null,
-            string activatedByTaskId = null)
+            string activatedByTaskId = null,
+            IMemoryService memory = null)
         {
             if (string.IsNullOrWhiteSpace(instanceId))
                 throw new ArgumentException("Agent.InstanceId 不能为空", nameof(instanceId));
@@ -89,6 +100,7 @@ namespace CBIM.AgentSystem
             AIAgent = aiAgent;
             Session = session;
             McpHandles = mcpHandles ?? Array.Empty<IAsyncDisposable>();
+            Memory = memory;
             CreatedAt = DateTimeOffset.UtcNow;
             ActivatedByTaskId = activatedByTaskId;
         }
@@ -96,19 +108,32 @@ namespace CBIM.AgentSystem
         /// <summary>
         /// 释放本实例占用的所有资源：
         ///   1. 关闭所有启动的 MCP server handles（subprocess kill / connection close）
-        ///   2. 释放 AgentSession（Microsoft 框架处理）
-        /// 多次调用幂等。
+        ///   2. 释放 Memory 实例（如第三方后端 client 需异步断开）
+        ///   3. 释放 AgentSession（Microsoft 框架处理）
+        /// 各步以 try/catch 隔离——单点失败不阻断后续清理。多次调用幂等。
         /// </summary>
         public async ValueTask DisposeAsync()
         {
+            // 1) 先释放外部句柄 MCP handles
             foreach (var handle in McpHandles)
             {
                 try { await handle.DisposeAsync().ConfigureAwait(false); }
                 catch { /* 单个 handle 关闭失败不影响其他 */ }
             }
 
+            // 2) 释放 Memory（IMemoryService : IAsyncDisposable）
+            if (Memory != null)
+            {
+                try { await Memory.DisposeAsync().ConfigureAwait(false); }
+                catch { /* 单点失败不阻断 Session 关闭 */ }
+            }
+
+            // 3) 最后关 Session
             if (Session is IAsyncDisposable disposableSession)
-                await disposableSession.DisposeAsync().ConfigureAwait(false);
+            {
+                try { await disposableSession.DisposeAsync().ConfigureAwait(false); }
+                catch { /* 隔离 */ }
+            }
         }
 
         public override string ToString()
