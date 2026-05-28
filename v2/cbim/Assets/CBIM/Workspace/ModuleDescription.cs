@@ -14,11 +14,10 @@ namespace CBIM.Workspace
     ///   - 它支持哪些业务流程（Workflows = SkillDescriptor 在业务语境下的别名）
     ///   - 它有哪些业务专属工具（Tools，可选）
     ///   - 它的业务操作接入点（McpList，类型与 Agent 的 McpList 同抽象）
-    ///   - 它的负责人编制（Owners，可选，缺省 LLM 匹配）
     ///
     /// 与 AgentSystem.AgentDescription 完全对称：
     ///   AgentDescription（能力单位）= Soul + Skills + SystemTools + McpList
-    ///   ModuleDescription（业务区）  = Metadata + Workflows + Tools + McpList + Owners
+    ///   ModuleDescription（业务区）  = Metadata + Workflows + Tools + McpList
     ///
     /// 三大基础能力抽象（Tool / Skill / Mcp）跨维度共享：
     ///   - 都定义在 CBIM/Tools, CBIM/Skills, CBIM/Mcp 顶层模块
@@ -50,10 +49,7 @@ namespace CBIM.Workspace
     ///       new HttpMcpDescriptor("cdn-mcp", "CDN MCP", "操作 CDN",
     ///         endpoint: "https://cdn.example.com/mcp",
     ///         authToken: "...")
-    ///     ],
-    ///     owners: new ModuleOwners(
-    ///       primary: "cdn-admin-agent",
-    ///       secondary: "security-auditor"));
+    ///     ]);
     /// </summary>
     public sealed class ModuleDescription
     {
@@ -89,21 +85,13 @@ namespace CBIM.Workspace
         /// </summary>
         public IReadOnlyList<McpDescriptor> McpList { get; }
 
-        /// <summary>
-        /// 模块负责人（开发 + 审计）。可为 null——表示整个 module 未指定 owner。
-        /// null 或字段缺失时，派发器走 LLM 自动匹配 + 强提示警告。
-        /// 详细 fallback 规则见 ModuleOwners 类注释。
-        /// </summary>
-        public ModuleOwners Owners { get; }
-
         public ModuleDescription(
             string id,
             string name,
             ModuleMetadata metadata,
             IReadOnlyList<SkillDescriptor> workflows = null,
             IReadOnlyList<ToolDescriptor> tools = null,
-            IReadOnlyList<McpDescriptor> mcpList = null,
-            ModuleOwners owners = null)
+            IReadOnlyList<McpDescriptor> mcpList = null)
         {
             if (string.IsNullOrWhiteSpace(id))
                 throw new ArgumentException("ModuleDescription.Id 不能为空", nameof(id));
@@ -118,10 +106,9 @@ namespace CBIM.Workspace
             Workflows = workflows ?? Array.Empty<SkillDescriptor>();
             Tools = tools ?? Array.Empty<ToolDescriptor>();
             McpList = mcpList ?? Array.Empty<McpDescriptor>();
-            Owners = owners;
         }
 
         public override string ToString() =>
-            $"ModuleDescription({Id}, meta={Metadata.Kind}, workflows={Workflows.Count}, tools={Tools.Count}, mcp={McpList.Count}, owners={(Owners?.ToString() ?? "<unassigned>")})";
+            $"ModuleDescription({Id}, meta={Metadata.Kind}, workflows={Workflows.Count}, tools={Tools.Count}, mcp={McpList.Count})";
     }
 }

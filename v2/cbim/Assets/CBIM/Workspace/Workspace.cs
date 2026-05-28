@@ -28,7 +28,6 @@ namespace CBIM.Workspace
     /// 不做的事（其他模块的责任）：
     ///   - Metadata 内容读取 → 由 Kernel/ContextProviders.WorkspaceContextProvider 按需读
     ///   - Module 的 Tools/Mcp 实例化 → 由 AgentSystem.OpenInstance 在装配 Agent 时合并
-    ///   - Owners 解析（开发/审计派给谁）→ 由派发器（未来 TaskRunner）按 fallback 规则处理
     /// </summary>
     public sealed class Workspace
     {

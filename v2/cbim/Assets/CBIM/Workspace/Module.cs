@@ -11,7 +11,6 @@ namespace CBIM.Workspace
     ///   Description.Workflows      = 工作流程（标准作业流程清单）
     ///   Description.Tools          = 办公设备（打印机 / 扫描仪 / 专用屏）
     ///   Description.McpList        = 接入业务系统（连企业 ERP / CDN 控制台）
-    ///   Description.Owners         = 这个工位的负责人（开发 + 审计）
     ///   ActivatedByTaskId          = 这次工单是什么
     ///
     /// 与 AgentSystem.Agent（人）对偶——人 + 办公位 = 一次任务的完整场景。

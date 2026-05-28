@@ -129,7 +129,7 @@ flowchart TB
     end
 
     subgraph WorkspaceLayer["Workspace 层 · 工作区 / 项目"]
-        WS["Workspace<br/>(ModuleDescription:<br/>Metadata + Workflows[Skill] + McpList[Mcp] + Owners)"]
+        WS["Workspace<br/>(ModuleDescription:<br/>Metadata + Workflows[Skill] + McpList[Mcp])"]
     end
 
     subgraph MSAI["Microsoft Agent Framework · 横向底座（NuGet）"]
@@ -308,14 +308,13 @@ Agent 实例 = {
 
 > **定位：** 「工位」+「工位上贴的规章」+「工位接的外部系统」+「工位负责人编制」。
 
-**模块对象的四段式组成：**
+**模块对象的三段式组成：**
 
 | 段 | 字段 | 语义 | 类型来源 |
 |----|------|------|----------|
 | **是什么** | `Metadata` | 业务知识载体（Local: `.dna/module.md` 文件 / Remote: 文档 endpoint）| 本模块 `ModuleMetadata`（含 `LocalModuleMetadata` / `RemoteModuleMetadata`）|
 | **能做什么** | `Workflows: IReadOnlyList<SkillDescriptor>` | 业务 Skill 集合（贴在墙上的标准作业流程清单）| **基建层 `CBIM.Skills.SkillDescriptor`**（同抽象的业务别名）|
 | **怎么做** | `McpList: IReadOnlyList<McpDescriptor>` | 业务 MCP 集合（业务模块接入哪些外部业务系统）| **基建层 `CBIM.Mcp.McpDescriptor`**（同抽象、不同语义归属）|
-| **谁来做** | `Owners` | 模块人事编制（Primary 开发负责人 + Secondary 审计负责人）| 本模块 `ModuleOwners`（持 `AgentDescription.Id` 字符串引用 · 不持实例）|
 
 **业务 Skill 与业务 MCP 是 Workspace 层的核心挂载点：**
 
@@ -410,7 +409,6 @@ Agent 实例 = {
 | `Description.Metadata` | 工作资料 + 操作说明（贴在墙上的规章）| Workspace 层（`ModuleMetadata`）|
 | `Description.Workflows` | 工作流程（标准作业流程清单）| 基建层（`SkillDescriptor`）|
 | `Description.McpList` | 接入业务系统（连企业 ERP / CDN 控制台）| 基建层（`McpDescriptor`）|
-| `Description.Owners` | 工位负责人（开发 + 审计）| Workspace 层（`ModuleOwners`，字符串引用 `AgentDescription.Id`）|
 | `ActivatedByTaskId` | 这次工单 | Agent 层（`Kernel/TaskScheduler` 产出）|
 
 ### Task = 工单 —— Agent 层（Kernel）产出
@@ -456,8 +454,8 @@ Agent 实例 = {
 
 第 4 层 · 静态描述符（层归属 · 实例集合独立）
   AgentDescription      ← Agent 层（持 Skills / SystemTools / McpList / MemoryFactory）
-  ModuleDescription     ← Workspace 层（持 Workflows[Skill] / McpList / Owners）
-  + 子对象：ModuleMetadata (Local/Remote) / ModuleOwners
+  ModuleDescription     ← Workspace 层（持 Workflows[Skill] / McpList）
+  + 子对象：ModuleMetadata (Local/Remote)
 
 第 5 层 · 运行时实例
   AgentInstance  (Agent 层 · 人，IAsyncDisposable，持 IMemoryService 实例)
@@ -556,7 +554,7 @@ Task 结束:
    │   ├── AgentSystem（AgentDescription + AgentInstance + 服务门面 · 待补 Memory 字段）
    │   └── ExternalAdapter（.dna 已就位 · 代码待落地）
    ├── Workspace 层
-   │   └── Workspace（ModuleDescription + Metadata + Owners + 服务门面）
+   │   └── Workspace（ModuleDescription + Metadata + 服务门面）
    └── Microsoft Agent Framework（ThirdParty/MsExtensionsAI 44 DLL 全套）+ 5 个学习 Demo
 
 待实施（本轮 .dna 已规约 · 下切片代码落地）
@@ -602,7 +600,7 @@ Task 结束:
 | **Agent 层** | ExternalAdapter | `ExternalAdapter/.dna/module.md`（代码待落地）|
 | **Agent 层** | Kernel | `Kernel/TaskScheduler/` + `Kernel/FlowGraph/` + `Kernel/ContextProviders/`（代码待落地）|
 | **Agent 层** | Channel | `Channel/`（代码待落地）|
-| **Workspace 层** | Workspace | `Workspace/ModuleDescription.cs` + `Workspace/ModuleMetadata.cs` + `Workspace/ModuleOwners.cs` + `Workspace/Module.cs` + `Workspace/WorkspaceService.cs` |
+| **Workspace 层** | Workspace | `Workspace/ModuleDescription.cs` + `Workspace/ModuleMetadata.cs` + `Workspace/Module.cs` + `Workspace/WorkspaceService.cs` |
 | **组合根** | AgenticOS | `AgenticOS.cs`（待装配三层）|
 | **横向底座** | MS DLLs | `ThirdParty/MsExtensionsAI/`（44 个）|
 
@@ -659,7 +657,7 @@ sequenceDiagram
         loop for each module in task.Where
             Exec->>WS: OpenInstance(moduleDescId, workspaceRoot, taskId)
             WS->>WS: 找 ModuleDescription
-            WS-->>Exec: new Module(<br/>  InstanceId, WorkspaceRoot,<br/>  Workflows[Skill], McpList[Mcp], Owners)
+            WS-->>Exec: new Module(<br/>  InstanceId, WorkspaceRoot,<br/>  Workflows[Skill], McpList[Mcp])
         end
     end
 
@@ -736,7 +734,7 @@ sequenceDiagram
 - 各模块 `.dna/module.md` —— 单模块完整设计
   - `.dna/module.md`（根）—— v2 三层模型总纲
   - `AgentSystem/.dna/module.md` —— Agent 装配服务门面（含 Memory 接线 + 四源装配）
-  - `Workspace/.dna/module.md` —— Workspace 层模块对象四段式（含业务 MCP + 业务 Skill 挂载点）
+  - `Workspace/.dna/module.md` —— Workspace 层模块对象三段式（含业务 MCP + 业务 Skill 挂载点）
   - `Memory/.dna/module.md` —— IMemoryService 接口 + FileMemoryBackend 默认实现 + per-Agent 实例化
   - `Tools/.dna/module.md` / `Skills/.dna/module.md` / `Mcp/.dna/module.md` —— 三件基建类型契约
   - `ExternalAdapter/.dna/module.md` —— 外部引擎适配层完整契约（含 `IExternalEngineAdapter` C# 草案）
