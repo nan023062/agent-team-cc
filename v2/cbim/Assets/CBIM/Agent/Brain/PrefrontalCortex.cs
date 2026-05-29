@@ -281,15 +281,12 @@ namespace CBIM.AgentSystem.Brain
 
             string json = JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true });
 
-#if NETSTANDARD2_0
+            // File.WriteAllTextAsync 在 netstandard 2.0 / Unity 2020.3 不可用——用 FileStream + StreamWriter 统一路径。
             using (var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
             using (var sw = new StreamWriter(fs))
             {
                 await sw.WriteAsync(json).ConfigureAwait(false);
             }
-#else
-            await File.WriteAllTextAsync(path, json, ct).ConfigureAwait(false);
-#endif
         }
 
         /// <summary>投影 <see cref="CircuitNode"/> 子类为 JSON 友好 DTO + type discriminator。</summary>

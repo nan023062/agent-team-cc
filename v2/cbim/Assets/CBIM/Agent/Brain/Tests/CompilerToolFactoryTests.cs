@@ -11,6 +11,7 @@ using CBIM.AgentSystem.Brain;
 using CBIM.AgentSystem.Kernel.Neuron;
 using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.AgentSystem.Kernel.Synapse.Compiler;
+using CBIM.AgentSystem.Brain.Tests;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Kernel.Synapse.Compiler.Tests

@@ -116,11 +116,12 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator.Tests
         public void RunAsync_rejects_null_circuit()
         {
             var o = new CBIMOrchestrator();
-            Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            Assert.That(async () =>
                 await o.RunAsync(circuit: null!,
                     brainPalette: Array.Empty<BrainBase>(),
                     callback: new FakePrefrontalCallback(),
-                    ct: CancellationToken.None));
+                    ct: CancellationToken.None),
+                Throws.InstanceOf<ArgumentNullException>());
         }
 
         [Test]
@@ -128,10 +129,11 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator.Tests
         {
             var o = new CBIMOrchestrator();
             var circuit = BuildLinearCircuit("brain-x", "{previous.summary}");
-            Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            Assert.That(async () =>
                 await o.RunAsync(circuit, brainPalette: null!,
                     callback: new FakePrefrontalCallback(),
-                    ct: CancellationToken.None));
+                    ct: CancellationToken.None),
+                Throws.InstanceOf<ArgumentNullException>());
         }
 
         [Test]
@@ -139,9 +141,10 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator.Tests
         {
             var o = new CBIMOrchestrator();
             var circuit = BuildLinearCircuit("brain-x", "{previous.summary}");
-            Assert.ThrowsAsync<ArgumentNullException>(async () =>
+            Assert.That(async () =>
                 await o.RunAsync(circuit, brainPalette: Array.Empty<BrainBase>(),
-                    callback: null!, ct: CancellationToken.None));
+                    callback: null!, ct: CancellationToken.None),
+                Throws.InstanceOf<ArgumentNullException>());
         }
 
         // ===== (6) CompileToMafWorkflow 返非 null =====

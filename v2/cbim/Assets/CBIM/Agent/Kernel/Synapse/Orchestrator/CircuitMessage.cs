@@ -55,8 +55,10 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator
             FromNodeId = fromNodeId;
             BranchLabel = branchLabel;
             LastSummary = lastSummary;
-            History = new ReadOnlyDictionary<string, BrainOutcome>(
-                new Dictionary<string, BrainOutcome>(history));
+            var historyCopy = new Dictionary<string, BrainOutcome>(history.Count);
+            foreach (var kv in history)
+                historyCopy[kv.Key] = kv.Value;
+            History = new ReadOnlyDictionary<string, BrainOutcome>(historyCopy);
         }
 
         /// <summary>
@@ -77,7 +79,9 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator
             if (newLastSummary == null)
                 throw new ArgumentNullException(nameof(newLastSummary));
 
-            var nextHistory = new Dictionary<string, BrainOutcome>(History);
+            var nextHistory = new Dictionary<string, BrainOutcome>(History.Count + 1);
+            foreach (var kv in History)
+                nextHistory[kv.Key] = kv.Value;
             if (appendOutcome != null)
             {
                 nextHistory[newFromNodeId] = appendOutcome;

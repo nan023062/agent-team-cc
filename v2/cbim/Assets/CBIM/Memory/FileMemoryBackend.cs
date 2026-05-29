@@ -226,7 +226,7 @@ namespace CBIM.Memory
         private string EntryPath(string id)
         {
             // 把 subDir 拆段后交给 ResolveCbimPath，复用其分隔符 / 根目录处理。
-            var segments = _subDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segments = _subDir.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             var all = new string[segments.Length + 2];
             all[0] = CbimDir;
             Array.Copy(segments, 0, all, 1, segments.Length);
@@ -240,7 +240,7 @@ namespace CBIM.Memory
             {
                 return _storage.ResolveCbimPath(CbimDir, IndexFileName);
             }
-            var segments = _indexParentSubDir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var segments = _indexParentSubDir.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             var all = new string[segments.Length + 2];
             all[0] = CbimDir;
             Array.Copy(segments, 0, all, 1, segments.Length);

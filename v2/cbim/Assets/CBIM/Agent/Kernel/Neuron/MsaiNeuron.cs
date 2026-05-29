@@ -70,10 +70,14 @@ namespace CBIM.AgentSystem.Kernel.Neuron
             {
                 Name = descriptor.Capability.Name,
                 Description = descriptor.Capability.Identity,
-                Instructions = descriptor.Soul,
             };
 
-            // aiTools 已是装配方按 StandardAITools + SynapseAITools 合并一次性传入；空集时 options.ChatOptions 留 null。
+            // Instructions 在 MAF v1 落在 ChatOptions（ChatClientAgent.Instructions getter = _agentOptions?.ChatOptions?.Instructions）。
+            // 即使 aiTools 为空也要建 ChatOptions 以承载 Soul。
+            var chatOptions = new ChatOptions
+            {
+                Instructions = descriptor.Soul,
+            };
             if (aiTools.Count > 0)
             {
                 var tools = new List<AITool>(aiTools.Count);
@@ -83,8 +87,9 @@ namespace CBIM.AgentSystem.Kernel.Neuron
                         throw new ArgumentException("MsaiNeuron.aiTools 不允许 null 项。", nameof(aiTools));
                     tools.Add(t);
                 }
-                options.ChatOptions = new ChatOptions { Tools = tools };
+                chatOptions.Tools = tools;
             }
+            options.ChatOptions = chatOptions;
 
             _agent = new ChatClientAgent(_invokingChatClient, options);
         }

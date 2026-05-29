@@ -131,7 +131,7 @@ namespace CBIM.AgentSystem.Tests
         // ===== (3) ExternalMotorCortex 在 + TaskWhere 缺失 → throw =====
 
         [Test]
-        public void OpenInstanceAsync_throws_when_ExternalMotorCortex_present_but_TaskWhere_null()
+        public async Task OpenInstanceAsync_throws_when_ExternalMotorCortex_present_but_TaskWhere_null()
         {
             var fakeChat = new FakeChatClient("ok");
             var brainConfig = BrainConfig.Default("multi-cc-no-where").WithClaudeCode();
@@ -147,8 +147,16 @@ namespace CBIM.AgentSystem.Tests
             var system = new AgentSystem(new[] { desc }, fakeChat);
 
             // TaskWhere 未给——fail-fast 抛 InvalidOperationException（在装配任何资源前）。
-            var ex = Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await system.OpenInstanceAsync(desc.Id, new OpenInstanceOptions { TaskWhere = null }));
+            InvalidOperationException ex = null;
+            try
+            {
+                await system.OpenInstanceAsync(desc.Id, new OpenInstanceOptions { TaskWhere = null });
+            }
+            catch (InvalidOperationException e)
+            {
+                ex = e;
+            }
+            Assert.That(ex, Is.Not.Null, "应抛 InvalidOperationException。");
             Assert.That(ex.Message, Does.Contain("TaskWhere"),
                 "异常应明确指出 TaskWhere 必填。");
         }

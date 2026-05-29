@@ -117,7 +117,14 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator
 
                 if (edge.BranchLabel == null)
                 {
-                    builder.AddEdge<CircuitMessage>(fromExecutor, toExecutor);
+                    // 显式 label: null + idempotent: false 绑到 3-arg 最长重载，
+                    // 否则与 (source,target,condition,idempotent) 重载二义性。
+                    builder.AddEdge<CircuitMessage>(
+                        fromExecutor,
+                        toExecutor,
+                        condition: null,
+                        label: null,
+                        idempotent: false);
                 }
                 else
                 {
@@ -126,7 +133,9 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator
                     builder.AddEdge<CircuitMessage>(
                         fromExecutor,
                         toExecutor,
-                        condition: msg => msg != null && msg.BranchLabel == expectedLabel);
+                        condition: msg => msg != null && msg.BranchLabel == expectedLabel,
+                        label: null,
+                        idempotent: false);
                 }
             }
 
@@ -182,7 +191,7 @@ namespace CBIM.AgentSystem.Kernel.Synapse.Orchestrator
                 case ReturnNode ret:
                     return new ReturnExecutor(ret.NodeId, ret);
 
-                case CallToolNode:
+                case CallToolNode _:
                     throw new NotSupportedException(
                         $"CallToolNode (NodeId='{node.NodeId}') v1 不支持执行——T11 Executor 包未实装。");
 

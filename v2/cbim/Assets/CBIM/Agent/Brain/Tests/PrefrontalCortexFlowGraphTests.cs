@@ -199,8 +199,9 @@ namespace CBIM.AgentSystem.Brain.Tests
                 StructuredInput: null,
                 Context: new Dictionary<string, object>());
 
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
-                await pfc.InvokeAsync(invocation, CancellationToken.None));
+            Assert.That(async () =>
+                await pfc.InvokeAsync(invocation, CancellationToken.None),
+                Throws.InstanceOf<InvalidOperationException>());
 
             Assert.That(pfc.ActiveBuilder, Is.Null,
                 "Neuron 抛错时 InvokeAsync 仍必通过 finally 清回 ActiveBuilder=null。");
