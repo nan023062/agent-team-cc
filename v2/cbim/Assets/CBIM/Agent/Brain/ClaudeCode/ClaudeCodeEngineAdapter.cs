@@ -494,13 +494,21 @@ namespace CBIM.AgentSystem.Brain.ClaudeCode
 
         private static string MapToolNameToKind(string toolName)
         {
-            return toolName switch
+            switch (toolName)
             {
-                "Edit" or "Write" or "MultiEdit" => "file-write",
-                "Bash" => "process-spawn",
-                "Read" or "Glob" or "Grep" => "file-read",
-                _ => "tool-use",
-            };
+                case "Edit":
+                case "Write":
+                case "MultiEdit":
+                    return "file-write";
+                case "Bash":
+                    return "process-spawn";
+                case "Read":
+                case "Glob":
+                case "Grep":
+                    return "file-read";
+                default:
+                    return "tool-use";
+            }
         }
 
         private static (string Target, string? Detail) ExtractToolUseTarget(string toolName, JsonElement input)

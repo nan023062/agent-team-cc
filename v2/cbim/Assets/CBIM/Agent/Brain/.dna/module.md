@@ -687,7 +687,8 @@ Agent 成长      = 裂变新皮层 (新 MotorCortex)
 - `Microsoft.Agents.AI`——`AIAgent`（BrainBase 持有的 msai 运行体）
 - `Microsoft.Extensions.AI`——`AIFunction`（`__brain_call_*` 表达调度）
 - `CBIM.Memory`——`IMemoryService` 注入字段类型
-- **不依赖** `CBIM.Workspace` / `CBIM.Kernel` / `CBIM.Channel`——脑区编织是 Agent 内部事务
+- **不依赖** `CBIM.Workspace` / `CBIM.Channel`——脑区编织是 Agent 内部事务
+- **不存在 `CBIM.Kernel` 依赖**（原顶层模块本轮随代码 / .meta / .dna 一同 git rm 物理删除）——原 Kernel 职责由本模块完全覆盖：调度 → PrefrontalCortex（铁律 A）；msai 装配 → BrainBase；上下文装配 → Brain 内部装配机制
 
 ## 与既有模块的交互修订
 
@@ -696,7 +697,7 @@ Agent 成长      = 裂变新皮层 (新 MotorCortex)
 | `Agent/`（AgentSystem） | BrainConfig 字段保留（`AgentDescription.BrainConfig?`）；AgentInstance 重定义为持 `IReadOnlyList<BrainBase>` + `Prefrontal: PrefrontalCortex` + `IBrainRegistry`；OpenInstance 装配按描述符子类分派（StandardBrainDescriptor 走 msai 装配 + StandardBrainKind 选具体子类；ExternalMotorCortexDescriptor 走 Adapter）；释放顺序为 MotorCortex → 其他脑区 → Prefrontal → Memory → McpHandles → Session |
 | `Channel/` | **无破坏性变动**——Channel 仍持 1 个 AIAgent 句柄（= `instance.Prefrontal.Agent`）；SendAsync 仍打到该引用。Channel.Agent 引用从 `instance.Master.Agent` 改为 `instance.Prefrontal.Agent` |
 | `Memory/` | 未变。ExternalMotorCortex 选 McpServer 时，Memory 需额外产 `cbim-memory-bridge-mcp` server |
-| `Kernel/`（FlowGraph + TaskScheduler） | 未变。`task.Who` 仍指 AgentInstance，不下钻到脑区 |
+| ~~`Kernel/`~~ | **本轮废除**。原 `CBIM.Kernel` 顶层模块（FlowGraph + TaskScheduler + ContextProviders）随代码 / .meta / .dna 一同 git rm 物理删除。原职责被本模块完全吸收：调度 → PrefrontalCortex（铁律 A：唯一通路）；msai 装配 → BrainBase；上下文装配（原 ContextProviders）→ Brain 内部装配机制；Session 写侧（原 CbimTaskExecutor）→ MotorCortex 家族 |
 | `Workspace/` | 未变。Dream 裂变新模块时由 Hippocampus 产提议 → ParietalLobe 产设计 → MotorCortex 调 dna_init/dna_edit MCP 落地 |
 
 ## Mermaid（本轮类继承编织图）
@@ -797,10 +798,9 @@ flowchart TD
 
 - 不实装代码。本份 .dna 仅出设计；后续切片由 programmer 完成。
 - 不实装 HRBrain（候选 Cerebellum）/ AuditorBrain（候选 AnteriorCingulateCortex）——本轮初始 4 脑足够跑通；后续按需补。
-- 不提供「跨 Agent 脑区调用」机制——脑区是 Agent 内部，跨 Agent 走 Kernel.FlowGraph 调 task.Who。
+- 不提供「跨 Agent 脑区调用」机制——脑区是 Agent 内部，跨 Agent 协作由 PrefrontalCortex 主脑对外暴露的装配家接口走（本轮 Kernel.FlowGraph 路径随 Kernel 顶层模块物理删除一同废除——跨 Agent 协作路径交付下一轮处理，本轮不发）。
 - 不在 Brain 层求「多主脑 / Prefrontal 集群」——一 Agent = 1 Prefrontal。多主脑意味多 Agent。
 - 不发明「主脑反向调度」API——脑区 → 主脑只能走 IPrefrontalCallback 上报。
 - 不带 Pool / 资源调度抽象——裂变 + BrainRegistry 取代。
 - 不代替 dream_tick——Dream 裂变是 dream_tick 中的一个阶段、不是独立引擎。
-- 不为非 MotorCortex 脑区提供 External 变体——只有皮层会被外部肌肉替代；其他脑区只能 Native。
 
