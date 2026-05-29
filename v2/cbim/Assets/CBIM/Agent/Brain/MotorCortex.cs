@@ -1,6 +1,7 @@
 using System;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
-using Microsoft.Extensions.AI;
 
 namespace CBIM.AgentSystem.Brain
 {
@@ -14,8 +15,9 @@ namespace CBIM.AgentSystem.Brain
     /// <para>BrainId 强制以 <c>"motor-cortex."</c> 开头（构造期校验）——这是
     /// BrainConfig 「至少一个 MotorCortex」校验所依赖的前缀约定。</para>
     ///
-    /// <para>本类<b>不</b>重写 <see cref="BrainBase.InvokeAsync"/>——具体行为由子类决定：
-    /// Native 走 msai Agent.RunAsync 默认路径；External 走 Adapter 路径并自行重写。</para>
+    /// <para>本类<b>不</b>重写 <see cref="BrainBase.InvokeAsync"/>——具体执行已由
+    /// <see cref="BrainBase.Neuron"/> 承接：Native 路径由 MsaiNeuron 跑 Agent.RunAsync；
+    /// External 路径由 ExternalEngineNeuron 跑 Adapter.SubmitAsync + AwaitResultAsync。</para>
     /// </summary>
     public abstract class MotorCortex : BrainBase
     {
@@ -23,11 +25,10 @@ namespace CBIM.AgentSystem.Brain
 
         protected MotorCortex(
             string brainId,
-            BrainDescriptor descriptor,
+            INeuron neuron,
             IMemoryService memory,
-            IChatClient? chatClient,
             IPrefrontalCallback callback)
-            : base(brainId, descriptor, memory, chatClient,
+            : base(brainId, neuron, memory,
                    callback ?? throw new ArgumentNullException(nameof(callback),
                        "MotorCortex 不允许 null callback——子脑区必须能向主脑回报。"))
         {

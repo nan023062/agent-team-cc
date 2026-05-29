@@ -1,6 +1,6 @@
 using System;
-using System.Threading;
-using System.Threading.Tasks;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Brain
@@ -11,73 +11,35 @@ namespace CBIM.AgentSystem.Brain
     /// <para>「外部 AI 工具 = 会干活的肌肉」哲学的物理落地——本抽象类是 OO 层面整个
     /// CBIM 唯一允许的 External 分支点（其他脑区无 External 变体）。</para>
     ///
-    /// <para>结构差异：</para>
+    /// <para>结构差异（T4 后）：</para>
     /// <list type="bullet">
-    ///   <item><see cref="BrainBase.Agent"/> 在本路径下为 <c>null</c>（外部引擎自带 LLM，
-    ///         不通过 msai 装配）——基类已为此分支预留。</item>
-    ///   <item>因 Agent 为 null，<see cref="BrainBase.InvokeAsync"/> 默认实现会抛出
-    ///         InvalidOperationException——本类<b>必须</b>重写为 Adapter 路径。</item>
+    ///   <item>本类不再持 <see cref="IExternalEngineAdapter"/>——已下沉到 <see cref="ExternalEngineNeuron"/>
+    ///         内部。NeuronFactory 在装配期为 <see cref="ExternalMotorCortexDescriptor"/> 路径创建
+    ///         ExternalEngineNeuron 并注入 Adapter。</item>
+    ///   <item><see cref="BrainBase.Agent"/> 透传 <c>Neuron.UnderlyingAgent</c>，ExternalEngineNeuron 返回 <c>null</c>。</item>
+    ///   <item><see cref="BrainBase.InvokeAsync"/> 默认实现透传给 <see cref="BrainBase.Neuron"/>——
+    ///         Neuron 走 Adapter 二阶段路径，本类无须 override。</item>
     /// </list>
+    ///
+    /// <para>本类仍持 <see cref="ShareMode"/>——MemoryShareMode 是 Brain 层语义（描述符语义保留在 Brain，K5），
+    /// 非 Neuron 实现细节。</para>
     /// </summary>
     public abstract class ExternalMotorCortex : MotorCortex
     {
-        /// <summary>把对外部引擎的调用收敛到一处——子类通过它发起 Submit / Await。</summary>
-        protected IExternalEngineAdapter Adapter { get; }
-
         /// <summary>Memory 与外部引擎的共享桥模式——从描述符透传。</summary>
         public MemoryShareMode ShareMode { get; }
 
         protected ExternalMotorCortex(
             ExternalMotorCortexDescriptor descriptor,
             IMemoryService memory,
-            IExternalEngineAdapter adapter,
+            INeuron neuron,
             IPrefrontalCallback callback)
             : base(descriptor?.BrainId ?? throw new ArgumentNullException(nameof(descriptor)),
-                   descriptor,
+                   neuron,
                    memory,
-                   chatClient: null,
                    callback)
         {
-            Adapter = adapter ?? throw new ArgumentNullException(nameof(adapter),
-                "ExternalMotorCortex.Adapter 不允许 null——外部路径的 InvokeAsync 全靠它。");
             ShareMode = descriptor.MemoryShareMode;
-        }
-
-        /// <summary>
-        /// 重写默认 InvokeAsync——走 Adapter 二阶段路径。
-        /// Adapter 任一阶段异常都被收敛为 <c>IsError=true</c> 的 <see cref="BrainOutcome"/>，
-        /// 不向上抛出（主脑只关心结果，不应被外部引擎的异常打断调度循环）。
-        /// </summary>
-        public override async Task<BrainOutcome> InvokeAsync(BrainInvocation invocation, CancellationToken ct)
-        {
-            if (invocation == null)
-                throw new ArgumentNullException(nameof(invocation));
-
-            try
-            {
-                var jobId = await Adapter.SubmitAsync(invocation, ct).ConfigureAwait(false);
-                return await Adapter.AwaitResultAsync(jobId, ct).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                // 取消语义直传——上游可能在等同一个 token 触发。
-                throw;
-            }
-            catch (Exception ex)
-            {
-                return new BrainOutcome(
-                    Summary: string.Empty,
-                    StructuredOutput: null,
-                    SideEffects: Array.Empty<SideEffect>(),
-                    IsError: true,
-                    ErrorMessage: $"ExternalMotorCortex({BrainId}) 桥接失败: {ex.Message}");
-            }
-        }
-
-        /// <inheritdoc/>
-        public override async ValueTask DisposeAsync()
-        {
-            await Adapter.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

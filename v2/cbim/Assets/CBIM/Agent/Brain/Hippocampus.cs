@@ -1,7 +1,7 @@
 using System;
-using System.Threading.Tasks;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
-using Microsoft.Extensions.AI;
 
 namespace CBIM.AgentSystem.Brain
 {
@@ -26,12 +26,11 @@ namespace CBIM.AgentSystem.Brain
         public Hippocampus(
             StandardBrainDescriptor descriptor,
             IMemoryService memory,
-            IChatClient chatClient,
+            INeuron neuron,
             IPrefrontalCallback callback)
             : base(descriptor?.BrainId ?? throw new ArgumentNullException(nameof(descriptor)),
-                   descriptor,
+                   neuron,
                    memory,
-                   chatClient,
                    callback ?? throw new ArgumentNullException(nameof(callback),
                        "Hippocampus 不允许 null callback——子脑区必须能向主脑回报。"))
         {
@@ -39,8 +38,5 @@ namespace CBIM.AgentSystem.Brain
                 throw new InvalidOperationException(
                     $"Hippocampus 要求 descriptor.Kind=Hippocampus（实际: {descriptor.Kind}）。");
         }
-
-        /// <inheritdoc/>
-        public override ValueTask DisposeAsync() => default;
     }
 }

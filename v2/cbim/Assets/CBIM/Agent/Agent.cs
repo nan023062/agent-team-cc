@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using CBIM.AgentSystem.Brain;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 using Microsoft.Agents.AI;
 

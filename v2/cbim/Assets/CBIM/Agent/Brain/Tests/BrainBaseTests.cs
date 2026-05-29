@@ -8,6 +8,7 @@ using Microsoft.Extensions.AI;
 using NUnit.Framework;
 using CBIM.AgentSystem;
 using CBIM.AgentSystem.Brain;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Brain.Tests

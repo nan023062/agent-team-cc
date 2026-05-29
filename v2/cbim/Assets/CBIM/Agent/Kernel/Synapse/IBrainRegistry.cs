@@ -1,9 +1,12 @@
 using System.Collections.Generic;
+using CBIM.AgentSystem.Brain;
 
-namespace CBIM.AgentSystem.Brain
+namespace CBIM.AgentSystem.Kernel.Synapse
 {
     /// <summary>
-    /// Agent 内部脑区动态注册点——Dream 裂变出新 <see cref="MotorCortex"/> 后通过本接口接入。
+    /// Agent 内部脑区动态注册点——Dream 裂变出新 <c>MotorCortex</c> 后通过本接口接入。
+    ///
+    /// <para>K4 铁律：作用域硬隔离在单个 <c>AgentInstance</c>——不得加入任何跨 Agent 字段。</para>
     ///
     /// <para>v1 实施期：<see cref="UnregisterBrain"/> 保留接口位但通常不被使用——
     /// 裂变只增不减；脑区下线属未来 HRBrain 职责。</para>
@@ -13,7 +16,7 @@ namespace CBIM.AgentSystem.Brain
     public interface IBrainRegistry
     {
         /// <summary>
-        /// 注册一个新脑区。<see cref="BrainBase.BrainId"/> 重复时抛
+        /// 注册一个新脑区。<c>BrainBase.BrainId</c> 重复时抛
         /// <see cref="System.InvalidOperationException"/>——「BrainId 唯一」铁律的物理护栏。
         /// </summary>
         void RegisterBrain(BrainBase brain);

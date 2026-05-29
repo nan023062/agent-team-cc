@@ -1,14 +1,16 @@
-namespace CBIM.AgentSystem.Brain
+using CBIM.AgentSystem.Brain;
+
+namespace CBIM.AgentSystem.Kernel.Synapse
 {
     /// <summary>
     /// 主脑（<c>PrefrontalCortex</c>）暴露给其他脑区的回调面。
     ///
-    /// 极小化设计——只允许「回报」，不允许「反向调度」。这是
-    /// 「主脑唯一通路」铁律的物理护栏：子脑区永远不能通过本接口
-    /// 反向调起兄弟脑区。
+    /// <para>极小化设计——只允许「回报」，不允许「反向调度」。这是
+    /// 「主脑唯一通路」铁律（K3）的物理护栏：子脑区永远不能通过本接口
+    /// 反向调起兄弟脑区。</para>
     ///
-    /// 主脑自身的 <see cref="BrainBase.PrefrontalCallback"/> 字段恒为 <c>null</c>
-    /// （自己不回报自己）。
+    /// <para>主脑自身的 <c>BrainBase.PrefrontalCallback</c> 字段恒为 <c>null</c>
+    /// （自己不回报自己）。</para>
     /// </summary>
     public interface IPrefrontalCallback
     {

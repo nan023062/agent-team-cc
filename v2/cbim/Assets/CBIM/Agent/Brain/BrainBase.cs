@@ -1,24 +1,26 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
 
 namespace CBIM.AgentSystem.Brain
 {
     /// <summary>
     /// 脑区契约公共基类。
     ///
-    /// <para>本轮重要变动：基类直接持 msai 装配的 ChatClientAgent —— 所有具体脑区天生
-    /// 具备 LLM 思维链 + Function Invoking 闭环。<see cref="ExternalMotorCortex"/>
-    /// 是唯一例外（外部引擎自带 LLM，<see cref="Agent"/> 字段语义重定义为 null）。</para>
+    /// <para>本轮重要变动（T4）：基类不再持有 <c>IChatClient</c> 也不再做 msai 装配——
+    /// 所有 LLM 思维链能力已下沉到 <see cref="CBIM.AgentSystem.Kernel.Neuron.INeuron"/>（K2 铁律：
+    /// Neuron 是 Brain 层调用 LLM 的唯一出口）。基类只持 <see cref="Neuron"/> 抽象引用，
+    /// 默认 <see cref="InvokeAsync"/> 透传给 <c>Neuron.InvokeAsync</c>；msai 还是 ExternalEngine
+    /// 由 NeuronFactory 在装配期决定，基类与子类无感。</para>
     ///
     /// <para>「同一具身一份记忆」铁律的物理落地：<see cref="Memory"/> 由 AgentInstance 在
     /// 装配期注入，所有脑区共享同一 <see cref="IMemoryService"/> 实例。</para>
     ///
-    /// <para>「主脑唯一通路」铁律的物理护栏：<see cref="PrefrontalCallback"/> 是子脑区
+    /// <para>「主脑唯一通路」铁律（K3）的物理护栏：<see cref="PrefrontalCallback"/> 是子脑区
     /// 向 PrefrontalCortex 回报的唯一通路；接口极小化（仅 ReportProgress / ReportOutcome），
     /// 反向调度兄弟脑区在类型层面被杜绝。主脑自身的本字段恒为 null。</para>
     /// </summary>
@@ -31,11 +33,18 @@ namespace CBIM.AgentSystem.Brain
         public IMemoryService Memory { get; }
 
         /// <summary>
-        /// msai 运行体——基类装配。
-        /// <see cref="ExternalMotorCortex"/> 路径下为 <c>null</c>（外部引擎自带 LLM）。
-        /// 字段为 <c>protected set</c>，仅允许子类在自身构造路径内重定义。
+        /// 神经元——LLM 思维链单元。本字段是 Brain 层调用 LLM 的唯一出口（K2 铁律）。
+        /// 由 AgentSystem 装配期通过 NeuronFactory 创建并注入；BrainBase 与子类不感知其具体实现
+        /// （<see cref="MsaiNeuron"/> 还是 <see cref="ExternalEngineNeuron"/>）。
         /// </summary>
-        public AIAgent? Agent { get; protected set; }
+        public INeuron Neuron { get; }
+
+        /// <summary>
+        /// 透传 <see cref="Neuron"/> 的底层 <see cref="AIAgent"/> 引用——保留旧字段名以兼容
+        /// 已持引用打 <c>SendAsync</c> 的 Channel 等调用方。
+        /// <see cref="ExternalEngineNeuron"/> 路径下恒为 <c>null</c>（外部引擎自带 LLM，无 AIAgent 句柄）。
+        /// </summary>
+        public AIAgent? Agent => Neuron.UnderlyingAgent;
 
         /// <summary>
         /// 主脑回调——子脑区通过该回调向 PrefrontalCortex 汇报结果。
@@ -44,101 +53,60 @@ namespace CBIM.AgentSystem.Brain
         protected IPrefrontalCallback? PrefrontalCallback { get; }
 
         /// <summary>
-        /// 构造期完成三件事：
-        ///   1. 字段写入与必要校验（BrainId / Memory 非空）；
-        ///   2. 根据描述符子类分派 msai 装配——<see cref="StandardBrainDescriptor"/> 路径用
-        ///      <see cref="ChatClientAgentExtensions.AsAIAgent(IChatClient,ChatClientAgentOptions)"/>
-        ///      构造 <see cref="Microsoft.Agents.AI.AIAgent"/>；
-        ///   3. <see cref="ExternalMotorCortexDescriptor"/> 路径下 <see cref="Agent"/> 保持 <c>null</c>
-        ///      （子类自决——典型如 <c>ExternalMotorCortex</c> 走 Adapter 路径）。
+        /// 构造期仅做字段写入与非空校验。
+        /// LLM 装配（msai ChatClientAgent / external Adapter）已下沉到 NeuronFactory；
+        /// 子类构造器只须做语义校验（Kind / BrainId 前缀等）并透传给本基类。
         /// </summary>
         /// <param name="brainId">脑区唯一 Id。不为空白。</param>
-        /// <param name="descriptor">脑区描述符；类型决定装配分支。</param>
+        /// <param name="neuron">神经元（LLM 出口）。由 NeuronFactory 创建。不为 null。</param>
         /// <param name="memory">共享 Memory 实例。不为 null。</param>
-        /// <param name="chatClient">底层 LLM 客户端。<see cref="StandardBrainDescriptor"/> 路径下不为 null；<see cref="ExternalMotorCortexDescriptor"/> 路径下可为 null。</param>
-        /// <param name="callback">主脑回调；主脑自身传 <c>null</c>，其他脑区由 AgentInstance 装配期注入。</param>
+        /// <param name="callback">主脑回调；主脑自身传 <c>null</c>，其他脑区由装配期注入。</param>
         protected BrainBase(
             string brainId,
-            BrainDescriptor descriptor,
+            INeuron neuron,
             IMemoryService memory,
-            IChatClient? chatClient,
             IPrefrontalCallback? callback)
         {
             if (string.IsNullOrWhiteSpace(brainId))
                 throw new ArgumentException("BrainBase.BrainId 不能为空", nameof(brainId));
-            if (descriptor == null)
-                throw new ArgumentNullException(nameof(descriptor));
+            if (neuron == null)
+                throw new ArgumentNullException(
+                    nameof(neuron),
+                    "BrainBase.Neuron 不允许 null——K2 铁律要求 Brain 层 LLM 出口唯一。");
             if (memory == null)
                 throw new ArgumentNullException(
                     nameof(memory),
                     "BrainBase.Memory 不允许 null——「同一具身一份记忆」铁律由构造期强制。");
 
             BrainId = brainId;
+            Neuron = neuron;
             Memory = memory;
             PrefrontalCallback = callback;
-
-            if (descriptor is StandardBrainDescriptor std)
-            {
-                if (chatClient == null)
-                    throw new ArgumentNullException(
-                        nameof(chatClient),
-                        "StandardBrainDescriptor 路径下 IChatClient 不能为 null——基类需用它装配 msai AIAgent。");
-
-                var opts = new ChatClientAgentOptions
-                {
-                    Name = std.Capability.Name,
-                    Description = std.Capability.Identity,
-                    Instructions = std.Soul,
-                };
-
-                Agent = chatClient.AsAIAgent(opts);
-            }
-            else if (descriptor is ExternalMotorCortexDescriptor)
-            {
-                // 外部引擎自带 LLM——Agent 保持 null；子类（ExternalMotorCortex）走 Adapter 路径。
-                Agent = null;
-            }
-            else
-            {
-                throw new InvalidOperationException(
-                    $"未识别的 BrainDescriptor 子类: {descriptor.GetType().FullName}");
-            }
         }
 
         /// <summary>
         /// 投递子任务到本脑区。
         ///
-        /// 默认实现：把 <see cref="BrainInvocation.Intent"/> 包成一条 user
-        /// <see cref="ChatMessage"/> 投给 <see cref="Agent"/>.RunAsync，取 response.Text 作为
-        /// <see cref="BrainOutcome.Summary"/>，SideEffects 返回空列表。
-        ///
-        /// <see cref="ExternalMotorCortex"/> 等子类重写为「Adapter.SubmitAsync + AwaitResultAsync」路径。
+        /// 默认实现：直接透传给 <see cref="Neuron"/>.InvokeAsync——
+        /// msai / external 的路径差异在 NeuronFactory 装配期已决定，本层无感。
+        /// 如需特化（如主脑的聚合策略），子类可重写。
         /// </summary>
-        public virtual async Task<BrainOutcome> InvokeAsync(BrainInvocation invocation, CancellationToken ct)
+        public virtual Task<BrainOutcome> InvokeAsync(BrainInvocation invocation, CancellationToken ct)
         {
             if (invocation == null)
                 throw new ArgumentNullException(nameof(invocation));
-            if (Agent == null)
-                throw new InvalidOperationException(
-                    $"BrainBase.InvokeAsync 默认实现要求 Agent 非 null（脑区 '{BrainId}'）；"
-                    + "ExternalMotorCortex 等无 Agent 的脑区必须重写 InvokeAsync。");
-
-            var message = new ChatMessage(ChatRole.User, invocation.Intent);
-            var response = await Agent.RunAsync(message, cancellationToken: ct).ConfigureAwait(false);
-
-            return new BrainOutcome(
-                Summary: response.Text ?? string.Empty,
-                StructuredOutput: null,
-                SideEffects: Array.Empty<SideEffect>(),
-                IsError: false,
-                ErrorMessage: null);
+            return Neuron.InvokeAsync(invocation, ct);
         }
 
         /// <summary>
         /// 释放本脑区占用的资源。
+        /// 默认实现释放 <see cref="Neuron"/>；子类如持有额外资源需重写并最后调用 base。
         /// AgentInstance 的释放顺序保证调用：MotorCortex → 其他脑区 → Prefrontal。
         /// 实现需做到多次调用幂等。
         /// </summary>
-        public abstract ValueTask DisposeAsync();
+        public virtual async ValueTask DisposeAsync()
+        {
+            await Neuron.DisposeAsync().ConfigureAwait(false);
+        }
     }
 }

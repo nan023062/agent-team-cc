@@ -85,24 +85,49 @@ AgentSystem 与 Workspace 是一对正交服务层：
 
 AgentSystem 本身不再含「能力维度三大扩展抽象」子模块——Tool / Skill / Mcp 已交由基建层顶层模块负责（`CBIM/Tools/` / `CBIM/Skills/` / `CBIM/Mcp/`）。
 
-**本轮调整 (Brain 重构 · 合并方案)**：
+**本轮调整 (Brain 重构 + Kernel 中间层析出)**：
 
 | 子模块 | 一句话职责 | 状态 |
 |--------|------------|------|
-| `Brain/` | Agent 内部脑区组装层——本轮从「拆 7 个 leaf」收敛为「一份 .dna 通览全局」；使用大脑解剖学专业名（PrefrontalCortex / ParietalLobe / Hippocampus / MotorCortex）；BrainBase 已含 msai 装配；Native/External 仅在 MotorCortex 下分支（NativeMotorCortex + ExternalMotorCortex·ClaudeCodeMotorCortex） | spec |
+| `Brain/` | Agent 内部脑区组装层——一份 .dna 通览全局；使用大脑解剖学专业名（PrefrontalCortex / ParietalLobe / Hippocampus / MotorCortex）；Native/External 仅在 MotorCortex 下分支 | spec |
+| `Kernel/` | Agent 内部运行内核（神经系统层）——**本轮新增中间层**，从 Brain 析出机制。两子模块：`Neuron/`（神经元·AIAgent 封装抽象）与 `Synapse/`（突触·脑区间派发协议）。Brain 仅消费本层抽象，不感知装配 / 跨脑区机制细节 | spec |
 
-**Brain/ 下本轮不再含 leaf 子模块**——上一轮的 7 个 leaf（Base / Master / Architect / MemoryLearning / Motor (parent) / Motor/Default / Motor/ClaudeCode）本轮全部被删除，所有脑区契约合并入 `Brain/.dna/module.md` 通览全局。原因：脑区结构是紧耦合的有机体，不是 7 个独立子系统；分散破坏「大脑作为一个整体」的可读性、也增加维护成本。实装期如某子分支代码量极大（如 ClaudeCodeMotorCortex Adapter），可在代码层独立文件——但 .dna 一份保持整体性。
+### 三层模型表达（含 Kernel 中间层）
 
-**职责重新分配（上一轮 leaf → 本轮脑区）**：
+```
+Agent 层服务门面 (AgentSystem · 本模块)
+   ↓ OpenInstance 装配期实例化
+Brain 层 (脑区高级职能)
+   ├── PrefrontalCortex (主脑 · Channel.SendAsync 投递目标)
+   ├── ParietalLobe (架构脑)
+   ├── Hippocampus (记忆学习脑)
+   └── MotorCortex 家族 (Native + External·ClaudeCode)
+   ↓ 依赖
+Kernel 层 (神经系统机制)
+   ├── Neuron/ (神经元 · INeuron + MsaiNeuron + ExternalEngineNeuron + NeuronFactory)
+   └── Synapse/ (突触 · SynapseToolFactory + IPrefrontalCallback + IBrainRegistry)
+   ↓ 依赖
+基建层 (Tool / Skill / Mcp / IMemoryService / Storage) + Microsoft.Agents.AI / Microsoft.Extensions.AI
+```
 
-- Brain/Master → **PrefrontalCortex**（前额叶皮层 · 主脑 · 调度中枢）
-- Brain/Architect → **ParietalLobe**（顶叶 · 架构设计 + 结构推理）
-- Brain/MemoryLearning → **Hippocampus**（海马体 · 记忆学习 + Dream 裂变）
-- Brain/Motor + Default + ClaudeCode → **MotorCortex 抽象 + NativeMotorCortex + ExternalMotorCortex·ClaudeCodeMotorCortex**
-- Brain/Base → **合并入 Brain/.dna 的 BrainBase 契约节**
+**Brain → Kernel 依赖单向不反向**——Kernel 不感知任何具体脑区类型，只暴露通用的 `INeuron` / `SynapseToolFactory` 给 Brain 消费。Brain 是「策略层」，Kernel 是「机制层」——策略可以变（脑区分类可演化），机制保持稳定。
+
+**Brain/ 下本轮不再含 leaf 子模块**——上一轮的 7 个 leaf（Base / Master / Architect / MemoryLearning / Motor (parent) / Motor/Default / Motor/ClaudeCode）本轮全部被删除，所有脑区契约合并入 `Brain/.dna/module.md` 通览全局。原因：脑区结构是紧耦合的有机体，不是 7 个独立子系统。
+
+**Kernel/ 下两个 leaf 互不引用**：Neuron 不知道有 Synapse，Synapse 不知道有 Neuron。它们各自被 Brain 层装配点（PrefrontalCortex / 其他脑区构造器）独立调用。
+
+**职责重新分配（上一轮 leaf → 本轮脑区 + Kernel 机制）**：
+
+- Brain/Master → **Brain/PrefrontalCortex**（前额叶 · 主脑）
+- Brain/Architect → **Brain/ParietalLobe**（顶叶 · 架构脑）
+- Brain/MemoryLearning → **Brain/Hippocampus**（海马体 · 记忆学习）
+- Brain/Motor + Default + ClaudeCode → **Brain/MotorCortex + NativeMotorCortex + ExternalMotorCortex · ClaudeCodeMotorCortex**
+- Brain/Base 中「msai 装配」责任 → **Kernel/Neuron/MsaiNeuron**
+- Brain/Master 中「__brain_call_* 生成」责任 → **Kernel/Synapse/SynapseToolFactory**
+- Brain/Base 中「IPrefrontalCallback / IBrainRegistry」接口 → **Kernel/Synapse/**
 - HRBrain / AuditorBrain 候选 → **Cerebellum（小脑）/ AnteriorCingulateCortex（前扣带回 · ACC）预留，本轮不实装**
 
-上一轮 「思维对象集合」 预留 (`AgentInstance.AIAgents: IReadOnlyList<AIAgent>`) 本轮以 `Brains: IReadOnlyList<BrainBase>` 实现；Brain parent 负责设计原则与编织铁律，本服务门面负责 OpenInstance 装配胶水中「为多脑区产生 N 个 BrainBase + 注入 __brain_call_* AIFunction + 启动 Memory 桥 MCP」部分。
+上一轮 「思维对象集合」 预留 (`AgentInstance.AIAgents: IReadOnlyList<AIAgent>`) 本轮以 `Brains: IReadOnlyList<BrainBase>` 实现；Brain parent 负责设计原则与编织铁律，本服务门面负责 OpenInstance 装配胶水中「为多脑区产生 N 个 BrainBase + 调 NeuronFactory 产出 INeuron + 调 SynapseToolFactory 为主脑准备 __brain_call_* AITool + 启动 Memory 桥 MCP」部分。
 
 上一轮「能力维度三大扩展抽象三足鼎立」描述在本轮三层模型下被重表述为「基建层四件套抽象（Tool / Skill / Mcp / Memory）」——同一集抽象、不同层级划分。Memory 作为第四件加入基建集（之前作为三大服务系统之一独立存在）。
 

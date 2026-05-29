@@ -1,4 +1,6 @@
 using System;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Brain.ClaudeCode
@@ -8,8 +10,9 @@ namespace CBIM.AgentSystem.Brain.ClaudeCode
     /// 外部运动皮层接入 CBIM 脑区体系。
     ///
     /// <para>本类是<b>极薄</b>包装：构造期校验描述符语义（EngineKind / BrainId）后，
-    /// 将 <see cref="ClaudeCodeEngineAdapter"/> 传给 <see cref="ExternalMotorCortex"/> 基类——
-    /// InvokeAsync / DisposeAsync 全部由基类的 Adapter 二阶段路径承接，本类不再 override。</para>
+    /// 将 <see cref="INeuron"/>（由 <see cref="NeuronFactory"/> 内部用
+    /// <see cref="ClaudeCodeEngineAdapter"/> 装配的 <see cref="ExternalEngineNeuron"/>）
+    /// 透传给基类——InvokeAsync / DisposeAsync 全部由 BrainBase 默认路径承接，本类不再 override。</para>
     /// </summary>
     public sealed class ClaudeCodeMotorCortex : ExternalMotorCortex
     {
@@ -19,12 +22,12 @@ namespace CBIM.AgentSystem.Brain.ClaudeCode
         public ClaudeCodeMotorCortex(
             ExternalMotorCortexDescriptor descriptor,
             IMemoryService memory,
-            ClaudeCodeAdapterConfig adapterConfig,
+            INeuron neuron,
             IPrefrontalCallback callback)
             : base(
                 descriptor ?? throw new ArgumentNullException(nameof(descriptor)),
                 memory,
-                new ClaudeCodeEngineAdapter(adapterConfig ?? throw new ArgumentNullException(nameof(adapterConfig))),
+                neuron,
                 callback)
         {
             if (descriptor.EngineKind != ExternalEngineKind.ClaudeCode)

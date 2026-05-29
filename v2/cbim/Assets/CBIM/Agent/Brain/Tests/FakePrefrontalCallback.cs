@@ -1,5 +1,6 @@
 #if UNITY_INCLUDE_TESTS
 using System.Collections.Generic;
+using CBIM.AgentSystem.Kernel.Synapse;
 
 namespace CBIM.AgentSystem.Brain.Tests
 {

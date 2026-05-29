@@ -9,6 +9,8 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using CBIM.AgentSystem.Brain;
 using CBIM.AgentSystem.Brain.ClaudeCode;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 using CBIM.Memory.Bridge;
 using CBIM.Storage;
@@ -51,7 +53,7 @@ namespace CBIM.AgentSystem
     /// <para>类比：HR + 调度员的合体。</para>
     /// <list type="bullet">
     ///   <item>静态侧：管理「公司里都有哪些人」（AgentDescription 注册表）</item>
-    ///   <item>动态侧：派工时「实例化某个人到岗」（OpenInstance）和「下班释放资源」（CloseInstance）</item>
+    ///   <item>动态侧:派工时「实例化某个人到岗」（OpenInstance）和「下班释放资源」（CloseInstance）</item>
     /// </list>
     ///
     /// <para>职责（清晰边界）：</para>
@@ -63,7 +65,7 @@ namespace CBIM.AgentSystem
     ///   <item>实现 <see cref="IAgentSystemSessionWriter"/> ——本轮以 jsonl 落盘</item>
     /// </list>
     ///
-    /// <para>本轮 (task-5) 装配胶水重写：从「单一 AIAgent」改为「五源装配 + Brain 编织」。</para>
+    /// <para>本轮（T5）装配胶水重写：从「Brain 内嵌 msai 装配」改为「NeuronFactory + SynapseToolFactory 双轨」。</para>
     /// </summary>
     public sealed class AgentSystem : IAgentSystemSessionWriter
     {
@@ -154,15 +156,25 @@ namespace CBIM.AgentSystem
             => OpenInstanceAsync(descriptionId, new OpenInstanceOptions { ActivatedByTaskId = activatedByTaskId });
 
         /// <summary>
-        /// 五源装配重载——按 BrainConfig 编织 N 个脑区。
+        /// 双轨装配——按 BrainConfig 编织 N 个脑区。
         ///
-        /// <para>五源装配序：</para>
+        /// <para>装配总序（T5 双轨重写）：</para>
         /// <list type="number">
         ///   <item>Source 0 · BrainConfig 选定（<c>desc.BrainConfig ?? BrainConfig.Default(desc.Name)</c>）</item>
         ///   <item>Source 1 · Memory 选定（<c>options.Override ?? desc.MemoryFactory ?? Default</c>）</item>
-        ///   <item>Source 2 · StandardTools 装配（当前 v1 stub 可空——预留位）</item>
-        ///   <item>Source 3 · McpList 装配（当前 v1 stub 可空——预留位）</item>
-        ///   <item>Source 4 · Brain 编织（三构造期铁律：先非主脑，主脑最后；ExternalMotor 走 ClaudeCode 桥）</item>
+        ///   <item>Source 2 · StandardTools 装配（v1 stub 空集合——预留位）</item>
+        ///   <item>Source 3 · McpList 装配（v1 stub 空集合——预留位）</item>
+        ///   <item>Source 4 · Brain 编织——两阶段：
+        ///     <list type="bullet">
+        ///       <item>Phase 1: 为每个非主脑 descriptor 构造 <see cref="NeuronAssemblyContext"/>，
+        ///             调 <see cref="NeuronFactory.Create"/> 拿 <see cref="INeuron"/>，
+        ///             按 BrainKind 选择子类构造 <see cref="BrainBase"/>。</item>
+        ///       <item>Phase 2: 拿 callableBrains（=已装好的非主脑），调 <see cref="SynapseToolFactory.Build"/>
+        ///             拿 brainCallTools 装入主脑 <see cref="NeuronAssemblyContext.SynapseAITools"/>，
+        ///             调 <see cref="NeuronFactory.Create"/> 拿主脑 Neuron，构造
+        ///             <see cref="PrefrontalCortex"/> 实例。</item>
+        ///     </list>
+        ///   </item>
         /// </list>
         ///
         /// <para>TaskWhere 必填校验：</para>
@@ -170,6 +182,9 @@ namespace CBIM.AgentSystem
         ///   <item>desc.McpList 非空 → 必填</item>
         ///   <item>BrainConfig 含 ExternalMotorCortex 且 ShareMode==McpServer → 必填</item>
         /// </list>
+        ///
+        /// <para>BrainConfig 三铁律（主脑唯一 / 至少一个 MotorCortex / BrainId 唯一）由
+        /// <see cref="BrainConfig"/> 构造期校验，本方法不重复。</para>
         /// </summary>
         public async Task<Agent> OpenInstanceAsync(
             string descriptionId,
@@ -201,33 +216,36 @@ namespace CBIM.AgentSystem
             // ─── 源 2：StandardTools 装配（v1 stub 空集合——预留位） ─────────────────
             // 未来：sandbox = BuildSandbox(workspaceRoot, instanceRunDir);
             //       stdFns = StandardToolsService.CreateFamilies(desc.SystemTools, sandbox);
-            //       挂载到 NativeMotorCortex.Agent.ChatOptions.Tools（按铁律「默认能力下发到 NativeMotorCortex」）。
+            //       铁律「默认能力下发到 NativeMotorCortex」由 Phase 1 内 stdFnsForBrain 区分实现。
             // 本切片不动 StandardTools——desc.SystemTools 当前为空集合。
 
             // ─── 源 3：McpList 装配（v1 stub 空集合——预留位） ──────────────────────
             // 未来：foreach descriptor in desc.McpList: handle = await StartMcpAsync(...);
-            //       mcpHandles.Add(handle); 工具同样下发到 NativeMotorCortex.Agent.ChatOptions.Tools。
+            //       mcpHandles.Add(handle); 工具同样下发到 NativeMotorCortex.NeuronAssemblyContext.StandardAITools。
             // 本切片不动 MCP runtime——desc.McpList 当前为空集合。
 
-            // ─── 源 4：Brain 编织（核心新逻辑） ──────────────────────────────────────
-            // 先准备 PrefrontalCallback 适配器——子脑区 ctor 强制 non-null callback。
-            // v1 实施为 no-op stub（见类注释）；Prefrontal 是装配最后一步，此时主脑句柄未生成，
-            // 适配器内部以 Lazy 模式延迟引用——本切片不消费该 Lazy（no-op），但模式已就位。
-            var callbackAdapter = new PrefrontalCallbackAdapter();
+            // ─── 源 4：Brain 编织（双轨装配） ────────────────────────────────────────
+            // 子脑区 ctor 强制 non-null callback——v1 用 no-op fire-and-forget 委托占位；
+            // 后续切片可在 onOutcome / onProgress 中路由到 Session jsonl / Channel.OnOutput。
+            var callbackAdapter = new PrefrontalCallbackAdapter(
+                onOutcome: (brainId, outcome) => Task.CompletedTask,
+                onProgress: (brainId, message) => Task.CompletedTask);
+
             var brainRegistry = new InMemoryBrainRegistry();
             var brains = new List<BrainBase>(brainConfig.Brains.Count);
 
-            // PHASE A：非 Prefrontal 脑区先构造
+            // ─── Phase 1：非主脑先装 ────────────────────────────────────────────────
+            // BrainConfig 三铁律已保证恰有一个主脑，此处按 IsPrefrontal 过滤即可。
             StandardBrainDescriptor prefrontalDesc = null;
-            foreach (var d in brainConfig.Brains)
+            foreach (var bd in brainConfig.Brains)
             {
-                if (d is StandardBrainDescriptor std && std.IsPrefrontal)
+                if (bd is StandardBrainDescriptor std && std.IsPrefrontal)
                 {
-                    prefrontalDesc = std;   // 记录，Phase B 用
+                    prefrontalDesc = std;
                     continue;
                 }
 
-                BrainBase brain = BuildSubBrain(d, memory, callbackAdapter, options, mcpHandles);
+                BrainBase brain = BuildNonPrefrontalBrain(bd, memory, callbackAdapter, options, mcpHandles);
                 brainRegistry.RegisterBrain(brain);
                 brains.Add(brain);
             }
@@ -236,20 +254,35 @@ namespace CBIM.AgentSystem
                 throw new InvalidOperationException(
                     "BrainConfig 校验通过但未找到 Prefrontal 描述符——内部不变量违反。");
 
-            // PHASE B：Prefrontal 最后构造（需 CallableBrains 已就绪）
+            // ─── Phase 2：主脑最后装（需 callableBrains 已就绪） ────────────────────
+            // SynapseToolFactory.Build 产出 __brain_call_* AITool 集——主脑通过这些工具调度子脑区。
+            // K3 铁律：跨脑区机制只在 Synapse 一处生产。
+            IReadOnlyList<AITool> brainCallTools = SynapseToolFactory.Build(brains);
+
+            var prefrontalCtx = new NeuronAssemblyContext(
+                ChatClient: _chatClient,
+                Memory: memory,
+                StandardAITools: Array.Empty<AITool>(),   // v1 主脑不直接挂 stdTools
+                SynapseAITools: brainCallTools,            // 跨脑区调度工具
+                ExternalAdapter: null);                    // 主脑必 Native，外部 adapter 必 null
+            INeuron prefrontalNeuron = NeuronFactory.Create(prefrontalDesc, prefrontalCtx);
+
             var prefrontal = new PrefrontalCortex(
                 descriptor: prefrontalDesc,
                 memory: memory,
-                chatClient: _chatClient,
-                callableBrains: brains);
+                neuron: prefrontalNeuron,
+                callback: null,                              // 主脑回调恒为 null（自己不回报自己）
+                callableBrains: brains,
+                brainRegistry: brainRegistry);
             brainRegistry.RegisterBrain(prefrontal);
             brains.Add(prefrontal);
 
-            // 回填 callback adapter（v1 no-op 但模式已就位）
-            callbackAdapter.AttachPrefrontal(prefrontal);
-
-            // ─── Session：由主脑 AIAgent 生成（agent.RunAsync 投递目标 = prefrontal.Agent） ──
-            var session = await prefrontal.Agent.CreateSessionAsync().ConfigureAwait(false);
+            // ─── Session：由主脑 Neuron 的底层 msai AIAgent 生成 ─────────────────────
+            // 主脑必走 MsaiNeuron 路径——UnderlyingAgent 必非 null。
+            AIAgent prefrontalAgent = prefrontal.Agent
+                ?? throw new InvalidOperationException(
+                    "Prefrontal.Agent (= Neuron.UnderlyingAgent) 为 null——主脑必须走 MsaiNeuron 路径。");
+            var session = await prefrontalAgent.CreateSessionAsync().ConfigureAwait(false);
 
             // ─── 包成 Agent + 注册 ───────────────────────────────────────────────────
             var instance = new Agent(
@@ -272,24 +305,87 @@ namespace CBIM.AgentSystem
         }
 
         /// <summary>
-        /// 按描述符子类分派构造一个非 Prefrontal 脑区——Phase A 内部使用。
-        /// ExternalMotorCortex 路径在此启 memory-bridge MCP（如 ShareMode==McpServer）
-        /// 并把句柄登记到 mcpHandles。
+        /// 按描述符子类 + 语义 Kind/EngineKind 分派构造一个非主脑脑区（Phase 1 内部使用）。
+        ///
+        /// <para>装配步骤：</para>
+        /// <list type="number">
+        ///   <item>按描述符子类构造 <see cref="NeuronAssemblyContext"/>——
+        ///         为 ExternalMotor 装配 adapter，为 NativeMotor 准备 stdTools 通道（v1 留空）。</item>
+        ///   <item>调 <see cref="NeuronFactory.Create"/> 拿 <see cref="INeuron"/>。</item>
+        ///   <item>按 BrainKind / EngineKind 走 <see cref="ConstructBrainByKind"/> 构造具体 <see cref="BrainBase"/>。</item>
+        /// </list>
         /// </summary>
-        private BrainBase BuildSubBrain(
+        private BrainBase BuildNonPrefrontalBrain(
             BrainDescriptor d,
             IMemoryService memory,
             IPrefrontalCallback callback,
             OpenInstanceOptions options,
             List<IAsyncDisposable> mcpHandles)
         {
+            // ── 准备 NeuronAssemblyContext ──────────────────────────────────────────
+            IReadOnlyList<AITool> stdToolsForBrain = Array.Empty<AITool>();
+
+            // 铁律「默认能力下发到 NativeMotorCortex」——v1 stub 空集合，结构就位等后续切片填。
+            // 后续切片在此处：if (d is StandardBrainDescriptor s && s.Kind == NativeMotorCortex)
+            //   stdToolsForBrain = stdFns_plus_mcpFns;
+
+            IExternalEngineAdapter externalAdapter = null;
+            if (d is ExternalMotorCortexDescriptor ext)
+            {
+                externalAdapter = BuildExternalAdapter(ext, memory, options, mcpHandles);
+            }
+
+            var ctx = new NeuronAssemblyContext(
+                ChatClient: _chatClient,
+                Memory: memory,
+                StandardAITools: stdToolsForBrain,
+                SynapseAITools: Array.Empty<AITool>(),    // 非主脑不挂 __brain_call_*
+                ExternalAdapter: externalAdapter);
+
+            INeuron neuron = NeuronFactory.Create(d, ctx);
+
+            return ConstructBrainByKind(d, memory, neuron, callback);
+        }
+
+        /// <summary>
+        /// 按描述符子类型 + 语义 Kind/EngineKind 选择具体 <see cref="BrainBase"/> 子类构造。
+        /// 本方法不消费 LLM / Adapter 等运行资源——只是「描述符 → 子类」的纯派发。
+        /// PrefrontalCortex 不在本方法内构造（由 Phase 2 单独装配）。
+        /// </summary>
+        private static BrainBase ConstructBrainByKind(
+            BrainDescriptor d,
+            IMemoryService memory,
+            INeuron neuron,
+            IPrefrontalCallback callback)
+        {
             switch (d)
             {
                 case StandardBrainDescriptor std:
-                    return BuildStandardBrain(std, memory, callback);
+                    switch (std.Kind)
+                    {
+                        case StandardBrainKind.ParietalLobe:
+                            return new ParietalLobe(std, memory, neuron, callback);
+                        case StandardBrainKind.Hippocampus:
+                            return new Hippocampus(std, memory, neuron, callback);
+                        case StandardBrainKind.NativeMotorCortex:
+                            return new NativeMotorCortex(std, memory, neuron, callback);
+                        case StandardBrainKind.PrefrontalCortex:
+                            throw new InvalidOperationException(
+                                "ConstructBrainByKind 不处理 PrefrontalCortex——主脑由 OpenInstanceAsync 的 Phase 2 装配。");
+                        default:
+                            throw new InvalidOperationException(
+                                $"未识别的 StandardBrainKind: {std.Kind}");
+                    }
 
                 case ExternalMotorCortexDescriptor ext:
-                    return BuildExternalBrain(ext, memory, callback, options, mcpHandles);
+                    switch (ext.EngineKind)
+                    {
+                        case ExternalEngineKind.ClaudeCode:
+                            return new ClaudeCodeMotorCortex(ext, memory, neuron, callback);
+                        default:
+                            throw new NotImplementedException(
+                                $"ExternalEngineKind '{ext.EngineKind}' 在 v1 未实施——首发仅 ClaudeCode。");
+                    }
 
                 default:
                     throw new InvalidOperationException(
@@ -298,51 +394,16 @@ namespace CBIM.AgentSystem
         }
 
         /// <summary>
-        /// 构造 4 种标准脑区——按 <see cref="StandardBrainKind"/> 派发。
-        /// PrefrontalCortex 由 Phase B 单独处理（需 CallableBrains），不进入本方法。
-        /// </summary>
-        private BrainBase BuildStandardBrain(
-            StandardBrainDescriptor std,
-            IMemoryService memory,
-            IPrefrontalCallback callback)
-        {
-            switch (std.Kind)
-            {
-                case StandardBrainKind.ParietalLobe:
-                    return new ParietalLobe(std, memory, _chatClient, callback);
-
-                case StandardBrainKind.Hippocampus:
-                    return new Hippocampus(std, memory, _chatClient, callback);
-
-                case StandardBrainKind.NativeMotorCortex:
-                    // 铁律：AgentDescription.SystemTools / McpList 默认全部下发到 NativeMotorCortex。
-                    // 本切片 stdFns / mcpFns 暂为空集合（v1 StandardTools / Mcp runtime 未实装）；
-                    // 后续切片在此处把工具挂到 brain.Agent.ChatOptions.Tools（msai ChatClientAgent
-                    // 不可变 → 需重建 Agent，见 PrefrontalCortex.ctor 同款模式）。
-                    return new NativeMotorCortex(std, memory, _chatClient, callback);
-
-                case StandardBrainKind.PrefrontalCortex:
-                    throw new InvalidOperationException(
-                        "BuildStandardBrain 不处理 PrefrontalCortex——主脑由 OpenInstanceAsync 的 Phase B 装配。");
-
-                default:
-                    throw new InvalidOperationException(
-                        $"未识别的 StandardBrainKind: {std.Kind}");
-            }
-        }
-
-        /// <summary>
-        /// 构造 ExternalMotorCortex——首发桥接 ClaudeCode；其他 EngineKind 抛 NotImplementedException。
+        /// 为 ExternalMotorCortex 路径构造 <see cref="IExternalEngineAdapter"/>。
+        /// 仅 ClaudeCode 实施；其他 EngineKind 抛 <see cref="NotImplementedException"/>。
         /// 若 ShareMode == McpServer：启动 memory-bridge MCP server 并登记到 mcpHandles 生命周期。
         /// </summary>
-        private BrainBase BuildExternalBrain(
+        private IExternalEngineAdapter BuildExternalAdapter(
             ExternalMotorCortexDescriptor ext,
             IMemoryService memory,
-            IPrefrontalCallback callback,
             OpenInstanceOptions options,
             List<IAsyncDisposable> mcpHandles)
         {
-            // EngineKind 路由（仅 ClaudeCode 实施）
             if (ext.EngineKind != ExternalEngineKind.ClaudeCode)
                 throw new NotImplementedException(
                     $"ExternalEngineKind '{ext.EngineKind}' 在 v1 未实施——首发仅 ClaudeCode。");
@@ -389,7 +450,7 @@ namespace CBIM.AgentSystem
                 MemoryMcpEndpoint = memoryMcpEndpoint,
             };
 
-            return new ClaudeCodeMotorCortex(ext, memory, adapterConfig, callback);
+            return new ClaudeCodeEngineAdapter(adapterConfig);
         }
 
         /// <summary>
@@ -621,43 +682,6 @@ namespace CBIM.AgentSystem
             catch (JsonException)
             {
                 return null;   // 单行 JSON 损坏直接跳过
-            }
-        }
-
-        // ===== PrefrontalCallbackAdapter =====
-
-        /// <summary>
-        /// <see cref="IPrefrontalCallback"/> 适配器——子脑区强制需要 non-null callback，
-        /// 但 Prefrontal 是装配最后一步（需要 CallableBrains 已就绪），所以本适配器先以
-        /// 「空壳」形式构造、注入子脑区，等 Prefrontal 构造完毕后回填引用。
-        ///
-        /// <para><b>v1 实施为 no-op stub</b>——本切片不路由 SessionEvent；
-        /// 行为正确性由 PrefrontalCortex 默认 InvokeAsync 通过 Tool return value 路径保证；
-        /// 本 callback 是预留扩展通道（后续切片可在 ReportProgress/ReportOutcome 路由到
-        /// Session jsonl / Channel.OnOutput 等）。</para>
-        /// </summary>
-        internal sealed class PrefrontalCallbackAdapter : IPrefrontalCallback
-        {
-            // Lazy 模式——Phase A 构造子脑区时主脑还没建好；Phase B 完成后由 AttachPrefrontal 回填。
-            // 当前 v1 不消费该引用（no-op）；保留字段是为后续 SessionEvent 路由切片预备。
-            private PrefrontalCortex _prefrontal;
-
-            /// <summary>Phase B 构造完毕后由装配胶水回填。多次调用以最后一次为准（防御性）。</summary>
-            public void AttachPrefrontal(PrefrontalCortex prefrontal)
-            {
-                _prefrontal = prefrontal;
-            }
-
-            /// <inheritdoc/>
-            public void ReportProgress(string brainId, string message)
-            {
-                // v1 no-op——后续切片在此路由进度到 Channel.OnOutput / Session jsonl。
-            }
-
-            /// <inheritdoc/>
-            public void ReportOutcome(string brainId, BrainOutcome outcome)
-            {
-                // v1 no-op——后续切片在此把子脑区结果合入主脑下一轮上下文。
             }
         }
     }
