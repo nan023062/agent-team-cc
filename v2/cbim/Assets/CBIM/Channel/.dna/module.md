@@ -9,31 +9,129 @@ status: spec
 
 ## Positioning
 
-**Channel 是 CBIM 的入口层**——一个 Channel = 用户打开的一个交互界面实例，绑定一个 Microsoft `AIAgent`，承载 IO 流。
+**Channel 是 CBIM 的入口层**——一个 Channel = 用户打开的一个交互界面实例，1:1 绑定一个 Microsoft `AIAgent`，承载 IO 流。
 
-**本轮重要变动：Channel 退化为 Microsoft `AgentSession` 的薄封装。**
+- **薄封装于 Microsoft `AgentSession`**——多轮 transcript / thread 能力直接复用。
+- **CBIM 调用约定面**——`OpenChannel` / `SendAsync` / `OnOutput` / `CloseChannel` 四件事。
+- **不感知脑区**——`Channel.Agent` 始终 = `instance.Prefrontal.Agent`；子脑区调度是主脑内部事务。
+- **不管业务路由**——路由 ⊥ Channel，主脑 PrefrontalCortex 独咬调度职责（铁律 A：唯一通路）。
 
-## 本轮变动
+## 架构图（三层模型中的位置）
 
-Microsoft.Agents.AI 已提供 `AgentSession` 抽象——其本就是「一个用户与一个 Agent 的持续交互 transcript」的标准容器。CBIM Channel 不再自抽象一份「交互界面」，而是：
+```mermaid
+flowchart TD
+    classDef ext fill:#eceff1,stroke:#37474f,color:#000;
+    classDef self fill:#fce4ec,stroke:#880e4f,stroke-width:2px,color:#000;
+    classDef agent fill:#c8e6c9,stroke:#1b5e20,color:#000;
+    classDef msai fill:#bbdefb,stroke:#0d47a1,color:#000;
 
-- **底层 host 一个 Microsoft `AgentSession`**——持有 transcript / thread / 多轮上下文。
-- **薄封装为 CBIM Channel**——暴露 `SendAsync(userMessage)` / `OnOutput` 两个 CBIM 调用约定面，便于 Unity 场景层订阅。
-- **内部路径**（本轮 Kernel 删除后唯一路径）：每轮用户输入 → 直调 `instance.Prefrontal.Agent.RunAsync(session, userMessage)`——底层是 PrefrontalCortex 主脑（铁律 A：唯一通路），其内部 LLM 负责调度子脑区。**原「多 Task 业务流程走 Microsoft Workflow + `CbimTaskExecutor`」路径随 Kernel 顶层模块物理删除一同废除**。Channel 不再需要「包 CbimTask」这一中间步骤（CbimTask 类本身也随 Kernel 删除）。
+    USR["User"]
+    CH["ChannelService / Channel\n(本模块 · 入口层 薄封装)"]
+    AS["AgentSystem\nOpenInstanceAsync + AppendSessionEvent"]
+    AGT["Agent (运行态实例)\n.Prefrontal.Agent = AIAgent 句柄"]
+    BR["Brain (不被 Channel 感知)\nPrefrontalCortex 调子脑区"]
+    MSAS["Microsoft AgentSession\n(transcript / thread)"]
+    MSAA["Microsoft AIAgent\nRunAsync(session, msg)"]
+
+    USR -- SendAsync --> CH
+    CH -- OpenInstanceAsync --> AS
+    AS --> AGT
+    AGT --> BR
+    CH -. host .- MSAS
+    CH -- RunAsync --> MSAA
+    MSAA -. 是 .- AGT
+    CH -- OnOutput --> USR
+
+    class CH self;
+    class AS,AGT,BR agent;
+    class MSAS,MSAA msai;
+    class USR ext;
+```
+
+**依赖方向**：Channel → AgentSystem → Brain；不反向、不绕走。
+
+## 类图（核心类型关系）
+
+```mermaid
+classDiagram
+    class ChannelService {
+        <<service facade>>
+        +OpenChannel(agentName, options) Channel
+        +GetChannel(channelId) Channel
+        +ListChannels() IReadOnlyList~Channel~
+        +CloseChannel(channelId) void
+    }
+
+    class Channel {
+        +string ChannelId
+        +AIAgent Agent
+        +AgentSession Session
+        +SendAsync(userMessage, ct) Task~ChannelOutcome~
+        +OnOutput
+    }
+
+    class ChannelOutcome {
+        <<record>>
+        +string ResultText
+        +bool IsError
+        +string ErrorMessage
+    }
+
+    class AIAgent {
+        <<msai>>
+        +RunAsync(session, msg) Task~Response~
+    }
+
+    class AgentSession {
+        <<msai · transcript 容器>>
+    }
+
+    class Agent {
+        <<CBIM 运行态 · in CBIM.AgentSystem>>
+        +PrefrontalCortex Prefrontal
+    }
+
+    ChannelService --> Channel : owns
+    ChannelService ..> Agent : via AgentSystem.OpenInstance
+    Channel --> AIAgent : holds (= Agent.Prefrontal.Agent)
+    Channel --> AgentSession : hosts
+    Channel ..> ChannelOutcome : produces
+```
+
+**关键关系**：`Channel.Agent` 实际是 `Agent.Prefrontal.Agent`（主脑的 msai 句柄）；其他脑区 Channel 不可见。
+
+## SendAsync 全链路序流
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant C as Channel
+    participant P as PrefrontalCortex (内 ChatClientAgent + FuncCall)
+    participant B as 子脑区 (Parietal/Hippocampus/Motor*)
+    participant M as Memory / Tools / MCP
+
+    U->>C: SendAsync(userMessage)
+    C->>P: Agent.RunAsync(Session, userMessage)
+    Note over P: LLM 推理 · 判该调哪个子脑区
+    P->>B: __brain_call_*(intent)
+    B->>M: 读 / 写 / 调外部工具
+    M-->>B: result
+    B-->>P: BrainOutcome (Summary as ToolMessage)
+    Note over P: 拼接最终输出
+    P-->>C: response
+    C-->>U: ChannelOutcome (via OnOutput)
+```
 
 ## 核心概念
 
 | 概念 | 定义 | 来源 |
 |------|------|------|
-| **Channel** | 用户交互窗口实例，1:1 绑定一个 AIAgent | CBIM 薄封装 |
+| **Channel** | 用户交互窗口实例，1:1 绑 AIAgent | CBIM 薄封装 |
 | **AgentSession**（底层） | Microsoft 的交互 transcript 容器 | `Microsoft.Agents.AI.AgentSession` |
-| **AIAgent** | 该窗口运行的「进程」 | `Microsoft.Agents.AI.AIAgent` |
-| **CbimTask**（轻量三元组） | Channel 内部封装的单轮交互入参载体（who/where/what） | **原 `CBIM.Kernel.TaskScheduler.CbimTask` 本轮随 Kernel 顶层模块一同物理删除。**后续如需重建交互上下文载体，由 Channel 本模块 / Agent/Brain 接入点重新定义，不再跨模块依赖 |
-| **Session（CBIM 工作日志）** | Agent 内部执行轨迹事件流·写到 AgentSystem | 与 Microsoft transcript 不同 schema |
+| **AIAgent** | 该窗口运行的「进程」（= 主脑 ChatClientAgent） | `Microsoft.Agents.AI.AIAgent` |
+| **Session（CBIM 工作日志）** | Agent 内部执行轨迹事件流 · 写入 AgentSystem | 与上项不同 schema |
 
-> Channel 的 transcript（Microsoft AgentSession）与 Agent 的工作日志（AgentSystem 的 Session）是两套不同记录：前者是「用户看见的对话」，后者是「Agent 内部的执行轨迹」。
-
-> **本轮 Kernel 物理删除后的 Channel 定位修订**：Channel 不再处理「多 Task 业务流程」路径（原调 Microsoft Workflow + CbimTaskExecutor 的复杂分支已不适用）。Channel 全部载荷简化为唯一路径：用户输入 → 调 `instance.Prefrontal.Agent.RunAsync(...)`（底层是 PrefrontalCortex 主脑·铁律 A）→ 主脑内部 LLM 决策怎么调子脑区 → 输出返 Channel。业务流程调度全部下沉到 Agent/Brain 内部，不再是 Channel 职责。
+> Channel 的 transcript（msai AgentSession）与 Agent 工作日志（AgentSystem 的 Session）是两套不同记录：前者是「用户看见的对话」，后者是「Agent 内部执行轨迹」。
 
 ## Contract Surface
 
@@ -53,10 +151,9 @@ public sealed class ChannelService
 public sealed class Channel
 {
     string ChannelId { get; }
-    AIAgent Agent { get; }
-    AgentSession Session { get; }    // ← Microsoft 的，底层 transcript
+    AIAgent Agent { get; }              // = instance.Prefrontal.Agent
+    AgentSession Session { get; }       // msai transcript
 
-    // 每轮用户输入 → 包 CbimTask → 调 Workflow 或 RunAsync
     Task<ChannelOutcome> SendAsync(string userMessage, CancellationToken ct = default);
 
     event Action<ChannelOutputEvent> OnOutput;
@@ -67,73 +164,22 @@ public sealed record ChannelOutcome(string ResultText, bool IsError, string? Err
 
 ## Dependencies
 
-- **`Microsoft.Agents.AI`**——`AIAgent` / `AgentSession`。
-- **`CBIM.AgentSystem`**——`OpenInstance` 拿 `AIAgent`、`AppendSessionEvent` 写工作日志。
-- **不直接依赖** Memory / Workspace / Storage——上下文装配走 Agent/Brain 内部机制。
-- **本轮取消依赖**：原依赖项 `CBIM.Kernel.TaskScheduler`（提供 `CbimTask`）和 `CBIM.Kernel.FlowGraph`（可选·多 Task 业务流程时拿 Microsoft Workflow + `CbimTaskExecutor`）随 Kernel 顶层模块物理删除一同去除。单 Task 走 `Agent.RunAsync` 。多 Task 调度下沉为 Agent/Brain 内部 PrefrontalCortex 主脑职责。
+- `Microsoft.Agents.AI` —— `AIAgent` / `AgentSession`。
+- `CBIM.AgentSystem` —— `OpenInstance` 拿 `AIAgent` 句柄；`AppendSessionEvent` 写工作日志。
+- **不依赖** Memory / Workspace / Storage —— 上下文装配走 Brain 内部机制。
 
 ## 铁律
 
-- **不直接访问** Memory / Workspace / Storage。
-- **不直接调** `IChatClient`——拿 AIAgent 后调 `RunAsync`。
-- **不写 Session 日志**——Session 写侧唯一调用方是 Agent/Brain（本轮 Kernel 删除后，原 CbimTaskExecutor 写侧职责下沉到 Brain.MotorCortex / Brain 内部装配机制）。
-- **不在 Channel 里加业务路由**——业务路由是 Agent/Brain.PrefrontalCortex 主脑职责（铁律 A：唯一通路）。
-- **薄封装铁律**：Channel 自定义 API 只够「OpenChannel / SendAsync / OnOutput / CloseChannel」四件事，其余功能直接暴露底层 `AgentSession` 给高阶调用者。
-
-## Origin Context
-
-上一轮 Channel 已从 BT 驱动者改为 Task 递交者，但仍自定义全套抽象。本轮发现 Microsoft `AgentSession` 本就是「一个用户与一个 Agent 的交互容器」，CBIM 再造一个独立 Channel 类是重复抽象。裁决：**退化为 AgentSession 薄封装**，仅保留 CBIM 调用约定面（OpenChannel / SendAsync 等）方便 Unity 场景层订阅。
-
-## Implementation Sequence
-
-1. `Channel` 数据类——内部 host `Microsoft.Agents.AI.AgentSession`。
-2. `ChannelService.OpenChannel`——调 AgentSystem.OpenInstance 拿 AIAgent（实际是 `instance.Prefrontal.Agent`），构造 AgentSession，包成 Channel。
-3. `Channel.SendAsync`——直调 `instance.Prefrontal.Agent.RunAsync(session, userMessage)`，不再需要包 CbimTask（CbimTask 本轮随 Kernel 顶层模块物理删除）。Session 写侧职责交给 Brain 内部，不是 Channel。多 Task 业务流程调度 100% 下沉到主脑 PrefrontalCortex，不再是 Channel 职责。
-4. `OnOutput`——订阅 AIAgent 输出事件转发。
-5. 与 AgenticOS 集成。
+- **C1** · 不直接访问 Memory / Workspace / Storage。
+- **C2** · 不直接调 `IChatClient` —— 拿 AIAgent 后调 `RunAsync`。
+- **C3** · 不写 Session 日志 —— Session 写侧唯一调用方 = Brain.MotorCortex。
+- **C4** · 不加业务路由 —— 路由 = PrefrontalCortex 主脑职责（铁律 A）。
+- **C5** · 薄封装 —— 自定义 API 仅 「OpenChannel / SendAsync / OnOutput / CloseChannel」 四件；其余直暴 `AgentSession` 给高阶调用方。
 
 ## Non-Goals
 
-- 不持久化 Channel——纯进程内对象。
-- 不实现 Channel 之间协作——多 Agent 协作由 PrefrontalCortex 主脑调度（不再依赖外部 Workflow 容器）。
-- 不感知 Microsoft Compaction / ContextProvider 装配——是 OpenInstance / Brain 内部装配机制职责。
-
-## 关于脑区的注解（本轮新增）
-
-Channel 是 Microsoft `AgentSession` 的薄封装——本轮 Agent OS 重构后，一个 Agent 由多个脑区组成（本轮采用大脑解剖学专业名：PrefrontalCortex 前额叶皮层 / ParietalLobe 顶叶 / Hippocampus 海马体 / MotorCortex 运动皮层 以及未来预留的 Cerebellum / AnteriorCingulateCortex）。Channel 不感知脑区的存在——这是 Channel 薄封装铁律的顺其自然体现。
-
-### 明确提示：Channel.Agent 实际指向 PrefrontalCortex 的 AIAgent
-
-```csharp
-// Channel 实现中：
-var instance = await _agentSystem.OpenInstanceAsync(agentDescriptionName, options);
-channel.Agent = instance.Prefrontal.Agent;   // 主脑的 AIAgent
-channel.Session = ...;
-```
-
-Channel 拿到的 `AIAgent` 句柄永远是 `instance.Prefrontal.Agent`。其他脑区（ParietalLobe / Hippocampus / MotorCortex.* / ExternalMotorCortex 子类）对 Channel 不可见。
-
-### SendAsync 的投递路径（本轮 Kernel 删除后）
-
-```
-User 调 channel.SendAsync(userMessage)
-   → 直调 channel.Agent.RunAsync(channel.Session, userMessage)
-       ≡ instance.Prefrontal.Agent.RunAsync(...)
-   → PrefrontalCortex 内部是 ChatClientAgent + FunctionInvokingChatClient（基类已含 msai 装配）推理
-   → LLM 判该调哪个子脑区 → 调 __brain_call_motor_cortex_native(...) / __brain_call_parietal_lobe(...) / __brain_call_hippocampus(...)
-   → 子脑区 (BrainBase.InvokeAsync) 返 BrainOutcome
-   → BrainOutcome.Summary 作为 ToolMessage 回填 LLM 接续推理
-   → 主脑拼接最终输出 → 返 Channel
-   → Channel 产 ChannelOutcome 上报 OnOutput
-```
-
-**本轮上轮路径中的「包 CbimTask」中间步骤随 Kernel 顶层模块物理删除一同去除**——CbimTask 类本身已不存在，Channel 直接调 RunAsync 即可。
-
-**Channel 代码路径不需要任何脑区意识**——脑区调度是 PrefrontalCortex 内部 LLM + AIFunction 闭环（铁律 A：唯一通路），与 Channel 属不同抽象层。Channel 看到的仅是「一个 AIAgent + RunAsync 接口」。
-
-### 与薄封装铁律的一致性
-
-Channel 薄封装铁律要求：不动 Memory / Workspace / Storage；不加业务路由；API 仅「四件事」。
-
-脑区编织是 Agent 内部事务，为 Channel 额外推送「调脑区」 API 会违反该铁律。本轮仅在本节以文档形式作作者注解，不动 Channel.cs 实现。
+- 不持久化 Channel —— 纯进程内对象。
+- 不实现 Channel 之间协作 —— 多 Agent 协作由 PrefrontalCortex 调度。
+- 不感知 Microsoft Compaction / ContextProvider 装配 —— 是 OpenInstance / Brain 装配机制职责。
+- 不感知脑区 —— Channel 看到的仅主脑 AIAgent + RunAsync 接口。
 
