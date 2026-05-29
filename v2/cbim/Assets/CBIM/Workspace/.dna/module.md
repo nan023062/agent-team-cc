@@ -19,11 +19,11 @@ status: spec
 基建层（类型契约）：Tool / Skill / Mcp / IMemoryService / Storage
    ↑ 本模块依赖
 Workspace 层（本模块）——与 Agent 层平级互不依赖
-Agent 层：AgentSystem / ExternalAdapter / Kernel / Channel
+Agent 层：Agent / Kernel / Channel（含 Agent/Brain 多脑区 + ExternalMotorCortex 桥接外部 AI 引擎）
 ```
 
 **本模块依赖**：`CBIM.Skills` + `CBIM.Mcp` + `CBIM.Storage`（三个基建层抽象）。
-**本模块不依赖**：Agent 层任何模块（包括 AgentSystem / ExternalAdapter / Kernel / Channel）。
+**本模块不依赖**：Agent 层任何模块（包括 Agent / Kernel / Channel）。**原 「ExternalAdapter」 顶层模块本轮废弃**，外部 AI 引擎接入不再为与本模块跨层依赖考量点。
 **本模块不持**：IMemoryService——记忆是 Agent 的，不是模块的；模块只有规章 / 流程 / 接入点，没有「模块的记忆」。
 
 ## 与旧「能力 / 业务对偶」的表达表关系
@@ -358,11 +358,11 @@ Application.persistentDataPath/.cbim/workspace/
 - `CBIM.Storage`——IO + frontmatter 解析。
 - **`CBIM.Mcp`**（基建层抽象）——`McpDescriptor` / `StdioMcpDescriptor` / `HttpMcpDescriptor` / `McpTransportKind`。业务 MCP 集合装载点。
 - **`CBIM.Skills`**（基建层抽象 · 本轮明确）——`SkillDescriptor`。业务 Skill 集合（`ModuleDescription.Workflows`）装载点。
-- **不依赖** Agent 层任何模块（AgentSystem / ExternalAdapter / Kernel / Channel）。Agent 层 ⊥ Workspace 层，仅由组合根 / Kernel 在 task 期组合。
+- **不依赖** Agent 层任何模块（Agent / Kernel / Channel）。Agent 层 ⊥ Workspace 层，仅由组合根 / Kernel 在 task 期组合。**原 「ExternalAdapter」 顶层模块本轮废弃**，外部 AI 引擎以 `Agent/Brain/ExternalMotorCortex` 子类形式存在于单个 Agent 内部，本模块同样不依赖。
 - **不依赖** Memory ——记忆是 Agent 的，模块不持。
 - **无子模块**。
 
-依赖方向：Workspace → 基建层（Skills / Mcp / Storage） → ⚥。反向严禁。
+依赖方向：Workspace → 基建层（Skills / Mcp / Storage） → ⊥。反向严禁。
 
 **与旧描述的差别**：旧描述「Workspace → AgentSystem.Mcp」（因为 Tool/Skill/Mcp 曾是 AgentSystem 子模块）本轮修正为「Workspace → CBIM.Skills + CBIM.Mcp」——三大基建抽象顶层化之后，依赖方向看起来更顺（业务层 → 基建层，不是业务层 → Agent 层子模块）。
 

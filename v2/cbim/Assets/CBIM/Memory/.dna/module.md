@@ -60,11 +60,13 @@ Workspace 层：
 
 | 维度 | 服务层 | 关注边界 | 与 Memory 的关系 |
 |------|--------|----------|------------------|
-| 能力（Agent 层） | AgentSystem / ExternalAdapter | 谁能动 | 持 IMemoryService 实例 |
+| 能力（Agent 层） | Agent（本轮原 `AgentSystem`，含 `Agent/Brain/` 多脑区） | 谁能动 | 持 IMemoryService 实例（per-Agent；脑区间共享同一份，`ExternalMotorCortex` 通过 `MemoryShareMode` 桥共享访问） |
 | 业务（Workspace 层） | Workspace | 在哪里动、能动什么 | **不持**——模块没有记忆 |
 | 基建（基建层） | **Memory（本模块）** | 提供 IMemoryService 接口 + 默认实现 | 自身是被持有方 |
 
 之前的「Memory 不参与对偶」说法本轮**精确化为**：Memory 接口是基建（被各方派生使用）；Memory 实例归 Agent 层持有（per-Agent）；Workspace 层不持 Memory。
+
+**原 Agent 层「ExternalAdapter」顶层模块本轮废弃**（详见根 `.dna/module.md`）：外部 AI 引擎以 `Agent/Brain/MotorCortex` 下的 `ExternalMotorCortex` 子类嵌入单个 Agent 内部。本模块不受该重构影响：`IMemoryService` 仍是 Agent 持的唯一记忆接口，`ExternalMotorCortex` 通过其 `MemoryShareMode` 配置（`McpServer` / `Inject` / `Read-only` 三种桥式）共享访问同一 `IMemoryService` 实例，不打破 Agent-层唯一持有者原则。
 
 ## Three-Layer Memory（重画 · 本轮）
 

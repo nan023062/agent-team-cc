@@ -528,7 +528,7 @@ foreach handle in instance.McpHandles:
 8. **并发安全**——`Request` / `Release` 可多线程调用；Manager 内部需按 Id 锁（实例启动 / 释放不可重入）。同一 Id 启动竞况里 Manager 负责合并 Request——不启两个同名 server。Token 颁发 / slot pool / gen 字典都在同一锁下操作，不需额外 Interlocked。
 9. **未授 / 启失败优雅降级**——`Request` 可抛异常。装配侧接住后转为 warning，其他 MCP 照常装配。本模块不隐部吞异常。
 10. **不为 stdio / http 之外的传输扩展抽象**——MCP 协议本身可能未来扩展（如 named pipe / websocket），但本模块当前仅识别 stdio / http 两子类。如新传输形态出现，加一个子类即可，不改基类形状。
-11. **CBIM.Mcp 必须双向健壮**（涌现性洞见对应铁律）——本模块抽象将同时被两类使用方依赖：内置 AIAgent 装配时本模块抽象用于「描述一个 client 要去连接的 server」（client 角色）；ExternalAdapter 策略 B 让本模块抽象用于「描述一个 CBIM 自起 server 暴露给外部引擎拉取」（server 角色）。基类必须既能描述外向连接也能描述自起暴露——这是 `McpDescriptor` 仅持「形态 + 接入信息」、不持「角色（client/server）」字段的本质原因。【`IMcpInstanceManager` 同理仅面向 client 角色；server 角色由 ExternalAdapter 自行管理。】
+11. **CBIM.Mcp 必须双向健壮**（涌现性洞见对应铁律）——本模块抽象将同时被两类使用方依赖：内置 AIAgent 装配时本模块抽象用于「描述一个 client 要去连接的 server」（client 角色）；`Agent/Brain/ExternalMotorCortex` 子类以 McpServer 桥 (`MemoryShareMode.McpServer`) 让 CBIM 自起 MCP server 暴露给外部 AI 引擎拉取（server 角色）。基类必须既能描述外向连接也能描述自起暴露——这是 `McpDescriptor` 仅持「形态 + 接入信息」、不持「角色（client/server）」字段的本质原因。【`IMcpInstanceManager` 同理仅面向 client 角色；server 角色由 `Agent/Brain/ExternalMotorCortex` 子类自行管理。】
 12. **`IMcpStore` 与 `IMcpInstanceManager` 职责不混淆**——Store 仅管描述符的增删查（纯配置），不启进程；Manager 仅管运行期实例（进程 / 连接 + ActiveRefs），不持久化描述符。调用方从 Store 拉描述符后交给 Manager Request；两者不直接交互。
 13. **Token 由 Manager 独家颁发**（本轮新增）——外部不得构造 `McpRefToken` 传给 `Release`。公开构造函数仅供「重组测试场景」（与预期 Manager 颁发的 token 表示重同）使用。运行期唯一合法的 token 来源是 Manager 的 Request 路径。
 

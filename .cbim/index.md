@@ -28,7 +28,6 @@
 - v2/cbim/Assets/CBIM/Agent
 - v2/cbim/Assets/CBIM/Agent/Brain
 - v2/cbim/Assets/CBIM/Channel
-- v2/cbim/Assets/CBIM/ExternalAdapter
 - v2/cbim/Assets/CBIM/Kernel
 - v2/cbim/Assets/CBIM/Kernel/ContextProviders
 - v2/cbim/Assets/CBIM/Kernel/FlowGraph
