@@ -466,6 +466,104 @@ public sealed record ClaudeCodeAdapterConfig
 
 **装配期校验**：CLI 在 PATH 中可找到；MemoryShareMode.McpServer 选中时 `cbim-memory-bridge-mcp` 可找到；TaskWhere 非 null。
 
+
+## PrefrontalCortex · FlowGraph 重定义（本轮增补）
+
+> 本节被 `Kernel/Synapse/` FlowGraph 重定义轮增补。上面 `### PrefrontalCortex（前额叶皮层 · 主脑）` 节仅反映上轮「主脑亲自迮d代」形态；本节以「双身份（编译器 + 监督者）」表述为准。
+
+### 双身份职责二分
+
+| 阶段 | 主脑产出 | 主脑使用机制 |
+|------|---------|-----------|
+| 编译期 | `NeuralCircuit`（神经回路 IR） | LLM（装配期挂上 CompilerToolFactory 产 AITool）逐步搭建 |
+| 交接 | 交给 `CBIMOrchestrator` | `CBIMOrchestrator.RunAsync(circuit, CallableBrains, PrefrontalCallback?? , ct)` |
+| 运行期 | 仅当 Orchestrator 迮d代需「等 user 决策」或「节点失败后干预」时重新激活 | Orchestrator 调 `IPrefrontalCallback.ReportProgress / ReportOutcome` 反馈 |
+
+**职责不脱圈**：主脑仍是唯一调度者（K3 铁律未变）。从「即时调度」变「先编后执」，但「谁决定怎么调」仍是主脑 LLM。
+
+### 新增字段 / 新 InvokeAsync 重写路径
+
+```csharp
+public sealed class PrefrontalCortex : BrainBase
+{
+    // 原有 CallableBrains / Aggregation / BrainRegistry 字段不变。
+
+    /// **本轮新增** · FlowGraph 编译器 builder——per-invocation 产生，
+    /// CompilerToolFactory 装配期挂到 AITool 上，主脑 InvokeAsync 末尾检查 builder.Compiled 是否被写入。
+    public NeuralCircuitBuilder CircuitBuilder { get; }
+
+    public override async Task<BrainOutcome> InvokeAsync(BrainInvocation invocation, CancellationToken ct)
+    {
+        // 1) 走 LLM：默认 prompt 引导优先调 __circuit_*，仅闲聊 / 1-node 场景才调 __brain_call_*
+        var llmOutcome = await Neuron.InvokeAsync(invocation, ct).ConfigureAwait(false);
+
+        // 2) 检查是否产出 NeuralCircuit
+        if (CircuitBuilder.Compiled != null)
+        {
+            // FlowGraph 路径：交给 Orchestrator 硬性执行
+            var orchestrator = new CBIMOrchestrator();
+            return await orchestrator.RunAsync(
+                CircuitBuilder.Compiled,
+                brainPalette: CallableBrains,
+                callback: PrefrontalCallback ?? …,
+                ct).ConfigureAwait(false);
+        }
+
+        // 3) 退化路径：LLM 只调了 SynapseToolFactory 顶层原语中的一些 __brain_call_*——拿 llmOutcome 原机返
+        return llmOutcome;
+    }
+}
+```
+
+### 默认 Soul 模板（本轮新叙述）
+
+```
+## 角色
+你是 {agentName} 的前额叶皮层（PrefrontalCortex）——执行调度中枢。
+你本身不执行具体业务，不直接调外部工具。你的职责只有三件：
+  1. 听懂用户（或上游子任务）意图。
+  2. **优先**把流程编译为 NeuralCircuit，通过 __circuit_add_call_brain / __circuit_add_branch / __circuit_add_return / __circuit_add_edge / __circuit_commit 逐步搭建。
+  3. 仅闲聊 / 查询 / 调 1 脑区 且 无后续动作 时，才可直调 __brain_call_*（1-node 退化路径）。
+
+## 编译原则
+- 任何「需要多步 / 需要判断分支 / 需要 user 决策」的请求都走『先编译图』路径。
+- 节点选型：设计调 parietal-lobe；记忆调 hippocampus；副作用调 motor-cortex.*；条件逻辑走 BranchNode。
+- 产出返回 user 务必以 ReturnNode 封闭路径。
+- 不确定时优先问用户（有中仓 commit，问完再重启编译），不乱分发。
+
+## 不允许的事
+- 不直接调外部工具。所有动作走 motor 脑区。
+- 不透露子脑区的存在给用户。
+- 不重复下发同一动作。
+- 不允许走 1-node 退化代替多节点图——该编译就编译。
+```
+
+### 装配期 以 运行期双轨路径
+
+```
+// AgentSystem.OpenInstance 主脑装配阶段
+var callable      = brains.Where(b => !(b is PrefrontalCortex)).ToList();
+var synapseTools  = SynapseToolFactory.Build(callable);              // 退化原语集
+var builder       = new NeuralCircuitBuilder(circuitId: Guid.NewGuid());
+var compilerTools = CompilerToolFactory.Build(builder, callable);     // IR 构建工具集
+
+var prefrontalCtx = new NeuronAssemblyContext(
+    chatClient: chatClient,
+    memory: memory,
+    standardAITools: synapseTools.Concat(compilerTools).ToList(),     // 三者并列装入
+    synapseAITools: Array.Empty<AITool>(),                            // 本轮字段退使位
+    externalAdapter: null);
+var prefrontalNeuron = NeuronFactory.Create(prefrontalDesc, prefrontalCtx);
+var prefrontal = new PrefrontalCortex(prefrontalNeuron, memory, callbackAdapter, brainRegistry, callable, builder);
+```
+
+### 同步更新 Dependencies
+
+Brain 层本文件底部 `## Dependencies` 本轮增一条（该节本顶层事实推进）：
+
+- **`CBIM.AgentSystem.Kernel.Synapse.Compiler`**（本轮新增）——`NeuralCircuitBuilder` / `CompilerToolFactory`。PrefrontalCortex 新增字段与装配路径依赖。
+- **`CBIM.AgentSystem.Kernel.Synapse.Orchestrator`**（本轮新增）——`CBIMOrchestrator`。PrefrontalCortex.InvokeAsync 路径依赖。
+
 ## BrainDescriptor 分层（本轮重做）
 
 本轮分层规则：

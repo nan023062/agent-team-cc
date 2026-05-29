@@ -1,131 +1,48 @@
 #if UNITY_INCLUDE_TESTS
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
 using NUnit.Framework;
 using CBIM.AgentSystem;
 using CBIM.AgentSystem.Brain;
+using CBIM.AgentSystem.Kernel.Neuron;
+using CBIM.AgentSystem.Kernel.Synapse;
+using CBIM.AgentSystem.Kernel.Synapse.Compiler;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Brain.Tests
 {
     /// <summary>
-    /// <see cref="PrefrontalCortex"/> 单元测试。
+    /// <see cref="PrefrontalCortex"/> 构造期与基础契约单元测试——T14 后契约。
     ///
     /// 覆盖：
-    ///   - CallableBrains 中每个子脑区被包装成一个 <c>__brain_call_*</c> AIFunction
-    ///   - 命名规则：BrainId 中 <c>'.'</c> 与 <c>'-'</c> 替换为 <c>'_'</c>
-    ///       例：<c>"motor-cortex.native"</c> → <c>__brain_call_motor_cortex_native</c>
-    ///   - handler 投递到子脑区 InvokeAsync 并返回 outcome.Summary（透过 FakeChatClient
-    ///     直接 invoke 包装好的 AIFunction 验证）
     ///   - descriptor.Kind 必须 = PrefrontalCortex，否则 throw
-    ///   - 「主脑回调恒为 null」铁律——基类 PrefrontalCallback 字段为 null
+    ///   - descriptor.IsPrefrontal 必须 true，否则 throw
+    ///   - 空白 instanceId throw（FlowGraph 路径 JSON 落盘必需）
+    ///   - 「主脑回调恒为 null」铁律——构造期内部强制 null
     ///   - 「CallableBrains 不含 PrefrontalCortex 自身」铁律
+    ///   - 「CallableBrains 不含 PrefrontalCortex 类型」铁律（外部传入主脑也拒绝）
+    ///   - 「CallableBrains 不含 null 项」/ 「BrainId 不重复」
+    ///   - CallableBrains 浅复制——构造后外部修改不影响内部状态
+    ///   - ActiveBuilder 默认为 null（仅在 InvokeAsync 窗口内非 null）
+    ///
+    /// 端到端 FlowGraph 路径测试（InvokeAsync 内 builder.Compiled 非 null → JSON 落盘 →
+    /// Orchestrator 执行 / builder.Compiled null → 退化路径）在
+    /// <see cref="PrefrontalCortexFlowGraphTests"/> 中独立覆盖。
     /// </summary>
     [TestFixture]
     public sealed class PrefrontalCortexTests
     {
-        // ===== (1) 每个子脑区 → 一个 __brain_call_* AIFunction =====
-
-        [Test]
-        public void PrefrontalCortex_registers_brain_call_function_per_callable()
-        {
-            var memory = new InMemoryFakeMemoryService();
-            var chat = new FakeChatClient("ok");
-            var callback = new FakePrefrontalCallback();
-
-            var parietalDesc = BuildStandardDescriptor(
-                "parietal-lobe", "parietal", StandardBrainKind.ParietalLobe);
-            var motorDesc = BuildStandardDescriptor(
-                "motor-cortex.native", "motor", StandardBrainKind.NativeMotorCortex);
-
-            var parietal = new ParietalLobe(parietalDesc, memory, chat, callback);
-            var motor = new NativeMotorCortex(motorDesc, memory, chat, callback);
-
-            var pfcDesc = BuildPrefrontalDescriptor();
-            var pfc = new PrefrontalCortex(pfcDesc, memory, chat, new BrainBase[] { parietal, motor });
-
-            Assert.That(pfc.CallableBrains.Count, Is.EqualTo(2));
-            var toolNames = ExtractToolNames(pfc.Agent);
-            Assert.That(toolNames, Is.EquivalentTo(new[]
-            {
-                "__brain_call_parietal_lobe",
-                "__brain_call_motor_cortex_native",
-            }));
-        }
-
-        // ===== (2) 命名规则：'.' / '-' → '_' =====
-
-        [Test]
-        public void Brain_call_function_name_replaces_dots_and_dashes_with_underscores()
-        {
-            var memory = new InMemoryFakeMemoryService();
-            var chat = new FakeChatClient("ok");
-            var callback = new FakePrefrontalCallback();
-
-            // BrainId 含 '.' 与 '-' 两种字符——命名规则同时校验。
-            var motorDesc = BuildStandardDescriptor(
-                "motor-cortex.claude-code", "motor", StandardBrainKind.NativeMotorCortex);
-            var motor = new NativeMotorCortex(motorDesc, memory, chat, callback);
-
-            var pfcDesc = BuildPrefrontalDescriptor();
-            var pfc = new PrefrontalCortex(pfcDesc, memory, chat, new BrainBase[] { motor });
-
-            var toolNames = ExtractToolNames(pfc.Agent);
-            Assert.That(toolNames, Has.Member("__brain_call_motor_cortex_claude_code"),
-                "BrainId 'motor-cortex.claude-code' 应映射到 '__brain_call_motor_cortex_claude_code'");
-        }
-
-        // ===== (3) handler 投递到子脑区 + 返回 Summary =====
-
-        [Test]
-        public async Task Brain_call_handler_dispatches_to_callable_InvokeAsync_and_returns_summary()
-        {
-            var memory = new InMemoryFakeMemoryService();
-            var motorChat = new FakeChatClient("motor-says-hello");
-            var pfcChat = new FakeChatClient("not-used-here");
-            var callback = new FakePrefrontalCallback();
-
-            var motorDesc = BuildStandardDescriptor(
-                "motor-cortex.native", "motor", StandardBrainKind.NativeMotorCortex);
-            var motor = new NativeMotorCortex(motorDesc, memory, motorChat, callback);
-
-            var pfcDesc = BuildPrefrontalDescriptor();
-            var pfc = new PrefrontalCortex(pfcDesc, memory, pfcChat, new BrainBase[] { motor });
-
-            var fn = ExtractTools(pfc.Agent)
-                .OfType<AIFunction>()
-                .Single(f => f.Name == "__brain_call_motor_cortex_native");
-
-            // 调用 AIFunction handler——绕过 LLM 闭环，直接验证「下发到子脑区」语义。
-            var args = new Dictionary<string, object>
-            {
-                ["intent"] = "请帮我建文件",
-                ["structured_input"] = null,
-                ["context"] = null,
-            };
-            var result = await fn.InvokeAsync(new AIFunctionArguments(args), CancellationToken.None);
-
-            // result.ToString() 应等于子脑区 outcome.Summary（FakeChatClient 固定返回值）。
-            string text = result?.ToString();
-            Assert.That(text, Is.EqualTo("motor-says-hello"),
-                "handler 应把 callable.InvokeAsync 的 Summary 直返给 LLM 作 ToolMessage。");
-
-            Assert.That(motorChat.CallCount, Is.GreaterThanOrEqualTo(1),
-                "子脑区 (NativeMotorCortex) 的 IChatClient 应被驱动至少一次。");
-        }
-
-        // ===== (4) descriptor.Kind 不对 → throw =====
+        // ===== (1) descriptor.Kind 不对 → throw =====
 
         [Test]
         public void PrefrontalCortex_rejects_descriptor_with_wrong_kind()
         {
             var memory = new InMemoryFakeMemoryService();
-            var chat = new FakeChatClient("ok");
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
 
             // descriptor.Kind = ParietalLobe 而非 PrefrontalCortex——构造期 throw。
             var wrong = new StandardBrainDescriptor(
@@ -139,49 +56,244 @@ namespace CBIM.AgentSystem.Brain.Tests
             };
 
             Assert.Throws<InvalidOperationException>(
-                () => new PrefrontalCortex(wrong, memory, chat, Array.Empty<BrainBase>()),
+                () => new PrefrontalCortex(
+                    wrong, memory, neuron,
+                    callback: null,
+                    callableBrains: Array.Empty<BrainBase>(),
+                    brainRegistry: brainRegistry,
+                    instanceId: "inst-1"),
                 "PrefrontalCortex 构造期要求 descriptor.Kind=PrefrontalCortex。");
         }
 
-        // ===== (5) 主脑回调恒为 null =====
+        // ===== (2) descriptor.IsPrefrontal=false → throw =====
 
         [Test]
-        public void PrefrontalCortex_callback_is_null_by_design()
+        public void PrefrontalCortex_rejects_descriptor_with_IsPrefrontal_false()
         {
             var memory = new InMemoryFakeMemoryService();
-            var chat = new FakeChatClient("ok");
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
 
+            // Kind 对但 IsPrefrontal=false——构造期 throw。
+            var wrong = new StandardBrainDescriptor(
+                brainId: "prefrontal-cortex",
+                role: "prefrontal",
+                soul: "soul",
+                kind: StandardBrainKind.PrefrontalCortex,
+                capability: BuildStubCapability())
+            {
+                IsPrefrontal = false,
+            };
+
+            Assert.Throws<InvalidOperationException>(
+                () => new PrefrontalCortex(
+                    wrong, memory, neuron,
+                    callback: null,
+                    callableBrains: Array.Empty<BrainBase>(),
+                    brainRegistry: brainRegistry,
+                    instanceId: "inst-1"),
+                "PrefrontalCortex 构造期要求 descriptor.IsPrefrontal=true。");
+        }
+
+        // ===== (3) 空白 instanceId → throw =====
+
+        [Test]
+        public void PrefrontalCortex_rejects_blank_instanceId()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
             var pfcDesc = BuildPrefrontalDescriptor();
-            var pfc = new PrefrontalCortex(pfcDesc, memory, chat, Array.Empty<BrainBase>());
 
-            // PrefrontalCallback 是 protected——用反射验证「主脑自己不回报自己」。
+            Assert.Throws<ArgumentException>(
+                () => new PrefrontalCortex(
+                    pfcDesc, memory, neuron,
+                    callback: null,
+                    callableBrains: Array.Empty<BrainBase>(),
+                    brainRegistry: brainRegistry,
+                    instanceId: "   "),
+                "空白 instanceId 必须 throw——FlowGraph 路径 JSON 落盘必需。");
+        }
+
+        // ===== (4) PrefrontalCallback 恒为 null（即使调用方传非 null 也覆盖为 null） =====
+
+        [Test]
+        public void PrefrontalCortex_PrefrontalCallback_is_always_null_by_design()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
+            var pfcDesc = BuildPrefrontalDescriptor();
+
+            // 故意传一个非 null callback——构造器内部应强制为 null。
+            var pfc = new PrefrontalCortex(
+                pfcDesc, memory, neuron,
+                callback: new FakePrefrontalCallback(),
+                callableBrains: Array.Empty<BrainBase>(),
+                brainRegistry: brainRegistry,
+                instanceId: "inst-1");
+
+            // PrefrontalCallback 是 protected——反射验证「主脑自己不回报自己」。
             var prop = typeof(BrainBase).GetProperty("PrefrontalCallback",
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
             Assert.That(prop, Is.Not.Null, "未找到 BrainBase.PrefrontalCallback——内部不变量违反。");
 
-            var value = prop.GetValue(pfc);
+            var value = prop!.GetValue(pfc);
             Assert.That(value, Is.Null,
                 "PrefrontalCortex.PrefrontalCallback 必须为 null——「主脑不回报自己」铁律。");
         }
 
-        // ===== (6) CallableBrains 不含 PrefrontalCortex 自身 =====
+        // ===== (5) CallableBrains 不含 PrefrontalCortex 自身 =====
 
         [Test]
-        public void PrefrontalCortex_does_not_register_itself_in_CallableBrains()
+        public void PrefrontalCortex_does_not_allow_PrefrontalCortex_type_in_CallableBrains()
         {
             var memory = new InMemoryFakeMemoryService();
-            var chat = new FakeChatClient("ok");
-            var callback = new FakePrefrontalCallback();
+            var neuron = new StubNeuron("prefrontal-cortex-other", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
 
             // 准备一个外部「假主脑」以模拟「错误地把 Prefrontal 类型脑区放进 CallableBrains」。
             var otherPfcDesc = BuildPrefrontalDescriptor("prefrontal-cortex-other");
-            var otherPfc = new PrefrontalCortex(otherPfcDesc, memory, chat, Array.Empty<BrainBase>());
+            var otherPfc = new PrefrontalCortex(
+                otherPfcDesc, memory, neuron,
+                callback: null,
+                callableBrains: Array.Empty<BrainBase>(),
+                brainRegistry: new InMemoryBrainRegistry(),
+                instanceId: "inst-other");
 
             var pfcDesc = BuildPrefrontalDescriptor();
+            var mainNeuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
 
             Assert.Throws<InvalidOperationException>(() =>
-                new PrefrontalCortex(pfcDesc, memory, chat, new BrainBase[] { otherPfc }),
+                new PrefrontalCortex(
+                    pfcDesc, memory, mainNeuron,
+                    callback: null,
+                    callableBrains: new BrainBase[] { otherPfc },
+                    brainRegistry: brainRegistry,
+                    instanceId: "inst-1"),
                 "CallableBrains 不允许包含 PrefrontalCortex 类型脑区——「主脑唯一」铁律。");
+        }
+
+        // ===== (6) CallableBrains null 项 → throw =====
+
+        [Test]
+        public void PrefrontalCortex_rejects_null_item_in_CallableBrains()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
+            var pfcDesc = BuildPrefrontalDescriptor();
+
+            Assert.Throws<ArgumentException>(() =>
+                new PrefrontalCortex(
+                    pfcDesc, memory, neuron,
+                    callback: null,
+                    callableBrains: new BrainBase?[] { null }!,
+                    brainRegistry: brainRegistry,
+                    instanceId: "inst-1"),
+                "CallableBrains 含 null 项必须 throw。");
+        }
+
+        // ===== (7) CallableBrains 重复 BrainId → throw =====
+
+        [Test]
+        public void PrefrontalCortex_rejects_duplicate_BrainId_in_CallableBrains()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var callback = new FakePrefrontalCallback();
+            var pfcDesc = BuildPrefrontalDescriptor();
+            var brainRegistry = new InMemoryBrainRegistry();
+
+            var parietalDesc = BuildStandardDescriptor(
+                "parietal-lobe", "parietal", StandardBrainKind.ParietalLobe);
+            var pNeuron1 = new StubNeuron("parietal-lobe", BuildOkOutcome());
+            var pNeuron2 = new StubNeuron("parietal-lobe", BuildOkOutcome());
+
+            var p1 = new ParietalLobe(parietalDesc, memory, pNeuron1, callback);
+            var p2 = new ParietalLobe(parietalDesc, memory, pNeuron2, callback);
+
+            var mainNeuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+
+            Assert.Throws<InvalidOperationException>(() =>
+                new PrefrontalCortex(
+                    pfcDesc, memory, mainNeuron,
+                    callback: null,
+                    callableBrains: new BrainBase[] { p1, p2 },
+                    brainRegistry: brainRegistry,
+                    instanceId: "inst-1"),
+                "CallableBrains 中 BrainId 重复必须 throw——「BrainId 唯一」铁律。");
+        }
+
+        // ===== (8) CallableBrains 浅复制——构造后外部 list 修改不影响内部 =====
+
+        [Test]
+        public void PrefrontalCortex_copies_CallableBrains_defensively()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var callback = new FakePrefrontalCallback();
+            var brainRegistry = new InMemoryBrainRegistry();
+            var pfcDesc = BuildPrefrontalDescriptor();
+            var mainNeuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+
+            var parietalDesc = BuildStandardDescriptor(
+                "parietal-lobe", "parietal", StandardBrainKind.ParietalLobe);
+            var pNeuron = new StubNeuron("parietal-lobe", BuildOkOutcome());
+            var p1 = new ParietalLobe(parietalDesc, memory, pNeuron, callback);
+
+            var external = new List<BrainBase> { p1 };
+            var pfc = new PrefrontalCortex(
+                pfcDesc, memory, mainNeuron,
+                callback: null,
+                callableBrains: external,
+                brainRegistry: brainRegistry,
+                instanceId: "inst-1");
+
+            external.Clear();  // 修改外部 list
+
+            Assert.That(pfc.CallableBrains.Count, Is.EqualTo(1),
+                "PrefrontalCortex 必须对 CallableBrains 做浅复制——构造后外部修改不影响内部状态。");
+        }
+
+        // ===== (9) ActiveBuilder 默认为 null =====
+
+        [Test]
+        public void PrefrontalCortex_ActiveBuilder_is_null_outside_InvokeAsync()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
+            var pfcDesc = BuildPrefrontalDescriptor();
+
+            var pfc = new PrefrontalCortex(
+                pfcDesc, memory, neuron,
+                callback: null,
+                callableBrains: Array.Empty<BrainBase>(),
+                brainRegistry: brainRegistry,
+                instanceId: "inst-1");
+
+            Assert.That(pfc.ActiveBuilder, Is.Null,
+                "ActiveBuilder 在 InvokeAsync 窗口外应为 null——CompilerToolFactory 闭包必须读到 null 时抛错。");
+        }
+
+        // ===== (10) Aggregation 默认值 =====
+
+        [Test]
+        public void PrefrontalCortex_Aggregation_defaults_to_SummarizeBeforeReturn()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var neuron = new StubNeuron("prefrontal-cortex", BuildOkOutcome());
+            var brainRegistry = new InMemoryBrainRegistry();
+            var pfcDesc = BuildPrefrontalDescriptor();
+
+            var pfc = new PrefrontalCortex(
+                pfcDesc, memory, neuron,
+                callback: null,
+                callableBrains: Array.Empty<BrainBase>(),
+                brainRegistry: brainRegistry,
+                instanceId: "inst-1");
+
+            Assert.That(pfc.Aggregation, Is.EqualTo(PrefrontalAggregationStrategy.SummarizeBeforeReturn),
+                "Aggregation 默认值应为 SummarizeBeforeReturn（v1 仅留枚举与字段）。");
         }
 
         // ===== helpers =====
@@ -219,24 +331,14 @@ namespace CBIM.AgentSystem.Brain.Tests
                 identity: "stub identity");
         }
 
-        /// <summary>
-        /// 从 msai AIAgent 上抽出 ChatOptions.Tools——走 <see cref="AIAgent.GetService(System.Type, object)"/>
-        /// 拿 ChatOptions（ChatClientAgent.GetService 已为 typeof(ChatOptions) 派出 _agentOptions.ChatOptions）。
-        /// </summary>
-        private static IList<AITool> ExtractTools(AIAgent agent)
+        private static BrainOutcome BuildOkOutcome()
         {
-            var chatOpts = agent.GetService(typeof(ChatOptions)) as ChatOptions;
-            Assert.That(chatOpts, Is.Not.Null,
-                "AIAgent.GetService(typeof(ChatOptions)) 应返非 null——PrefrontalCortex 装配 Tools 时已塞入 ChatOptions。");
-            return chatOpts.Tools ?? new List<AITool>();
-        }
-
-        private static IReadOnlyList<string> ExtractToolNames(AIAgent agent)
-        {
-            return ExtractTools(agent)
-                .OfType<AIFunction>()
-                .Select(f => f.Name)
-                .ToList();
+            return new BrainOutcome(
+                Summary: "ok",
+                StructuredOutput: null,
+                SideEffects: Array.Empty<SideEffect>(),
+                IsError: false,
+                ErrorMessage: null);
         }
     }
 }

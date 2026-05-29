@@ -11,6 +11,7 @@ using CBIM.AgentSystem.Brain;
 using CBIM.AgentSystem.Brain.ClaudeCode;
 using CBIM.AgentSystem.Kernel.Neuron;
 using CBIM.AgentSystem.Kernel.Synapse;
+using CBIM.AgentSystem.Kernel.Synapse.Compiler;
 using CBIM.Memory;
 using CBIM.Memory.Bridge;
 using CBIM.Storage;
@@ -255,15 +256,38 @@ namespace CBIM.AgentSystem
                     "BrainConfig 校验通过但未找到 Prefrontal 描述符——内部不变量违反。");
 
             // ─── Phase 2：主脑最后装（需 callableBrains 已就绪） ────────────────────
-            // SynapseToolFactory.Build 产出 __brain_call_* AITool 集——主脑通过这些工具调度子脑区。
-            // K3 铁律：跨脑区机制只在 Synapse 一处生产。
+            // 双工厂并排：
+            //   - SynapseToolFactory.Build 产 __brain_call_* AITool 集——退化路径用（K3 铁律）。
+            //   - CompilerToolFactory.Build 产 __circuit_* AITool 集——FlowGraph 编图路径用（T14）。
+            //   两者拼到主脑 NeuronAssemblyContext.StandardAITools（DNA Brain.PrefrontalCortex
+            //   FlowGraph 重定义节伪代码：synapseTools.Concat(compilerTools)）；
+            //   SynapseAITools 字段在 T14 后退化为「为兼容老 Neuron 装配路径保留」位。
+            //
+            // CompilerToolFactory 接受 Func<NeuralCircuitBuilder> 委托——因 builder 是 per-invocation
+            // 的（PrefrontalCortex.InvokeAsync 每轮 new），装配期 builder 还不存在；委托捕获
+            // 「主脑实例字段读取」闭包，工具每次调用时读最新值。装配顺序约束：committee 必须
+            // 先声明 prefrontal 局部变量持后续 new 的实例，闭包才能在调用时拿到。
+            PrefrontalCortex? prefrontalRef = null;
+            Func<NeuralCircuitBuilder> activeBuilderProvider = () =>
+            {
+                var current = prefrontalRef?.ActiveBuilder;
+                if (current == null)
+                    throw new InvalidOperationException(
+                        "__circuit_* 工具在 PrefrontalCortex.InvokeAsync 窗口外被调——契约违反。");
+                return current;
+            };
+
             IReadOnlyList<AITool> brainCallTools = SynapseToolFactory.Build(brains);
+            IReadOnlyList<AITool> compilerTools = CompilerToolFactory.Build(activeBuilderProvider, brains);
+            var combinedMainBrainTools = new List<AITool>(brainCallTools.Count + compilerTools.Count);
+            combinedMainBrainTools.AddRange(brainCallTools);
+            combinedMainBrainTools.AddRange(compilerTools);
 
             var prefrontalCtx = new NeuronAssemblyContext(
                 ChatClient: _chatClient,
                 Memory: memory,
-                StandardAITools: Array.Empty<AITool>(),   // v1 主脑不直接挂 stdTools
-                SynapseAITools: brainCallTools,            // 跨脑区调度工具
+                StandardAITools: combinedMainBrainTools,   // T14：__brain_call_* + __circuit_* 合并
+                SynapseAITools: Array.Empty<AITool>(),     // T14：原 SynapseAITools 字段退化为预留位
                 ExternalAdapter: null);                    // 主脑必 Native，外部 adapter 必 null
             INeuron prefrontalNeuron = NeuronFactory.Create(prefrontalDesc, prefrontalCtx);
 
@@ -273,7 +297,10 @@ namespace CBIM.AgentSystem
                 neuron: prefrontalNeuron,
                 callback: null,                              // 主脑回调恒为 null（自己不回报自己）
                 callableBrains: brains,
-                brainRegistry: brainRegistry);
+                brainRegistry: brainRegistry,
+                instanceId: instanceId,
+                projectRoot: null);                          // null = 进程 cwd（FileBackend 同一惯例）
+            prefrontalRef = prefrontal;                      // 闭包此刻看到非 null 实例
             brainRegistry.RegisterBrain(prefrontal);
             brains.Add(prefrontal);
 

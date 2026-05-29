@@ -10,6 +10,7 @@ using NUnit.Framework;
 using CBIM.AgentSystem;
 using CBIM.AgentSystem.Brain;
 using CBIM.AgentSystem.Brain.ClaudeCode;
+using CBIM.AgentSystem.Kernel.Neuron;
 using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 
@@ -249,6 +250,11 @@ namespace CBIM.AgentSystem.Tests
         /// <summary>
         /// 不通过 AgentSystem.OpenInstanceAsync 装配——直接 new 出 Agent，
         /// 以便注入「带 disposal log 的 mcpHandle」用于验证释放序列。
+        ///
+        /// <para>T4 后：Brain 子类不再直接吃 IChatClient——通过 <see cref="NeuronFactory.Create"/>
+        /// 构造 <see cref="INeuron"/> 包装 IChatClient 后再喂给 Brain。这样既保持与
+        /// AgentSystem.OpenInstanceAsync 实装路径一致，又能拿到非 null 的 UnderlyingAgent
+        /// 供 Agent.AIAgent 字段校验通过。</para>
         /// </summary>
         private static async Task<Agent> BuildAgentForDisposeOrderAsync(
             IChatClient chat,
@@ -256,6 +262,7 @@ namespace CBIM.AgentSystem.Tests
             IAsyncDisposable mcpHandle)
         {
             var callback = new FakePrefrontalCallback();
+            var instanceId = Guid.NewGuid().ToString();
 
             // 一份 NativeMotor 子脑区
             var motorDesc = new StandardBrainDescriptor(
@@ -265,7 +272,8 @@ namespace CBIM.AgentSystem.Tests
                 kind: StandardBrainKind.NativeMotorCortex,
                 capability: BuildStubCapability())
             { IsPrefrontal = false };
-            var motor = new NativeMotorCortex(motorDesc, memory, chat, callback);
+            INeuron motorNeuron = NeuronFactory.Create(motorDesc, BuildNeuronCtx(chat, memory));
+            var motor = new NativeMotorCortex(motorDesc, memory, motorNeuron, callback);
 
             // 一份 Parietal
             var parietalDesc = new StandardBrainDescriptor(
@@ -274,7 +282,8 @@ namespace CBIM.AgentSystem.Tests
                 soul: "parietal-soul",
                 kind: StandardBrainKind.ParietalLobe,
                 capability: BuildStubCapability());
-            var parietal = new ParietalLobe(parietalDesc, memory, chat, callback);
+            INeuron parietalNeuron = NeuronFactory.Create(parietalDesc, BuildNeuronCtx(chat, memory));
+            var parietal = new ParietalLobe(parietalDesc, memory, parietalNeuron, callback);
 
             // Prefrontal
             var pfcDesc = new StandardBrainDescriptor(
@@ -284,8 +293,15 @@ namespace CBIM.AgentSystem.Tests
                 kind: StandardBrainKind.PrefrontalCortex,
                 capability: BuildStubCapability())
             { IsPrefrontal = true };
+            INeuron pfcNeuron = NeuronFactory.Create(pfcDesc, BuildNeuronCtx(chat, memory));
             var pfc = new PrefrontalCortex(
-                pfcDesc, memory, chat, new BrainBase[] { motor, parietal });
+                descriptor: pfcDesc,
+                memory: memory,
+                neuron: pfcNeuron,
+                callback: null,
+                callableBrains: new BrainBase[] { motor, parietal },
+                brainRegistry: new InMemoryBrainRegistry(),
+                instanceId: instanceId);
 
             // Session from pfc.Agent
             var session = await pfc.Agent.CreateSessionAsync();
@@ -297,7 +313,7 @@ namespace CBIM.AgentSystem.Tests
 
             var brains = new BrainBase[] { motor, parietal, pfc };
             var agent = new Agent(
-                instanceId: Guid.NewGuid().ToString(),
+                instanceId: instanceId,
                 description: new AgentDescription("dispose-test", "Dispose Test", "soul", "identity"),
                 brains: brains,
                 prefrontal: pfc,
@@ -308,6 +324,19 @@ namespace CBIM.AgentSystem.Tests
                 memory: memory);
 
             return agent;
+        }
+
+        /// <summary>
+        /// 构造一个空工具集的 NeuronAssemblyContext——本测试不验工具装配，仅验脑区编织 + 释放序列。
+        /// </summary>
+        private static NeuronAssemblyContext BuildNeuronCtx(IChatClient chat, IMemoryService memory)
+        {
+            return new NeuronAssemblyContext(
+                ChatClient: chat,
+                Memory: memory,
+                StandardAITools: Array.Empty<Microsoft.Extensions.AI.AITool>(),
+                SynapseAITools: Array.Empty<Microsoft.Extensions.AI.AITool>(),
+                ExternalAdapter: null);
         }
 
         private static AgentDescription BuildStubCapability()

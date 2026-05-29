@@ -4,118 +4,48 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
 using NUnit.Framework;
 using CBIM.AgentSystem;
 using CBIM.AgentSystem.Brain;
+using CBIM.AgentSystem.Kernel.Neuron;
 using CBIM.AgentSystem.Kernel.Synapse;
 using CBIM.Memory;
 
 namespace CBIM.AgentSystem.Brain.Tests
 {
     /// <summary>
-    /// <see cref="BrainBase"/> 单元测试。
+    /// <see cref="BrainBase"/> 单元测试——T4 后契约。
     ///
     /// 覆盖契约要点：
-    ///   - <see cref="StandardBrainDescriptor"/> 路径下基类装配出 msai <see cref="AIAgent"/>（Name/Description/Instructions 透传）
-    ///   - <see cref="ExternalMotorCortexDescriptor"/> 路径下 <see cref="BrainBase.Agent"/> 保持 null（外部引擎自带 LLM）
-    ///   - null memory / 空白 brainId 构造期立刻 throw（fail-fast）
-    ///   - 默认 <see cref="BrainBase.InvokeAsync"/> 把 intent 包成 user ChatMessage 投给 Agent.RunAsync，回译为 BrainOutcome
-    ///   - <see cref="BrainBase.DisposeAsync"/> 幂等（由各具体子类的 default 实现承接）
+    ///   - 基类构造期不再装配 msai——LLM 出口已下沉到 <see cref="INeuron"/>（K2）
+    ///   - <see cref="BrainBase.Agent"/> 透传 <c>Neuron.UnderlyingAgent</c>（msai 路径非 null / external 路径 null）
+    ///   - null neuron / null memory / 空白 brainId 构造期立刻 throw（fail-fast）
+    ///   - 默认 <see cref="BrainBase.InvokeAsync"/> 透传给 <see cref="INeuron.InvokeAsync"/>
+    ///   - <see cref="BrainBase.DisposeAsync"/> 透传给 Neuron + 幂等
+    ///   - 「主脑回调恒为 null」铁律由 <see cref="PrefrontalCortex"/> 自身验证（见 PrefrontalCortexTests）
     ///
-    /// 不启 subprocess / 不调真 LLM；用 <see cref="FakeChatClient"/> + 进程内 <see cref="ParietalLobe"/> 走标准路径，
-    /// <see cref="StubExternalMotorCortex"/> 走 External 路径。
+    /// 用 <see cref="StubNeuron"/> 替代真实 Neuron——本套件不验 LLM 闭环，
+    /// 验证 BrainBase 抽象层和 Neuron 的契约对接。
     /// </summary>
     [TestFixture]
     public sealed class BrainBaseTests
     {
-        // ===== (1) StandardBrainDescriptor 路径下 msai 装配 =====
+        // ===== (1) 默认 InvokeAsync 透传给 Neuron =====
 
         [Test]
-        public void BrainBase_constructor_assembles_msai_agent_for_StandardBrainDescriptor()
-        {
-            var (descriptor, memory, callback) = BuildStandardSetup();
-            var chat = new FakeChatClient("ok");
-
-            var brain = new ParietalLobe(descriptor, memory, chat, callback);
-
-            Assert.That(brain.Agent, Is.Not.Null,
-                "StandardBrainDescriptor 路径下基类构造期应装配出 msai AIAgent。");
-            Assert.That(brain.Agent, Is.InstanceOf<AIAgent>());
-            Assert.That(brain.Agent.Name, Is.EqualTo(descriptor.Capability.Name),
-                "Agent.Name 应等于 descriptor.Capability.Name");
-            Assert.That(brain.Agent.Description, Is.EqualTo(descriptor.Capability.Identity),
-                "Agent.Description 应等于 descriptor.Capability.Identity");
-            Assert.That(brain.BrainId, Is.EqualTo(descriptor.BrainId));
-            Assert.That(brain.Memory, Is.SameAs(memory),
-                "Memory 应原样持有——「同一具身一份记忆」铁律。");
-        }
-
-        // ===== (2) ExternalMotorCortexDescriptor 路径下 Agent 保持 null =====
-
-        [Test]
-        public async Task BrainBase_constructor_skips_agent_assembly_for_ExternalMotorCortexDescriptor()
+        public async Task BrainBase_InvokeAsync_delegates_to_Neuron()
         {
             var memory = new InMemoryFakeMemoryService();
             var callback = new FakePrefrontalCallback();
-            var ext = new ExternalMotorCortexDescriptor(
-                brainId: "motor-cortex.stub",
-                soul: "stub external",
-                engineKind: ExternalEngineKind.Custom,
-                engineEndpoint: "no-op");
+            var neuron = new StubNeuron("parietal-lobe", new BrainOutcome(
+                Summary: "stub-says-ok",
+                StructuredOutput: null,
+                SideEffects: Array.Empty<SideEffect>(),
+                IsError: false,
+                ErrorMessage: null));
 
-            var adapter = new FakeExternalEngineAdapter();
-            var brain = new StubExternalMotorCortex(ext, memory, adapter, callback);
-
-            try
-            {
-                Assert.That(brain.Agent, Is.Null,
-                    "ExternalMotorCortexDescriptor 路径下基类不装配 msai——Agent 字段应保持 null。");
-                // chatClient 也传 null 是有效的（基类签名允许）。
-            }
-            finally
-            {
-                await brain.DisposeAsync();
-            }
-        }
-
-        // ===== (3) null memory 构造期 throw =====
-
-        [Test]
-        public void BrainBase_constructor_rejects_null_memory()
-        {
-            var (descriptor, _, callback) = BuildStandardSetup();
-            var chat = new FakeChatClient("ok");
-
-            Assert.Throws<ArgumentNullException>(
-                () => new ParietalLobe(descriptor, memory: null, chat, callback),
-                "「同一具身一份记忆」铁律由基类构造期强制——null memory 必须立刻 throw。");
-        }
-
-        // ===== (4) 空白 brainId 构造期 throw =====
-
-        [Test]
-        public void BrainBase_constructor_rejects_blank_brainId()
-        {
-            // descriptor.BrainId 空白时 BrainDescriptor 基类先 throw ArgumentException——
-            // 这是 BrainBase 不能拿到空白 brainId 的物理保证（前哨校验）。
-            Assert.Throws<ArgumentException>(() => new StandardBrainDescriptor(
-                brainId: "   ",
-                role: "parietal",
-                soul: "ok",
-                kind: StandardBrainKind.ParietalLobe,
-                capability: BuildStubCapability()));
-        }
-
-        // ===== (5) 默认 InvokeAsync 走 user ChatMessage 路径 =====
-
-        [Test]
-        public async Task BrainBase_InvokeAsync_wraps_invocation_into_chat_message_and_returns_outcome()
-        {
-            var (descriptor, memory, callback) = BuildStandardSetup();
-            var chat = new FakeChatClient("回答：ok");
-
-            var brain = new ParietalLobe(descriptor, memory, chat, callback);
+            var descriptor = BuildParietalDescriptor();
+            var brain = new ParietalLobe(descriptor, memory, neuron, callback);
 
             var invocation = new BrainInvocation(
                 CorrelationId: "corr-1",
@@ -125,57 +55,108 @@ namespace CBIM.AgentSystem.Brain.Tests
 
             var outcome = await brain.InvokeAsync(invocation, CancellationToken.None);
 
-            Assert.That(outcome, Is.Not.Null);
-            Assert.That(outcome.IsError, Is.False);
-            Assert.That(outcome.Summary, Is.EqualTo("回答：ok"),
-                "Summary 应取 AgentResponse.Text（即 FakeChatClient 的固定回复）。");
-            Assert.That(outcome.SideEffects, Is.Not.Null.And.Empty,
-                "默认实现 SideEffects 为空列表——MotorCortex 子类才填实际副作用。");
-            Assert.That(chat.LastMessages, Is.Not.Null.And.Not.Empty,
-                "应至少投递一条 ChatMessage 到 IChatClient。");
-
-            // 找一条用户角色的消息携带 invocation.Intent。
-            bool foundUserIntent = false;
-            foreach (var m in chat.LastMessages)
-            {
-                if (m.Role == ChatRole.User && (m.Text ?? string.Empty).Contains("设计 Foo 模块"))
-                {
-                    foundUserIntent = true;
-                    break;
-                }
-            }
-            Assert.That(foundUserIntent, Is.True,
-                "BrainInvocation.Intent 应作为 user ChatMessage 投递给 IChatClient。");
+            Assert.That(neuron.CallCount, Is.EqualTo(1),
+                "BrainBase.InvokeAsync 默认实现应透传 1 次到 Neuron。");
+            Assert.That(neuron.LastInvocation, Is.SameAs(invocation),
+                "BrainBase.InvokeAsync 应把 BrainInvocation 原样投给 Neuron。");
+            Assert.That(outcome.Summary, Is.EqualTo("stub-says-ok"),
+                "BrainOutcome 应原样从 Neuron 返出。");
         }
 
-        // ===== (6) DisposeAsync 幂等 =====
+        // ===== (2) Agent 透传 Neuron.UnderlyingAgent =====
 
         [Test]
-        public async Task BrainBase_DisposeAsync_is_idempotent()
+        public void BrainBase_Agent_property_returns_Neuron_UnderlyingAgent()
         {
-            var (descriptor, memory, callback) = BuildStandardSetup();
-            var chat = new FakeChatClient("ok");
-            var brain = new ParietalLobe(descriptor, memory, chat, callback);
+            var memory = new InMemoryFakeMemoryService();
+            var callback = new FakePrefrontalCallback();
+
+            // ExternalEngine 路径下 UnderlyingAgent 恒 null。
+            var neuron = new StubNeuron("motor-cortex.fake", BuildOkOutcome());
+            var motorDesc = new ExternalMotorCortexDescriptor(
+                brainId: "motor-cortex.fake",
+                soul: "fake external",
+                engineKind: ExternalEngineKind.Custom,
+                engineEndpoint: "no-op");
+            var brain = new StubExternalMotorCortex(motorDesc, memory, neuron, callback);
+
+            Assert.That(brain.Agent, Is.Null,
+                "ExternalEngine 路径 Neuron.UnderlyingAgent 恒为 null；BrainBase.Agent 应透传 null。");
+        }
+
+        // ===== (3) null neuron 构造期 throw =====
+
+        [Test]
+        public void BrainBase_constructor_rejects_null_neuron()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var callback = new FakePrefrontalCallback();
+            var descriptor = BuildParietalDescriptor();
+
+            Assert.Throws<ArgumentNullException>(
+                () => new ParietalLobe(descriptor, memory, neuron: null, callback),
+                "K2 铁律：null neuron 构造期必须立刻 throw。");
+        }
+
+        // ===== (4) null memory 构造期 throw =====
+
+        [Test]
+        public void BrainBase_constructor_rejects_null_memory()
+        {
+            var callback = new FakePrefrontalCallback();
+            var neuron = new StubNeuron("parietal-lobe", BuildOkOutcome());
+            var descriptor = BuildParietalDescriptor();
+
+            Assert.Throws<ArgumentNullException>(
+                () => new ParietalLobe(descriptor, memory: null, neuron, callback),
+                "「同一具身一份记忆」铁律由基类构造期强制——null memory 必须立刻 throw。");
+        }
+
+        // ===== (5) 空白 brainId 描述符层就拦截 =====
+
+        [Test]
+        public void BrainBase_constructor_rejects_blank_brainId_via_descriptor()
+        {
+            // descriptor.BrainId 空白时 BrainDescriptor 基类先 throw ArgumentException——
+            // 物理保证 BrainBase 拿不到空白 brainId。
+            Assert.Throws<ArgumentException>(() => new StandardBrainDescriptor(
+                brainId: "   ",
+                role: "parietal",
+                soul: "ok",
+                kind: StandardBrainKind.ParietalLobe,
+                capability: BuildStubCapability()));
+        }
+
+        // ===== (6) DisposeAsync 透传给 Neuron + 幂等 =====
+
+        [Test]
+        public async Task BrainBase_DisposeAsync_propagates_to_Neuron_and_is_idempotent()
+        {
+            var memory = new InMemoryFakeMemoryService();
+            var callback = new FakePrefrontalCallback();
+            var neuron = new StubNeuron("parietal-lobe", BuildOkOutcome());
+            var descriptor = BuildParietalDescriptor();
+            var brain = new ParietalLobe(descriptor, memory, neuron, callback);
 
             await brain.DisposeAsync();
             await brain.DisposeAsync();
             await brain.DisposeAsync();
-            Assert.Pass("多次 DisposeAsync 不抛即视为幂等。");
+
+            Assert.That(neuron.DisposeCallCount, Is.GreaterThanOrEqualTo(1),
+                "BrainBase.DisposeAsync 必须透传到 Neuron.DisposeAsync。");
+            Assert.Pass("多次 DisposeAsync 不抛即视为幂等（具体次数由 Neuron 实现决定）。");
         }
 
         // ===== helpers =====
 
-        private static (StandardBrainDescriptor desc, IMemoryService memory, IPrefrontalCallback callback) BuildStandardSetup()
+        private static StandardBrainDescriptor BuildParietalDescriptor()
         {
-            var descriptor = new StandardBrainDescriptor(
+            return new StandardBrainDescriptor(
                 brainId: "parietal-lobe",
                 role: "parietal",
                 soul: "顶叶魂",
                 kind: StandardBrainKind.ParietalLobe,
                 capability: BuildStubCapability());
-            var memory = new InMemoryFakeMemoryService();
-            var callback = new FakePrefrontalCallback();
-            return (descriptor, memory, callback);
         }
 
         private static AgentDescription BuildStubCapability()
@@ -187,20 +168,27 @@ namespace CBIM.AgentSystem.Brain.Tests
                 identity: "stub identity for tests");
         }
 
-        // ===== fakes =====
+        private static BrainOutcome BuildOkOutcome()
+        {
+            return new BrainOutcome(
+                Summary: "ok",
+                StructuredOutput: null,
+                SideEffects: Array.Empty<SideEffect>(),
+                IsError: false,
+                ErrorMessage: null);
+        }
 
         /// <summary>
-        /// <see cref="ExternalMotorCortex"/> 的极小 stub——用于走 ExternalMotorCortexDescriptor
-        /// 路径（避免 ClaudeCodeMotorCortex 触发真实 CLI 探测）。
+        /// <see cref="ExternalMotorCortex"/> 极小 stub——避免 ClaudeCodeMotorCortex 触发真实 CLI 探测。
         /// </summary>
         private sealed class StubExternalMotorCortex : ExternalMotorCortex
         {
             public StubExternalMotorCortex(
                 ExternalMotorCortexDescriptor descriptor,
                 IMemoryService memory,
-                IExternalEngineAdapter adapter,
+                INeuron neuron,
                 IPrefrontalCallback callback)
-                : base(descriptor, memory, adapter, callback)
+                : base(descriptor, memory, neuron, callback)
             {
             }
         }

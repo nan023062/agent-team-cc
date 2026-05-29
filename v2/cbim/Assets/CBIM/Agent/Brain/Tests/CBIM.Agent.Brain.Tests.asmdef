@@ -14,6 +14,7 @@
         "nunit.framework.dll",
         "Microsoft.Agents.AI.dll",
         "Microsoft.Agents.AI.Abstractions.dll",
+        "Microsoft.Agents.AI.Workflows.dll",
         "Microsoft.Extensions.AI.dll",
         "Microsoft.Extensions.AI.Abstractions.dll",
         "Microsoft.Bcl.AsyncInterfaces.dll",

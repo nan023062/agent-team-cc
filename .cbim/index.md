@@ -30,6 +30,8 @@
 - v2/cbim/Assets/CBIM/Agent/Kernel
 - v2/cbim/Assets/CBIM/Agent/Kernel/Neuron
 - v2/cbim/Assets/CBIM/Agent/Kernel/Synapse
+- v2/cbim/Assets/CBIM/Agent/Kernel/Synapse/Compiler
+- v2/cbim/Assets/CBIM/Agent/Kernel/Synapse/Orchestrator
 - v2/cbim/Assets/CBIM/Channel
 - v2/cbim/Assets/CBIM/Mcp
 - v2/cbim/Assets/CBIM/Memory
