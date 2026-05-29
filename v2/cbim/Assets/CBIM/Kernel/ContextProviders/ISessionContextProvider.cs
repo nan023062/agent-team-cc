@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
-using CBIM.Kernel.TaskScheduler;
+using CBIM.TaskScheduler;
 
-namespace CBIM.Kernel.ContextProviders
+namespace CBIM.ContextProviders
 {
     /// <summary>
     /// CBIM 上下文桥之一：读 Task.Who 对应 Agent 实例的 Session 末 N 条事件，拼成

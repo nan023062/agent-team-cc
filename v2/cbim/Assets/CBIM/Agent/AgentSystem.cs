@@ -23,10 +23,10 @@ namespace CBIM.AgentSystem
     /// 其次是 <see cref="AgentDescription.MemoryFactory"/>（per-description 默认）；
     /// 最后落到 <see cref="AgentSystem"/> 的默认工厂（要求构造时注入了 FileBackend）。
     /// </summary>
-    public sealed record OpenInstanceOptions
+    public sealed class OpenInstanceOptions
     {
         /// <summary>触发本次激活的 Task ID。透传给 <see cref="Agent.ActivatedByTaskId"/>。</summary>
-        public string ActivatedByTaskId { get; init; }
+        public string ActivatedByTaskId { get; set; }
 
         /// <summary>
         /// 本次实例的 workspaceRoot（= task.Where）。MCP server 启动 / ExternalMotorCortex
@@ -36,13 +36,13 @@ namespace CBIM.AgentSystem
         ///   <item>若 BrainConfig 含 ExternalMotorCortex 且 ShareMode==McpServer → 必填，否则抛 <see cref="InvalidOperationException"/>。</item>
         /// </list>
         /// </summary>
-        public string TaskWhere { get; init; }
+        public string TaskWhere { get; set; }
 
         /// <summary>
         /// 单次调用覆盖的记忆工厂——优先级高于 <see cref="AgentDescription.MemoryFactory"/>。
         /// 入参为新生成的 instanceId。
         /// </summary>
-        public Func<string, IMemoryService> MemoryFactoryOverride { get; init; }
+        public Func<string, IMemoryService> MemoryFactoryOverride { get; set; }
     }
 
     /// <summary>

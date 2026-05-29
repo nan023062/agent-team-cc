@@ -1,7 +1,7 @@
 using Microsoft.Extensions.AI;
-using CBIM.Kernel.TaskScheduler;
+using CBIM.TaskScheduler;
 
-namespace CBIM.Kernel.ContextProviders
+namespace CBIM.ContextProviders
 {
     /// <summary>
     /// CBIM 上下文桥之一：以 Task.What 为 query 调 <c>IMemoryService.Query</c> 取前 K 条

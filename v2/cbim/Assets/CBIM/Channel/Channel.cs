@@ -123,16 +123,16 @@ namespace CBIM.Channel
                 // 失败路径：发射 [ERROR] 事件 + 返回 IsError=true outcome
                 RaiseOutput("[ERROR] " + ex.Message);
                 return new ChannelOutcome(
-                    ResultText: string.Empty,
-                    IsError: true,
-                    ErrorMessage: ex.Message);
+                    resultText: string.Empty,
+                    isError: true,
+                    errorMessage: ex.Message);
             }
 
             RaiseOutput(resultText);
             return new ChannelOutcome(
-                ResultText: resultText,
-                IsError: false,
-                ErrorMessage: null);
+                resultText: resultText,
+                isError: false,
+                errorMessage: null);
         }
 
         /// <summary>
@@ -145,9 +145,9 @@ namespace CBIM.Channel
             if (handler == null) return;
 
             var ev = new ChannelOutputEvent(
-                ChannelId: ChannelId,
-                Text: text,
-                At: DateTimeOffset.UtcNow);
+                channelId: ChannelId,
+                text: text,
+                at: DateTimeOffset.UtcNow);
 
             foreach (var subscriber in handler.GetInvocationList())
             {

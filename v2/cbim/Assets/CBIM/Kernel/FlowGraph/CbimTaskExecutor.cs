@@ -5,9 +5,9 @@ using System.Threading.Tasks;
 using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
 using CBIM.AgentSystem;
-using CBIM.Kernel.TaskScheduler;
+using CBIM.TaskScheduler;
 
-namespace CBIM.Kernel.FlowGraph
+namespace CBIM.FlowGraph
 {
     /// <summary>
     /// 把一条 CbimTask 转一次 AIAgent.RunAsync 的 Executor。
@@ -45,18 +45,18 @@ namespace CBIM.Kernel.FlowGraph
             string instanceId = task.Who.InstanceId;
 
             TryAppend(instanceId, new UserInputEvent(
-                EventId: Guid.NewGuid().ToString("N"),
-                Timestamp: DateTime.UtcNow,
-                UserMessage: task.What));
+                eventId: Guid.NewGuid().ToString("N"),
+                timestamp: DateTime.UtcNow,
+                userMessage: task.What));
 
             AgentResponse response = await task.Who.AIAgent
                 .RunAsync(task.What, task.Who.Session, options: null, cancellationToken)
                 .ConfigureAwait(false);
 
             TryAppend(instanceId, new OutputEvent(
-                EventId: Guid.NewGuid().ToString("N"),
-                Timestamp: DateTime.UtcNow,
-                OutputText: response?.Text ?? string.Empty));
+                eventId: Guid.NewGuid().ToString("N"),
+                timestamp: DateTime.UtcNow,
+                outputText: response?.Text ?? string.Empty));
 
             return response;
         }

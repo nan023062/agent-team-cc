@@ -23,7 +23,7 @@ namespace CBIM.AgentSystem.Brain
         public string Soul { get; }
 
         /// <summary>本脑区是否必须存在（默认 true · 当前 v1 不消费该字段，预留供 BrainConfig 校验扩展）。</summary>
-        public bool IsRequired { get; init; } = true;
+        public bool IsRequired { get; set; } = true;
 
         protected BrainDescriptor(string brainId, string role, string soul)
         {

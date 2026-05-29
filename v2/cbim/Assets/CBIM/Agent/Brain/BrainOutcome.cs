@@ -13,10 +13,26 @@ namespace CBIM.AgentSystem.Brain
     /// <param name="SideEffects">副作用清单（MotorCortex 类必填；其他脑区通常为空 · 不为 null）。</param>
     /// <param name="IsError">是否错误结果。</param>
     /// <param name="ErrorMessage"><see cref="IsError"/>=true 时的错误说明。</param>
-    public sealed record BrainOutcome(
-        string Summary,
-        object? StructuredOutput,
-        IReadOnlyList<SideEffect> SideEffects,
-        bool IsError,
-        string? ErrorMessage);
+    public sealed class BrainOutcome
+    {
+        public string Summary { get; }
+        public object? StructuredOutput { get; }
+        public IReadOnlyList<SideEffect> SideEffects { get; }
+        public bool IsError { get; }
+        public string? ErrorMessage { get; }
+
+        public BrainOutcome(
+            string Summary,
+            object? StructuredOutput,
+            IReadOnlyList<SideEffect> SideEffects,
+            bool IsError,
+            string? ErrorMessage)
+        {
+            this.Summary = Summary;
+            this.StructuredOutput = StructuredOutput;
+            this.SideEffects = SideEffects;
+            this.IsError = IsError;
+            this.ErrorMessage = ErrorMessage;
+        }
+    }
 }

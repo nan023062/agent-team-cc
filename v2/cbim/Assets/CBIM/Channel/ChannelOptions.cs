@@ -14,19 +14,19 @@ namespace CBIM.Channel
     ///   上层任务，Channel 自身不消费该字段，仅向下透传。</item>
     /// </list>
     /// </summary>
-    public sealed record ChannelOptions
+    public sealed class ChannelOptions
     {
         /// <summary>
         /// 本 Channel 绑定的 Agent 实例工作目录（task.Where）——MCP server 启动 /
         /// ExternalMotorCortex subprocess 工作目录均以此为锚。<b>必填</b>，由
         /// <see cref="ChannelService.OpenChannelAsync"/> 校验非空白。
         /// </summary>
-        public string WorkspaceRoot { get; init; }
+        public string WorkspaceRoot { get; set; }
 
         /// <summary>
         /// 触发本 Channel 开通的上层 Task ID（可空）——透传给
         /// <c>OpenInstanceOptions.ActivatedByTaskId</c>，最终落到 <c>Agent.ActivatedByTaskId</c>。
         /// </summary>
-        public string ActivatedByTaskId { get; init; } = null;
+        public string ActivatedByTaskId { get; set; } = null;
     }
 }

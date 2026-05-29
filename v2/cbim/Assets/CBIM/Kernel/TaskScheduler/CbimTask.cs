@@ -3,18 +3,39 @@ using System.Collections.Generic;
 using System.Linq;
 using CBIM.AgentSystem;
 
-namespace CBIM.Kernel.TaskScheduler
+namespace CBIM.TaskScheduler
 {
-    public sealed record CbimTask(
-        string TaskId,
-        Agent Who,
-        IReadOnlyList<string> Where,
-        string What,
-        string ParentTaskId = null,
-        string OriginChannel = null,
-        IReadOnlyDictionary<string, object> Params = null,
-        DateTime CreatedAt = default)
+    public sealed class CbimTask
     {
+        public string TaskId { get; }
+        public Agent Who { get; }
+        public IReadOnlyList<string> Where { get; }
+        public string What { get; }
+        public string ParentTaskId { get; }
+        public string OriginChannel { get; }
+        public IReadOnlyDictionary<string, object> Params { get; }
+        public DateTime CreatedAt { get; }
+
+        public CbimTask(
+            string TaskId,
+            Agent Who,
+            IReadOnlyList<string> Where,
+            string What,
+            string ParentTaskId = null,
+            string OriginChannel = null,
+            IReadOnlyDictionary<string, object> Params = null,
+            DateTime CreatedAt = default)
+        {
+            this.TaskId = TaskId;
+            this.Who = Who;
+            this.Where = Where;
+            this.What = What;
+            this.ParentTaskId = ParentTaskId;
+            this.OriginChannel = OriginChannel;
+            this.Params = Params;
+            this.CreatedAt = CreatedAt;
+        }
+
         public static CbimTask Create(
             Agent who,
             IEnumerable<string> where,

@@ -20,7 +20,7 @@ namespace CBIM.AgentSystem.Brain
         /// 仅 <see cref="Kind"/> = <see cref="StandardBrainKind.PrefrontalCortex"/> 时允许 true。
         /// BrainConfig 构造期验证「有且仅有一个 IsPrefrontal=true」。
         /// </summary>
-        public bool IsPrefrontal { get; init; }
+        public bool IsPrefrontal { get; set; }
 
         /// <summary>标识对应的具体 BrainBase 子类，装配期分派用。</summary>
         public StandardBrainKind Kind { get; }

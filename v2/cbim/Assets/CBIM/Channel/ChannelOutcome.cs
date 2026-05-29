@@ -13,8 +13,17 @@ namespace CBIM.Channel
     /// 子脑区的调度 / 中间产出由 PrefrontalCortex 内部 LLM × AIFunction 闭环处理，
     /// 不暴露给 Channel 调用方（薄封装铁律 + 主脑唯一通路铁律的共同体现）。</para>
     /// </summary>
-    public sealed record ChannelOutcome(
-        string ResultText,
-        bool IsError,
-        string ErrorMessage);
+    public sealed class ChannelOutcome
+    {
+        public string ResultText { get; }
+        public bool IsError { get; }
+        public string ErrorMessage { get; }
+
+        public ChannelOutcome(string resultText, bool isError, string errorMessage)
+        {
+            ResultText = resultText;
+            IsError = isError;
+            ErrorMessage = errorMessage;
+        }
+    }
 }

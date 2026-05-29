@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.AI;
-using CBIM.Kernel.TaskScheduler;
+using CBIM.TaskScheduler;
 
-namespace CBIM.Kernel.ContextProviders
+namespace CBIM.ContextProviders
 {
     /// <summary>
     /// 装配门面——一调返回当前 task 应当挂的 Microsoft <see cref="AIContextProvider"/> 列表。

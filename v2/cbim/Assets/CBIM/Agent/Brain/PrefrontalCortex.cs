@@ -34,7 +34,7 @@ namespace CBIM.AgentSystem.Brain
         public IReadOnlyList<BrainBase> CallableBrains { get; }
 
         /// <summary>结果合并策略——init-only，仅装配方可设置。</summary>
-        public PrefrontalAggregationStrategy Aggregation { get; init; } = PrefrontalAggregationStrategy.SummarizeBeforeReturn;
+        public PrefrontalAggregationStrategy Aggregation { get; set; } = PrefrontalAggregationStrategy.SummarizeBeforeReturn;
 
         public PrefrontalCortex(
             StandardBrainDescriptor descriptor,

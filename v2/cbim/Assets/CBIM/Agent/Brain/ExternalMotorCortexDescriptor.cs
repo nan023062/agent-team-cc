@@ -23,7 +23,7 @@ namespace CBIM.AgentSystem.Brain
         public IReadOnlyDictionary<string, object> AdapterConfig { get; }
 
         /// <summary>Memory 共享桥模式（默认 <see cref="MemoryShareMode.McpServer"/>）。</summary>
-        public MemoryShareMode MemoryShareMode { get; init; } = MemoryShareMode.McpServer;
+        public MemoryShareMode MemoryShareMode { get; set; } = MemoryShareMode.McpServer;
 
         public ExternalMotorCortexDescriptor(
             string brainId,

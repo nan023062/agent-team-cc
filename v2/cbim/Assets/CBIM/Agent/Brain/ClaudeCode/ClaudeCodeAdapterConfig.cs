@@ -16,30 +16,30 @@ namespace CBIM.AgentSystem.Brain.ClaudeCode
     /// <para><see cref="TranscriptDir"/> 默认相对路径，最终落在
     /// <c>{WorkspaceRoot}/{TranscriptDir}</c>；每个 job 一行 JSONL 转录文件。</para>
     /// </summary>
-    public sealed record ClaudeCodeAdapterConfig
+    public sealed class ClaudeCodeAdapterConfig
     {
         /// <summary>Claude Code CLI 可执行名/绝对路径——默认假设在 PATH 中。</summary>
-        public string CliPath { get; init; } = "claude-code";
+        public string CliPath { get; set; } = "claude-code";
 
         /// <summary>追加到 CLI 命令尾部的额外参数（在内置参数之前传入）。</summary>
-        public IReadOnlyList<string> ExtraArgs { get; init; } = Array.Empty<string>();
+        public IReadOnlyList<string> ExtraArgs { get; set; } = Array.Empty<string>();
 
         /// <summary>subprocess 整体超时——超时后 Kill 整棵进程树并返回 IsError BrainOutcome。</summary>
-        public TimeSpan Timeout { get; init; } = TimeSpan.FromMinutes(30);
+        public TimeSpan Timeout { get; set; } = TimeSpan.FromMinutes(30);
 
         /// <summary>转录文件目录（相对 <see cref="WorkspaceRoot"/>）；每个 jobId 一个 .jsonl。</summary>
-        public string TranscriptDir { get; init; } = ".cbim/external/claude-code";
+        public string TranscriptDir { get; set; } = ".cbim/external/claude-code";
 
         /// <summary>
         /// CBIM-memory-bridge-mcp 的 stdio 启动命令——task-5 装配胶水期注入；
         /// 本切片只把它写进 --mcp-config 临时文件。null/空 = 不启用 MCP 记忆桥。
         /// </summary>
-        public string? MemoryMcpEndpoint { get; init; }
+        public string? MemoryMcpEndpoint { get; set; }
 
         /// <summary>
         /// subprocess 的 WorkingDirectory——必须 = AgentInstance.TaskWhere；不允许 null/空白。
         /// </summary>
-        public string WorkspaceRoot { get; init; } = string.Empty;
+        public string WorkspaceRoot { get; set; } = string.Empty;
 
         /// <summary>
         /// 构造期校验——发现非法值即抛 <see cref="ArgumentException"/>/<see cref="ArgumentOutOfRangeException"/>。

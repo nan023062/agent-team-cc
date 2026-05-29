@@ -77,7 +77,12 @@ namespace CBIM.Memory
                 throw new ArgumentException("MemoryEntry.Id 不能为空", nameof(entry));
 
             // 规范化 null 集合 → 空集合，避免反序列化分支。
-            var normalized = entry with { Tags = entry.Tags ?? Array.Empty<string>() };
+            var normalized = new MemoryEntry(
+                entry.Id,
+                entry.Source,
+                entry.CreatedAt,
+                entry.Text,
+                entry.Tags ?? Array.Empty<string>());
 
             lock (_gate)
             {

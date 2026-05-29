@@ -11,9 +11,23 @@ namespace CBIM.AgentSystem.Brain
     /// <param name="Intent">自然语言意图——目标脑区据此推理具体动作。</param>
     /// <param name="StructuredInput">可选结构化输入（任意可序列化对象）。</param>
     /// <param name="Context">主脑当前对话上下文切片（key-value · 不为 null）。</param>
-    public sealed record BrainInvocation(
-        string CorrelationId,
-        string Intent,
-        object? StructuredInput,
-        IReadOnlyDictionary<string, object> Context);
+    public sealed class BrainInvocation
+    {
+        public string CorrelationId { get; }
+        public string Intent { get; }
+        public object? StructuredInput { get; }
+        public IReadOnlyDictionary<string, object> Context { get; }
+
+        public BrainInvocation(
+            string CorrelationId,
+            string Intent,
+            object? StructuredInput,
+            IReadOnlyDictionary<string, object> Context)
+        {
+            this.CorrelationId = CorrelationId;
+            this.Intent = Intent;
+            this.StructuredInput = StructuredInput;
+            this.Context = Context;
+        }
+    }
 }

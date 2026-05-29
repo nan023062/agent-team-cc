@@ -13,8 +13,17 @@ namespace CBIM.Channel
     /// 订阅方只看 Text 即可决定渲染样式（按前缀过滤）；
     /// 完整结构化错误信息走 <see cref="ChannelOutcome.IsError"/> + <c>ErrorMessage</c>。</para>
     /// </summary>
-    public sealed record ChannelOutputEvent(
-        string ChannelId,
-        string Text,
-        DateTimeOffset At);
+    public sealed class ChannelOutputEvent
+    {
+        public string ChannelId { get; }
+        public string Text { get; }
+        public DateTimeOffset At { get; }
+
+        public ChannelOutputEvent(string channelId, string text, DateTimeOffset at)
+        {
+            ChannelId = channelId;
+            Text = text;
+            At = at;
+        }
+    }
 }

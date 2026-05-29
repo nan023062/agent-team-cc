@@ -13,9 +13,23 @@ namespace CBIM.AgentSystem.Brain
     /// <param name="Target">受影响目标的标识——文件路径 / MCP server id / URL 等。</param>
     /// <param name="Detail">可选补充信息（diff 摘要 / HTTP 状态码等）。</param>
     /// <param name="At">副作用发生时间。用 <see cref="DateTimeOffset"/> 避开时区歧义。</param>
-    public sealed record SideEffect(
-        string Kind,
-        string Target,
-        string? Detail,
-        DateTimeOffset At);
+    public sealed class SideEffect
+    {
+        public string Kind { get; }
+        public string Target { get; }
+        public string? Detail { get; }
+        public DateTimeOffset At { get; }
+
+        public SideEffect(
+            string Kind,
+            string Target,
+            string? Detail,
+            DateTimeOffset At)
+        {
+            this.Kind = Kind;
+            this.Target = Target;
+            this.Detail = Detail;
+            this.At = At;
+        }
+    }
 }

@@ -2,7 +2,7 @@ using System;
 using Microsoft.Agents.AI.Workflows;
 using CBIM.AgentSystem;
 
-namespace CBIM.Kernel.FlowGraph.Workflows
+namespace CBIM.FlowGraph.Workflows
 {
     /// <summary>
     /// 首版 Chat 业务拓扑：classify → respond 单向直边。
