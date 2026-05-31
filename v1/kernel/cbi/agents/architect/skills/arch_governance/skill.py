@@ -7,6 +7,18 @@ SKILL: str = """\
 >
 > Output is equivalent to a leader review comment: identify issues, assess severity, give fix recommendations.
 
+## DNA Principle (review lens)
+
+Every DNA is a single module's self-description and must contain **only two things**: this module's positioning on its parent's axis, and this module's own design body (which sub-modules it cut and how they relate at the boundary). Nothing else belongs.
+
+When reviewing, watch for these violations and treat them as MUST-fix:
+
+- **Down-drill** — DNA describes a child's internals (classes, fields, dependency graphs, key decisions scoped to one child). Lift that content out and push it into the child's own `.dna/`; do not leave it in the parent.
+- **Noise** — implementation details, call timing, wiring order, completion status, future work, narrative preamble, repeated restatements. Strip it.
+- **Vague positioning** — positioning sentence does not place this module on its parent's axis. Rewrite it.
+
+Factors `#12 #19 #20 #21` and the "decision smell" warning are the concrete script / LLM checks that enforce this principle.
+
 ## Trigger Scenarios
 
 - After any module is created / updated / deprecated (quick check required)

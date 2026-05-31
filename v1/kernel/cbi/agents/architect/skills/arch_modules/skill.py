@@ -8,6 +8,23 @@ This skill has **two invocation modes**:
 1. **Execution Gate** — Coordinator dispatches the Architect as the mandatory gate for any execution task (code / feature / bugfix). The Architect performs DNA state triage and returns a **ContextPack** to the Coordinator before any Work Agent runs. See `## Execution Gate: DNA State Triage` and `## ContextPack Schema` below.
 2. **Direct CRUD** — User or Architect itself initiates module create / update / deprecate / split. See `## Project Initialization` and below.
 
+## DNA Principle (governs every CRUD decision below)
+
+A `.dna/` document is a module's **self-description** — it exists to make the module a self-contained knowledge unit, so knowledge stays layered and modules do not couple through documentation.
+
+Each DNA carries **exactly two things**:
+
+1. **Positioning** — this module's role on its parent's axis (one sentence).
+2. **Own design body** — this module's own internal organisation: which sub-modules it cut, and how those sub-modules relate at the boundary (roles, dependency direction, composition / aggregation).
+
+**Strictly forbidden in any DNA:**
+- Any sub-module's internal design — classes, fields, functions, dependency graphs inside a child belong in *that child's own* `.dna/`. Parent never drills down.
+- Implementation details, call timing, wiring order, completion status, future work, narrative preamble, repeated restatements.
+
+**Style:** terse. Pure positioning + pure own-module design body. If a CRUD operation would write content that drills into a sub-module's internals, stop and push that content into the sub-module's own `.dna/` instead.
+
+This principle is the source of the leaf-vs-parent rules, the "no Key Decision about a single child" rule, the `#19/#20/#21` script checks, and the "decision smell" warning that appear throughout this skill — they are concrete enforcements of the principle above.
+
 ## Commands
 
 ```bash
